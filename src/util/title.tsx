@@ -6,7 +6,7 @@ export const setTitle = (): void => {
   const suffix = "Incendio";
 
   useEffect(() => {
-    const host = settings?.config?.["user.ui_title"] ?? location.hostname;
+    const host = settings?.config?.["user.ui.title"] ?? location.hostname;
     document.title = `${host} | ${suffix}`;
   }, [settings?.config]);
 };
