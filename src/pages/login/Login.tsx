@@ -11,6 +11,7 @@ const Login: FC = () => {
   const { isAuthenticated, isAuthLoading } = useAuth();
   const { data: settings } = useSettings();
   const hasOidc = settings?.auth_methods?.includes(AUTH_METHOD.OIDC);
+  const hasSSOOnly = settings?.config?.["user.ui.sso_only"] == "true";
 
   if (isAuthLoading) {
     return <Spinner className="u-loader" text="Loading..." isMainComponent />;
@@ -37,9 +38,11 @@ const Login: FC = () => {
                   <Icon name="security" light />
                   <span>Login with SSO</span>
                 </a>
-                <Link to={`${ROOT_PATH}/ui/login/certificate-generate`}>
-                  <span>Set up TLS login</span>
-                </Link>
+                {!hasSSOOnly && (
+                  <Link to={`${ROOT_PATH}/ui/login/certificate-generate`}>
+                    <span>Set up TLS login</span>
+                  </Link>
+                )}
               </div>
             </>
           )}
