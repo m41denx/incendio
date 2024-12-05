@@ -41,4 +41,5 @@ export const queryKeys = {
   currentIdentity: "currentIdentity",
   peers: "peers",
   replicators: "replicators",
+  instancePreview: "instancePreview",
 };
