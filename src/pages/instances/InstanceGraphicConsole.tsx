@@ -152,7 +152,7 @@ const InstanceGraphicConsole: FC<Props> = ({
       }
       void websocketPromise.then((websocket) => websocket?.close());
     };
-  }, [instance.status]);
+  }, []);
 
   const handleFullScreen = () => {
     const container = spiceRef.current;
