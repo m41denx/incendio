@@ -6,6 +6,7 @@ import type { InstanceAndProfileFormikProps } from "types/forms/instanceAndProfi
 import CustomVolumeModal from "./CustomVolumeModal";
 import type { LxdDiskDevice } from "types/device";
 import HostPathDeviceModal from "./HostPathDeviceModal";
+import SpecialDiskModal from "./SpecialDiskModal";
 import type { LxdStorageVolume } from "types/storage";
 import type { RemoteImage } from "types/image";
 import { remoteImageToIsoDevice } from "util/formDevices";
@@ -13,7 +14,12 @@ import CustomIsoModal from "pages/images/CustomIsoModal";
 import { isIsoDiskDevice } from "util/devices";
 import type { CustomDiskDevice } from "types/formDevice";
 
-type DiskDeviceType = "custom volume" | "host path" | "choose type" | "iso";
+type DiskDeviceType =
+  | "custom volume"
+  | "host path"
+  | "special device"
+  | "choose type"
+  | "iso";
 
 interface Props {
   close: () => void;
@@ -29,6 +35,13 @@ const AttachDiskDeviceModal: FC<Props> = ({
   onFinish,
 }) => {
   const [type, setType] = useState<DiskDeviceType>("choose type");
+
+  const showSpecialDisk =
+    (formik.values.entityType == "instance" &&
+      formik.values.instanceType == "virtual-machine") ||
+    formik.values.entityType == "profile"
+      ? true
+      : false;
 
   const handleEscKey = (e: KeyboardEvent<HTMLElement>) => {
     if (e.key === "Escape") {
@@ -71,6 +84,14 @@ const AttachDiskDeviceModal: FC<Props> = ({
         return (
           <BackLink
             title="Mount host path"
+            onClick={handleGoBack}
+            linkText={CHOOSE_DISK_TYPE_TITLE}
+          />
+        );
+      case "special device":
+        return (
+          <BackLink
+            title="Attach special disk"
             onClick={handleGoBack}
             linkText={CHOOSE_DISK_TYPE_TITLE}
           />
@@ -128,6 +149,13 @@ const AttachDiskDeviceModal: FC<Props> = ({
                 }
               />
             )}
+            {showSpecialDisk && (
+              <FormLink
+                icon="file"
+                title="Special disk device"
+                onClick={() => setType("special device")}
+              />
+            )}
           </div>
         </Modal>
       )}
@@ -152,6 +180,7 @@ const AttachDiskDeviceModal: FC<Props> = ({
           title={modalTitle}
         />
       )}
+
       {type === "iso" && (
         <CustomIsoModal
           onClose={close}
@@ -159,6 +188,16 @@ const AttachDiskDeviceModal: FC<Props> = ({
           onCancel={handleGoBack}
           cancelButtonText="Back"
           backLinkText={CHOOSE_DISK_TYPE_TITLE}
+        />
+      )}
+
+      {type === "special device" && (
+        <SpecialDiskModal
+          formik={formik}
+          onFinish={onFinish}
+          onCancel={handleGoBack}
+          onClose={close}
+          title={modalTitle}
         />
       )}
     </>
