@@ -25,7 +25,6 @@ const MigrateInstanceModal: FC<Props> = ({ close, instance }) => {
     close,
     instance,
     type,
-    target,
   });
 
   const handleEscKey = (e: KeyboardEvent<HTMLElement>) => {
@@ -121,7 +120,7 @@ const MigrateInstanceModal: FC<Props> = ({ close, instance }) => {
           onSelect={setTarget}
           targetMember={target}
           onCancel={handleGoBack}
-          migrate={handleMigrate}
+          migrate={() => handleMigrate(target, "", "")}
         />
       )}
 
@@ -131,7 +130,7 @@ const MigrateInstanceModal: FC<Props> = ({ close, instance }) => {
           onSelect={setTarget}
           targetPool={target}
           onCancel={handleGoBack}
-          migrate={handleMigrate}
+          migrate={(targetMember) => handleMigrate(targetMember, target, "")}
         />
       )}
 
@@ -141,7 +140,7 @@ const MigrateInstanceModal: FC<Props> = ({ close, instance }) => {
           onSelect={setTarget}
           targetProject={target}
           onCancel={handleGoBack}
-          migrate={handleMigrate}
+          migrate={() => handleMigrate("", "", target)}
         />
       )}
     </Modal>
