@@ -1,6 +1,8 @@
 import { checkDuplicateName, type AbortControllerState } from "util/helpers";
 import type { AnyObject, TestFunction } from "yup";
 import type { LxdConfigOptionsKeys } from "types/config";
+import type { LxdSettings } from "types/server";
+import type { LxdStoragePool } from "types/storage";
 import type { FormikProps } from "formik";
 import type { StoragePoolFormValues } from "types/forms/storagePool";
 import {
@@ -146,4 +148,18 @@ export const hasSource = (
   }
 
   return driversWithSource.includes(driver);
+};
+
+export const isLocalPool = (
+  pool: LxdStoragePool | undefined,
+  settings: LxdSettings | undefined,
+) => {
+  const driverDetails = settings?.environment?.storage_supported_drivers.find(
+    (driver) => driver.Name === pool?.driver,
+  );
+
+  if (!driverDetails) {
+    return false;
+  }
+  return !driverDetails.Remote;
 };
