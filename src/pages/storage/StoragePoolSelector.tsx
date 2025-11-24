@@ -6,7 +6,6 @@ import {
   type CustomSelectOption,
 } from "@canonical/react-components";
 import type { Props as SelectProps } from "@canonical/react-components/dist/components/Select/Select";
-import { cephObject } from "util/storageOptions";
 import StoragePoolOptionLabel from "./StoragePoolOptionLabel";
 import StoragePoolOptionHeader from "./StoragePoolOptionHeader";
 import { useStoragePools } from "context/useStoragePools";
@@ -22,13 +21,13 @@ const StoragePoolSelector: FC<Props> = ({
   value,
   setValue,
   selectProps,
-  invalidDrivers = [cephObject],
+  invalidDrivers,
 }) => {
   const notify = useNotify();
   const { data: pools = [], error, isLoading } = useStoragePools();
 
   const poolsToUse = pools.filter((pool) => {
-    return !invalidDrivers.includes(pool.driver);
+    return !invalidDrivers?.includes(pool.driver);
   });
 
   useEffect(() => {
