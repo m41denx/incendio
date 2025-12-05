@@ -136,6 +136,7 @@ describe("General util functions for permissions feature", () => {
           "storage-linstor": {},
           "storage-truenas": {},
           "storage-zfs": {},
+          devices: {},
         },
         entities: {
           server: {

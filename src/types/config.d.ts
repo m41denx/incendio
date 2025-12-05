@@ -57,6 +57,13 @@ export interface LxdMetadata {
     "storage-lvmcluster": LxcConfigOptionCategories;
     "storage-linstor": LxcConfigOptionCategories;
     "storage-truenas": LxcConfigOptionCategories;
+    devices: {
+      [deviceType: string]: {
+        keys: {
+          [key: string]: LxdConfigOption;
+        }[];
+      };
+    };
   };
   entities: LxdEntityEntitlements;
 }
