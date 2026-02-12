@@ -67,7 +67,7 @@ export const getInstanceMacAddresses = (instance: LxdInstance) => {
   return hwaddrs;
 };
 
-export const getInstanceType = (instance: LxdInstance) => {
+export const getInstanceType = (instance: LxdInstance): string => {
   const label = instanceCreationTypes.find(
     (item) => item.value === instance.type,
   )?.label;
@@ -117,4 +117,22 @@ export const getFileExplorerFileURL = (
   );
 
   return `${ROOT_PATH}/1.0/instances/${encodeURIComponent(instance.name)}/files?${params.toString()}`;
+};
+
+export const instanceIncludeConfigWhenCopying = (
+  configKey: string,
+): boolean => {
+  if (configKey === "volatile.base_image") {
+    return true; // Include volatile.base_image always as it can help optimize copies.
+  }
+
+  if (configKey === "volatile.last_state.idmap") {
+    return true; // Include volatile.last_state.idmap when doing local copy to avoid needless remapping.
+  }
+
+  if (configKey.startsWith("volatile.")) {
+    return false; // Exclude all other volatile keys.
+  }
+
+  return true; // Keep all other keys.
 };
