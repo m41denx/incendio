@@ -15,6 +15,7 @@ interface Props {
   setValue: (value: string) => void;
   selectProps?: SelectProps;
   invalidDrivers?: string[];
+  project?: string;
 }
 
 const StoragePoolSelector: FC<Props> = ({
@@ -22,9 +23,10 @@ const StoragePoolSelector: FC<Props> = ({
   setValue,
   selectProps,
   invalidDrivers,
+  project,
 }) => {
   const notify = useNotify();
-  const { data: pools = [], error, isLoading } = useStoragePools();
+  const { data: pools = [], error, isLoading } = useStoragePools(true, project);
 
   const poolsToUse = pools.filter((pool) => {
     return !invalidDrivers?.includes(pool.driver);

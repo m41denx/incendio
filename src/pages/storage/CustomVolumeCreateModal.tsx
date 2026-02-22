@@ -43,7 +43,7 @@ const CustomVolumeCreateModal: FC<Props> = ({
   const { hasStorageAndProfileOperations } = useSupportedFeatures();
 
   const { data: settings } = useSettings();
-  const { data: pools = [] } = useStoragePools();
+  const { data: pools = [] } = useStoragePools(true, project);
 
   const StorageVolumeSchema = Yup.object().shape({
     name: Yup.string()
@@ -141,6 +141,7 @@ const CustomVolumeCreateModal: FC<Props> = ({
               ? ([{ server_name: instanceLocation }] as LxdClusterMember[])
               : []
           }
+          project={project}
         />
       </div>
       <footer className="p-modal__footer">

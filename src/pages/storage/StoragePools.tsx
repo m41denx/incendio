@@ -34,7 +34,7 @@ const StoragePools: FC = () => {
     return <>Missing project</>;
   }
 
-  const { data: pools = [], error, isLoading } = useStoragePools();
+  const { data: pools = [], error, isLoading } = useStoragePools(true, project);
 
   if (error) {
     notify.failure("Loading storage pools failed", error);
