@@ -1,3 +1,4 @@
+import { useProjects } from "context/useProjects";
 import type { LxdIdentity, LxdPermission } from "types/permissions";
 import type { LxdImage } from "types/image";
 import {
@@ -380,4 +381,16 @@ export const getResourceOptionColumns = (type: string) => {
   };
 
   return resourceOptionColumns[type] ?? resourceOptionColumns.default;
+};
+
+// isAdmin checks whether the user has admin privileges.
+// A user is considered an admin if their default project is set.
+export const isAdmin = (): boolean => {
+  const { data: projects = [], isLoading: projectsLoading } = useProjects();
+
+  if (projectsLoading) {
+    return false;
+  }
+
+  return projects.some((p) => p.name === "default");
 };

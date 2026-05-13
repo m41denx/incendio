@@ -36,6 +36,7 @@ import { AUTH_METHOD, authIcon } from "util/authentication";
 import DocLink from "components/DocLink";
 import AuthenticationTlsStepper from "./AuthenticationTlsStepper";
 import { ALL_PROJECTS } from "util/projects";
+import { isAdmin } from "util/permissions";
 
 const initialiseOpenNavMenus = (location: Location) => {
   const openPermissions = location.pathname.includes("/permissions/");
@@ -109,6 +110,7 @@ const Navigation: FC = () => {
   const isClustered = useIsClustered();
   const isOidc = authMethod === AUTH_METHOD.OIDC;
   const isBearerToken = authMethod === AUTH_METHOD.BEARER;
+  const hasAdminPermissions = isAdmin();
 
   const { data: isRunningIncusOS = false } = useQuery({
     queryKey: [queryKeys.osCheck],
@@ -728,7 +730,7 @@ const Navigation: FC = () => {
                       </SideNavigationItem>
                     </>
                   )}
-                  {isAuthenticated && isRunningIncusOS && (
+                  {isAuthenticated && isRunningIncusOS && hasAdminPermissions && (
                     <>
                       <hr
                         className={classnames("navigation-hr", {
