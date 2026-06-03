@@ -90,6 +90,7 @@ const ProfileList = lazy(async () => import("pages/profiles/ProfileList"));
 const ProjectConfig = lazy(
   async () => import("pages/projects/ProjectConfiguration"),
 );
+const ProjectUsage = lazy(async () => import("pages/projects/ProjectUsage"));
 const ProtectedRoute = lazy(async () => import("components/ProtectedRoute"));
 const ReplicatorDetail = lazy(
   async () => import("pages/cluster/ReplicatorDetail"),
@@ -441,6 +442,14 @@ const App: FC = () => {
           element={
             <ProtectedRoute
               outlet={<ProjectLoader outlet={<ProjectConfig />} />}
+            />
+          }
+        />
+        <Route
+          path={`${ROOT_PATH}/ui/project/:project/usage`}
+          element={
+            <ProtectedRoute
+              outlet={<ProjectLoader outlet={<ProjectUsage />} />}
             />
           }
         />

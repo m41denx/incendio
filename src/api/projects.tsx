@@ -1,5 +1,9 @@
 import { handleEtagResponse, handleResponse } from "util/helpers";
-import type { LxdProject, ProjectReplicaMode } from "types/project";
+import type {
+  LxdProject,
+  ProjectReplicaMode,
+  ProjectState,
+} from "types/project";
 import type { LxdApiResponse } from "types/apiResponse";
 import type { LxdOperationResponse } from "types/operation";
 import { addEntitlements } from "util/entitlements/api";
@@ -55,6 +59,18 @@ export const fetchProject = async (
     .then(handleEtagResponse)
     .then((data) => {
       return data as LxdProject;
+    });
+};
+
+export const fetchProjectState = async (
+  name: string,
+): Promise<ProjectState> => {
+  return fetch(
+    `${ROOT_PATH}/1.0/projects/${encodeURIComponent(name)}/state`,
+  )
+    .then(handleResponse)
+    .then((data: LxdApiResponse<ProjectState>) => {
+      return data.metadata;
     });
 };
 

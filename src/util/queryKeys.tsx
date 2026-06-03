@@ -42,4 +42,5 @@ export const queryKeys = {
   peers: "peers",
   replicators: "replicators",
   instancePreview: "instancePreview",
+  projectUsage: "project-usage",
 };
