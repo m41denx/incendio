@@ -125,6 +125,7 @@ $border-thin: 1px solid $colors--theme--border-low-contrast !default;
 @import "login";
 @import "meter";
 @import "migrate_instance";
+@import "minimal_console";
 @import "modified_actions";
 @import "network_default_acl_selector";
 @import "network_device_form";

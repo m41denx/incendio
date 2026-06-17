@@ -1,0 +1,25 @@
+.minimal-console {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  padding: $spv--large $sph--large;
+
+  .minimal-console-controls {
+    align-items: center;
+    column-gap: $sph--large;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    margin-bottom: $spv--large;
+
+    .actions-list {
+      margin-bottom: 0;
+    }
+  }
+
+  .minimal-console-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}

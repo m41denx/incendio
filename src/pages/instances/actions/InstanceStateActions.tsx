@@ -13,9 +13,14 @@ import { isClusteredServer } from "util/settings";
 interface Props {
   instance: LxdInstance;
   className?: string;
+  hideMigrate?: boolean;
 }
 
-const InstanceStateActions: FC<Props> = ({ instance, className }) => {
+const InstanceStateActions: FC<Props> = ({
+  instance,
+  className,
+  hideMigrate,
+}) => {
   const { data: settings } = useSettings();
   const isClustered = isClusteredServer(settings);
   const items = [
@@ -25,7 +30,7 @@ const InstanceStateActions: FC<Props> = ({ instance, className }) => {
     <StopInstanceBtn key="stop" instance={instance} />,
   ];
 
-  if (isClustered) {
+  if (isClustered && !hideMigrate) {
     items.push(<MigrateInstanceBtn key="migrate" instance={instance} />)
   }
 
