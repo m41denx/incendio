@@ -7,14 +7,17 @@ import {
   Notification,
   RadioInput,
   useNotify,
+  usePortal,
 } from "@canonical/react-components";
 import InstanceGraphicConsole from "./InstanceGraphicConsole";
 import type { LxdInstance } from "types/instance";
 import { LxdOperation } from "types/operation";
 import InstanceTextConsole from "./InstanceTextConsole";
+import InstancePreview from "./InstancePreview";
 import { useInstanceStart } from "util/instanceStart";
 import AttachIsoBtn from "pages/instances/actions/AttachIsoBtn";
 import NotificationRow from "components/NotificationRow";
+import ConsoleConfirmation from "components/forms/ConsoleConfirmation";
 import { useSupportedFeatures } from "context/useSupportedFeatures";
 import { useInstanceEntitlements } from "util/entitlements/instances";
 import { isInstanceRunning } from "util/instanceStatus";
@@ -38,7 +41,9 @@ const InstanceConsole: FC<Props> = ({ instance }) => {
 
   const isRunning = isInstanceRunning(instance);
 
-  const [attemptConnection, setAttemptConnection] = useState(isRunning);
+  const [attemptConnection, setAttemptConnection] = useState({"attempt": isRunning, "force": false});
+  const [showPreview, setShowPreview] = useState(false);
+  const { openPortal, closePortal, isOpen, Portal } = usePortal();
   const { operations, isFetching } = useOperations();
   const lastOp = useRef({"restart": "", "start": "", "stop":""});
   const [showConnectBtn, setShowConnectBtn] = useState(false);
@@ -58,10 +63,27 @@ const InstanceConsole: FC<Props> = ({ instance }) => {
 
   useEffect(clearErrorOnStop, [instance.status, notify.notification]);
 
+  const onPreviewFailure = (title: string, e: unknown, message?: string) => {
+    notify.failure(title, e);
+  };
+
   const onFailure = (title: string, e: unknown, message?: string) => {
-    notify.failure(title, e, message);
     setShowConnectBtn(true);
-    setAttemptConnection(false);
+    setShowPreview(true);
+    setAttemptConnection({"attempt": false, "force": false});
+    if (hasActiveSession(e instanceof Error ? e.message : String(e))) {
+      openPortal();
+    } else {
+      notify.failure(title, e, message);
+    }
+  };
+
+  const hasActiveSession = (e: string) => {
+    if (!e) {
+      return false;
+    }
+
+    return e.toLowerCase().includes("this console is already connected. force is required to take it over");
   };
 
   const showNotRunningInfo = () => {
@@ -77,7 +99,15 @@ const InstanceConsole: FC<Props> = ({ instance }) => {
 
   const handleConnection = () => {
     setShowConnectBtn(false);
-    setAttemptConnection(true);
+    setShowPreview(false);
+    setAttemptConnection({"attempt": true, "force": false});
+  };
+
+  const handleConnectionConfirm = () => {
+    closePortal();
+    setShowConnectBtn(false);
+    setShowPreview(false);
+    setAttemptConnection({"attempt": true, "force": true});
   };
 
   const onChildMount = (childHandleFullScreen: () => void) => {
@@ -88,7 +118,8 @@ const InstanceConsole: FC<Props> = ({ instance }) => {
     notify.clear();
     setGraphic(isGraphic);
     setShowConnectBtn(false);
-    setAttemptConnection(true);
+    setShowPreview(false);
+    setAttemptConnection({"attempt": true, "force": false});
   };
 
   const { handleStart, isLoading } = useInstanceStart(instance);
@@ -106,18 +137,18 @@ const InstanceConsole: FC<Props> = ({ instance }) => {
     let restartOp = findOperation(instance, operations, "Restarting instance");
 
     if (restartOp) {
-      if (restartOp.status == "Success" && lastOp.current["restart"] != restartOp.created_at && attemptConnection) {
+      if (restartOp.status == "Success" && lastOp.current["restart"] != restartOp.created_at && attemptConnection["attempt"]) {
         // Reconnect console if restart operation was detected.
         lastOp.current["restart"] = restartOp.created_at;
-        setAttemptConnection(false);
-        setTimeout(() => {setAttemptConnection(true);}, 2000);
+        setAttemptConnection({"attempt": false, "force": false});
+        setTimeout(() => {setAttemptConnection({"attempt": true, "force": false});}, 2000);
       }
     }
 
     let startOp = findOperation(instance, operations, "Starting instance");
     if (startOp) {
       // Disconect console if start operation was detected.
-      setAttemptConnection(false);
+      setAttemptConnection({"attempt": false, "force": false});
       if (lastOp.current["start"] != startOp.created_at && startOp.status == "Success") {
         setShowConnectBtn(true);
         lastOp.current["start"] = startOp.created_at;
@@ -127,7 +158,7 @@ const InstanceConsole: FC<Props> = ({ instance }) => {
     let stopOp = findOperation(instance, operations, "Stopping instance");
     if (stopOp) {
       // Disconect console if stop operation was detected.
-      setAttemptConnection(false);
+      setAttemptConnection({"attempt": false, "force": false});
       if (stopOp.status == "Success" && lastOp.current["stop"] != stopOp.created_at) {
         setShowConnectBtn(false);
         lastOp.current["stop"] = stopOp.created_at;
@@ -226,21 +257,34 @@ const InstanceConsole: FC<Props> = ({ instance }) => {
           </ActionButton>
         </EmptyState>
       )}
-      {isGraphic && attemptConnection && (
+      {isGraphic && attemptConnection["attempt"] && (
         <div className="spice-wrapper">
           <InstanceGraphicConsole
             instance={instance}
+            force={attemptConnection["force"]}
             onMount={onChildMount}
             onFailure={onFailure}
           />
         </div>
       )}
-      {!isGraphic && attemptConnection && (
+      {isGraphic && showPreview && (
+        <div style={{ textAlign: "center"}}>
+          Read-only view
+          <InstancePreview instance={instance} refetch={true} onFailure={onPreviewFailure} />
+        </div>
+      )}
+      {!isGraphic && attemptConnection["attempt"] && (
         <InstanceTextConsole
           instance={instance}
+          force={attemptConnection["force"]}
           onFailure={onFailure}
           showNotRunningInfo={showNotRunningInfo}
         />
+      )}
+      {isOpen && (
+        <Portal>
+          <ConsoleConfirmation onConfirm={handleConnectionConfirm} close={closePortal} />
+        </Portal>
       )}
     </div>
   );

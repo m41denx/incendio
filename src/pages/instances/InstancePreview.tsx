@@ -7,27 +7,36 @@ import { LxdInstance } from "types/instance";
 
 interface Props {
     instance: LxdInstance;
+    refetch: boolean;
     onFailure: (title: string, e: unknown) => void;
 }
 
-const InstancePreview: FC<Props> = ({ instance, onFailure }) => {
+const InstancePreview: FC<Props> = ({ instance, refetch, onFailure }) => {
+
+    const queryOptions = refetch
+      ? {
+          queryKey: [queryKeys.instancePreview, instance.project, instance.name],
+          queryFn: () => fetchInstancePreview(instance),
+          refetchInterval: 5 * 1000, // 5s
+        }
+      : {
+          queryKey: [queryKeys.instancePreview, instance.project, instance.name],
+          queryFn: () => fetchInstancePreview(instance),
+          staleTime: 10 * 1000, // 10s
+        };
 
     const {
     data: imgData,
     error,
     isLoading,
-  } = useQuery({
-    queryKey: [queryKeys.instancePreview, instance.project, instance.name],
-    queryFn: () => fetchInstancePreview(instance),
-    staleTime: 10 * 1000, // 10s
-  });
+  } = useQuery(queryOptions);
 
   return (
     <>
       {isLoading ? (
         <Spinner className="u-loader" text="Loading instance preview..." isMainComponent />
       ) : (
-        <img src={imgData} />
+        <img src={imgData} style={{ margin: "0 auto", display: "block"}} />
       )}
     </>
   );

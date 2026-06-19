@@ -471,6 +471,7 @@ export const connectInstanceExec = async (
 export const connectInstanceVga = async (
   name: string,
   project: string,
+  force: boolean,
 ): Promise<LxdTerminal> => {
   const params = new URLSearchParams();
   params.set("project", project);
@@ -485,7 +486,7 @@ export const connectInstanceVga = async (
       },
       body: JSON.stringify({
         type: "vga",
-        force: true,
+        force: force,
         width: 0,
         height: 0,
       }),
@@ -500,6 +501,7 @@ export const connectInstanceVga = async (
 export const connectInstanceConsole = async (
   name: string,
   project: string,
+  force: boolean,
 ): Promise<LxdTerminal> => {
   const params = new URLSearchParams();
   params.set("project", project);
@@ -515,7 +517,7 @@ export const connectInstanceConsole = async (
       body: JSON.stringify({
         "wait-for-websocket": true,
         type: "console",
-        force: true,
+        force: force,
       }),
     },
   )

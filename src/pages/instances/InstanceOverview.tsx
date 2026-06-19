@@ -144,7 +144,11 @@ const InstanceOverview: FC<Props> = ({ instance }) => {
             <h2 className="p-heading--5">Preview</h2>
           </Col>
           <Col size={4}>
-            <InstancePreview instance={instance} onFailure={onFailure}/>
+            <InstancePreview
+              instance={instance}
+              refetch={false}
+              onFailure={onFailure}
+            />
           </Col>
           <Col size={3}>
           </Col>

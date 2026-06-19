@@ -25,12 +25,14 @@ interface SpiceWheelEvent extends CustomEvent {
 
 interface Props {
   instance: LxdInstance;
+  force: boolean;
   onMount: (handler: () => void) => void;
   onFailure: (title: string, e: unknown, message?: string) => void;
 }
 
 const InstanceGraphicConsole: FC<Props> = ({
   instance,
+  force,
   onMount,
   onFailure,
 }) => {
@@ -62,7 +64,7 @@ const InstanceGraphicConsole: FC<Props> = ({
     SpiceHtml5.handle_resize();
   };
 
-  const openVgaConsole = async () => {
+  const openVgaConsole = async (force: boolean) => {
     if (!name) {
       onFailure("Missing name", new Error());
       return;
@@ -73,7 +75,7 @@ const InstanceGraphicConsole: FC<Props> = ({
     }
 
     setVgaLoading(true);
-    const result = await connectInstanceVga(name, project).catch((e) => {
+    const result = await connectInstanceVga(name, project, force).catch((e) => {
       setVgaLoading(false);
       if (isRunning) {
         onFailure("Connection failed", e);
@@ -143,7 +145,7 @@ const InstanceGraphicConsole: FC<Props> = ({
 
   useEffect(() => {
     notify.clear();
-    const websocketPromise = openVgaConsole();
+    const websocketPromise = openVgaConsole(force);
     return () => {
       try {
         window.spice_connection?.stop();
