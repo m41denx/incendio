@@ -137,10 +137,11 @@ const InstanceConsole: FC<Props> = ({ instance }) => {
     let restartOp = findOperation(instance, operations, "Restarting instance");
 
     if (restartOp) {
-      if (restartOp.status == "Success" && lastOp.current["restart"] != restartOp.created_at && attemptConnection["attempt"]) {
+      if (restartOp.status == "Success" && lastOp.current["restart"] != restartOp.created_at) {
         // Reconnect console if restart operation was detected.
         lastOp.current["restart"] = restartOp.created_at;
         setAttemptConnection({"attempt": false, "force": false});
+        setShowPreview(false);
         setTimeout(() => {setAttemptConnection({"attempt": true, "force": false});}, 2000);
       }
     }
@@ -148,10 +149,11 @@ const InstanceConsole: FC<Props> = ({ instance }) => {
     let startOp = findOperation(instance, operations, "Starting instance");
     if (startOp) {
       // Disconect console if start operation was detected.
-      setAttemptConnection({"attempt": false, "force": false});
       if (lastOp.current["start"] != startOp.created_at && startOp.status == "Success") {
-        setShowConnectBtn(true);
         lastOp.current["start"] = startOp.created_at;
+        setAttemptConnection({"attempt": false, "force": false});
+        setShowPreview(false);
+        setTimeout(() => {setAttemptConnection({"attempt": true, "force": false});}, 2000);
       }
     }
 
@@ -161,6 +163,7 @@ const InstanceConsole: FC<Props> = ({ instance }) => {
       setAttemptConnection({"attempt": false, "force": false});
       if (stopOp.status == "Success" && lastOp.current["stop"] != stopOp.created_at) {
         setShowConnectBtn(false);
+        setShowPreview(false);
         lastOp.current["stop"] = stopOp.created_at;
       }
     }
