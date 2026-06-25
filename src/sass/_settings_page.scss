@@ -47,6 +47,17 @@
     padding-bottom: 0;
   }
 
+  .image-server-row {
+    align-items: flex-end;
+    display: flex;
+    gap: $sph--small;
+
+    .p-form__group {
+      flex-grow: 1;
+      margin-bottom: 0;
+    }
+  }
+
   .cluster-specific-value-wrapper {
     align-items: center;
 

@@ -10,6 +10,7 @@ import { loadRemoteImagesLegacy } from "util/imageLegacy";
 import { loadImagesFromAllRegistries } from "util/imageRegistry";
 import { useSupportedFeatures } from "context/useSupportedFeatures";
 import { useCurrentProject } from "context/useCurrentProject";
+import { IMAGE_SERVERS_KEY, parseImageServers } from "util/imageServers";
 
 export const useLocalImagesInProject = (
   project: string,
@@ -36,12 +37,20 @@ export const useImagesInAllProjects = (
 
 export const useRemoteImages = (): UseQueryResult<RemoteImagesResult> => {
   const { isFineGrained } = useAuth();
-  const { hasImageRegistries } = useSupportedFeatures();
+  const { hasImageRegistries, settings } = useSupportedFeatures();
   const { project } = useCurrentProject();
 
+  const userServersValue = settings?.config?.[IMAGE_SERVERS_KEY];
+  const userServers = parseImageServers(userServersValue);
+
   const legacyResult = useQuery({
-    queryKey: [queryKeys.images, "selector", hasImageRegistries],
-    queryFn: async () => loadRemoteImagesLegacy(),
+    queryKey: [
+      queryKeys.images,
+      "selector",
+      hasImageRegistries,
+      userServersValue,
+    ],
+    queryFn: async () => loadRemoteImagesLegacy(userServers),
     enabled: !hasImageRegistries,
   });
 

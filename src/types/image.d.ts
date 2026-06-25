@@ -89,6 +89,7 @@ export interface RemoteImage {
   isLts?: boolean;
   registryBuiltIn?: boolean;
   registryName?: string;
+  serverName?: string;
   title?: string;
 }
 
