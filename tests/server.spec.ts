@@ -63,7 +63,7 @@ test("only user server setting available for lxd v5.0/edge", async ({
   await page.waitForSelector(`text=Get more server settings`);
   const allSettingRows = await page.locator("#settings-table tbody tr").all();
 
-  // only 4 user settings available (user.ui_title, user.ui_grafana_base_url, user.ui_theme, user.ui_current_project) + 1 "Add key" button.
+  // only 4 user settings available (user.ui_title, user.ui.grafana.base_url, user.ui.theme, user.ui.current_project) + 1 "Add key" button.
   expect(allSettingRows.length).toEqual(5);
 });
 

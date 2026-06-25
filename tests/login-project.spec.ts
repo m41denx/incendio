@@ -8,7 +8,7 @@ import {
 import { visitServerSettings } from "./helpers/server";
 import { gotoURL } from "./helpers/navigate";
 
-const SETTING_NAME = "user.ui_login_project";
+const SETTING_NAME = "user.ui.default_project";
 
 test("opening /ui redirects to the configured login project", async ({
   page,
@@ -18,7 +18,7 @@ test("opening /ui redirects to the configured login project", async ({
 
   await visitServerSettings(page);
   const settingRow = page.getByRole("row").filter({
-    has: page.getByText("user.ui_login_project"),
+    has: page.getByText("user.ui.default_project"),
   });
   await settingRow.getByRole("button").click();
   await settingRow

@@ -6,7 +6,7 @@ export const buildGrafanaUrl = (
   settings?: LxdSettings,
 ): string => {
   const baseUrl =
-    settings?.config?.["user.ui_grafana_base_url"] ??
+    settings?.config?.["user.ui.grafana.base_url"] ??
     settings?.config?.["user.grafana_base_url"] ??
     "";
   if (!baseUrl) {

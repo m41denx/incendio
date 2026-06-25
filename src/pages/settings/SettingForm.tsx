@@ -51,8 +51,8 @@ const SettingForm: FC<Props> = ({
   const isLokiAuthPassword = configField.key === "loki.auth.password";
   const isSecret = isTrustPassword || isLokiAuthPassword;
   const isClusteredInput = isClustered && configField.scope === "local";
-  const isThemeSelector = configField.key === "user.ui_theme";
-  const isLoginProjectSelector = configField.key === "user.ui_login_project";
+  const isThemeSelector = configField.key === "user.ui.theme";
+  const isLoginProjectSelector = configField.key === "user.ui.default_project";
 
   const settingLabel = (
     <ResourceLabel bold type="setting" value={configField.key} />
