@@ -3,14 +3,14 @@
 
   .xterm {
     .xterm-viewport {
-      background-color: #300a24;
+      background-color: #292c2f;
       overflow: hidden;
     }
 
     /* Temporary CSS fix for the mismatching background problem, to be removed
     once https://github.com/xtermjs/xterm.js/issues/5781 is resolved */
     .xterm-scrollable-element {
-      background-color: #300a24 !important;
+      background-color: #292c2f !important;
     }
   }
 }
