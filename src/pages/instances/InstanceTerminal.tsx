@@ -18,6 +18,7 @@ import {
   Spinner,
   Button,
   failure,
+  useNotify,
   type NotificationType,
 } from "@canonical/react-components";
 import { useOperations } from "context/operationsProvider";
@@ -45,6 +46,7 @@ interface Props {
 }
 
 const InstanceTerminal: FC<Props> = ({ instance, refreshInstance }) => {
+  const notify = useNotify();
   const { name, project } = useParams<{
     name: string;
     project: string;
