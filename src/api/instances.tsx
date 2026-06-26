@@ -18,6 +18,7 @@ import type { LxdOperationResponse } from "types/operation";
 import type { EventQueue } from "context/eventQueue";
 import axios, { type AxiosResponse } from "axios";
 import type { UploadState } from "types/upload";
+import type { InstanceMigrationBundle } from "types/migration";
 import { addEntitlements } from "util/entitlements/api";
 import { addTarget } from "util/target";
 import { getInstanceDetailUrl } from "util/instances";
@@ -191,6 +192,77 @@ export const migrateInstance = async (
       }),
     },
   )
+    .then(handleResponse)
+    .then((data: LxdOperationResponse) => {
+      return data;
+    });
+};
+
+// Cross-cluster migration, source side: start a migration operation without a
+// target. The returned websocket operation stays open waiting for a remote
+// server to connect.
+export const startInstanceMigration = async (
+  instance: LxdInstance,
+): Promise<LxdOperationResponse> => {
+  const params = new URLSearchParams();
+  params.set("project", instance.project);
+
+  return fetch(
+    `${ROOT_PATH}/1.0/instances/${encodeURIComponent(instance.name)}?${params.toString()}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        migration: true,
+        live:
+          instance.type === "virtual-machine" && instance.status === "Running",
+      }),
+    },
+  )
+    .then(handleResponse)
+    .then((data: LxdOperationResponse) => {
+      return data;
+    });
+};
+
+// Cross-cluster migration, target side: create a new instance by pulling from
+// the source migration operation described in the bundle.
+export const createInstanceFromMigration = async (
+  bundle: InstanceMigrationBundle,
+  project: string,
+  name: string,
+): Promise<LxdOperationResponse> => {
+  const params = new URLSearchParams();
+  params.set("project", project);
+
+  const operationUrl = `https://${bundle.addresses[0]}${bundle.operation}`;
+
+  return fetch(`${ROOT_PATH}/1.0/instances?${params.toString()}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      name,
+      type: bundle.instanceType,
+      architecture: bundle.architecture,
+      config: bundle.config,
+      devices: bundle.devices,
+      profiles: bundle.profiles,
+      ephemeral: bundle.ephemeral,
+      description: bundle.description,
+      source: {
+        type: "migration",
+        mode: "pull",
+        operation: operationUrl,
+        certificate: bundle.certificate,
+        secrets: bundle.secrets,
+        live: bundle.live,
+      },
+    }),
+  })
     .then(handleResponse)
     .then((data: LxdOperationResponse) => {
       return data;

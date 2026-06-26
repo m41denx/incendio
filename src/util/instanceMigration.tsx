@@ -18,6 +18,7 @@ export type MigrationType =
   | "cluster member"
   | "root storage pool"
   | "project"
+  | "remote cluster"
   | "";
 
 interface Props {

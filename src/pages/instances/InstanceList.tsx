@@ -28,6 +28,7 @@ import SelectableMainTable from "components/SelectableMainTable";
 import InstanceBulkActions from "pages/instances/actions/InstanceBulkActions";
 import { getIpAddresses, sortIpv6Addresses } from "util/networks";
 import InstanceBulkDelete from "pages/instances/actions/InstanceBulkDelete";
+import ReceiveMigrationBtn from "pages/instances/actions/ReceiveMigrationBtn";
 import InstanceSearchFilter from "./InstanceSearchFilter";
 import { enrichStatuses, type InstanceFilters } from "util/instanceFilter";
 import { fetchOperations } from "api/operations";
@@ -699,6 +700,10 @@ const InstanceList: FC = () => {
             </PageHeader.Left>
             {hasInstances && selectedNames.length === 0 && (
               <PageHeader.BaseActions>
+                <ReceiveMigrationBtn
+                  project={projectForCreationName}
+                  isSmallScreen={isSmallScreen}
+                />
                 <Button
                   appearance="positive"
                   className="u-float-right u-no-margin--bottom"
@@ -834,6 +839,7 @@ const InstanceList: FC = () => {
                 >
                   Create instance
                 </Button>
+                <ReceiveMigrationBtn project={projectForCreationName} />
               </EmptyState>
             )}
           </Col>

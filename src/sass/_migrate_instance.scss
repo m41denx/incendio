@@ -42,6 +42,23 @@
     }
   }
 
+  .migrate-instance-remote {
+    align-items: flex-start;
+    display: flex;
+    flex-direction: column;
+    gap: $spv--small;
+
+    .p-form,
+    .p-form__group,
+    .migration-code {
+      width: 100%;
+    }
+
+    @include large {
+      min-width: 45rem;
+    }
+  }
+
   .migrate-instance-name {
     display: inline;
     max-width: 20rem;

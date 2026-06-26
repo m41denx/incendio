@@ -10,6 +10,7 @@ import {
   type MigrationType,
 } from "util/instanceMigration";
 import InstanceProjectMigration from "pages/instances/InstanceProjectMigration";
+import InstanceRemoteClusterMigration from "pages/instances/InstanceRemoteClusterMigration";
 import { useIsClustered } from "context/useIsClustered";
 
 interface Props {
@@ -47,11 +48,16 @@ const MigrateInstanceModal: FC<Props> = ({ close, instance }) => {
     }
   };
 
-  const selectStepTitle = (
-    <>
-      Choose {type} for instance <strong>{instance.name}</strong>
-    </>
-  );
+  const selectStepTitle =
+    type === "remote cluster" ? (
+      <>
+        Migrate instance <strong>{instance.name}</strong> to a remote cluster
+      </>
+    ) : (
+      <>
+        Choose {type} for instance <strong>{instance.name}</strong>
+      </>
+    );
 
   const modalTitle = !type ? (
     "Choose migration method"
@@ -111,6 +117,13 @@ const MigrateInstanceModal: FC<Props> = ({ close, instance }) => {
               setType("project");
             }}
           />
+          <FormLink
+            icon="machines"
+            title="Migrate instance to a remote cluster"
+            onClick={() => {
+              setType("remote cluster");
+            }}
+          />
         </div>
       )}
 
@@ -141,6 +154,13 @@ const MigrateInstanceModal: FC<Props> = ({ close, instance }) => {
           targetProject={target}
           onCancel={handleGoBack}
           migrate={() => handleMigrate("", "", target)}
+        />
+      )}
+
+      {type === "remote cluster" && (
+        <InstanceRemoteClusterMigration
+          instance={instance}
+          onCancel={handleGoBack}
         />
       )}
     </Modal>
