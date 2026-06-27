@@ -13,7 +13,6 @@ import ConfigurationTable from "components/ConfigurationTable";
 import { getConfigurationRow } from "components/ConfigurationRow";
 import DiskSizeSelector from "components/forms/DiskSizeSelector";
 import { optionTrueFalse } from "util/options";
-import ClusterMemberSelector from "pages/cluster/ClusterMemberSelector";
 import StoragePoolSelector from "pages/storage/StoragePoolSelector";
 import ScrollableForm from "components/ScrollableForm";
 import { ensureEditMode } from "util/editMode";
@@ -32,7 +31,6 @@ interface Props {
   clusterMembers?: LxdClusterMember[];
   pools?: LxdStoragePool[];
   settings?: LxdSettings;
-  showClusterMember: boolean;
 }
 
 const StorageVolumeFormMain: FC<Props> = ({
@@ -41,15 +39,10 @@ const StorageVolumeFormMain: FC<Props> = ({
   clusterMembers = [],
   pools = [],
   settings,
-  showClusterMember,
 }) => {
   const pool = pools.find((item) => item.name === formik.values.pool);
   const poolDriver = pool?.driver;
   const isCreating = formik.values.isCreating;
-
-  const setMember = formik.values.isCreating
-    ? (member: string) => void formik.setFieldValue("clusterMember", member)
-    : undefined;
 
   return (
     <ScrollableForm>
@@ -138,7 +131,7 @@ const StorageVolumeFormMain: FC<Props> = ({
             }
           />
           <Select
-            {...getFormProps(formik, "content_type")}
+            {...getStorageVolumeFormProps(formik, "content_type")}
             options={[
               {
                 label: "filesystem",
@@ -167,16 +160,6 @@ const StorageVolumeFormMain: FC<Props> = ({
             }}
             disabled={!formik.values.isCreating}
           />
-          {showClusterMember && (
-            <ClusterMemberSelector
-              {...getFormProps(formik, "clusterMember")}
-              id="clusterMember"
-              label="Cluster member"
-              value={formik.values.clusterMember}
-              setMember={setMember}
-              disabled={!formik.values.isCreating}
-            />
-          )}
         </Col>
       </Row>
       {formik.values.content_type === "filesystem" && (

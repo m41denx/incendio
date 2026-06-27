@@ -141,7 +141,6 @@ const CustomVolumeCreateModal: FC<Props> = ({
               ? ([{ server_name: instanceLocation }] as LxdClusterMember[])
               : []
           }
-          showClusterMember={false}
         />
       </div>
       <footer className="p-modal__footer">
