@@ -48,7 +48,12 @@ export const parseDevices = (devices: LxdDevices): FormDevice[] => {
             parent: item.parent,
             nictype: item.nictype,
             type: "nic",
-          };
+            "security.acls": item["security.acls"],
+            "security.acls.default.egress.action":
+              item["security.acls.default.egress.action"],
+            "security.acls.default.ingress.action":
+              item["security.acls.default.ingress.action"],
+            };
         }
 
         return {
