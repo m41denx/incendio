@@ -257,7 +257,7 @@ const NetworkDevicePanel: FC<Props> = ({
         "security.acls.default.ingress.action":
           values.security_acls_default_ingress_action || undefined,
         parent: values.parent,
-        nictype: parent ? "bridged" : "",
+        nictype: values.parent ? "bridged" : "",
       };
 
       const originalDeviceName = deviceName;
