@@ -41,6 +41,10 @@ const InstanceCreateDetailsForm: FC<Props> = ({
 
     if (!image) return "";
 
+    if (image.protocol === "oci") {
+      return `${image.aliases.split(",")[0]}`;
+    }
+
     if (image.variant?.toLocaleLowerCase().includes("desktop")) {
       return `${image.os} ${image.release} ${image.aliases.split(",")[0]}`;
     }

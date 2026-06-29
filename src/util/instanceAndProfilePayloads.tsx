@@ -328,11 +328,10 @@ const getInstanceSource = (
     };
   }
 
-  // legacy image from hardcoded remote
   return {
     alias: values.image?.aliases.split(",")[0],
     mode: "pull",
-    protocol: "simplestreams",
+    protocol: values.image?.protocol ? values.image?.protocol : "simplestreams",
     server: values.image?.server,
     type: "image",
   };
