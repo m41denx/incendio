@@ -28,6 +28,7 @@ import SelectableMainTable from "components/SelectableMainTable";
 import InstanceBulkActions from "pages/instances/actions/InstanceBulkActions";
 import { getIpAddresses, sortIpv6Addresses } from "util/networks";
 import InstanceBulkDelete from "pages/instances/actions/InstanceBulkDelete";
+import MigrateInstanceBulkBtn from "pages/instances/actions/MigrateInstanceBulkBtn";
 import ReceiveMigrationBtn from "pages/instances/actions/ReceiveMigrationBtn";
 import InstanceSearchFilter from "./InstanceSearchFilter";
 import { enrichStatuses, type InstanceFilters } from "util/instanceFilter";
@@ -697,6 +698,13 @@ const InstanceList: FC = () => {
                     onStart={() => {
                       setProcessingNames(selectedNames);
                     }}
+                    onFinish={() => {
+                      setProcessingNames([]);
+                    }}
+                  />
+                  <MigrateInstanceBulkBtn
+                    instances={selectedInstances}
+                    onStart={setProcessingNames}
                     onFinish={() => {
                       setProcessingNames([]);
                     }}

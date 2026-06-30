@@ -198,6 +198,46 @@ export const migrateInstance = async (
     });
 };
 
+export const migrateInstanceBulk = async (
+  instances: LxdInstance[],
+  target: string,
+  pool: string,
+  targetProject: string,
+  eventQueue: EventQueue,
+): Promise<BulkOperationResult[]> => {
+  const results: BulkOperationResult[] = [];
+  return new Promise((resolve, reject) => {
+    Promise.allSettled(
+      instances.map(async (instance) => {
+        const item: BulkOperationItem = {
+          name: instance.name,
+          type: "instance",
+          href: getInstanceDetailUrl(instance.name, instance.project),
+        };
+        await migrateInstance(instance, target, pool, targetProject)
+          .then((operation) => {
+            eventQueue.set(
+              operation.metadata.id,
+              () => {
+                pushSuccess(results, item);
+              },
+              (msg) => {
+                pushFailure(results, msg, item);
+              },
+              () => {
+                continueOrFinish(results, instances.length, resolve);
+              },
+            );
+          })
+          .catch((e) => {
+            pushFailure(results, e instanceof Error ? e.message : "", item);
+            continueOrFinish(results, instances.length, resolve);
+          });
+      }),
+    ).catch(reject);
+  });
+};
+
 // Cross-cluster migration, source side: start a migration operation without a
 // target. The returned websocket operation stays open waiting for a remote
 // server to connect.
