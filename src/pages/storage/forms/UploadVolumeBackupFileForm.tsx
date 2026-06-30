@@ -227,6 +227,7 @@ const UploadVolumeBackupFileForm: FC<Props> = ({
           type="text"
           label="New volume name"
           placeholder="Enter name"
+          onChange={formik.handleChange}
           error={formik.touched.name ? formik.errors.name : null}
           disabled={!!noFileSelectedMessage}
           title={noFileSelectedMessage}
