@@ -4,17 +4,15 @@ import type { LxdConfigOptionsKeys } from "types/config";
 import type { FormikProps } from "formik";
 import type { StoragePoolFormValues } from "types/forms/storagePool";
 import {
-  alletraDriver,
   btrfsDriver,
   cephDriver,
   cephFSDriver,
   cephObject,
   dirDriver,
+  linstorDriver,
   lvmDriver,
   lvmClusterDriver,
-  powerFlex,
-  powerStore,
-  pureStorage,
+  truenasDriver,
   zfsDriver,
 } from "util/storageOptions";
 
@@ -36,36 +34,9 @@ export const storagePoolFormFieldToPayloadName: Record<string, string> = {
   cephobject_cluster_name: "cephobject.cluster_name",
   cephobject_user_name: "cephobject.user.name",
   cephobject_bucket_name_prefix: "cephobject.bucket.name_prefix",
-  powerflex_clone_copy: "powerflex.clone_copy",
-  powerflex_domain: "powerflex.domain",
-  powerflex_gateway: "powerflex.gateway",
-  powerflex_gateway_verify: "powerflex.gateway.verify",
-  powerflex_mode: "powerflex.mode",
-  powerflex_pool: "powerflex.pool",
-  powerflex_sdt: "powerflex.sdt",
-  powerflex_user_name: "powerflex.user.name",
-  powerflex_user_password: "powerflex.user.password",
-  powerflex_version: "volatile.powerflex.version",
-  powerstore_gateway: "powerstore.gateway",
-  powerstore_gateway_verify: "powerstore.gateway.verify",
-  powerstore_mode: "powerstore.mode",
-  powerstore_user_name: "powerstore.user.name",
-  powerstore_user_password: "powerstore.user.password",
-  pure_api_token: "pure.api.token",
-  pure_gateway: "pure.gateway",
-  pure_gateway_verify: "pure.gateway.verify",
-  pure_mode: "pure.mode",
-  pure_target: "pure.target",
   zfs_clone_copy: "zfs.clone_copy",
   zfs_export: "zfs.export",
   zfs_pool_name: "zfs.pool_name",
-  alletra_target: "alletra.target",
-  alletra_wsapi: "alletra.wsapi",
-  alletra_user_name: "alletra.user.name",
-  alletra_user_password: "alletra.user.password",
-  alletra_wsapi_verify: "alletra.wsapi.verify",
-  alletra_cpg: "alletra.cpg",
-  alletra_mode: "alletra.mode",
 };
 
 export const isClusterLocalDriver = (poolDriver: string) => {
@@ -94,33 +65,9 @@ export const getCephObjectPoolFormFields = () => {
   );
 };
 
-export const getPowerflexPoolFormFields = () => {
-  return Object.keys(storagePoolFormFieldToPayloadName).filter((item) =>
-    item.startsWith("powerflex_"),
-  );
-};
-
-export const getPowerStorePoolFormFields = () => {
-  return Object.keys(storagePoolFormFieldToPayloadName).filter((item) =>
-    item.startsWith("powerstore_"),
-  );
-};
-
-export const getPureStoragePoolFormFields = () => {
-  return Object.keys(storagePoolFormFieldToPayloadName).filter((item) =>
-    item.startsWith("pure_"),
-  );
-};
-
 export const getZfsStoragePoolFormFields = () => {
   return Object.keys(storagePoolFormFieldToPayloadName).filter((item) =>
     item.startsWith("zfs_"),
-  );
-};
-
-export const getAlletraStoragePoolFormFields = () => {
-  return Object.keys(storagePoolFormFieldToPayloadName).filter((item) =>
-    item.startsWith("alletra_"),
   );
 };
 
@@ -131,12 +78,10 @@ const storagePoolDriverToOptionKey: Record<string, LxdConfigOptionsKeys> = {
   [zfsDriver]: "storage-zfs",
   [cephDriver]: "storage-ceph",
   [cephFSDriver]: "storage-cephfs",
-  [powerFlex]: "storage-powerflex",
-  [powerStore]: "storage-powerstore",
-  [pureStorage]: "storage-pure",
   [cephObject]: "storage-cephobject",
-  [alletraDriver]: "storage-alletra",
   [lvmClusterDriver]: "storage-lvmcluster",
+  [linstorDriver]: "storage-linstor",
+  [truenasDriver]: "storage-truenas",
 };
 
 export const storagePoolFormDriverToOptionKey = (
@@ -166,49 +111,6 @@ export const testDuplicateStoragePoolName = (
   ];
 };
 
-export const isPowerflexIncomplete = (
-  formik: FormikProps<StoragePoolFormValues>,
-): boolean => {
-  return (
-    formik.values.driver === powerFlex &&
-    (!formik.values.powerflex_pool ||
-      !formik.values.powerflex_gateway ||
-      !formik.values.powerflex_user_password)
-  );
-};
-
-export const isPowerStoreIncomplete = (
-  formik: FormikProps<StoragePoolFormValues>,
-): boolean => {
-  return (
-    formik.values.driver === powerStore &&
-    (!formik.values.powerstore_gateway ||
-      !formik.values.powerstore_user_name ||
-      !formik.values.powerstore_user_password)
-  );
-};
-
-export const isPureStorageIncomplete = (
-  formik: FormikProps<StoragePoolFormValues>,
-): boolean => {
-  return (
-    formik.values.driver === pureStorage &&
-    (!formik.values.pure_gateway || !formik.values.pure_api_token)
-  );
-};
-
-export const isAlletraIncomplete = (
-  formik: FormikProps<StoragePoolFormValues>,
-): boolean => {
-  return (
-    formik.values.driver === alletraDriver &&
-    (!formik.values.alletra_wsapi ||
-      !formik.values.alletra_user_name ||
-      !formik.values.alletra_user_password ||
-      !formik.values.alletra_cpg)
-  );
-};
-
 export const isCephObjectIncomplete = (
   formik: FormikProps<StoragePoolFormValues>,
 ): boolean => {
@@ -230,7 +132,13 @@ export const hasSource = (
   driver: string,
   hasRemoteDropSource: boolean,
 ): boolean => {
-  const driversWithSource = [btrfsDriver, dirDriver, lvmDriver, lvmClusterDriver, zfsDriver];
+  const driversWithSource = [
+    btrfsDriver,
+    dirDriver,
+    lvmDriver,
+    lvmClusterDriver,
+    zfsDriver,
+  ];
 
   if (hasRemoteDropSource) {
     driversWithSource.push(cephDriver);

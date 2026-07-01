@@ -8,11 +8,9 @@ export const zfsDriver = "zfs";
 export const cephDriver = "ceph";
 export const cephFSDriver = "cephfs";
 export const cephObject = "cephobject";
-export const powerFlex = "powerflex";
-export const powerStore = "powerstore";
-export const pureStorage = "pure";
-export const alletraDriver = "alletra";
 export const lvmClusterDriver = "lvmcluster";
+export const linstorDriver = "linstor";
+export const truenasDriver = "truenas";
 
 export const storageDriverLabels: { [key: string]: string } = {
   [dirDriver]: "Directory",
@@ -21,26 +19,22 @@ export const storageDriverLabels: { [key: string]: string } = {
   [zfsDriver]: "ZFS",
   [cephDriver]: "Ceph",
   [cephFSDriver]: "CephFS",
-  [powerFlex]: "Dell PowerFlex",
-  [powerStore]: "Dell PowerStore",
-  [pureStorage]: "Pure Storage",
   [cephObject]: "Ceph Object",
-  [alletraDriver]: "HPE Alletra",
   [lvmClusterDriver]: "LVM Cluster",
+  [linstorDriver]: "LINSTOR",
+  [truenasDriver]: "TrueNAS",
 };
 
 export const storageDriverDescriptions: { [key: string]: string } = {
-  [alletraDriver]: "HPE Alletra block storage",
   [btrfsDriver]:
     "Copy-on-Write filesystem with native subvolumes and snapshots",
   [cephDriver]: "Distributed Ceph RBD block storage",
   [cephFSDriver]: "Distributed Ceph filesystem",
   [cephObject]: "S3-compatible Ceph object storage via RADOS gateway",
   [dirDriver]: "Basic local directory (no native snapshots or quotas)",
+  [linstorDriver]: "DRBD-replicated distributed block storage",
   [lvmDriver]: "Logical volume-backed block storage with thin provisioning",
-  [powerFlex]: "Dell PowerFlex software-defined block storage",
-  [powerStore]: "Purpose-built all-flash block and file storage appliance",
-  [pureStorage]: "Pure Storage FlashArray block storage",
+  [truenasDriver]: "ZFS-backed TrueNAS storage accessed over iSCSI",
   [zfsDriver]:
     "Advanced Copy-on-Write filesystem with datasets and zvols (recommended)",
 };
@@ -119,13 +113,18 @@ export const driversWithFilesystemSupport = [
   zfsDriver,
   lvmDriver,
   cephDriver,
-  pureStorage,
   cephObject,
   lvmClusterDriver,
+  linstorDriver,
+  truenasDriver,
 ];
 
 export const isRemoteStorage = (driver: string) => {
-  return [cephDriver, cephFSDriver, cephObject, powerFlex, powerStore].includes(
-    driver,
-  );
+  return [
+    cephDriver,
+    cephFSDriver,
+    cephObject,
+    linstorDriver,
+    truenasDriver,
+  ].includes(driver);
 };

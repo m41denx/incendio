@@ -133,11 +133,9 @@ describe("General util functions for permissions feature", () => {
           "storage-dir": {},
           "storage-lvm": {},
           "storage-lvmcluster": {},
-          "storage-powerflex": {},
-          "storage-powerstore": {},
-          "storage-pure": {},
+          "storage-linstor": {},
+          "storage-truenas": {},
           "storage-zfs": {},
-          "storage-alletra": {},
         },
         entities: {
           server: {

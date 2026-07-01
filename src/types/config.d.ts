@@ -53,12 +53,10 @@ export interface LxdMetadata {
     "storage-cephobject": LxcConfigOptionCategories;
     "storage-dir": LxcConfigOptionCategories;
     "storage-lvm": LxcConfigOptionCategories;
-    "storage-powerflex": LxcConfigOptionCategories;
-    "storage-powerstore": LxcConfigOptionCategories;
-    "storage-pure": LxcConfigOptionCategories;
     "storage-zfs": LxcConfigOptionCategories;
-    "storage-alletra": LxcConfigOptionCategories;
     "storage-lvmcluster": LxcConfigOptionCategories;
+    "storage-linstor": LxcConfigOptionCategories;
+    "storage-truenas": LxcConfigOptionCategories;
   };
   entities: LxdEntityEntitlements;
 }

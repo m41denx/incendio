@@ -5,32 +5,18 @@ import { updateMaxHeight } from "util/updateMaxHeight";
 import type { FormikProps } from "formik";
 import type { StoragePoolFormValues } from "types/forms/storagePool";
 import {
-  alletraDriver,
   cephDriver,
   cephFSDriver,
   cephObject,
-  powerFlex,
-  powerStore,
-  pureStorage,
   zfsDriver,
 } from "util/storageOptions";
-import {
-  isAlletraIncomplete,
-  isPowerflexIncomplete,
-  isPowerStoreIncomplete,
-  isPureStorageIncomplete,
-} from "util/storagePool";
 
 export const MAIN_CONFIGURATION = "Main configuration";
 export const CEPH_CONFIGURATION = "Ceph";
 export const CEPHFS_CONFIGURATION = "CephFS";
 export const CEPHOBJECT_CONFIGURATION = "Ceph Object";
-export const POWERFLEX = "Powerflex";
-export const POWERSTORE = "PowerStore";
 export const ZFS_CONFIGURATION = "ZFS";
 export const YAML_CONFIGURATION = "YAML configuration";
-export const PURE_STORAGE = "Pure Storage";
-export const ALLETRA_CONFIGURATION = "HPE Alletra";
 
 interface Props {
   active: string;
@@ -54,27 +40,11 @@ const StoragePoolFormMenu: FC<Props> = ({
   const isCephDriver = formik.values.driver === cephDriver;
   const isCephFSDriver = formik.values.driver === cephFSDriver;
   const isCephObjectDriver = formik.values.driver === cephObject;
-  const isPowerFlexDriver = formik.values.driver === powerFlex;
-  const isPowerStoreDriver = formik.values.driver === powerStore;
-  const isPureDriver = formik.values.driver === pureStorage;
   const isZfsDriver = formik.values.driver === zfsDriver;
-  const isAlletraDriver = formik.values.driver === alletraDriver;
   const hasName = formik.values.name.length > 0;
   const getDisableReason = () => {
     if (!hasName) {
       return "Please enter a storage pool name to enable this section";
-    }
-    if (isPowerflexIncomplete(formik)) {
-      return "Please enter a domain, gateway, pool, and user name to enable this section";
-    }
-    if (isPowerStoreIncomplete(formik)) {
-      return "Please enter a gateway, user name, and password to enable this section";
-    }
-    if (isPureStorageIncomplete(formik)) {
-      return "Please enter an API token and gateway to enable this section";
-    }
-    if (isAlletraIncomplete(formik)) {
-      return "Please enter an address, user, password and common provisioning group to enable this section";
     }
     return undefined;
   };
@@ -114,37 +84,9 @@ const StoragePoolFormMenu: FC<Props> = ({
               disableReason={disableReason}
             />
           )}
-          {isPowerFlexDriver && (
-            <MenuItem
-              label={POWERFLEX}
-              {...menuItemProps}
-              disableReason={disableReason}
-            />
-          )}
-          {isPowerStoreDriver && (
-            <MenuItem
-              label={POWERSTORE}
-              {...menuItemProps}
-              disableReason={disableReason}
-            />
-          )}
-          {isPureDriver && (
-            <MenuItem
-              label={PURE_STORAGE}
-              {...menuItemProps}
-              disableReason={disableReason}
-            />
-          )}
           {isZfsDriver && (
             <MenuItem
               label={ZFS_CONFIGURATION}
-              {...menuItemProps}
-              disableReason={disableReason}
-            />
-          )}
-          {isAlletraDriver && (
-            <MenuItem
-              label={ALLETRA_CONFIGURATION}
               {...menuItemProps}
               disableReason={disableReason}
             />

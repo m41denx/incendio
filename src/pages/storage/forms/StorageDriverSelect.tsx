@@ -1,24 +1,16 @@
 import type { FC } from "react";
 import { CustomSelect, OutputField } from "@canonical/react-components";
 import {
-  getAlletraStoragePoolFormFields,
   getCephObjectPoolFormFields,
   getCephPoolFormFields,
-  getPowerflexPoolFormFields,
-  getPowerStorePoolFormFields,
-  getPureStoragePoolFormFields,
   getZfsStoragePoolFormFields,
 } from "util/storagePool";
 import {
   zfsDriver,
   cephDriver,
   getStorageDriverOptions,
-  powerFlex,
-  pureStorage,
   cephObject,
-  alletraDriver,
   storageDriverLabels,
-  powerStore,
 } from "util/storageOptions";
 import type { FormikProps } from "formik";
 import type { StoragePoolFormValues } from "types/forms/storagePool";
@@ -27,7 +19,6 @@ import {
   isStoragePoolWithSource,
 } from "util/storagePoolForm";
 import { useSettings } from "context/useSettings";
-import DocLink from "components/DocLink";
 
 interface Props {
   formik: FormikProps<StoragePoolFormValues>;
@@ -46,30 +37,11 @@ const StorageDriverSelect: FC<Props> = ({ formik }) => {
     </>
   );
 
-  const getDriverHelpText = (driver: string, isEditing: boolean) => {
-    return (
-      <>
-        {isEditing && <span>Driver can not be changed - </span>} This driver
-        requires a storage appliance.{" "}
-        <DocLink docPath={`/reference/${driver}/`} hasExternalIcon>
-          Learn more
-        </DocLink>
-      </>
-    );
-  };
-
   const getHelpText = () => {
-    const isEditing = !formik.values.isCreating;
     if (!formik.values.isCreating) {
       return "Driver can not be changed";
     } else if (formik.values.driver === zfsDriver) {
       return "ZFS gives best performance and reliability";
-    } else if (formik.values.driver === powerFlex) {
-      return getDriverHelpText("storage_powerflex", isEditing);
-    } else if (formik.values.driver === alletraDriver) {
-      return getDriverHelpText("storage_alletra", isEditing);
-    } else if (formik.values.driver === pureStorage) {
-      return getDriverHelpText("storage_pure", isEditing);
     } else if (formik.values.driver === cephObject) {
       return cephObjectNotice;
     }
@@ -91,36 +63,12 @@ const StorageDriverSelect: FC<Props> = ({ formik }) => {
         formik.setFieldValue(field, undefined);
       }
     }
-    if (val !== powerFlex) {
-      const powerflexFields = getPowerflexPoolFormFields();
-      for (const field of powerflexFields) {
-        formik.setFieldValue(field, undefined);
-      }
-    }
-    if (val !== powerStore) {
-      const powerstoreFields = getPowerStorePoolFormFields();
-      for (const field of powerstoreFields) {
-        formik.setFieldValue(field, undefined);
-      }
-    }
-    if (val !== pureStorage) {
-      const pureFields = getPureStoragePoolFormFields();
-      for (const field of pureFields) {
-        formik.setFieldValue(field, undefined);
-      }
-    }
     if (val !== zfsDriver) {
       const zfsFields = getZfsStoragePoolFormFields();
       for (const field of zfsFields) {
         formik.setFieldValue(field, undefined);
       }
       formik.setFieldValue("zfsPoolNamePerClusterMember", "");
-    }
-    if (val !== alletraDriver) {
-      const alletraFields = getAlletraStoragePoolFormFields();
-      for (const field of alletraFields) {
-        formik.setFieldValue(field, undefined);
-      }
     }
     if (!isStoragePoolWithSize(val)) {
       formik.setFieldValue("size", undefined);

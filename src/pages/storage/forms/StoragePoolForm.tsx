@@ -11,26 +11,18 @@ import {
 import type { FormikProps } from "formik";
 import StoragePoolFormMain from "./StoragePoolFormMain";
 import StoragePoolFormMenu, {
-  ALLETRA_CONFIGURATION,
   CEPH_CONFIGURATION,
   CEPHFS_CONFIGURATION,
   CEPHOBJECT_CONFIGURATION,
   MAIN_CONFIGURATION,
-  POWERFLEX,
-  POWERSTORE,
-  PURE_STORAGE,
   YAML_CONFIGURATION,
   ZFS_CONFIGURATION,
 } from "./StoragePoolFormMenu";
 import { updateMaxHeight } from "util/updateMaxHeight";
 import type { LxdStoragePool } from "types/storage";
 import {
-  alletraDriver,
   cephObject,
   getSupportedStorageDrivers,
-  powerFlex,
-  powerStore,
-  pureStorage,
   zfsDriver,
 } from "util/storageOptions";
 import {
@@ -44,16 +36,12 @@ import YamlForm from "components/forms/YamlForm";
 import { handleConfigKeys } from "util/storagePoolForm";
 import DocLink from "components/DocLink";
 import StoragePoolFormCeph from "./StoragePoolFormCeph";
-import StoragePoolFormPowerflex from "./StoragePoolFormPowerflex";
-import StoragePoolFormPowerStore from "./StoragePoolFormPowerStore";
 import StoragePoolFormZFS from "./StoragePoolFormZFS";
 import { useSettings } from "context/useSettings";
 import { ensureEditMode } from "util/editMode";
 import StoragePoolFormCephFS from "pages/storage/forms/StoragePoolFormCephFS";
-import StoragePoolFormPure from "pages/storage/forms/StoragePoolFormPure";
 import StoragePoolFormCephObject from "./StoragePoolFormCephObject";
 import { objectToYaml } from "util/yaml";
-import StoragePoolFormAlletra from "./StoragePoolFormAlletra";
 import type { StoragePoolFormValues } from "types/forms/storagePool";
 import { useSupportedFeatures } from "context/useSupportedFeatures";
 
@@ -68,12 +56,8 @@ export const toStoragePool = (
   values: StoragePoolFormValues,
   hasRemoteDropSource: boolean,
 ): LxdStoragePool => {
-  const isPowerFlexDriver = values.driver === powerFlex;
-  const isPowerStoreDriver = values.driver === powerStore;
-  const isPureDriver = values.driver === pureStorage;
   const isZFSDriver = values.driver === zfsDriver;
   const isCephObjectDriver = values.driver === cephObject;
-  const isAlletraDriver = values.driver === alletraDriver;
   const hasValidSize = values.size?.match(/^\d/);
 
   const getConfig = () => {
@@ -113,57 +97,12 @@ export const toStoragePool = (
           values.cephobject_bucket_name_prefix,
       };
     }
-    if (isPowerFlexDriver) {
-      return {
-        [getPoolKey("powerflex_clone_copy")]: values.powerflex_clone_copy,
-        [getPoolKey("powerflex_domain")]: values.powerflex_domain,
-        [getPoolKey("powerflex_gateway")]: values.powerflex_gateway,
-        [getPoolKey("powerflex_gateway_verify")]:
-          values.powerflex_gateway_verify,
-        [getPoolKey("powerflex_mode")]: values.powerflex_mode,
-        [getPoolKey("powerflex_pool")]: values.powerflex_pool,
-        [getPoolKey("powerflex_sdt")]: values.powerflex_sdt,
-        [getPoolKey("powerflex_user_name")]: values.powerflex_user_name,
-        [getPoolKey("powerflex_user_password")]: values.powerflex_user_password,
-      };
-    }
-    if (isPowerStoreDriver) {
-      return {
-        [getPoolKey("powerstore_gateway")]: values.powerstore_gateway,
-        [getPoolKey("powerstore_gateway_verify")]:
-          values.powerstore_gateway_verify,
-        [getPoolKey("powerstore_mode")]: values.powerstore_mode,
-        [getPoolKey("powerstore_user_name")]: values.powerstore_user_name,
-        [getPoolKey("powerstore_user_password")]:
-          values.powerstore_user_password,
-      };
-    }
-    if (isPureDriver) {
-      return {
-        [getPoolKey("pure_api_token")]: values.pure_api_token,
-        [getPoolKey("pure_gateway")]: values.pure_gateway,
-        [getPoolKey("pure_gateway_verify")]: values.pure_gateway_verify,
-        [getPoolKey("pure_mode")]: values.pure_mode,
-        [getPoolKey("pure_target")]: values.pure_target,
-      };
-    }
     if (isZFSDriver) {
       return {
         [getPoolKey("zfs_clone_copy")]: values.zfs_clone_copy ?? "",
         [getPoolKey("zfs_export")]: values.zfs_export ?? "",
         [getPoolKey("zfs_pool_name")]: values.zfs_pool_name,
         size: hasValidSize ? values.size : undefined,
-      };
-    }
-    if (isAlletraDriver) {
-      return {
-        [getPoolKey("alletra_target")]: values.alletra_target,
-        [getPoolKey("alletra_wsapi")]: values.alletra_wsapi,
-        [getPoolKey("alletra_user_name")]: values.alletra_user_name,
-        [getPoolKey("alletra_user_password")]: values.alletra_user_password,
-        [getPoolKey("alletra_wsapi_verify")]: values.alletra_wsapi_verify,
-        [getPoolKey("alletra_cpg")]: values.alletra_cpg,
-        [getPoolKey("alletra_mode")]: values.alletra_mode,
       };
     }
     return {
@@ -262,20 +201,8 @@ const StoragePoolForm: FC<Props> = ({
           {section === slugify(CEPHOBJECT_CONFIGURATION) && (
             <StoragePoolFormCephObject formik={formik} />
           )}
-          {section === slugify(POWERFLEX) && (
-            <StoragePoolFormPowerflex formik={formik} />
-          )}
-          {section === slugify(POWERSTORE) && (
-            <StoragePoolFormPowerStore formik={formik} />
-          )}
-          {section === slugify(PURE_STORAGE) && (
-            <StoragePoolFormPure formik={formik} />
-          )}
           {section === slugify(ZFS_CONFIGURATION) && (
             <StoragePoolFormZFS formik={formik} />
-          )}
-          {section === slugify(ALLETRA_CONFIGURATION) && (
-            <StoragePoolFormAlletra formik={formik} />
           )}
           {section === slugify(YAML_CONFIGURATION) && (
             <YamlForm
