@@ -93,6 +93,7 @@ export const AuthProvider: FC<ProviderProps> = ({ children }) => {
         serverEntitlements: [],
         authExpiresAt: null,
         isFineGrained: isFineGrained(),
+        authMethod,
       }}
     >
       {children}
