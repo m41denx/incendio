@@ -21,7 +21,6 @@ import StorageVolumesFilter, {
   VOLUME_TYPE,
   type StorageVolumesFilterType,
 } from "pages/storage/StorageVolumesFilter";
-import StorageVolumeSize from "pages/storage/StorageVolumeSize";
 import {
   figureCollapsedScreen,
   getSnapshotsPerVolume,
@@ -38,8 +37,6 @@ import {
   CONTENT_TYPE_COL,
   NAME_COL,
   POOL_COL,
-  SIZE_COL,
-  SNAPSHOTS_COL,
   TYPE_COL,
   USED_BY_COL,
 } from "util/storageVolumeTable";
@@ -158,36 +155,11 @@ const StorageVolumes: FC = () => {
           },
         ]),
     {
-      content: SIZE_COL,
-      className: "u-align--right size",
-      style: { width: COLUMN_WIDTHS[SIZE_COL] },
-    },
-    {
-      content: isSmallScreen ? (
-        <>
-          {USED_BY_COL}
-          <br />
-          <div className="header-second-row">{SNAPSHOTS_COL}</div>
-        </>
-      ) : (
-        USED_BY_COL
-      ),
-      sortKey: isSmallScreen ? "snapshots" : "usedBy",
+      content: USED_BY_COL,
+      sortKey: "usedBy",
       className: "u-align--right used_by",
-      style: {
-        width: COLUMN_WIDTHS[isSmallScreen ? SNAPSHOTS_COL : USED_BY_COL],
-      },
+      style: { width: COLUMN_WIDTHS[USED_BY_COL] },
     },
-    ...(isSmallScreen
-      ? []
-      : [
-          {
-            className: "u-align--right",
-            content: SNAPSHOTS_COL,
-            sortKey: "snapshots",
-            style: { width: COLUMN_WIDTHS[SNAPSHOTS_COL] },
-          },
-        ]),
     {
       content: "",
       className: "actions u-align--right",
@@ -235,7 +207,6 @@ const StorageVolumes: FC = () => {
     const id = getVolumeId(volume);
     const volumeType = renderVolumeType(volume);
     const contentType = renderContentType(volume);
-    const snapshotCount = snapshotsPerVolume[id]?.length ?? 0;
     const canSelect = hasVolumeDetailPage(volume);
 
     return {
@@ -306,39 +277,12 @@ const StorageVolumes: FC = () => {
               },
             ]),
         {
-          content: <StorageVolumeSize volume={volume} />,
-          role: "cell",
-          "aria-label": SIZE_COL,
-          className: "u-align--right size",
-          style: { width: COLUMN_WIDTHS[SIZE_COL] },
-        },
-        {
           className: "u-align--right used_by",
-          content: (
-            <>
-              {volume.used_by?.length ?? 0}
-              {isSmallScreen && (
-                <div className="u-text--muted">{snapshotCount}</div>
-              )}
-            </>
-          ),
+          content: volume.used_by?.length ?? 0,
           role: "cell",
           "aria-label": USED_BY_COL,
-          style: {
-            width: COLUMN_WIDTHS[isSmallScreen ? SNAPSHOTS_COL : USED_BY_COL],
-          },
+          style: { width: COLUMN_WIDTHS[USED_BY_COL] },
         },
-        ...(isSmallScreen
-          ? []
-          : [
-              {
-                className: "u-align--right",
-                content: snapshotCount,
-                role: "cell",
-                "aria-label": SNAPSHOTS_COL,
-                style: { width: COLUMN_WIDTHS[SNAPSHOTS_COL] },
-              },
-            ]),
         {
           className: "actions u-align--right",
           content: hasVolumeDetailPage(volume) ? (
@@ -371,7 +315,6 @@ const StorageVolumes: FC = () => {
         contentType: contentType,
         type: volumeType,
         usedBy: volume.used_by?.length ?? 0,
-        snapshots: snapshotCount,
       },
     };
   });
