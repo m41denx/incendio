@@ -105,7 +105,7 @@ const getDevicePairFieldChanges = (a: FormDevice, b: FormDevice): number => {
       continue;
     }
 
-    if (JSON.stringify(a[keyType]) !== JSON.stringify(b[keyType])) {
+    if (JSON.stringify(a[keyType] ?? "") !== JSON.stringify(b[keyType] ?? "")) {
       changeCount++;
     }
   }
@@ -167,9 +167,11 @@ const getDeviceChanges = (formik: ConfigurationRowFormikProps): number => {
       removeCount++;
       removedDevices.push(initDevices[initIndex]);
     } else {
+      // Pass `devices` as first as `initDevices` can lack of some defaults
+      // and getDevicePairFieldChanges will not iterate over these fields.
       changeCount += getDevicePairFieldChanges(
-        initDevices[initIndex],
         devices[valueIndex],
+        initDevices[initIndex],
       );
     }
   });

@@ -301,26 +301,48 @@ const OtherDeviceForm: FC<Props> = ({ formik, project }) => {
           configuration: (
             <Label forId={key}>{deviceKeyToLabel(field.key)}</Label>
           ),
-          inherited: (
-            <Input
-              name={key}
-              id={key}
-              key={`${key}-${type}`}
-              onBlur={formik.handleBlur}
-              onChange={(e) => {
-                ensureEditMode(formik);
-                formik.handleChange(e);
-              }}
-              value={value}
-              type="text"
-              placeholder={field.default}
-              help={<ConfigFieldDescription description={field.shortdesc} />}
-              helpClassName="configuration-help"
-              className="u-no-margin--bottom"
-              disabled={!!formik.values.editRestriction}
-              title={formik.values.editRestriction}
-            />
-          ),
+          inherited:
+            field.type === "bool" ? (
+              <Input
+                name={key}
+                id={key}
+                key={`${key}-${type}`}
+                type="checkbox"
+                checked={String(value ?? field.default) === "true"}
+                onBlur={formik.handleBlur}
+                onChange={(e) => {
+                  ensureEditMode(formik);
+                  formik.setFieldValue(
+                    key,
+                    e.target.checked ? "true" : "false",
+                  );
+                }}
+                help={<ConfigFieldDescription description={field.shortdesc} />}
+                helpClassName="configuration-help"
+                className="u-no-margin--bottom"
+                disabled={!!formik.values.editRestriction}
+                title={formik.values.editRestriction}
+              />
+            ) : (
+              <Input
+                name={key}
+                id={key}
+                key={`${key}-${type}`}
+                onBlur={formik.handleBlur}
+                onChange={(e) => {
+                  ensureEditMode(formik);
+                  formik.handleChange(e);
+                }}
+                value={value}
+                type="text"
+                placeholder={field.default}
+                help={<ConfigFieldDescription description={field.shortdesc} />}
+                helpClassName="configuration-help"
+                className="u-no-margin--bottom"
+                disabled={!!formik.values.editRestriction}
+                title={formik.values.editRestriction}
+              />
+            ),
           override: "",
         }),
       );
