@@ -11,7 +11,6 @@ import type { LxdStorageVolume } from "types/storage";
 import type { RemoteImage } from "types/image";
 import { remoteImageToIsoDevice } from "util/formDevices";
 import CustomIsoModal from "pages/images/CustomIsoModal";
-import { isIsoDiskDevice } from "util/devices";
 import type { CustomDiskDevice } from "types/formDevice";
 
 type DiskDeviceType =
@@ -103,8 +102,6 @@ const AttachDiskDeviceModal: FC<Props> = ({
 
   const modalTitle = getModalTitle();
 
-  const hasIsoDeviceAttached = formik.values.devices.some(isIsoDiskDevice);
-
   const canAttachIso =
     formik.values.entityType === "profile" ||
     (formik.values.entityType === "instance" &&
@@ -141,12 +138,6 @@ const AttachDiskDeviceModal: FC<Props> = ({
                 onClick={() => {
                   setType("iso");
                 }}
-                disabled={hasIsoDeviceAttached}
-                onHoverText={
-                  hasIsoDeviceAttached
-                    ? "Only one ISO volume can be attached at a time"
-                    : undefined
-                }
               />
             )}
             {showSpecialDisk && (
