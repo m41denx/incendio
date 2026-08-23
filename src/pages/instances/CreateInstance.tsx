@@ -478,7 +478,11 @@ const CreateInstance: FC = () => {
             )}
 
             {section === GPU_DEVICES && (
-              <GPUDevicesForm formik={formik} project={project} />
+              <GPUDevicesForm
+                formik={formik}
+                project={project}
+                target={formik.values.target}
+              />
             )}
 
             {section === PROXY_DEVICES && (
