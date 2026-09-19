@@ -24,7 +24,7 @@ interface Props {
   instance: LxdInstance;
   type: MigrationType;
   close: () => void;
-  onSuccess: () => void;
+  onSuccess?: () => void;
 }
 
 export const useInstanceMigration = ({
