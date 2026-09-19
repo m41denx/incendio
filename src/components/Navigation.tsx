@@ -90,6 +90,7 @@ const Navigation: FC = () => {
     hasImageRegistries,
     hasClusterLinks,
     hasReplicators,
+    hasPlacementGroups,
   } = useSupportedFeatures();
   const { loggedInUserName, loggedInUserID } = useLoggedInUser();
   const [scroll, setScroll] = useState(false);
@@ -560,16 +561,20 @@ const Navigation: FC = () => {
                                     </SideNavigationItem>,
                                   ]
                                 : []),
-                              <SideNavigationItem key="placement">
-                                <NavLink
-                                  to={`${ROOT_PATH}/ui/project/${encodeURIComponent(projectName)}/placement-groups`}
-                                  title={`Placement groups (${projectName})`}
-                                  onClick={softToggleMenu}
-                                  className="accordion-nav-secondary"
-                                >
-                                  Placement
-                                </NavLink>
-                              </SideNavigationItem>,
+                              ...(hasPlacementGroups
+                                ? [
+                                    <SideNavigationItem key="placement">
+                                      <NavLink
+                                        to={`${ROOT_PATH}/ui/project/${encodeURIComponent(projectName)}/placement-groups`}
+                                        title={`Placement groups (${projectName})`}
+                                        onClick={softToggleMenu}
+                                        className="accordion-nav-secondary"
+                                      >
+                                        Placement
+                                      </NavLink>
+                                    </SideNavigationItem>,
+                                  ]
+                                : []),
                               ...(hasReplicators
                                 ? [
                                     <SideNavigationItem key="replicators">

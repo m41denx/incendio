@@ -6,14 +6,17 @@ import {
   fetchPlacementGroups,
 } from "api/placement-groups";
 import type { LxdPlacementGroup } from "types/placementGroup";
+import { useSupportedFeatures } from "./useSupportedFeatures";
 
 export const usePlacementGroups = (
   project: string,
 ): UseQueryResult<LxdPlacementGroup[]> => {
   const { isFineGrained } = useAuth();
+  const { hasPlacementGroups } = useSupportedFeatures();
   return useQuery({
     queryKey: [queryKeys.placementGroups, project],
     queryFn: async () => fetchPlacementGroups(project, isFineGrained),
+    enabled: hasPlacementGroups,
   });
 };
 

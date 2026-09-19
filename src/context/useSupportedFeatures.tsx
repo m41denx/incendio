@@ -26,6 +26,8 @@ export const useSupportedFeatures = () => {
     hasAccessManagement: apiExtensions.has("access_management"),
     hasAccessManagementTLS: apiExtensions.has("access_management_tls"),
     hasExplicitTrustToken: apiExtensions.has("explicit_trust_token"),
+    // LXD-only: Incus uses placement scriptlets instead of placement groups.
+    hasPlacementGroups: apiExtensions.has("instance_placement_groups"),
     hasInstanceCreateStart: apiExtensions.has("instance_create_start"),
     hasInstanceImportConversion: apiExtensions.has(
       "instance_import_conversion",
