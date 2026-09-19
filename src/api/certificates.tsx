@@ -12,12 +12,15 @@ export const fetchCertificates = async (): Promise<LxdCertificate[]> => {
 };
 
 export const addCertificate = async (token: string): Promise<void> => {
-  await fetch(`${ROOT_PATH}/1.0/auth/identities/tls`, {
+  // Incus uses the classic trust store (/1.0/certificates); it does not
+  // implement LXD's fine-grained identity API (/1.0/auth/identities/tls).
+  await fetch(`${ROOT_PATH}/1.0/certificates`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
+      type: "client",
       trust_token: token,
     }),
   }).then(handleResponse);
