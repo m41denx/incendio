@@ -97,7 +97,7 @@ const CreateStoragePool: FC = () => {
       readOnly: false,
       name: "",
       description: "",
-      driver: supportedStorageDrivers.size > 0 ? supportedStorageDrivers.values().next().value : "",
+      driver: supportedStorageDrivers.values().next().value ?? "",
       source: "",
       size: "",
       entityType: "storagePool",
