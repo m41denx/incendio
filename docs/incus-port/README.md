@@ -78,7 +78,7 @@ non-merge commits touch files that also changed upstream (`9cbb82d9`→`0.22`), 
 - [ ] Remove/leave-gated: replicators, cluster-links, LXD load-balancer *pools*, managed SSH keys,
       import/conversion, backup-metadata-version, boot-mode. *(B §1a)*
 - [ ] `storage_volumes_all` → re-gate on Incus's `storage_volumes_all_projects`. *(B §1c)*
-- [ ] Disable LXD identity API + fine-grained permissions à la zabbly (re-port to Incus OpenFGA later). *(B §2d)*
+- [ ] **Access area (revised — see `analysis/` + memory `incus-auth-model`):** Incus has **no** permissions-management API (OpenFGA is external/config-driven). So: disable the LXD identity/fine-grained section, and build the Incus-manageable surfaces — a **Trusted Certificates** page (`/1.0/certificates`) + read-only `instance_access`/`project_access` panels. *(B §2d)*
 - [ ] Delete unused `hasExplicitTrustToken` flag. *(B §1c)*
 
 **1b. Config-key & terminology deltas** *(analysis D)*
