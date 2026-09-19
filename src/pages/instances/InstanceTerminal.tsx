@@ -188,7 +188,7 @@ const InstanceTerminal: FC<Props> = ({ instance, refreshInstance }) => {
 
     if (op) {
       if (op.status == "Failure" && op.err != "" && (lastFailureOp.current == null || lastFailureOp.current.id != op.id)) {
-        notify.failure("Error", op.status_code, op.err);
+        setError(failure("Error", op.status_code, op.err));
         lastFailureOp.current = op;
       }
     }

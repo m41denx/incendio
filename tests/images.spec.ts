@@ -117,6 +117,7 @@ test.describe("byOSRelease", () => {
     },
     size: 1234,
     aliases: [],
+    profiles: [],
   });
 
   test.describe("RemoteImage sorting", () => {
@@ -270,6 +271,7 @@ test.describe("byOSRelease", () => {
         public: true,
         size: 1234,
         aliases: [],
+        profiles: [],
       };
 
       expect(() =>
