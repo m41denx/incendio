@@ -396,8 +396,8 @@ const getEditValues = (
       ? parseInt(item.config["security.idmap.size"])
       : undefined,
     security_idmap_isolated: item.config["security.idmap.isolated"],
-    security_devlxd: item.config["security.devlxd"],
-    security_devlxd_images: item.config["security.devlxd.images"],
+    security_devlxd: item.config["security.guestapi"],
+    security_devlxd_images: item.config["security.guestapi.images"],
     security_secureboot: item.config["security.secureboot"],
     security_csm: item.config["security.csm"],
 

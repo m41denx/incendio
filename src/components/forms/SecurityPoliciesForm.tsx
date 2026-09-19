@@ -153,7 +153,7 @@ const SecurityPoliciesForm: FC<Props> = ({ formik, setSection }) => {
 
         getConfigurationRow({
           formik,
-          label: "Allow /dev/lxd in the instance",
+          label: "Allow /dev/incus in the instance",
           name: "security_devlxd",
           defaultValue: "",
           disabled: isContainerOnlyDisabled,
@@ -169,7 +169,7 @@ const SecurityPoliciesForm: FC<Props> = ({ formik, setSection }) => {
         getConfigurationRow({
           formik,
           label:
-            "Make /1.0/images API available over /dev/lxd (Containers only)",
+            "Make /1.0/images API available over /dev/incus (Containers only)",
           name: "security_devlxd_images",
           defaultValue: "",
           disabled: isContainerOnlyDisabled,
