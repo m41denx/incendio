@@ -88,3 +88,6 @@ tests/fixtures/volume.tar.gz
 playwright-image-*.qcow2
 
 haproxy-local.cfg
+
+# Claude Code worktrees / local state
+.claude/
