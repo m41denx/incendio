@@ -70,6 +70,20 @@ Daemon reachable via `sudo incus query` (unix socket); 553 api_extensions. Produ
 - Gate extensions on live server: `access_management`=False (perms UI hidden ✓), `instance_placement_groups`=False (placement gated ✓), `storage_driver_linstor`=True (driver list ✓), `instances_state`=False (confirms dropping old state-metrics commit was right).
 - Not deployed to `/opt/incus/ui` (would overwrite the installed system UI — left for the user to decide). Browser render-test not performed (headless env).
 
+## Phase 2 — in progress (Incus-specific instance config)
+Approach: diff the UI's exposed config keys against live `sudo incus query /1.0/metadata/configuration`
+(instance config group). The UI's `SecurityPoliciesForm` exposed 11 `security.*` keys; Incus 7.4 has ~40.
+- **Done** `58bea1a81e` — added VM/security toggles the UI lacked: `security.iommu` (virtual IOMMU =
+  device passthrough & nested virtualization), `security.sev` + `security.sev.policy.es` (AMD SEV/SEV-ES),
+  `security.agent.metrics`, `security.protection.start`. Each wired through `instanceConfigFields` map +
+  `SecurityPoliciesFormValues` type + `securityPoliciesPayload`/edit-values + `SecurityPoliciesForm` row
+  (container/VM gated). Pattern for adding a field = those 4 touch-points + 1 UI row.
+- **Next candidates** (same mechanism): container syscall-interception group (`security.syscalls.intercept.*`,
+  `security.syscalls.deny_default`), `security.selinux.*`, `security.bpffs.*`; resource `limits.*` gaps
+  (`limits.memory.hugepages`, kernel limits); other config groups (`raw.*`, `oci.*`, `boot.*`).
+- Also live: deployed to `/opt/incus/ui` on this host (apt pkg held); redeploy = `yarn build` +
+  copy `build/ui/.` → `/opt/incus/ui`.
+
 ## Phase 2 candidates (reassess with user before starting — per decision)
 - Read-only `instance_access`/`project_access` entitlement panels.
 - Gate `/ui/permissions/*` routes behind `hasAccessManagement` (nav already hidden; blocks manual URL entry only).
