@@ -67,6 +67,7 @@ const instanceConfigFormFieldsToPayload: Record<string, string> = {
   security_syscalls_intercept_sysinfo: "security.syscalls.intercept.sysinfo",
   snapshots_pattern: "snapshots.pattern",
   snapshots_expiry: "snapshots.expiry",
+  snapshots_expiry_manual: "snapshots.expiry.manual",
   snapshots_schedule: "snapshots.schedule",
   snapshots_schedule_stopped: "snapshots.schedule.stopped",
   migration_stateful: "migration.stateful",

@@ -272,6 +272,8 @@ export const snapshotsPayload = (values: SnapshotFormValues) => {
       values.snapshots_schedule_stopped,
     [getInstanceField("snapshots_schedule")]: values.snapshots_schedule,
     [getInstanceField("snapshots_expiry")]: values.snapshots_expiry,
+    [getInstanceField("snapshots_expiry_manual")]:
+      values.snapshots_expiry_manual,
   };
 };
 
@@ -583,6 +585,7 @@ const getEditValues = (
 
     snapshots_pattern: item.config["snapshots.pattern"],
     snapshots_expiry: item.config["snapshots.expiry"],
+    snapshots_expiry_manual: item.config["snapshots.expiry.manual"],
     snapshots_schedule: item.config["snapshots.schedule"],
     snapshots_schedule_stopped: item.config["snapshots.schedule.stopped"],
 

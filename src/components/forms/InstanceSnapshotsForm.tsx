@@ -52,6 +52,16 @@ const InstanceSnapshotsForm: FC<Props> = ({ formik }) => {
 
           getConfigurationRow({
             formik,
+            label: "Expire manual snapshots after",
+            name: "snapshots_expiry_manual",
+            defaultValue: "",
+            children: (
+              <Input placeholder="Enter expiry expression" type="text" />
+            ),
+          }),
+
+          getConfigurationRow({
+            formik,
             label: "Snapshot stopped instances",
             name: "snapshots_schedule_stopped",
             defaultValue: "",

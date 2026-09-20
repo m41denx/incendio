@@ -151,6 +151,7 @@ export interface SecurityPoliciesFormValues {
 export interface SnapshotFormValues {
   snapshots_pattern?: string;
   snapshots_expiry?: string;
+  snapshots_expiry_manual?: string;
   snapshots_schedule?: string;
   snapshots_schedule_stopped?: string;
 }
