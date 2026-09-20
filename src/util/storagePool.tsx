@@ -39,6 +39,12 @@ export const storagePoolFormFieldToPayloadName: Record<string, string> = {
   zfs_clone_copy: "zfs.clone_copy",
   zfs_export: "zfs.export",
   zfs_pool_name: "zfs.pool_name",
+  lvm_vg_name: "lvm.vg_name",
+  lvm_thinpool_name: "lvm.thinpool_name",
+  lvm_use_thinpool: "lvm.use_thinpool",
+  lvm_metadata_size: "lvm.metadata_size",
+  lvm_thinpool_metadata_size: "lvm.thinpool_metadata_size",
+  lvm_vg_force_reuse: "lvm.vg.force_reuse",
 };
 
 export const isClusterLocalDriver = (poolDriver: string) => {

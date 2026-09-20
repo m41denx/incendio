@@ -82,6 +82,12 @@ export const toStoragePoolFormValues = (
     zfs_clone_copy: pool.config?.["zfs.clone_copy"],
     zfs_export: pool.config?.["zfs.export"],
     zfs_pool_name: pool.config?.["zfs.pool_name"],
+    lvm_vg_name: pool.config?.["lvm.vg_name"],
+    lvm_thinpool_name: pool.config?.["lvm.thinpool_name"],
+    lvm_use_thinpool: pool.config?.["lvm.use_thinpool"],
+    lvm_metadata_size: pool.config?.["lvm.metadata_size"],
+    lvm_thinpool_metadata_size: pool.config?.["lvm.thinpool_metadata_size"],
+    lvm_vg_force_reuse: pool.config?.["lvm.vg.force_reuse"],
     zfsPoolNamePerClusterMember,
     editRestriction,
   };
@@ -98,6 +104,12 @@ export const handleConfigKeys = [
   "zfs.clone_copy",
   "zfs.export",
   "zfs.pool_name",
+  "lvm.vg_name",
+  "lvm.thinpool_name",
+  "lvm.use_thinpool",
+  "lvm.metadata_size",
+  "lvm.thinpool_metadata_size",
+  "lvm.vg.force_reuse",
 ];
 
 export const getFormProps = (

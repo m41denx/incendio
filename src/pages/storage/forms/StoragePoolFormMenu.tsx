@@ -8,6 +8,7 @@ import {
   cephDriver,
   cephFSDriver,
   cephObject,
+  lvmDriver,
   zfsDriver,
 } from "util/storageOptions";
 
@@ -16,6 +17,7 @@ export const CEPH_CONFIGURATION = "Ceph";
 export const CEPHFS_CONFIGURATION = "CephFS";
 export const CEPHOBJECT_CONFIGURATION = "Ceph Object";
 export const ZFS_CONFIGURATION = "ZFS";
+export const LVM_CONFIGURATION = "LVM";
 export const YAML_CONFIGURATION = "YAML configuration";
 
 interface Props {
@@ -41,6 +43,7 @@ const StoragePoolFormMenu: FC<Props> = ({
   const isCephFSDriver = formik.values.driver === cephFSDriver;
   const isCephObjectDriver = formik.values.driver === cephObject;
   const isZfsDriver = formik.values.driver === zfsDriver;
+  const isLvmDriver = formik.values.driver === lvmDriver;
   const hasName = formik.values.name.length > 0;
   const getDisableReason = () => {
     if (!hasName) {
@@ -87,6 +90,13 @@ const StoragePoolFormMenu: FC<Props> = ({
           {isZfsDriver && (
             <MenuItem
               label={ZFS_CONFIGURATION}
+              {...menuItemProps}
+              disableReason={disableReason}
+            />
+          )}
+          {isLvmDriver && (
+            <MenuItem
+              label={LVM_CONFIGURATION}
               {...menuItemProps}
               disableReason={disableReason}
             />

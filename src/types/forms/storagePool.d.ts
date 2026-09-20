@@ -34,6 +34,12 @@ export interface StoragePoolFormValues {
   zfs_clone_copy?: string;
   zfs_export?: string;
   zfs_pool_name?: string;
+  lvm_vg_name?: string;
+  lvm_thinpool_name?: string;
+  lvm_use_thinpool?: string;
+  lvm_metadata_size?: string;
+  lvm_thinpool_metadata_size?: string;
+  lvm_vg_force_reuse?: string;
   zfsPoolNamePerClusterMember?: ClusterSpecificValues;
   editRestriction?: string;
 }

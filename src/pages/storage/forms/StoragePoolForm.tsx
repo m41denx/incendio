@@ -14,6 +14,7 @@ import StoragePoolFormMenu, {
   CEPH_CONFIGURATION,
   CEPHFS_CONFIGURATION,
   CEPHOBJECT_CONFIGURATION,
+  LVM_CONFIGURATION,
   MAIN_CONFIGURATION,
   YAML_CONFIGURATION,
   ZFS_CONFIGURATION,
@@ -23,6 +24,7 @@ import type { LxdStoragePool } from "types/storage";
 import {
   cephObject,
   getSupportedStorageDrivers,
+  lvmDriver,
   zfsDriver,
 } from "util/storageOptions";
 import { getPoolKey, isCephDriver, isCephFSDriver } from "util/storagePool";
@@ -32,6 +34,7 @@ import { handleConfigKeys } from "util/storagePoolForm";
 import DocLink from "components/DocLink";
 import StoragePoolFormCeph from "./StoragePoolFormCeph";
 import StoragePoolFormZFS from "./StoragePoolFormZFS";
+import StoragePoolFormLVM from "./StoragePoolFormLVM";
 import { useSettings } from "context/useSettings";
 import { ensureEditMode } from "util/editMode";
 import StoragePoolFormCephFS from "pages/storage/forms/StoragePoolFormCephFS";
@@ -53,6 +56,7 @@ export const toStoragePool = (
 ): LxdStoragePool => {
   const isZFSDriver = values.driver === zfsDriver;
   const isCephObjectDriver = values.driver === cephObject;
+  const isLVMDriver = values.driver === lvmDriver;
   const hasValidSize = values.size?.match(/^\d/);
 
   const getConfig = () => {
@@ -97,6 +101,18 @@ export const toStoragePool = (
         [getPoolKey("zfs_clone_copy")]: values.zfs_clone_copy ?? "",
         [getPoolKey("zfs_export")]: values.zfs_export ?? "",
         [getPoolKey("zfs_pool_name")]: values.zfs_pool_name,
+        size: hasValidSize ? values.size : undefined,
+      };
+    }
+    if (isLVMDriver) {
+      return {
+        [getPoolKey("lvm_vg_name")]: values.lvm_vg_name,
+        [getPoolKey("lvm_thinpool_name")]: values.lvm_thinpool_name,
+        [getPoolKey("lvm_use_thinpool")]: values.lvm_use_thinpool,
+        [getPoolKey("lvm_metadata_size")]: values.lvm_metadata_size,
+        [getPoolKey("lvm_thinpool_metadata_size")]:
+          values.lvm_thinpool_metadata_size,
+        [getPoolKey("lvm_vg_force_reuse")]: values.lvm_vg_force_reuse,
         size: hasValidSize ? values.size : undefined,
       };
     }
@@ -196,6 +212,9 @@ const StoragePoolForm: FC<Props> = ({
           )}
           {section === slugify(ZFS_CONFIGURATION) && (
             <StoragePoolFormZFS formik={formik} />
+          )}
+          {section === slugify(LVM_CONFIGURATION) && (
+            <StoragePoolFormLVM formik={formik} />
           )}
           {section === slugify(YAML_CONFIGURATION) && (
             <YamlForm
