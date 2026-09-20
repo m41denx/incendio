@@ -20,7 +20,6 @@ import {
   typesWithLocalPeerings,
 } from "util/networks";
 import NetworkPeers from "./NetworkPeers";
-import { slugify } from "util/slugify";
 import classnames from "classnames";
 import NotFound from "components/NotFound";
 import { ROOT_PATH } from "util/rootPath";
@@ -79,7 +78,10 @@ const NetworkDetail: FC = () => {
   };
 
   const getTabLink = (label: string, supported: boolean, path: string) => {
-    const slug = slugify(label);
+    // Use the route path (not the label) as the tab slug so a tab can be
+    // renamed without changing its URL. Every tab's path already equals
+    // slugify(label), so this is behaviour-preserving for existing tabs.
+    const slug = path;
     const url = supported ? `${networkUrl}/${path}` : "#";
 
     return {
@@ -104,7 +106,7 @@ const NetworkDetail: FC = () => {
       ? [getTabLink("Load balancers", hasLoadBalancers, "load-balancers")]
       : []),
     getTabLink("Leases", hasLeases, "leases"),
-    getTabLink("Local peerings", isPeeringSupported, "local-peerings"),
+    getTabLink("Peerings", isPeeringSupported, "local-peerings"),
   ];
 
   return (

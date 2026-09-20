@@ -198,7 +198,7 @@ const NetworkIntegrationList: FC = () => {
           <PageHeader.Left>
             <PageHeader.Title>
               <HelpLink
-                docPath="/howto/network_ovn_setup/"
+                docPath="/howto/network_integrations/"
                 title="Learn more about OVN interconnect integrations"
               >
                 Network integrations
@@ -234,7 +234,7 @@ const NetworkIntegrationList: FC = () => {
               Incus deployments.
             </p>
             <p>
-              <DocLink docPath="/howto/network_ovn_setup/" hasExternalIcon>
+              <DocLink docPath="/howto/network_integrations/" hasExternalIcon>
                 Learn more about OVN networking
               </DocLink>
             </p>

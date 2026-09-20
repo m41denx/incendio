@@ -264,7 +264,7 @@ export const testDuplicateLocalPeeringName = (
 ): [string, string, TestFunction<string | undefined, AnyObject>] => {
   return [
     "deduplicate",
-    "A local peering with this name already exists",
+    "A peering with this name already exists",
     async (value?: string) => {
       return (
         (excludeName && value === excludeName) ||

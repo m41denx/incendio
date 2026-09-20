@@ -13,8 +13,8 @@ const EditLocalPeerBtn: FC<Props> = ({ network, localPeering }) => {
   const panelParams = usePanelParams();
   const { canEditNetwork } = useNetworkEntitlements();
   const editRestriction = canEditNetwork(network)
-    ? "Edit local peering"
-    : "You do not have permission to edit this local peering";
+    ? "Edit peering"
+    : "You do not have permission to edit this peering";
 
   return (
     <Button

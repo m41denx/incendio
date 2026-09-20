@@ -17,6 +17,7 @@ import NotificationRow from "components/NotificationRow";
 import BaseLayout from "components/BaseLayout";
 import FormFooterLayout from "components/forms/FormFooterLayout";
 import ResourceLink from "components/ResourceLink";
+import HelpLink from "components/HelpLink";
 import NetworkIntegrationForm, {
   toNetworkIntegration,
   type NetworkIntegrationFormValues,
@@ -99,7 +100,14 @@ const CreateNetworkIntegration: FC = () => {
 
   return (
     <BaseLayout
-      title="Create a network integration"
+      title={
+        <HelpLink
+          docPath="/howto/network_integrations/"
+          title="Learn more about OVN interconnect network integrations"
+        >
+          Create a network integration
+        </HelpLink>
+      }
       contentClassName="create-network-integration"
     >
       <Row>

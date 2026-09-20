@@ -93,7 +93,7 @@ const CreateLocalPeeringPanel: FC<Props> = ({ network }) => {
           controllerState,
         ),
       )
-      .required("Local peering name is required"),
+      .required("Peering name is required"),
   });
 
   const invalidateQueries = () => {
@@ -112,7 +112,7 @@ const CreateLocalPeeringPanel: FC<Props> = ({ network }) => {
     invalidateQueries();
     toastNotify.success(
       <>
-        Local peering{" "}
+        Peering{" "}
         <ResourceLink
           type={"peering"}
           value={peerName}
@@ -284,7 +284,7 @@ const CreateLocalPeeringPanel: FC<Props> = ({ network }) => {
             if (hasStorageAndNetworkOperations) {
               toastNotify.info(
                 <>
-                  Creation of local peering{" "}
+                  Creation of peering{" "}
                   <ResourceLabel bold type="peering" value={values.name} /> has
                   started.
                 </>,
@@ -313,7 +313,7 @@ const CreateLocalPeeringPanel: FC<Props> = ({ network }) => {
     <>
       <SidePanel>
         <SidePanel.Header>
-          <SidePanel.HeaderTitle>Create local peering</SidePanel.HeaderTitle>
+          <SidePanel.HeaderTitle>Create peering</SidePanel.HeaderTitle>
         </SidePanel.Header>
         <NotificationRow className="u-no-padding" />
         <SidePanel.Content className="u-no-padding">
@@ -341,7 +341,7 @@ const CreateLocalPeeringPanel: FC<Props> = ({ network }) => {
               !formik.isValid || formik.isSubmitting || !formik.values.name
             }
           >
-            Create local peering
+            Create peering
           </ActionButton>
         </SidePanel.Footer>
       </SidePanel>

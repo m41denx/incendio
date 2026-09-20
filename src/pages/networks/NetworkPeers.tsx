@@ -165,12 +165,12 @@ const NetworkPeers: FC<Props> = ({ network, project }) => {
           <EmptyState
             className="empty-state"
             image={<Icon className="empty-state-icon" name="exposed" />}
-            title="No local peerings found"
+            title="No peerings found"
           >
-            <p>There are no local peerings in this network and project.</p>
+            <p>There are no peerings in this network and project.</p>
             <p>
               <DocLink docPath={`/howto/network_ovn_peers`}>
-                Learn more about local peering
+                Learn more about peering
               </DocLink>
             </p>
             <CreateNetworkPeeringBtn

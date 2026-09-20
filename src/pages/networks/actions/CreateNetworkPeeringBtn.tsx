@@ -27,12 +27,12 @@ const CreateNetworkPeeringBtn: FC<Props> = ({ network, className }) => {
       disabled={!canEditNetwork(network)}
       title={
         canEditNetwork(network)
-          ? "Create local peering"
-          : "You do not have permission to create local peerings for this network"
+          ? "Create peering"
+          : "You do not have permission to create peerings for this network"
       }
     >
       {!isSmallScreen && <Icon name="plus" light />}
-      <span>Create local peering</span>
+      <span>Create peering</span>
     </Button>
   );
 };

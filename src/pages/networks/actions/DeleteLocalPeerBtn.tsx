@@ -52,7 +52,7 @@ const DeleteLocalPeerBtn: FC<Props> = ({ network, localPeering }) => {
     setLoading(false);
     toastNotify.success(
       <>
-        Local peering <ResourceLabel type="peering" value={localPeering} bold />{" "}
+        Peering <ResourceLabel type="peering" value={localPeering} bold />{" "}
         deleted for network{" "}
         <NetworkRichChip networkName={network.name} projectName={projectName} />
       </>,
@@ -61,7 +61,7 @@ const DeleteLocalPeerBtn: FC<Props> = ({ network, localPeering }) => {
 
   const onFailure = (e: unknown) => {
     notify.failure(
-      `Deletion of local peering ${localPeering} for network ${network.name} failed`,
+      `Deletion of peering ${localPeering} for network ${network.name} failed`,
       e,
     );
     setLoading(false);
@@ -75,7 +75,7 @@ const DeleteLocalPeerBtn: FC<Props> = ({ network, localPeering }) => {
         if (hasStorageAndNetworkOperations) {
           toastNotify.info(
             <>
-              Deletion of local peering{" "}
+              Deletion of peering{" "}
               <ResourceLabel type="peering" value={localPeering} bold /> for
               network{" "}
               <NetworkRichChip
@@ -108,7 +108,7 @@ const DeleteLocalPeerBtn: FC<Props> = ({ network, localPeering }) => {
         title: "Confirm delete",
         children: (
           <p>
-            This will permanently delete the local peering{" "}
+            This will permanently delete the peering{" "}
             <ResourceLink
               type="peering"
               value={localPeering}
@@ -132,8 +132,8 @@ const DeleteLocalPeerBtn: FC<Props> = ({ network, localPeering }) => {
       disabled={!canEditNetwork(network)}
       onHoverText={
         canEditNetwork(network)
-          ? "Delete local peering"
-          : "You do not have permission to delete this local peering."
+          ? "Delete peering"
+          : "You do not have permission to delete this peering."
       }
     >
       <Icon name="delete" />

@@ -537,6 +537,7 @@ const Navigation: FC = () => {
                           <NavAccordion
                             baseUrls={[
                               `${ROOT_PATH}/ui/cluster`,
+                              `${ROOT_PATH}/ui/network-integration`,
                               `${ROOT_PATH}/ui/project/${encodeURIComponent(projectName)}/placement-groups`,
                               `${ROOT_PATH}/ui/project/${encodeURIComponent(projectName)}/replicator/`,
                             ]}
@@ -572,6 +573,23 @@ const Navigation: FC = () => {
                                   Groups
                                 </NavLink>
                               </SideNavigationItem>,
+                              ...(hasNetworkIntegrations
+                                ? [
+                                    <SideNavigationItem key="network-integrations">
+                                      <NavLink
+                                        to={`${ROOT_PATH}/ui/network-integrations`}
+                                        title="Network integrations"
+                                        onClick={softToggleMenu}
+                                        activeUrlMatches={[
+                                          `${ROOT_PATH}/ui/network-integration`,
+                                        ]}
+                                        className="accordion-nav-secondary"
+                                      >
+                                        Interconnect
+                                      </NavLink>
+                                    </SideNavigationItem>,
+                                  ]
+                                : []),
                               ...(hasClusterLinks
                                 ? [
                                     <SideNavigationItem key="links">
@@ -714,24 +732,6 @@ const Navigation: FC = () => {
                               </SideNavigationItem>,
                             ]}
                           </NavAccordion>
-                        </SideNavigationItem>
-                      )}
-                      {hasNetworkIntegrations && (
-                        <SideNavigationItem>
-                          <NavLink
-                            to={`${ROOT_PATH}/ui/network-integrations`}
-                            title="Network integrations"
-                            onClick={softToggleMenu}
-                            activeUrlMatches={[
-                              `${ROOT_PATH}/ui/network-integration`,
-                            ]}
-                          >
-                            <Icon
-                              className="is-light p-side-navigation__icon"
-                              name="connected"
-                            />{" "}
-                            Network integrations
-                          </NavLink>
                         </SideNavigationItem>
                       )}
                       <SideNavigationItem>

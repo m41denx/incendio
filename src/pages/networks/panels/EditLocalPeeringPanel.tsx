@@ -74,7 +74,7 @@ const EditLocalPeeringPanel: FC<Props> = ({ network }) => {
     invalidateQueries();
     toastNotify.success(
       <>
-        Local peering{" "}
+        Peering{" "}
         <ResourceLink
           type={"peering"}
           value={localPeering ?? ""}
@@ -89,7 +89,7 @@ const EditLocalPeeringPanel: FC<Props> = ({ network }) => {
   const onFailure = (e: unknown) => {
     invalidateQueries();
     formik.setSubmitting(false);
-    notify.failure(`Update of local peering ${localPeering} failed`, e);
+    notify.failure(`Update of peering ${localPeering} failed`, e);
   };
 
   const formik = useFormik<LocalPeeringFormValues>({
@@ -120,7 +120,7 @@ const EditLocalPeeringPanel: FC<Props> = ({ network }) => {
           if (hasStorageAndNetworkOperations) {
             toastNotify.info(
               <>
-                Update of local peering{" "}
+                Update of peering{" "}
                 <ResourceLink
                   type={"peering"}
                   value={localPeering ?? ""}
@@ -149,11 +149,11 @@ const EditLocalPeeringPanel: FC<Props> = ({ network }) => {
   });
 
   if (!localPeer) {
-    return <>Missing local peering</>;
+    return <>Missing peering</>;
   }
 
   if (error) {
-    notify.failure("Loading local peering failed", error);
+    notify.failure("Loading peering failed", error);
   }
 
   if (isLoading) {
@@ -168,7 +168,7 @@ const EditLocalPeeringPanel: FC<Props> = ({ network }) => {
       <SidePanel>
         <SidePanel.Header>
           <SidePanel.HeaderTitle className="u-truncate">
-            Edit local peering {localPeering}
+            Edit peering {localPeering}
           </SidePanel.HeaderTitle>
         </SidePanel.Header>
         <NotificationRow className="u-no-padding" />

@@ -14,7 +14,7 @@ const LocalPeeringWarning: FC<Props> = ({ network }) => {
         severity="caution"
         title="No ACLs configured for this network."
       >
-        Local peerings have unrestricted ingress and egress on this network. To
+        Peerings have unrestricted ingress and egress on this network. To
         enforce filtering, add ACLs to the network configuration.
       </Notification>
     )
