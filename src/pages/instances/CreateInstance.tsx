@@ -41,6 +41,7 @@ import InstanceFormMenu, {
   MAIN_CONFIGURATION,
   MIGRATION,
   NETWORK_DEVICES,
+  NVIDIA_CONFIG,
   OTHER_DEVICES,
   PROXY_DEVICES,
   RESOURCE_LIMITS,
@@ -63,6 +64,7 @@ import {
 import FormFooterLayout from "components/forms/FormFooterLayout";
 import { instanceNameValidation } from "util/instances";
 import MigrationForm from "components/forms/MigrationForm";
+import NvidiaForm from "components/forms/NvidiaForm";
 import { useSupportedFeatures } from "context/useSupportedFeatures";
 import GPUDevicesForm from "components/forms/GPUDeviceForm";
 import OtherDeviceForm from "components/forms/OtherDeviceForm";
@@ -78,6 +80,7 @@ import {
   snapshotsPayload,
   cloudInitPayload,
   migrationPayload,
+  nvidiaPayload,
   sshKeyPayload,
   instanceDetailPayload,
   formDeviceToPayload,
@@ -420,6 +423,7 @@ const CreateInstance: FC = () => {
         ...securityPoliciesPayload(values),
         ...snapshotsPayload(values),
         ...migrationPayload(values),
+        ...nvidiaPayload(values),
         ...bootPayload(values),
         ...cloudInitPayload(values),
         ...sshKeyPayload(values),
@@ -515,6 +519,8 @@ const CreateInstance: FC = () => {
             {section === SNAPSHOTS && <InstanceSnapshotsForm formik={formik} />}
 
             {section === MIGRATION && <MigrationForm formik={formik} />}
+
+            {section === NVIDIA_CONFIG && <NvidiaForm formik={formik} />}
 
             {section === BOOT && <BootForm formik={formik} />}
 

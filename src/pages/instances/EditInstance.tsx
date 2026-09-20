@@ -32,6 +32,7 @@ import InstanceFormMenu, {
   MAIN_CONFIGURATION,
   MIGRATION,
   NETWORK_DEVICES,
+  NVIDIA_CONFIG,
   OTHER_DEVICES,
   PROXY_DEVICES,
   RESOURCE_LIMITS,
@@ -53,6 +54,7 @@ import { slugify } from "util/slugify";
 import { useEventQueue } from "context/eventQueue";
 import { hasDiskError, hasNetworkError } from "util/instanceValidation";
 import MigrationForm from "components/forms/MigrationForm";
+import NvidiaForm from "components/forms/NvidiaForm";
 import UserPropertiesForm from "components/forms/UserPropertiesForm";
 import GPUDeviceForm from "components/forms/GPUDeviceForm";
 import OtherDeviceForm from "components/forms/OtherDeviceForm";
@@ -264,6 +266,10 @@ const EditInstance: FC<Props> = ({ instance }) => {
 
             {section === slugify(MIGRATION) && (
               <MigrationForm formik={formik} />
+            )}
+
+            {section === slugify(NVIDIA_CONFIG) && (
+              <NvidiaForm formik={formik} />
             )}
 
             {section === slugify(BOOT) && <BootForm formik={formik} />}

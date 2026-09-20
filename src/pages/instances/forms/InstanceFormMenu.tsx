@@ -23,6 +23,7 @@ export const RESOURCE_LIMITS = "Resource limits";
 export const SECURITY_POLICIES = "Security policies";
 export const MIGRATION = "Migration";
 export const SNAPSHOTS = "Snapshots";
+export const NVIDIA_CONFIG = "NVIDIA";
 export const BOOT = "Boot";
 export const CLOUD_INIT = "Cloud init";
 export const USER_PROPERTIES = "User properties";
@@ -146,6 +147,11 @@ const InstanceFormMenu: FC<Props> = ({
               hasPrefixValue(formik, "migration_") ||
               hasPrefixValue(formik, "cluster_")
             }
+          />
+          <MenuItem
+            label={NVIDIA_CONFIG}
+            {...menuItemProps}
+            isBold={hasPrefixValue(formik, "nvidia_")}
           />
           <MenuItem
             label={BOOT}

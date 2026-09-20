@@ -10,6 +10,7 @@ import type {
   EditProfileFormValues,
   EditInstanceFormValues,
   MigrationFormValues,
+  NvidiaFormValues,
   ProfileDetailsFormValues,
   ResourceLimitsFormValues,
   SecurityPoliciesFormValues,
@@ -58,6 +59,7 @@ export const getInstancePayload = (
       ...securityPoliciesPayload(values),
       ...snapshotsPayload(values),
       ...migrationPayload(values),
+      ...nvidiaPayload(values),
       ...bootPayload(values),
       ...cloudInitPayload(values),
       ...sshKeyPayload(values),
@@ -290,6 +292,16 @@ export const migrationPayload = (values: MigrationFormValues) => {
   };
 };
 
+export const nvidiaPayload = (values: NvidiaFormValues) => {
+  return {
+    [getInstanceField("nvidia_runtime")]: values.nvidia_runtime,
+    [getInstanceField("nvidia_driver_capabilities")]:
+      values.nvidia_driver_capabilities,
+    [getInstanceField("nvidia_require_cuda")]: values.nvidia_require_cuda,
+    [getInstanceField("nvidia_require_driver")]: values.nvidia_require_driver,
+  };
+};
+
 export const bootPayload = (values: BootFormValues) => {
   return {
     [getInstanceField("boot_autostart")]: values.boot_autostart?.toString(),
@@ -378,6 +390,7 @@ export const getProfilePayload = (
       ...securityPoliciesPayload(values),
       ...snapshotsPayload(values),
       ...migrationPayload(values),
+      ...nvidiaPayload(values),
       ...bootPayload(values),
       ...cloudInitPayload(values),
       ...sshKeyPayload(values),
@@ -594,6 +607,11 @@ const getEditValues = (
       item.config["migration.incremental.memory.goal"],
     migration_incremental_memory_iterations:
       item.config["migration.incremental.memory.iterations"],
+
+    nvidia_runtime: item.config["nvidia.runtime"],
+    nvidia_driver_capabilities: item.config["nvidia.driver.capabilities"],
+    nvidia_require_cuda: item.config["nvidia.require.cuda"],
+    nvidia_require_driver: item.config["nvidia.require.driver"],
 
     boot_autostart: item.config["boot.autostart"],
     boot_autostart_delay: item.config["boot.autostart.delay"],

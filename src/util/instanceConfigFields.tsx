@@ -75,6 +75,10 @@ const instanceConfigFormFieldsToPayload: Record<string, string> = {
   migration_incremental_memory_iterations:
     "migration.incremental.memory.iterations",
   cluster_evacuate: "cluster.evacuate",
+  nvidia_runtime: "nvidia.runtime",
+  nvidia_driver_capabilities: "nvidia.driver.capabilities",
+  nvidia_require_cuda: "nvidia.require.cuda",
+  nvidia_require_driver: "nvidia.require.driver",
   boot_autostart: "boot.autostart",
   boot_autostart_delay: "boot.autostart.delay",
   boot_autostart_priority: "boot.autostart.priority",

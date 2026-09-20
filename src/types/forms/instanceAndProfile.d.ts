@@ -75,6 +75,13 @@ export interface MigrationFormValues {
   migration_incremental_memory_iterations?: string;
 }
 
+export interface NvidiaFormValues {
+  nvidia_runtime?: string;
+  nvidia_driver_capabilities?: string;
+  nvidia_require_cuda?: string;
+  nvidia_require_driver?: string;
+}
+
 export interface ProfileDetailsFormValues {
   name: string;
   description?: string;
@@ -177,6 +184,7 @@ export type CreateInstanceFormValues = InstanceDetailsFormValues &
   SecurityPoliciesFormValues &
   SnapshotFormValues &
   MigrationFormValues &
+  NvidiaFormValues &
   BootFormValues &
   CloudInitFormValues &
   SshKeyFormValues &
@@ -188,6 +196,7 @@ export type CreateProfileFormValues = ProfileDetailsFormValues &
   SecurityPoliciesFormValues &
   SnapshotFormValues &
   MigrationFormValues &
+  NvidiaFormValues &
   BootFormValues &
   CloudInitFormValues &
   SshKeyFormValues &
@@ -199,6 +208,7 @@ export type EditInstanceFormValues = InstanceEditDetailsFormValues &
   SecurityPoliciesFormValues &
   SnapshotFormValues &
   MigrationFormValues &
+  NvidiaFormValues &
   BootFormValues &
   CloudInitFormValues &
   SshKeyFormValues &
@@ -210,6 +220,7 @@ export type EditProfileFormValues = ProfileDetailsFormValues &
   SecurityPoliciesFormValues &
   SnapshotFormValues &
   MigrationFormValues &
+  NvidiaFormValues &
   BootFormValues &
   CloudInitFormValues &
   SshKeyFormValues &
