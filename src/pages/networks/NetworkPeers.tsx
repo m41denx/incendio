@@ -21,6 +21,8 @@ import LocalPeeringWarning from "./LocalPeeringWarning";
 import NetworkRichChip from "./NetworkRichChip";
 import ProjectRichChip from "pages/projects/ProjectRichChip";
 import LocalPeeringTargetWarning from "pages/networks/LocalPeeringTargetWarning";
+import { Link } from "react-router-dom";
+import { ROOT_PATH } from "util/rootPath";
 
 interface Props {
   network: LxdNetwork;
@@ -90,6 +92,13 @@ const NetworkPeers: FC<Props> = ({ network, project }) => {
                 project={localPeering.target_project}
               />
             </>
+          ) : localPeering.target_integration ? (
+            <Link
+              to={`${ROOT_PATH}/ui/network-integration/${encodeURIComponent(localPeering.target_integration)}`}
+              title="OVN interconnect integration"
+            >
+              {localPeering.target_integration}
+            </Link>
           ) : (
             "-"
           ),
@@ -117,7 +126,8 @@ const NetworkPeers: FC<Props> = ({ network, project }) => {
         name: localPeering.name?.toLowerCase(),
         description: localPeering.description?.toLowerCase(),
         targetProject: localPeering.target_project?.toLowerCase(),
-        targetNetwork: localPeering.target_network,
+        targetNetwork:
+          localPeering.target_network || localPeering.target_integration,
         status: localPeering.status?.toLowerCase(),
       },
     };

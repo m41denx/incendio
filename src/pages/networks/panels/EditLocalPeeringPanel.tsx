@@ -98,6 +98,8 @@ const EditLocalPeeringPanel: FC<Props> = ({ network }) => {
       description: localPeer?.description,
       targetProject: localPeer?.target_project ?? "",
       targetNetwork: localPeer?.target_network ?? "",
+      peerType: localPeer?.type ?? "local",
+      targetIntegration: localPeer?.target_integration ?? "",
     },
     enableReinitialize: true,
     onSubmit: (values) => {

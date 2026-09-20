@@ -1,5 +1,5 @@
 import type { FC, ReactNode } from "react";
-import { Form, Input } from "@canonical/react-components";
+import { Form, Input, Select } from "@canonical/react-components";
 import type { FormikProps } from "formik/dist/types";
 import AutoExpandingTextArea from "components/AutoExpandingTextArea";
 import type { LxdNetwork } from "types/network";
@@ -10,6 +10,8 @@ import { typesWithLocalPeerings } from "util/networks";
 import { useProjects } from "context/useProjects";
 import ProjectSelector from "./ProjectSelector";
 import type { LocalPeeringFormValues } from "types/forms/localPeering";
+import { useSupportedFeatures } from "context/useSupportedFeatures";
+import { useNetworkIntegrations } from "context/useNetworkIntegrations";
 
 interface Props {
   formik: FormikProps<LocalPeeringFormValues>;
@@ -21,6 +23,11 @@ const NetworkLocalPeeringForm: FC<Props> = ({ formik, network, isEditing }) => {
   const projectOtherLabel = "Manually enter project";
   const networkOtherLabel = "Manually enter network";
   const { canEditNetwork } = useNetworkEntitlements();
+  const { hasNetworkIntegrations } = useSupportedFeatures();
+  const { data: integrations = [] } = useNetworkIntegrations(
+    hasNetworkIntegrations,
+  );
+  const isRemote = formik.values.peerType === "remote";
   const { data: projects = [] } = useProjects();
   const { data: networks = [] } = useNetworks(
     formik.values.targetProject || "default",
@@ -88,135 +95,200 @@ const NetworkLocalPeeringForm: FC<Props> = ({ formik, network, isEditing }) => {
         title={editRestriction}
         autoFocus={isEditing}
       />
-      {isEditing ? (
-        <Input
-          id="targetProject"
-          type="text"
-          label="Target project"
-          value={formik.values.targetProject}
-          title="Target project cannot be changed"
-          required
-          disabled
-        />
-      ) : (
-        <ProjectSelector
-          id="targetProject"
-          name="targetProject"
-          label="Target project"
-          value={formik.values.targetProject}
-          setValue={(value) => {
-            formik.setFieldValue("targetProject", value, false);
-            formik.setFieldValue("customTargetProject", "", false);
-            if (value === projectOtherLabel) {
-              formik.setFieldValue("targetNetwork", networkOtherLabel, false);
-            } else {
-              formik.setFieldValue("targetNetwork", "", false);
-            }
-            formik.setFieldValue("customTargetNetwork", "", false);
+      {hasNetworkIntegrations && (
+        <Select
+          id="peerType"
+          name="peerType"
+          label="Peer type"
+          value={formik.values.peerType ?? "local"}
+          disabled={isEditing || !!editRestriction}
+          title={isEditing ? "Peer type cannot be changed" : editRestriction}
+          onChange={(e) => {
+            formik.setFieldValue("peerType", e.target.value, false);
+            // reset the opposite branch's fields so validation/payload stay clean
             formik.setFieldValue("createMutualPeering", false, false);
+            if (e.target.value === "remote") {
+              formik.setFieldValue("targetProject", "", false);
+              formik.setFieldValue("targetNetwork", "", false);
+              formik.setFieldValue("customTargetProject", "", false);
+              formik.setFieldValue("customTargetNetwork", "", false);
+            } else {
+              formik.setFieldValue("targetIntegration", "", false);
+            }
             setTimeout(() => {
               formik.validateForm();
             }, 100);
           }}
-          disabled={!!editRestriction}
-          projects={projectList}
-          required
+          options={[
+            { label: "Local network", value: "local" },
+            { label: "Remote (integration)", value: "remote" },
+          ]}
+          help="Remote peers connect through an OVN interconnect network integration."
         />
       )}
-
-      {formik.values.targetProject === projectOtherLabel && (
-        <Input
-          id="customTargetProject"
-          name="customTargetProject"
-          type="text"
-          placeholder="Enter target project name"
-          value={formik.values.customTargetProject}
+      {isRemote ? (
+        <Select
+          id="targetIntegration"
+          name="targetIntegration"
+          label="Target integration"
+          value={formik.values.targetIntegration ?? ""}
           onChange={formik.handleChange}
           onBlur={formik.handleBlur}
-        />
-      )}
-
-      {isEditing ? (
-        <Input
-          id="targetNetwork"
-          type="text"
-          label="Target network"
-          value={formik.values.targetNetwork}
-          title="Target network cannot be changed"
+          disabled={isEditing || !!editRestriction}
+          title={
+            isEditing ? "Target integration cannot be changed" : editRestriction
+          }
           required
-          disabled
+          options={[
+            { label: "Select an integration", value: "", disabled: true },
+            ...integrations.map((integration) => ({
+              label: integration.name,
+              value: integration.name,
+            })),
+          ]}
+          error={
+            formik.touched.targetIntegration
+              ? (formik.errors.targetIntegration as ReactNode)
+              : null
+          }
         />
       ) : (
-        formik.values.targetProject &&
-        formik.values.targetProject !== projectOtherLabel && (
-          <NetworkSelector
-            id="targetNetwork"
-            name="targetNetwork"
-            label="Target network"
-            value={formik.values.targetNetwork}
-            setValue={(value) => {
-              formik.setFieldValue("targetNetwork", value, false);
-              if (value === networkOtherLabel) {
-                formik.setFieldValue("createMutualPeering", false, true);
-              } else {
+        <>
+          {isEditing ? (
+            <Input
+              id="targetProject"
+              type="text"
+              label="Target project"
+              value={formik.values.targetProject}
+              title="Target project cannot be changed"
+              required
+              disabled
+            />
+          ) : (
+            <ProjectSelector
+              id="targetProject"
+              name="targetProject"
+              label="Target project"
+              value={formik.values.targetProject}
+              setValue={(value) => {
+                formik.setFieldValue("targetProject", value, false);
+                formik.setFieldValue("customTargetProject", "", false);
+                if (value === projectOtherLabel) {
+                  formik.setFieldValue(
+                    "targetNetwork",
+                    networkOtherLabel,
+                    false,
+                  );
+                } else {
+                  formik.setFieldValue("targetNetwork", "", false);
+                }
                 formik.setFieldValue("customTargetNetwork", "", false);
-                formik.setFieldValue("createMutualPeering", true, false);
+                formik.setFieldValue("createMutualPeering", false, false);
+                setTimeout(() => {
+                  formik.validateForm();
+                }, 100);
+              }}
+              disabled={!!editRestriction}
+              projects={projectList}
+              required
+            />
+          )}
+
+          {formik.values.targetProject === projectOtherLabel && (
+            <Input
+              id="customTargetProject"
+              name="customTargetProject"
+              type="text"
+              placeholder="Enter target project name"
+              value={formik.values.customTargetProject}
+              onChange={formik.handleChange}
+              onBlur={formik.handleBlur}
+            />
+          )}
+
+          {isEditing ? (
+            <Input
+              id="targetNetwork"
+              type="text"
+              label="Target network"
+              value={formik.values.targetNetwork}
+              title="Target network cannot be changed"
+              required
+              disabled
+            />
+          ) : (
+            formik.values.targetProject &&
+            formik.values.targetProject !== projectOtherLabel && (
+              <NetworkSelector
+                id="targetNetwork"
+                name="targetNetwork"
+                label="Target network"
+                value={formik.values.targetNetwork}
+                setValue={(value) => {
+                  formik.setFieldValue("targetNetwork", value, false);
+                  if (value === networkOtherLabel) {
+                    formik.setFieldValue("createMutualPeering", false, true);
+                  } else {
+                    formik.setFieldValue("customTargetNetwork", "", false);
+                    formik.setFieldValue("createMutualPeering", true, false);
+                  }
+                  setTimeout(() => {
+                    formik.validateForm();
+                  }, 100);
+                }}
+                networkList={networkList}
+                help={
+                  formik.values.targetNetwork !== networkOtherLabel &&
+                  "Peering is limited to intra-cluster OVN networks; non-OVN or cross-cluster network peering is not supported."
+                }
+                required
+              />
+            )
+          )}
+
+          {(formik.values.targetNetwork === networkOtherLabel ||
+            formik.values.targetProject === projectOtherLabel) && (
+            <Input
+              id="customTargetNetwork"
+              name="customTargetNetwork"
+              type="text"
+              label={
+                (formik.values.targetNetwork !== networkOtherLabel ||
+                  formik.values.targetProject === projectOtherLabel) &&
+                "Target network"
               }
-              setTimeout(() => {
-                formik.validateForm();
-              }, 100);
-            }}
-            networkList={networkList}
-            help={
-              formik.values.targetNetwork !== networkOtherLabel &&
-              "Peering is limited to intra-cluster OVN networks; non-OVN or cross-cluster network peering is not supported."
-            }
-            required
-          />
-        )
-      )}
+              placeholder="Enter target network name"
+              value={formik.values.customTargetNetwork}
+              onChange={formik.handleChange}
+              onBlur={formik.handleBlur}
+              help="Peering is limited to intra-cluster OVN networks; non-OVN or cross-cluster network peering is not supported."
+              required
+            />
+          )}
 
-      {(formik.values.targetNetwork === networkOtherLabel ||
-        formik.values.targetProject === projectOtherLabel) && (
-        <Input
-          id="customTargetNetwork"
-          name="customTargetNetwork"
-          type="text"
-          label={
-            (formik.values.targetNetwork !== networkOtherLabel ||
-              formik.values.targetProject === projectOtherLabel) &&
-            "Target network"
-          }
-          placeholder="Enter target network name"
-          value={formik.values.customTargetNetwork}
-          onChange={formik.handleChange}
-          onBlur={formik.handleBlur}
-          help="Peering is limited to intra-cluster OVN networks; non-OVN or cross-cluster network peering is not supported."
-          required
-        />
-      )}
-
-      {!isEditing && (
-        <Input
-          id="createMutualPeering"
-          name="createMutualPeering"
-          type="checkbox"
-          label="Create mutual peering"
-          checked={formik.values.createMutualPeering}
-          onChange={(e) => {
-            formik.setFieldValue("createMutualPeering", e.target.checked);
-          }}
-          disabled={
-            formik.values.targetNetwork === networkOtherLabel ||
-            formik.values.targetProject === projectOtherLabel
-          }
-          title={
-            formik.values.targetNetwork === networkOtherLabel ||
-            formik.values.targetProject === projectOtherLabel
-              ? "Unavailable when using manual network or project entry"
-              : ""
-          }
-        />
+          {!isEditing && (
+            <Input
+              id="createMutualPeering"
+              name="createMutualPeering"
+              type="checkbox"
+              label="Create mutual peering"
+              checked={formik.values.createMutualPeering}
+              onChange={(e) => {
+                formik.setFieldValue("createMutualPeering", e.target.checked);
+              }}
+              disabled={
+                formik.values.targetNetwork === networkOtherLabel ||
+                formik.values.targetProject === projectOtherLabel
+              }
+              title={
+                formik.values.targetNetwork === networkOtherLabel ||
+                formik.values.targetProject === projectOtherLabel
+                  ? "Unavailable when using manual network or project entry"
+                  : ""
+              }
+            />
+          )}
+        </>
       )}
     </Form>
   );

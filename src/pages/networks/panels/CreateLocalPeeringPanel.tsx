@@ -47,8 +47,20 @@ const CreateLocalPeeringPanel: FC<Props> = ({ network }) => {
   const projectOtherLabel = "Manually enter project";
   const networkOtherLabel = "Manually enter network";
 
+  const isRemotePeer = (v: string) => v === "remote";
+
   const localPeeringSchema = Yup.object().shape({
-    targetProject: Yup.string().required("Target project is required"),
+    targetIntegration: Yup.string().when("peerType", {
+      is: isRemotePeer,
+      then: (schema) => schema.required("Target integration is required"),
+      otherwise: (schema) => schema.notRequired(),
+    }),
+
+    targetProject: Yup.string().when("peerType", {
+      is: isRemotePeer,
+      then: (schema) => schema.notRequired(),
+      otherwise: (schema) => schema.required("Target project is required"),
+    }),
 
     customTargetProject: Yup.string()
       .nullable()
@@ -58,8 +70,9 @@ const CreateLocalPeeringPanel: FC<Props> = ({ network }) => {
         otherwise: (schema) => schema.notRequired(),
       }),
 
-    targetNetwork: Yup.string().when("targetProject", {
-      is: (v: string) => v !== projectOtherLabel,
+    targetNetwork: Yup.string().when(["peerType", "targetProject"], {
+      is: (peerType: string, targetProject: string) =>
+        !isRemotePeer(peerType) && targetProject !== projectOtherLabel,
       then: (schema) => schema.required("Target network is required"),
       otherwise: (schema) => schema.notRequired(),
     }),
@@ -157,12 +170,55 @@ const CreateLocalPeeringPanel: FC<Props> = ({ network }) => {
       customTargetNetwork: "",
       customTargetProject: "",
       createMutualPeering: false,
+      peerType: "local",
+      targetIntegration: "",
     },
     validationSchema: localPeeringSchema,
     validateOnMount: true,
     validateOnChange: true,
     validateOnBlur: true,
     onSubmit: (values) => {
+      if (values.peerType === "remote") {
+        const remotePeeringPayload = {
+          name: values.name,
+          description: values.description,
+          type: "remote",
+          target_integration: values.targetIntegration,
+        };
+
+        createNetworkPeer(
+          network.name,
+          project,
+          JSON.stringify(remotePeeringPayload),
+        )
+          .then((operation) => {
+            if (hasStorageAndNetworkOperations) {
+              toastNotify.info(
+                <>
+                  Creation of remote peering{" "}
+                  <ResourceLabel bold type="peering" value={values.name} /> has
+                  started.
+                </>,
+              );
+              eventQueue.set(
+                operation.metadata.id,
+                () => {
+                  onSuccess(values.name);
+                },
+                (msg) => {
+                  onFailure(true, values.name, new Error(msg));
+                },
+              );
+            } else {
+              onSuccess(values.name);
+            }
+          })
+          .catch((e) => {
+            onFailure(true, values.name, e);
+          });
+        return;
+      }
+
       const targetProject =
         values.targetProject === projectOtherLabel
           ? values.customTargetProject || ""

@@ -191,6 +191,8 @@ export interface LxdNetworkPeer {
   description: "string";
   target_project: "string";
   status: "string";
+  type?: string;
+  target_integration?: string;
   etag?: string;
 }
 

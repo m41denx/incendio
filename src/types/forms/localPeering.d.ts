@@ -6,4 +6,8 @@ export interface LocalPeeringFormValues {
   customTargetProject?: string;
   customTargetNetwork?: string;
   createMutualPeering?: boolean;
+  // "local" (peer another network) or "remote" (peer through an OVN
+  // interconnect network integration).
+  peerType?: string;
+  targetIntegration?: string;
 }
