@@ -6,6 +6,10 @@ import { useListener } from "@canonical/react-components";
 import { updateMaxHeight } from "util/updateMaxHeight";
 import { bespin } from "@uiw/codemirror-theme-bespin";
 
+export interface YamlFormValues {
+  yaml?: string;
+}
+
 interface Props {
   yaml: string;
   setYaml?: (text: string) => void;
