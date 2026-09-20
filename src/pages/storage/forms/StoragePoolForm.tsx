@@ -15,6 +15,7 @@ import StoragePoolFormMenu, {
   CEPHFS_CONFIGURATION,
   CEPHOBJECT_CONFIGURATION,
   BTRFS_CONFIGURATION,
+  DIR_CONFIGURATION,
   LINSTOR_CONFIGURATION,
   LVM_CONFIGURATION,
   TRUENAS_CONFIGURATION,
@@ -27,6 +28,7 @@ import type { LxdStoragePool } from "types/storage";
 import {
   btrfsDriver,
   cephObject,
+  dirDriver,
   getSupportedStorageDrivers,
   linstorDriver,
   lvmDriver,
@@ -44,6 +46,7 @@ import StoragePoolFormLVM from "./StoragePoolFormLVM";
 import StoragePoolFormLINSTOR from "./StoragePoolFormLINSTOR";
 import StoragePoolFormTrueNAS from "./StoragePoolFormTrueNAS";
 import StoragePoolFormBtrfs from "./StoragePoolFormBtrfs";
+import StoragePoolFormDir from "./StoragePoolFormDir";
 import { useSettings } from "context/useSettings";
 import { ensureEditMode } from "util/editMode";
 import StoragePoolFormCephFS from "pages/storage/forms/StoragePoolFormCephFS";
@@ -69,6 +72,7 @@ export const toStoragePool = (
   const isLINSTORDriver = values.driver === linstorDriver;
   const isTrueNASDriver = values.driver === truenasDriver;
   const isBtrfsDriver = values.driver === btrfsDriver;
+  const isDirDriver = values.driver === dirDriver;
   const hasValidSize = values.size?.match(/^\d/);
 
   const getConfig = () => {
@@ -161,6 +165,12 @@ export const toStoragePool = (
         [getPoolKey("btrfs_create_options")]: values.btrfs_create_options,
         [getPoolKey("btrfs_mount_options")]: values.btrfs_mount_options,
         size: hasValidSize ? values.size : undefined,
+      };
+    }
+    if (isDirDriver) {
+      return {
+        [getPoolKey("rsync_bwlimit")]: values.rsync_bwlimit,
+        [getPoolKey("rsync_compression")]: values.rsync_compression,
       };
     }
     return {
@@ -271,6 +281,9 @@ const StoragePoolForm: FC<Props> = ({
           )}
           {section === slugify(BTRFS_CONFIGURATION) && (
             <StoragePoolFormBtrfs formik={formik} />
+          )}
+          {section === slugify(DIR_CONFIGURATION) && (
+            <StoragePoolFormDir formik={formik} />
           )}
           {section === slugify(YAML_CONFIGURATION) && (
             <YamlForm

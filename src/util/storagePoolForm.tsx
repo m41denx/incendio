@@ -113,6 +113,8 @@ export const toStoragePoolFormValues = (
     truenas_config: pool.config?.["truenas.config"],
     btrfs_create_options: pool.config?.["btrfs.create_options"],
     btrfs_mount_options: pool.config?.["btrfs.mount_options"],
+    rsync_bwlimit: pool.config?.["rsync.bwlimit"],
+    rsync_compression: pool.config?.["rsync.compression"],
     zfsPoolNamePerClusterMember,
     editRestriction,
   };
@@ -153,6 +155,8 @@ export const handleConfigKeys = [
   "truenas.config",
   "btrfs.create_options",
   "btrfs.mount_options",
+  "rsync.bwlimit",
+  "rsync.compression",
 ];
 
 export const getFormProps = (

@@ -9,6 +9,7 @@ import {
   cephDriver,
   cephFSDriver,
   cephObject,
+  dirDriver,
   linstorDriver,
   lvmDriver,
   truenasDriver,
@@ -24,6 +25,7 @@ export const LVM_CONFIGURATION = "LVM";
 export const LINSTOR_CONFIGURATION = "LINSTOR";
 export const TRUENAS_CONFIGURATION = "TrueNAS";
 export const BTRFS_CONFIGURATION = "Btrfs";
+export const DIR_CONFIGURATION = "Directory";
 export const YAML_CONFIGURATION = "YAML configuration";
 
 interface Props {
@@ -53,6 +55,7 @@ const StoragePoolFormMenu: FC<Props> = ({
   const isLinstorDriver = formik.values.driver === linstorDriver;
   const isTruenasDriver = formik.values.driver === truenasDriver;
   const isBtrfsDriver = formik.values.driver === btrfsDriver;
+  const isDirDriver = formik.values.driver === dirDriver;
   const hasName = formik.values.name.length > 0;
   const getDisableReason = () => {
     if (!hasName) {
@@ -127,6 +130,13 @@ const StoragePoolFormMenu: FC<Props> = ({
           {isBtrfsDriver && (
             <MenuItem
               label={BTRFS_CONFIGURATION}
+              {...menuItemProps}
+              disableReason={disableReason}
+            />
+          )}
+          {isDirDriver && (
+            <MenuItem
+              label={DIR_CONFIGURATION}
               {...menuItemProps}
               disableReason={disableReason}
             />

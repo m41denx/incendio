@@ -63,6 +63,8 @@ export const storagePoolFormFieldToPayloadName: Record<string, string> = {
   truenas_config: "truenas.config",
   btrfs_create_options: "btrfs.create_options",
   btrfs_mount_options: "btrfs.mount_options",
+  rsync_bwlimit: "rsync.bwlimit",
+  rsync_compression: "rsync.compression",
 };
 
 export const isClusterLocalDriver = (poolDriver: string) => {

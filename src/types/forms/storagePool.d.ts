@@ -58,6 +58,8 @@ export interface StoragePoolFormValues {
   truenas_config?: string;
   btrfs_create_options?: string;
   btrfs_mount_options?: string;
+  rsync_bwlimit?: string;
+  rsync_compression?: string;
   zfsPoolNamePerClusterMember?: ClusterSpecificValues;
   editRestriction?: string;
 }
