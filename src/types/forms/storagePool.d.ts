@@ -47,6 +47,15 @@ export interface StoragePoolFormValues {
   drbd_on_no_quorum?: string;
   drbd_auto_add_quorum_tiebreaker?: string;
   drbd_auto_diskful?: string;
+  truenas_host?: string;
+  truenas_api_key?: string;
+  truenas_dataset?: string;
+  truenas_portal?: string;
+  truenas_initiator?: string;
+  truenas_allow_insecure?: string;
+  truenas_clone_copy?: string;
+  truenas_force_reuse?: string;
+  truenas_config?: string;
   zfsPoolNamePerClusterMember?: ClusterSpecificValues;
   editRestriction?: string;
 }

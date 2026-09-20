@@ -12,6 +12,7 @@ import {
   cephDriver,
   cephFSDriver,
   linstorDriver,
+  truenasDriver,
 } from "util/storageOptions";
 import type { ReactNode } from "react";
 import type { FormikProps } from "formik";
@@ -30,6 +31,7 @@ export const isStoragePoolWithSource = (driver: string) => {
     cephDriver,
     cephFSDriver,
     linstorDriver,
+    truenasDriver,
   ];
   return driversWithSource.includes(driver);
 };
@@ -100,6 +102,15 @@ export const toStoragePoolFormValues = (
     drbd_auto_add_quorum_tiebreaker:
       pool.config?.["drbd.auto_add_quorum_tiebreaker"],
     drbd_auto_diskful: pool.config?.["drbd.auto_diskful"],
+    truenas_host: pool.config?.["truenas.host"],
+    truenas_api_key: pool.config?.["truenas.api_key"],
+    truenas_dataset: pool.config?.["truenas.dataset"],
+    truenas_portal: pool.config?.["truenas.portal"],
+    truenas_initiator: pool.config?.["truenas.initiator"],
+    truenas_allow_insecure: pool.config?.["truenas.allow_insecure"],
+    truenas_clone_copy: pool.config?.["truenas.clone_copy"],
+    truenas_force_reuse: pool.config?.["truenas.force_reuse"],
+    truenas_config: pool.config?.["truenas.config"],
     zfsPoolNamePerClusterMember,
     editRestriction,
   };
@@ -129,6 +140,15 @@ export const handleConfigKeys = [
   "drbd.on_no_quorum",
   "drbd.auto_add_quorum_tiebreaker",
   "drbd.auto_diskful",
+  "truenas.host",
+  "truenas.api_key",
+  "truenas.dataset",
+  "truenas.portal",
+  "truenas.initiator",
+  "truenas.allow_insecure",
+  "truenas.clone_copy",
+  "truenas.force_reuse",
+  "truenas.config",
 ];
 
 export const getFormProps = (

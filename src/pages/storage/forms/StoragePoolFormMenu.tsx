@@ -10,6 +10,7 @@ import {
   cephObject,
   linstorDriver,
   lvmDriver,
+  truenasDriver,
   zfsDriver,
 } from "util/storageOptions";
 
@@ -20,6 +21,7 @@ export const CEPHOBJECT_CONFIGURATION = "Ceph Object";
 export const ZFS_CONFIGURATION = "ZFS";
 export const LVM_CONFIGURATION = "LVM";
 export const LINSTOR_CONFIGURATION = "LINSTOR";
+export const TRUENAS_CONFIGURATION = "TrueNAS";
 export const YAML_CONFIGURATION = "YAML configuration";
 
 interface Props {
@@ -47,6 +49,7 @@ const StoragePoolFormMenu: FC<Props> = ({
   const isZfsDriver = formik.values.driver === zfsDriver;
   const isLvmDriver = formik.values.driver === lvmDriver;
   const isLinstorDriver = formik.values.driver === linstorDriver;
+  const isTruenasDriver = formik.values.driver === truenasDriver;
   const hasName = formik.values.name.length > 0;
   const getDisableReason = () => {
     if (!hasName) {
@@ -107,6 +110,13 @@ const StoragePoolFormMenu: FC<Props> = ({
           {isLinstorDriver && (
             <MenuItem
               label={LINSTOR_CONFIGURATION}
+              {...menuItemProps}
+              disableReason={disableReason}
+            />
+          )}
+          {isTruenasDriver && (
+            <MenuItem
+              label={TRUENAS_CONFIGURATION}
               {...menuItemProps}
               disableReason={disableReason}
             />

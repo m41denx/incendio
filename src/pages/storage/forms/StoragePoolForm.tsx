@@ -16,6 +16,7 @@ import StoragePoolFormMenu, {
   CEPHOBJECT_CONFIGURATION,
   LINSTOR_CONFIGURATION,
   LVM_CONFIGURATION,
+  TRUENAS_CONFIGURATION,
   MAIN_CONFIGURATION,
   YAML_CONFIGURATION,
   ZFS_CONFIGURATION,
@@ -27,6 +28,7 @@ import {
   getSupportedStorageDrivers,
   linstorDriver,
   lvmDriver,
+  truenasDriver,
   zfsDriver,
 } from "util/storageOptions";
 import { getPoolKey, isCephDriver, isCephFSDriver } from "util/storagePool";
@@ -38,6 +40,7 @@ import StoragePoolFormCeph from "./StoragePoolFormCeph";
 import StoragePoolFormZFS from "./StoragePoolFormZFS";
 import StoragePoolFormLVM from "./StoragePoolFormLVM";
 import StoragePoolFormLINSTOR from "./StoragePoolFormLINSTOR";
+import StoragePoolFormTrueNAS from "./StoragePoolFormTrueNAS";
 import { useSettings } from "context/useSettings";
 import { ensureEditMode } from "util/editMode";
 import StoragePoolFormCephFS from "pages/storage/forms/StoragePoolFormCephFS";
@@ -61,6 +64,7 @@ export const toStoragePool = (
   const isCephObjectDriver = values.driver === cephObject;
   const isLVMDriver = values.driver === lvmDriver;
   const isLINSTORDriver = values.driver === linstorDriver;
+  const isTrueNASDriver = values.driver === truenasDriver;
   const hasValidSize = values.size?.match(/^\d/);
 
   const getConfig = () => {
@@ -133,6 +137,19 @@ export const toStoragePool = (
         [getPoolKey("drbd_auto_add_quorum_tiebreaker")]:
           values.drbd_auto_add_quorum_tiebreaker,
         [getPoolKey("drbd_auto_diskful")]: values.drbd_auto_diskful,
+      };
+    }
+    if (isTrueNASDriver) {
+      return {
+        [getPoolKey("truenas_host")]: values.truenas_host,
+        [getPoolKey("truenas_api_key")]: values.truenas_api_key,
+        [getPoolKey("truenas_dataset")]: values.truenas_dataset,
+        [getPoolKey("truenas_portal")]: values.truenas_portal,
+        [getPoolKey("truenas_initiator")]: values.truenas_initiator,
+        [getPoolKey("truenas_allow_insecure")]: values.truenas_allow_insecure,
+        [getPoolKey("truenas_clone_copy")]: values.truenas_clone_copy,
+        [getPoolKey("truenas_force_reuse")]: values.truenas_force_reuse,
+        [getPoolKey("truenas_config")]: values.truenas_config,
       };
     }
     return {
@@ -237,6 +254,9 @@ const StoragePoolForm: FC<Props> = ({
           )}
           {section === slugify(LINSTOR_CONFIGURATION) && (
             <StoragePoolFormLINSTOR formik={formik} />
+          )}
+          {section === slugify(TRUENAS_CONFIGURATION) && (
+            <StoragePoolFormTrueNAS formik={formik} />
           )}
           {section === slugify(YAML_CONFIGURATION) && (
             <YamlForm

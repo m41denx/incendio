@@ -52,6 +52,15 @@ export const storagePoolFormFieldToPayloadName: Record<string, string> = {
   drbd_on_no_quorum: "drbd.on_no_quorum",
   drbd_auto_add_quorum_tiebreaker: "drbd.auto_add_quorum_tiebreaker",
   drbd_auto_diskful: "drbd.auto_diskful",
+  truenas_host: "truenas.host",
+  truenas_api_key: "truenas.api_key",
+  truenas_dataset: "truenas.dataset",
+  truenas_portal: "truenas.portal",
+  truenas_initiator: "truenas.initiator",
+  truenas_allow_insecure: "truenas.allow_insecure",
+  truenas_clone_copy: "truenas.clone_copy",
+  truenas_force_reuse: "truenas.force_reuse",
+  truenas_config: "truenas.config",
 };
 
 export const isClusterLocalDriver = (poolDriver: string) => {
