@@ -52,6 +52,9 @@ const EditNetworkIntegration: FC = () => {
     ovnNorthboundConnection: Yup.string().required(
       "An OVN northbound connection is required",
     ),
+    ovnSouthboundConnection: Yup.string().required(
+      "An OVN southbound connection is required",
+    ),
   });
 
   const invalidateCache = () => {

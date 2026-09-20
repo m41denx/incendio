@@ -8,6 +8,7 @@ export interface NetworkIntegrationFormValues {
   description?: string;
   integrationType: string;
   ovnNorthboundConnection?: string;
+  ovnSouthboundConnection?: string;
   ovnTransitPattern?: string;
   ovnCaCert?: string;
   ovnClientCert?: string;
@@ -23,6 +24,9 @@ export const toNetworkIntegration = (
   const config: Record<string, string> = {};
   if (values.ovnNorthboundConnection) {
     config["ovn.northbound_connection"] = values.ovnNorthboundConnection;
+  }
+  if (values.ovnSouthboundConnection) {
+    config["ovn.southbound_connection"] = values.ovnSouthboundConnection;
   }
   if (values.ovnTransitPattern) {
     config["ovn.transit.pattern"] = values.ovnTransitPattern;
@@ -55,6 +59,7 @@ export const toNetworkIntegrationFormValues = (
     description: integration.description,
     integrationType: integration.type || "ovn",
     ovnNorthboundConnection: config["ovn.northbound_connection"],
+    ovnSouthboundConnection: config["ovn.southbound_connection"],
     ovnTransitPattern: config["ovn.transit.pattern"],
     ovnCaCert: config["ovn.ca_cert"],
     ovnClientCert: config["ovn.client_cert"],
@@ -119,7 +124,7 @@ const NetworkIntegrationForm: FC<Props> = ({ formik }) => {
         type="text"
         label="OVN northbound connection"
         required
-        placeholder="tcp:10.0.0.1:6645"
+        placeholder="tcp:[192.0.2.12]:6645"
         help="Connection string for the OVN interconnection northbound database"
         onBlur={formik.handleBlur}
         onChange={formik.handleChange}
@@ -127,12 +132,25 @@ const NetworkIntegrationForm: FC<Props> = ({ formik }) => {
         error={getError("ovnNorthboundConnection")}
       />
       <Input
+        id="ovnSouthboundConnection"
+        name="ovnSouthboundConnection"
+        type="text"
+        label="OVN southbound connection"
+        required
+        placeholder="tcp:[192.0.2.12]:6646"
+        help="Connection string for the OVN interconnection southbound database"
+        onBlur={formik.handleBlur}
+        onChange={formik.handleChange}
+        value={formik.values.ovnSouthboundConnection ?? ""}
+        error={getError("ovnSouthboundConnection")}
+      />
+      <Input
         id="ovnTransitPattern"
         name="ovnTransitPattern"
         type="text"
         label="Transit switch pattern"
-        placeholder="ts-incus-{{ integration.name }}"
-        help="Optional Pongo2 template used to generate the transit switch name"
+        placeholder="ts-incus-{{ integrationName }}-{{ projectName }}-{{ networkName }}"
+        help="Optional Pongo2 template for the transit switch name. Defaults to ts-incus-{{ integrationName }}-{{ projectName }}-{{ networkName }}."
         onBlur={formik.handleBlur}
         onChange={formik.handleChange}
         value={formik.values.ovnTransitPattern ?? ""}
