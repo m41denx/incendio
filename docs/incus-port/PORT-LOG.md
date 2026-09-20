@@ -129,6 +129,30 @@ via `createNetworkPeer`, mirroring `incus network peer create <net> <peer> <inte
 the target column for remote peers; edit seeds peerType/targetIntegration (description stays the only
 mutable field).
 
+## Phase 2 — OVN network load balancers (done)
+The 0.22 base only shipped LXD's load-balancer **pool** model
+(`network_load_balancer_pool`), and the Load balancers tab was gated behind that
+LXD-only extension → invisible on Incus. Incus uses the **backend model**
+(`network_load_balancer`): LB = backends (name/target_address/target_port) + ports
+that forward a listen port to named backends. Commit `8da7f80dc4`. Changes:
+- `hasNetworkLoadBalancers` flag; tab now shows on `network_load_balancer`.
+- New `LoadBalancerBackendsForm` (backends + ports-with-target_backend); `LoadBalancerForm`
+  / Create / Edit branch to it when pools are absent; `toLoadBalancer` emits the backend
+  payload. `LoadBalancerBackendSchema` added.
+- `LoadBalancers` hides the pool sub-nav on Incus; `LoadBalancersTab`/`Table` drop pool
+  columns/buttons, show backends, and treat backend LBs as editable (not LXD "legacy read-only").
+- Create/Edit buttons no longer require a pool on Incus; `useLoadBalancerPools` gained an
+  `enabled` arg so it doesn't 404 on Incus.
+- Verified payload shape vs live Incus 7.4 (accepted structurally; rejected only on
+  target-address subnet membership).
+
+## Phase 2 — UX polish (done)
+- Nav: moved "Network integrations" into the **Clustering** accordion (labelled
+  "Interconnect"), out of the server area (`4f23e37491`).
+- Create-integration page now links to `/howto/network_integrations/`; list page doc links aligned.
+- Renamed user-facing "Local peering(s)" → "Peering(s)" (peers can be remote now); route slug
+  `local-peerings` unchanged (`NetworkDetail` tab slug derives from path, not label).
+
 ## Phase 2 candidates (reassess with user before starting — per decision)
 - Read-only `instance_access`/`project_access` entitlement panels.
 - Gate `/ui/permissions/*` routes behind `hasAccessManagement` (nav already hidden; blocks manual URL entry only).
