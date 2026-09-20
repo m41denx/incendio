@@ -195,6 +195,12 @@ export const securityPoliciesPayload = (values: SecurityPoliciesFormValues) => {
     [getInstanceField("security_devlxd_images")]: values.security_devlxd_images,
     [getInstanceField("security_secureboot")]: values.security_secureboot,
     [getInstanceField("security_csm")]: values.security_csm,
+    [getInstanceField("security_iommu")]: values.security_iommu,
+    [getInstanceField("security_sev")]: values.security_sev,
+    [getInstanceField("security_sev_policy_es")]: values.security_sev_policy_es,
+    [getInstanceField("security_agent_metrics")]: values.security_agent_metrics,
+    [getInstanceField("security_protection_start")]:
+      values.security_protection_start,
   };
 };
 
@@ -448,6 +454,11 @@ const getEditValues = (
     security_devlxd_images: item.config["security.guestapi.images"],
     security_secureboot: item.config["security.secureboot"],
     security_csm: item.config["security.csm"],
+    security_iommu: item.config["security.iommu"],
+    security_sev: item.config["security.sev"],
+    security_sev_policy_es: item.config["security.sev.policy.es"],
+    security_agent_metrics: item.config["security.agent.metrics"],
+    security_protection_start: item.config["security.protection.start"],
 
     snapshots_pattern: item.config["snapshots.pattern"],
     snapshots_expiry: item.config["snapshots.expiry"],

@@ -99,6 +99,11 @@ export interface SecurityPoliciesFormValues {
   security_devlxd_images?: string;
   security_secureboot?: string;
   security_csm?: string;
+  security_iommu?: string;
+  security_sev?: string;
+  security_sev_policy_es?: string;
+  security_agent_metrics?: string;
+  security_protection_start?: string;
 }
 
 export interface SnapshotFormValues {

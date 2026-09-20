@@ -44,6 +44,15 @@ const SecurityPoliciesForm: FC<Props> = ({ formik, setSection }) => {
 
         getConfigurationRow({
           formik,
+          label: "Protect starting",
+          name: "security_protection_start",
+          defaultValue: "",
+          readOnlyRenderer: (val) => optionRenderer(val, optionYesNo),
+          children: <Select options={optionYesNo} />,
+        }),
+
+        getConfigurationRow({
+          formik,
           label: "Privileged (Containers only)",
           name: "security_privileged",
           defaultValue: "",
@@ -179,6 +188,66 @@ const SecurityPoliciesForm: FC<Props> = ({ formik, setSection }) => {
           readOnlyRenderer: (val) => optionRenderer(val, optionYesNo),
           children: (
             <Select options={optionYesNo} disabled={isContainerOnlyDisabled} />
+          ),
+        }),
+
+        getConfigurationRow({
+          formik,
+          label: "Enable virtual IOMMU (VMs only)",
+          name: "security_iommu",
+          defaultValue: "",
+          disabled: isVmOnlyDisabled,
+          disabledReason: isVmOnlyDisabled
+            ? "Only available for virtual machines"
+            : undefined,
+          readOnlyRenderer: (val) => optionRenderer(val, optionTrueFalse),
+          children: (
+            <Select options={optionTrueFalse} disabled={isVmOnlyDisabled} />
+          ),
+        }),
+
+        getConfigurationRow({
+          formik,
+          label: "Enable AMD SEV memory encryption (VMs only)",
+          name: "security_sev",
+          defaultValue: "",
+          disabled: isVmOnlyDisabled,
+          disabledReason: isVmOnlyDisabled
+            ? "Only available for virtual machines"
+            : undefined,
+          readOnlyRenderer: (val) => optionRenderer(val, optionTrueFalse),
+          children: (
+            <Select options={optionTrueFalse} disabled={isVmOnlyDisabled} />
+          ),
+        }),
+
+        getConfigurationRow({
+          formik,
+          label: "Enable AMD SEV-ES (VMs only)",
+          name: "security_sev_policy_es",
+          defaultValue: "",
+          disabled: isVmOnlyDisabled,
+          disabledReason: isVmOnlyDisabled
+            ? "Only available for virtual machines"
+            : undefined,
+          readOnlyRenderer: (val) => optionRenderer(val, optionTrueFalse),
+          children: (
+            <Select options={optionTrueFalse} disabled={isVmOnlyDisabled} />
+          ),
+        }),
+
+        getConfigurationRow({
+          formik,
+          label: "Expose metrics through the agent (VMs only)",
+          name: "security_agent_metrics",
+          defaultValue: "",
+          disabled: isVmOnlyDisabled,
+          disabledReason: isVmOnlyDisabled
+            ? "Only available for virtual machines"
+            : undefined,
+          readOnlyRenderer: (val) => optionRenderer(val, optionTrueFalse),
+          children: (
+            <Select options={optionTrueFalse} disabled={isVmOnlyDisabled} />
           ),
         }),
 
