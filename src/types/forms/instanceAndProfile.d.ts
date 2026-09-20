@@ -151,6 +151,7 @@ export interface SecurityPoliciesFormValues {
   security_sev?: string;
   security_sev_policy_es?: string;
   security_agent_metrics?: string;
+  agent_nic_config?: string;
   security_protection_start?: string;
   security_bpffs_delegate_attachs?: string;
   security_bpffs_delegate_cmds?: string;

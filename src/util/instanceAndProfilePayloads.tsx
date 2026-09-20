@@ -220,6 +220,7 @@ export const securityPoliciesPayload = (values: SecurityPoliciesFormValues) => {
     [getInstanceField("security_sev")]: values.security_sev,
     [getInstanceField("security_sev_policy_es")]: values.security_sev_policy_es,
     [getInstanceField("security_agent_metrics")]: values.security_agent_metrics,
+    [getInstanceField("agent_nic_config")]: values.agent_nic_config,
     [getInstanceField("security_protection_start")]:
       values.security_protection_start,
     [getInstanceField("security_bpffs_delegate_attachs")]:
@@ -590,6 +591,7 @@ const getEditValues = (
     security_sev: item.config["security.sev"],
     security_sev_policy_es: item.config["security.sev.policy.es"],
     security_agent_metrics: item.config["security.agent.metrics"],
+    agent_nic_config: item.config["agent.nic_config"],
     security_protection_start: item.config["security.protection.start"],
     security_bpffs_delegate_attachs:
       item.config["security.bpffs.delegate_attachs"],

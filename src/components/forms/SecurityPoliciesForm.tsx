@@ -254,6 +254,21 @@ const SecurityPoliciesForm: FC<Props> = ({ formik, setSection }) => {
 
         getConfigurationRow({
           formik,
+          label: "Use the agent to configure NICs (VMs only)",
+          name: "agent_nic_config",
+          defaultValue: "",
+          disabled: isVmOnlyDisabled,
+          disabledReason: isVmOnlyDisabled
+            ? "Only available for virtual machines"
+            : undefined,
+          readOnlyRenderer: (val) => optionRenderer(val, optionTrueFalse),
+          children: (
+            <Select options={optionTrueFalse} disabled={isVmOnlyDisabled} />
+          ),
+        }),
+
+        getConfigurationRow({
+          formik,
           label: "SELinux process domain",
           name: "security_selinux_domain",
           defaultValue: "",

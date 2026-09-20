@@ -33,6 +33,7 @@ const instanceConfigFormFieldsToPayload: Record<string, string> = {
   security_sev: "security.sev",
   security_sev_policy_es: "security.sev.policy.es",
   security_agent_metrics: "security.agent.metrics",
+  agent_nic_config: "agent.nic_config",
   security_protection_start: "security.protection.start",
   security_bpffs_delegate_attachs: "security.bpffs.delegate_attachs",
   security_bpffs_delegate_cmds: "security.bpffs.delegate_cmds",
