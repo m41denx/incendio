@@ -14,10 +14,7 @@ import { useFormik } from "formik";
 import * as Yup from "yup";
 import { useNavigate, useParams } from "react-router-dom";
 import { queryKeys } from "util/queryKeys";
-import {
-  getSupportedStorageDrivers,
-  zfsDriver,
-} from "util/storageOptions";
+import { getSupportedStorageDrivers } from "util/storageOptions";
 import {
   isCephObjectIncomplete,
   testDuplicateStoragePoolName,

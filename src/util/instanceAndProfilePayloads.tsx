@@ -260,7 +260,7 @@ export const userPropertiesPayload = (
       .map(([k]) => [k, undefined]),
   );
 
-  const userProperties = values.userProperties as UserPropertyFormValues[];
+  const userProperties = values.userProperties;
   userProperties.forEach((item: UserPropertyFormValues) => {
     result[item.name] = item.value;
   });
@@ -411,8 +411,8 @@ const getEditValues = (
 } => {
   const userProperties = userPropertiesFromConfig(item.config).map(
     ([key, value]) => ({
-      name: key as string,
-      value: value as string,
+      name: key,
+      value: value,
       nameEditable: false,
     }),
   ) as UserPropertyFormValues[];

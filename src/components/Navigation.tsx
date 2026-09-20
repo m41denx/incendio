@@ -744,29 +744,31 @@ const Navigation: FC = () => {
                       </SideNavigationItem>
                     </>
                   )}
-                  {isAuthenticated && isRunningIncusOS && hasAdminPermissions && (
-                    <>
-                      <hr
-                        className={classnames("navigation-hr", {
-                          "is-light": isLight,
-                        })}
-                      />
-                      <SideNavigationItem>
-                        <NavLink
-                          to="/ui/os"
-                          title="OS"
-                          onClick={softToggleMenu}
-                          ignoreUrlMatches={["operations"]}
-                        >
-                          <Icon
-                            className="is-light p-side-navigation__icon"
-                            name="desktop"
-                          />{" "}
-                          OS
-                        </NavLink>
-                      </SideNavigationItem>
-                    </>
-                  )}
+                  {isAuthenticated &&
+                    isRunningIncusOS &&
+                    hasAdminPermissions && (
+                      <>
+                        <hr
+                          className={classnames("navigation-hr", {
+                            "is-light": isLight,
+                          })}
+                        />
+                        <SideNavigationItem>
+                          <NavLink
+                            to="/ui/os"
+                            title="OS"
+                            onClick={softToggleMenu}
+                            ignoreUrlMatches={["operations"]}
+                          >
+                            <Icon
+                              className="is-light p-side-navigation__icon"
+                              name="desktop"
+                            />{" "}
+                            OS
+                          </NavLink>
+                        </SideNavigationItem>
+                      </>
+                    )}
                   {!isAuthenticated && (onGenerate || onTrustToken) && (
                     <div
                       className={classnames("login-navigation", {

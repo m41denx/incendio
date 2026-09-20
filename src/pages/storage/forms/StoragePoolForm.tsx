@@ -25,12 +25,7 @@ import {
   getSupportedStorageDrivers,
   zfsDriver,
 } from "util/storageOptions";
-import {
-  getPoolKey,
-  hasSource,
-  isCephDriver,
-  isCephFSDriver,
-} from "util/storagePool";
+import { getPoolKey, isCephDriver, isCephFSDriver } from "util/storagePool";
 import { slugify } from "util/slugify";
 import YamlForm from "components/forms/YamlForm";
 import { handleConfigKeys } from "util/storagePoolForm";

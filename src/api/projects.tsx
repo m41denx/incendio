@@ -65,9 +65,7 @@ export const fetchProject = async (
 export const fetchProjectState = async (
   name: string,
 ): Promise<ProjectState> => {
-  return fetch(
-    `${ROOT_PATH}/1.0/projects/${encodeURIComponent(name)}/state`,
-  )
+  return fetch(`${ROOT_PATH}/1.0/projects/${encodeURIComponent(name)}/state`)
     .then(handleResponse)
     .then((data: LxdApiResponse<ProjectState>) => {
       return data.metadata;

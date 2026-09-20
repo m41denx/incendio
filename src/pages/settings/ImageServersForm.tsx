@@ -1,5 +1,4 @@
-import type { FC } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FC } from "react";
 import {
   Button,
   Form,
@@ -15,11 +14,11 @@ import type { ConfigField } from "types/config";
 import { queryKeys } from "util/queryKeys";
 import ResourceLabel from "components/ResourceLabel";
 import { useServerEntitlements } from "util/entitlements/server";
-import type { ImageServer } from "util/imageServers";
 import {
   IMAGE_SERVERS_KEY,
   parseImageServers,
   serializeImageServers,
+  type ImageServer,
 } from "util/imageServers";
 
 interface Props {

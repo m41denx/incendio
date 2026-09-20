@@ -1,5 +1,4 @@
-import type { FC, KeyboardEvent } from "react";
-import { useState } from "react";
+import { useState, type FC, type KeyboardEvent } from "react";
 import {
   ActionButton,
   Button,

@@ -50,7 +50,7 @@ export const parseDevices = (devices: LxdDevices): FormDevice[] => {
               item["security.acls.default.egress.action"],
             "security.acls.default.ingress.action":
               item["security.acls.default.ingress.action"],
-            };
+          };
         }
 
         return {

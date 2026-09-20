@@ -1,17 +1,13 @@
-import React, { HTMLProps, ReactElement } from "react";
-import type {
-  ClassName,
-  PropsWithSpread,
-} from "@canonical/react-components";
+import React, { type HTMLProps, type ReactElement } from "react";
 import classnames from "classnames";
 import {
   Button,
   CheckboxInput,
-  Col,
   ContextualMenu,
   Icon,
-  Row,
   Tooltip,
+  type ClassName,
+  type PropsWithSpread,
 } from "@canonical/react-components";
 import "./ColumnSelector.scss";
 
@@ -74,18 +70,12 @@ const ColumnSelector = ({
   };
 
   const wrapTooltip = (element: ReactElement, column: string): ReactElement => {
-    if(!hideableColumns.includes(column)) return (
-      <Tooltip
-        message={
-          <>
-            The column cannot be hidden.
-          </>
-        }
-        position="left"
-      >
-        {element}
-      </Tooltip>
-    );
+    if (!hideableColumns.includes(column))
+      return (
+        <Tooltip message={<>The column cannot be hidden.</>} position="left">
+          {element}
+        </Tooltip>
+      );
 
     if (!sizeHidden.includes(column)) return element;
 
@@ -114,7 +104,7 @@ const ColumnSelector = ({
     newColumns[index] = temp;
 
     setColumnOrder(newColumns);
-  }
+  };
 
   const moveDown = (index: number) => {
     if (index >= columns.length - 1) return columns;
@@ -125,7 +115,7 @@ const ColumnSelector = ({
     newColumns[index] = temp;
 
     setColumnOrder(newColumns);
-  }
+  };
 
   return (
     <ContextualMenu
@@ -167,7 +157,10 @@ const ColumnSelector = ({
                 onChange={() => {
                   toggleHiddenColumn(column);
                 }}
-                disabled={sizeHidden.includes(column) || !hideableColumns.includes(column)}
+                disabled={
+                  sizeHidden.includes(column) ||
+                  !hideableColumns.includes(column)
+                }
               />,
               column,
             )}
@@ -178,9 +171,9 @@ const ColumnSelector = ({
                 appearance="base"
                 hasIcon
                 className="u-no-margin--bottom order-button"
-                disabled={(i <= 0)}
+                disabled={i <= 0}
               >
-                <Icon name="chevron-up" className="order-icon"/>
+                <Icon name="chevron-up" className="order-icon" />
               </Button>
               <Button
                 onClick={() => moveDown(i)}
@@ -188,7 +181,7 @@ const ColumnSelector = ({
                 appearance="base"
                 hasIcon
                 className="u-no-margin--bottom order-button"
-                disabled={(i >= (columns.length - 1))}
+                disabled={i >= columns.length - 1}
               >
                 <Icon name="chevron-down" className="order-icon" />
               </Button>

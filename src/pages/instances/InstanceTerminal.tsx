@@ -18,17 +18,11 @@ import {
   Spinner,
   Button,
   failure,
-  useNotify,
   type NotificationType,
 } from "@canonical/react-components";
 import { useOperations } from "context/operationsProvider";
-import { LxdOperation } from "types/operation";
-import {
-  getInstanceName,
-  getProjectName,
-  findOperation,
-} from "util/operations";
-import NotificationRow from "components/NotificationRow";
+import type { LxdOperation } from "types/operation";
+import { findOperation } from "util/operations";
 import { useInstanceEntitlements } from "util/entitlements/instances";
 import { isInstanceRunning } from "util/instanceStatus";
 import {
@@ -51,7 +45,6 @@ interface Props {
 }
 
 const InstanceTerminal: FC<Props> = ({ instance, refreshInstance }) => {
-  const notify = useNotify();
   const { name, project } = useParams<{
     name: string;
     project: string;
@@ -67,12 +60,12 @@ const InstanceTerminal: FC<Props> = ({ instance, refreshInstance }) => {
   );
   const [fitAddon] = useState<FitAddon>(new FitAddon());
   const [userInteracted, setUserInteracted] = useState(false);
-  const { operations, isFetching } = useOperations();
+  const { operations } = useOperations();
   const xtermRef = useRef<Terminal>(null);
   const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lineRef = useRef(createWindowsLineState());
   const [version, setVersion] = useState(0);
-  const { canUpdateInstanceState, canExecInstance } = useInstanceEntitlements();
+  const { canExecInstance } = useInstanceEntitlements();
   const lastFailureOp = useRef<LxdOperation | null>(null);
 
   usePrompt({
@@ -251,10 +244,14 @@ const InstanceTerminal: FC<Props> = ({ instance, refreshInstance }) => {
 
   useEffect(() => {
     // Check if there are any relevant instance operations.
-    let op = findOperation(instance, operations, "Executing command");
+    const op = findOperation(instance, operations, "Executing command");
 
     if (op) {
-      if (op.status == "Failure" && op.err != "" && (lastFailureOp.current == null || lastFailureOp.current.id != op.id)) {
+      if (
+        op.status == "Failure" &&
+        op.err != "" &&
+        (lastFailureOp.current == null || lastFailureOp.current.id != op.id)
+      ) {
         setError(failure("Error", op.status_code, op.err));
         lastFailureOp.current = op;
       }

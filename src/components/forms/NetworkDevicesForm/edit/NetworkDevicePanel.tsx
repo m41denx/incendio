@@ -146,14 +146,10 @@ const NetworkDevicePanel: FC<Props> = ({
               "A device with this name already exists",
             ),
         }),
-      }).test(
-        "network-or-parent",
-        "Network is required",
-        (values) => {
-          const v = values as Partial<NetworkDeviceFormValues>;
-          return Boolean(v?.network || v?.parent);
-        }
-      );
+      }).test("network-or-parent", "Network is required", (values) => {
+        const v = values as Partial<NetworkDeviceFormValues>;
+        return Boolean(v?.network || v?.parent);
+      });
 
   const getInitialValues = (): NetworkDeviceFormValues => {
     const defaultNetworkName = networkOptions[0]?.name ?? "";
@@ -185,7 +181,7 @@ const NetworkDevicePanel: FC<Props> = ({
 
     if (isCreatingOverride) {
       let network = inheritedDevice.network?.network || defaultNetworkName;
-      let parent = inheritedDevice.network?.parent;
+      const parent = inheritedDevice.network?.parent;
 
       if (parent) {
         network = "";
@@ -204,7 +200,8 @@ const NetworkDevicePanel: FC<Props> = ({
       };
     }
 
-    let deviceNetworkName = device?.network || device?.parent || defaultNetworkName;
+    const deviceNetworkName =
+      device?.network || device?.parent || defaultNetworkName;
 
     const combinedAcls = combineAcls(
       getNetworkAclsByNetworkName(deviceNetworkName),
@@ -238,7 +235,9 @@ const NetworkDevicePanel: FC<Props> = ({
     onSubmit: (values) => {
       const allSelectedAcls = values.acls ? values.acls.split(",") : [];
       const networkAcls = getNetworkAcls(
-        networkOptions.find((n) => n.name === (values.network || values.parent)),
+        networkOptions.find(
+          (n) => n.name === (values.network || values.parent),
+        ),
       );
       const userSelectedAcls = allSelectedAcls.filter(
         (acl) => !networkAcls.includes(acl),
@@ -490,7 +489,8 @@ const NetworkDevicePanel: FC<Props> = ({
               values={getDefaultEgressIngress()}
               disabled={
                 formik.values.acls?.length === 0 ||
-                (selectedNetwork?.type !== ovnType && selectedNetwork?.type !== bridgeType)
+                (selectedNetwork?.type !== ovnType &&
+                  selectedNetwork?.type !== bridgeType)
               }
               directionField={directionField}
             />

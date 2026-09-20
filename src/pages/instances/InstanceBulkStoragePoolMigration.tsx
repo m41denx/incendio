@@ -1,5 +1,4 @@
-import type { FC } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FC } from "react";
 import { ActionButton, Button, Select } from "@canonical/react-components";
 import { useQuery } from "@tanstack/react-query";
 import StoragePoolSelectTable from "../storage/StoragePoolSelectTable";

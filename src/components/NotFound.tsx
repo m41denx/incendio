@@ -45,9 +45,7 @@ const NotFound: FC<Props> = ({ entityType, entityName, errorMessage }) => {
           {capitalizeFirstLetter(entityLabel)}{" "}
           {entityName && <code>{entityName}</code>} could not be loaded
         </p>
-        <p>
-          The {entityLabel} is missing or you do not have access.
-        </p>
+        <p>The {entityLabel} is missing or you do not have access.</p>
         {errorMessage && (
           <Notification severity="negative" borderless>
             <code className="no-background">{errorMessage}</code>

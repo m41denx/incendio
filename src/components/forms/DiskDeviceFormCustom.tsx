@@ -304,7 +304,9 @@ const DiskDeviceFormCustom: FC<Props> = ({ formik, project, profiles }) => {
       const specialDiskDeviceSource = () =>
         getConfigurationRowBase({
           className: "no-border-top inherited-with-form",
-          configuration: <Label forId={`devices.${index}.source`}>Source</Label>,
+          configuration: (
+            <Label forId={`devices.${index}.source`}>Source</Label>
+          ),
           inherited: readOnly ? (
             <div className="custom-disk-read-mode">
               <div className="mono-font custom-disk-value u-truncate">

@@ -108,7 +108,9 @@ export const getNetworkDeviceRows = ({
     return rows;
   }
 
-  const network = networkList.find((t) => t.name === (device.network || device.parent));
+  const network = networkList.find(
+    (t) => t.name === (device.network || device.parent),
+  );
 
   if (network) {
     rows.push(

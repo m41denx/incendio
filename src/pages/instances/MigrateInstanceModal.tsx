@@ -133,7 +133,9 @@ const MigrateInstanceModal: FC<Props> = ({ close, instance }) => {
           onSelect={setTarget}
           targetMember={target}
           onCancel={handleGoBack}
-          migrate={() => handleMigrate(target, "", "")}
+          migrate={() => {
+            handleMigrate(target, "", "");
+          }}
         />
       )}
 
@@ -143,7 +145,9 @@ const MigrateInstanceModal: FC<Props> = ({ close, instance }) => {
           onSelect={setTarget}
           targetPool={target}
           onCancel={handleGoBack}
-          migrate={(targetMember) => handleMigrate(targetMember, target, "")}
+          migrate={(targetMember) => {
+            handleMigrate(targetMember, target, "");
+          }}
         />
       )}
 
@@ -153,7 +157,9 @@ const MigrateInstanceModal: FC<Props> = ({ close, instance }) => {
           onSelect={setTarget}
           targetProject={target}
           onCancel={handleGoBack}
-          migrate={() => handleMigrate("", "", target)}
+          migrate={() => {
+            handleMigrate("", "", target);
+          }}
         />
       )}
 

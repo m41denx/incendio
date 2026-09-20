@@ -13,7 +13,7 @@ const InstanceOverviewUserProperties: FC<Props> = ({ instance }) => {
     <table>
       <tbody>
         {userProperties.map(([key, value]) => (
-          <tr key={key as string}>
+          <tr key={key}>
             <th className="u-text--muted">{key}</th>
             <td>{value}</td>
           </tr>

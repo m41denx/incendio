@@ -1,5 +1,4 @@
-import type { FC } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FC } from "react";
 import { ActionButton, Button, Select } from "@canonical/react-components";
 import { useQuery } from "@tanstack/react-query";
 import StoragePoolSelectTable from "../storage/StoragePoolSelectTable";
@@ -23,11 +22,11 @@ const InstanceStoragePoolMigration: FC<Props> = ({
   onCancel,
   migrate,
 }) => {
-
-  const enabledTargetMember = instance.type === 'virtual-machine' && instance.status === 'Running';
+  const enabledTargetMember =
+    instance.type === "virtual-machine" && instance.status === "Running";
   const [targetMember, setTargetMember] = useState("");
 
-  const { data: members = [], isLoading } = useQuery({
+  const { data: members = [] } = useQuery({
     queryKey: [queryKeys.cluster, queryKeys.members],
     queryFn: fetchClusterMembers,
     enabled: enabledTargetMember,
@@ -36,7 +35,7 @@ const InstanceStoragePoolMigration: FC<Props> = ({
   const memberOptions = members
     .filter((item) => item.server_name !== instance.location)
     .map((item) => {
-      return { label: item.server_name , value: item.server_name };
+      return { label: item.server_name, value: item.server_name };
     });
 
   useEffect(() => {
@@ -50,8 +49,18 @@ const InstanceStoragePoolMigration: FC<Props> = ({
       <p>
         This will migrate the instance <strong>{instance.name}</strong> root
         storage to pool <b>{targetPool}</b>.
-        {enabledTargetMember && (<> Select target server:
-        <Select options={memberOptions} onChange={(e) => setTargetMember(e.target.value)}/></>)}
+        {enabledTargetMember && (
+          <>
+            {" "}
+            Select target server:
+            <Select
+              options={memberOptions}
+              onChange={(e) => {
+                setTargetMember(e.target.value);
+              }}
+            />
+          </>
+        )}
       </p>
     </div>
   );
@@ -81,7 +90,9 @@ const InstanceStoragePoolMigration: FC<Props> = ({
         <ActionButton
           appearance="positive"
           className="u-no-margin--bottom"
-          onClick={() => migrate(targetMember)}
+          onClick={() => {
+            migrate(targetMember);
+          }}
           disabled={!targetPool}
         >
           Migrate

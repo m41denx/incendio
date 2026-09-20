@@ -17,7 +17,11 @@ import {
   useToastNotification,
 } from "@canonical/react-components";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { addCertificate, deleteCertificate, fetchCertificates } from "api/certificates";
+import {
+  addCertificate,
+  deleteCertificate,
+  fetchCertificates,
+} from "api/certificates";
 import { queryKeys } from "util/queryKeys";
 import NotificationRow from "components/NotificationRow";
 import PageHeader from "components/PageHeader";
@@ -53,7 +57,7 @@ const TrustedCertificates: FC = () => {
     notify.failure("Loading trusted certificates failed", error);
   }
 
-  const invalidateCertificates = () =>
+  const invalidateCertificates = async () =>
     queryClient.invalidateQueries({ queryKey: [queryKeys.certificates] });
 
   const handleDelete = (certificate: LxdCertificate) => {

@@ -1,4 +1,4 @@
-import { LxdInstance, LxdInstanceStatus } from "types/instance";
+import type { LxdInstance, LxdInstanceStatus } from "types/instance";
 import { Address4, Address6 } from "ip-address";
 
 const matchByIpv4 = (instance: LxdInstance, value: string): boolean =>

@@ -1,4 +1,8 @@
-import type { FormDevice, FormDiskDevice, FormSpecialDiskDevice } from "types/formDevice";
+import type {
+  FormDevice,
+  FormDiskDevice,
+  FormSpecialDiskDevice,
+} from "types/formDevice";
 import type { InstanceAndProfileFormikProps } from "types/forms/instanceAndProfileFormProps";
 import type { InstanceAndProfileFormValues } from "types/forms/instanceAndProfile";
 import { getInheritedRootStorage } from "util/configInheritance";
@@ -77,7 +81,9 @@ export const isNicDeviceNameMissing = (
   return Boolean(hasTouched);
 };
 
-export const isSpecialDisk = (device: FormDiskDevice | FormSpecialDiskDevice): device is FormSpecialDiskDevice => {
+export const isSpecialDisk = (
+  device: FormDiskDevice | FormSpecialDiskDevice,
+): device is FormSpecialDiskDevice => {
   if (!device.source) {
     return false;
   }

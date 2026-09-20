@@ -11,7 +11,6 @@ import {
 } from "@canonical/react-components";
 import InstanceGraphicConsole from "./InstanceGraphicConsole";
 import type { LxdInstance } from "types/instance";
-import { LxdOperation } from "types/operation";
 import InstanceTextConsole from "./InstanceTextConsole";
 import InstancePreview from "./InstancePreview";
 import { useInstanceStart } from "util/instanceStart";
@@ -23,7 +22,7 @@ import { useInstanceEntitlements } from "util/entitlements/instances";
 import { isInstanceRunning } from "util/instanceStatus";
 import InstanceConsoleShortcuts from "pages/instances/InstanceConsoleShortcuts";
 import { useOperations } from "context/operationsProvider";
-import { getInstanceName, getProjectName, findOperation } from "util/operations";
+import { findOperation } from "util/operations";
 import { useIsMinimalConsole } from "util/minimalConsole";
 
 interface Props {
@@ -41,11 +40,14 @@ const InstanceConsole: FC<Props> = ({ instance }) => {
 
   const isRunning = isInstanceRunning(instance);
 
-  const [attemptConnection, setAttemptConnection] = useState({"attempt": isRunning, "force": false});
+  const [attemptConnection, setAttemptConnection] = useState({
+    attempt: isRunning,
+    force: false,
+  });
   const [showPreview, setShowPreview] = useState(false);
   const { openPortal, closePortal, isOpen, Portal } = usePortal();
-  const { operations, isFetching } = useOperations();
-  const lastOp = useRef({"restart": "", "start": "", "stop":""});
+  const { operations } = useOperations();
+  const lastOp = useRef({ restart: "", start: "", stop: "" });
   const [showConnectBtn, setShowConnectBtn] = useState(false);
 
   const clearErrorOnStop = () => {
@@ -63,14 +65,14 @@ const InstanceConsole: FC<Props> = ({ instance }) => {
 
   useEffect(clearErrorOnStop, [instance.status, notify.notification]);
 
-  const onPreviewFailure = (title: string, e: unknown, message?: string) => {
+  const onPreviewFailure = (title: string, e: unknown) => {
     notify.failure(title, e);
   };
 
   const onFailure = (title: string, e: unknown, message?: string) => {
     setShowConnectBtn(true);
     setShowPreview(true);
-    setAttemptConnection({"attempt": false, "force": false});
+    setAttemptConnection({ attempt: false, force: false });
     if (hasActiveSession(e instanceof Error ? e.message : String(e))) {
       openPortal();
     } else {
@@ -83,7 +85,11 @@ const InstanceConsole: FC<Props> = ({ instance }) => {
       return false;
     }
 
-    return e.toLowerCase().includes("this console is already connected. force is required to take it over");
+    return e
+      .toLowerCase()
+      .includes(
+        "this console is already connected. force is required to take it over",
+      );
   };
 
   const showNotRunningInfo = () => {
@@ -100,14 +106,14 @@ const InstanceConsole: FC<Props> = ({ instance }) => {
   const handleConnection = () => {
     setShowConnectBtn(false);
     setShowPreview(false);
-    setAttemptConnection({"attempt": true, "force": false});
+    setAttemptConnection({ attempt: true, force: false });
   };
 
   const handleConnectionConfirm = () => {
     closePortal();
     setShowConnectBtn(false);
     setShowPreview(false);
-    setAttemptConnection({"attempt": true, "force": true});
+    setAttemptConnection({ attempt: true, force: true });
   };
 
   const onChildMount = (childHandleFullScreen: () => void) => {
@@ -119,7 +125,7 @@ const InstanceConsole: FC<Props> = ({ instance }) => {
     setGraphic(isGraphic);
     setShowConnectBtn(false);
     setShowPreview(false);
-    setAttemptConnection({"attempt": true, "force": false});
+    setAttemptConnection({ attempt: true, force: false });
   };
 
   const { handleStart, isLoading } = useInstanceStart(instance);
@@ -134,34 +140,51 @@ const InstanceConsole: FC<Props> = ({ instance }) => {
 
   useEffect(() => {
     // Check if there are any relevant instance operations.
-    let restartOp = findOperation(instance, operations, "Restarting instance");
+    const restartOp = findOperation(
+      instance,
+      operations,
+      "Restarting instance",
+    );
 
     if (restartOp) {
-      if (restartOp.status == "Success" && lastOp.current["restart"] != restartOp.created_at) {
+      if (
+        restartOp.status == "Success" &&
+        lastOp.current["restart"] != restartOp.created_at
+      ) {
         // Reconnect console if restart operation was detected.
         lastOp.current["restart"] = restartOp.created_at;
-        setAttemptConnection({"attempt": false, "force": false});
+        setAttemptConnection({ attempt: false, force: false });
         setShowPreview(false);
-        setTimeout(() => {setAttemptConnection({"attempt": true, "force": false});}, 2000);
+        setTimeout(() => {
+          setAttemptConnection({ attempt: true, force: false });
+        }, 2000);
       }
     }
 
-    let startOp = findOperation(instance, operations, "Starting instance");
+    const startOp = findOperation(instance, operations, "Starting instance");
     if (startOp) {
       // Disconect console if start operation was detected.
-      if (lastOp.current["start"] != startOp.created_at && startOp.status == "Success") {
+      if (
+        lastOp.current["start"] != startOp.created_at &&
+        startOp.status == "Success"
+      ) {
         lastOp.current["start"] = startOp.created_at;
-        setAttemptConnection({"attempt": false, "force": false});
+        setAttemptConnection({ attempt: false, force: false });
         setShowPreview(false);
-        setTimeout(() => {setAttemptConnection({"attempt": true, "force": false});}, 2000);
+        setTimeout(() => {
+          setAttemptConnection({ attempt: true, force: false });
+        }, 2000);
       }
     }
 
-    let stopOp = findOperation(instance, operations, "Stopping instance");
+    const stopOp = findOperation(instance, operations, "Stopping instance");
     if (stopOp) {
       // Disconect console if stop operation was detected.
-      setAttemptConnection({"attempt": false, "force": false});
-      if (stopOp.status == "Success" && lastOp.current["stop"] != stopOp.created_at) {
+      setAttemptConnection({ attempt: false, force: false });
+      if (
+        stopOp.status == "Success" &&
+        lastOp.current["stop"] != stopOp.created_at
+      ) {
         setShowConnectBtn(false);
         setShowPreview(false);
         lastOp.current["stop"] = stopOp.created_at;
@@ -173,14 +196,18 @@ const InstanceConsole: FC<Props> = ({ instance }) => {
     <div className="instance-console-tab">
       {!isVm && (
         <div className="p-panel__controls">
-            {isRunning && showConnectBtn && <Button
+          {isRunning && showConnectBtn && (
+            <Button
               className="u-no-margin--bottom control-button"
               hasIcon
-              onClick={() => handleConnection()}
-              >
-                <Icon name="connected" />
-                <span>Reconnect</span>
-              </Button>}
+              onClick={() => {
+                handleConnection();
+              }}
+            >
+              <Icon name="connected" />
+              <span>Reconnect</span>
+            </Button>
+          )}
         </div>
       )}
       {isVm && (
@@ -203,15 +230,21 @@ const InstanceConsole: FC<Props> = ({ instance }) => {
             />
           </div>
           <div>
-            {showConnectBtn && <Button
-            className="u-no-margin--bottom"
-            hasIcon
-            onClick={() => handleConnection()}
-            >
-              <Icon name="connected" />
-              <span>Reconnect</span>
-            </Button>}
-            {isGraphic && hasCustomVolumeIso && !isMinimalConsole && <AttachIsoBtn instance={instance} />}
+            {showConnectBtn && (
+              <Button
+                className="u-no-margin--bottom"
+                hasIcon
+                onClick={() => {
+                  handleConnection();
+                }}
+              >
+                <Icon name="connected" />
+                <span>Reconnect</span>
+              </Button>
+            )}
+            {isGraphic && hasCustomVolumeIso && !isMinimalConsole && (
+              <AttachIsoBtn instance={instance} />
+            )}
             {isGraphic && (
               <>
                 <Button
@@ -271,9 +304,13 @@ const InstanceConsole: FC<Props> = ({ instance }) => {
         </div>
       )}
       {isGraphic && showPreview && (
-        <div style={{ textAlign: "center"}}>
+        <div style={{ textAlign: "center" }}>
           Read-only view
-          <InstancePreview instance={instance} refetch={true} onFailure={onPreviewFailure} />
+          <InstancePreview
+            instance={instance}
+            refetch={true}
+            onFailure={onPreviewFailure}
+          />
         </div>
       )}
       {!isGraphic && attemptConnection["attempt"] && (
@@ -286,7 +323,10 @@ const InstanceConsole: FC<Props> = ({ instance }) => {
       )}
       {isOpen && (
         <Portal>
-          <ConsoleConfirmation onConfirm={handleConnectionConfirm} close={closePortal} />
+          <ConsoleConfirmation
+            onConfirm={handleConnectionConfirm}
+            close={closePortal}
+          />
         </Portal>
       )}
     </div>

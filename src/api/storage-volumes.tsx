@@ -190,7 +190,7 @@ export const createStorageVolume = async (
     });
 };
 
-export const copyCustomVolumeToTarget = (
+export const copyCustomVolumeToTarget = async (
   project: string,
   volume: Partial<LxdStorageVolume>,
   target: string,

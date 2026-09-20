@@ -1,6 +1,6 @@
-import { FC } from "react";
+import type { FC } from "react";
 import { getMACAddresses } from "util/networks";
-import { LxdInstance } from "types/instance";
+import type { LxdInstance } from "types/instance";
 import ExpandableList from "components/ExpandableList";
 
 interface Props {

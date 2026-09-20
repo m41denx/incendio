@@ -10,7 +10,6 @@ import NavigationProjectSelectorList from "pages/projects/NavigationProjectSelec
 import { defaultFirst } from "util/helpers";
 import { ROOT_PATH } from "util/rootPath";
 import { useProjects } from "context/useProjects";
-import { useServerEntitlements } from "util/entitlements/server";
 import { isAdmin } from "util/permissions";
 
 interface Props {
@@ -22,7 +21,6 @@ const NavigationProjectSelector: FC<Props> = ({
 }): React.JSX.Element => {
   const navigate = useNavigate();
   const searchRef = useRef<HTMLInputElement>(null);
-  const { canCreateProjects } = useServerEntitlements();
 
   const { data: projects = [] } = useProjects();
 
@@ -87,9 +85,7 @@ const NavigationProjectSelector: FC<Props> = ({
             hasIcon
             disabled={!isAdmin()}
             title={
-              isAdmin()
-                ? ""
-                : "You do not have permission to create projects"
+              isAdmin() ? "" : "You do not have permission to create projects"
             }
           >
             <Icon name="plus" light />

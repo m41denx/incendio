@@ -188,7 +188,8 @@ export const migrateInstance = async (
       },
       body: JSON.stringify({
         migration: true,
-        live: instance.type === "virtual-machine" && instance.status === "Running",
+        live:
+          instance.type === "virtual-machine" && instance.status === "Running",
         pool,
         project: targetProject,
       }),
@@ -739,7 +740,7 @@ export const deleteInstanceFile = async (
   ).then(handleResponse);
 };
 
-export const fetchInstancePreview = (
+export const fetchInstancePreview = async (
   instance: LxdInstance,
 ): Promise<string> => {
   const params = new URLSearchParams();
@@ -751,7 +752,9 @@ export const fetchInstancePreview = (
       `/1.0/instances/${encodeURIComponent(instance.name)}/console?${params.toString()}`,
     )
       .then(handleBlobResponse)
-      .then((data) => resolve(URL.createObjectURL(data)))
+      .then((data) => {
+        resolve(URL.createObjectURL(data));
+      })
       .catch(reject);
   });
 };

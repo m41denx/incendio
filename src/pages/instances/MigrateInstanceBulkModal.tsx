@@ -1,5 +1,4 @@
-import type { FC, KeyboardEvent } from "react";
-import { useState } from "react";
+import { useState, type FC, type KeyboardEvent } from "react";
 import { Modal } from "@canonical/react-components";
 import type { LxdInstance } from "types/instance";
 import FormLink from "components/FormLink";
@@ -7,8 +6,10 @@ import BackLink from "components/BackLink";
 import InstanceBulkClusterMemberMigration from "./InstanceBulkClusterMemberMigration";
 import InstanceBulkStoragePoolMigration from "./InstanceBulkStoragePoolMigration";
 import InstanceBulkProjectMigration from "./InstanceBulkProjectMigration";
-import type { BulkMigrationType } from "util/instanceBulkMigration";
-import { useInstanceBulkMigration } from "util/instanceBulkMigration";
+import {
+  useInstanceBulkMigration,
+  type BulkMigrationType,
+} from "util/instanceBulkMigration";
 import { pluralize } from "util/helpers";
 import { useIsClustered } from "context/useIsClustered";
 

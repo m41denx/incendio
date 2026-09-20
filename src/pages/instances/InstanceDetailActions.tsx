@@ -16,7 +16,7 @@ interface Props {
   isLoading: boolean;
 }
 
-const InstanceDetailActions: FC<Props> = ({ instance, project, isLoading }) => {
+const InstanceDetailActions: FC<Props> = ({ instance, isLoading }) => {
   const isSmallScreen = useIsScreenBelow(largeScreenBreakpoint);
 
   const classname = isSmallScreen

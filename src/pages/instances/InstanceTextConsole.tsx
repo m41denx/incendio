@@ -76,14 +76,16 @@ const InstanceTextConsole: FC<Props> = ({
     fetchInstanceConsoleBuffer(name, project)
       .then(setTextBuffer)
       .catch(console.error);
-    const result = await connectInstanceConsole(name, project, force).catch((e) => {
-      setLoading(false);
-      if (isRunning) {
-        onFailure("Connection failed", e);
-      } else {
-        showNotRunningInfo();
-      }
-    });
+    const result = await connectInstanceConsole(name, project, force).catch(
+      (e) => {
+        setLoading(false);
+        if (isRunning) {
+          onFailure("Connection failed", e);
+        } else {
+          showNotRunningInfo();
+        }
+      },
+    );
     if (!result) {
       return;
     }

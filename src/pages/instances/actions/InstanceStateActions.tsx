@@ -31,7 +31,7 @@ const InstanceStateActions: FC<Props> = ({
   ];
 
   if (isClustered && !hideMigrate) {
-    items.push(<MigrateInstanceBtn key="migrate" instance={instance} />)
+    items.push(<MigrateInstanceBtn key="migrate" instance={instance} />);
   }
 
   return (

@@ -40,12 +40,8 @@ interface ProviderProps {
 }
 
 export const AuthProvider: FC<ProviderProps> = ({ children }) => {
-  const {
-    hasReplicators,
-    isSettingsLoading,
-    settings,
-    settingsError,
-  } = useSupportedFeatures();
+  const { hasReplicators, isSettingsLoading, settings, settingsError } =
+    useSupportedFeatures();
 
   const authMethod = settings?.auth_user_method ?? null;
 
@@ -78,8 +74,7 @@ export const AuthProvider: FC<ProviderProps> = ({ children }) => {
   );
   // Fine grained permissions are disabled on Incus, so restriction is
   // determined solely by the TLS certificate / default project.
-  const isRestricted =
-    certificate?.restricted ?? defaultProject !== "default";
+  const isRestricted = certificate?.restricted ?? defaultProject !== "default";
 
   return (
     <AuthContext.Provider

@@ -41,7 +41,7 @@ export const ALL_COLUMNS = [
   SNAPSHOTS,
   STATUS,
   OS_NAME,
-  ACTIONS
+  ACTIONS,
 ];
 
 export const SIZE_HIDEABLE_COLUMNS = [

@@ -1,4 +1,4 @@
-import { FC } from "react";
+import type { FC } from "react";
 import {
   ActionButton,
   Button,
@@ -8,7 +8,7 @@ import {
 } from "@canonical/react-components";
 import { useFormik } from "formik";
 import * as Yup from "yup";
-import { LxdImageType, RemoteImage } from "types/image";
+import type { LxdImageType, RemoteImage } from "types/image";
 
 interface Props {
   close: () => void;
@@ -25,7 +25,7 @@ const UseOCIModal: FC<Props> = ({ close, onSelect }) => {
       registry: Yup.string().required("Registry is required"),
       image: Yup.string().required("Image is required"),
     }),
-    onSubmit: (values) =>
+    onSubmit: (values) => {
       onSelect(
         {
           arch: "",
@@ -37,7 +37,8 @@ const UseOCIModal: FC<Props> = ({ close, onSelect }) => {
           protocol: "oci",
         },
         "container",
-      ),
+      );
+    },
   });
 
   const handleCloseModal = () => {

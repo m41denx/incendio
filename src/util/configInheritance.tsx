@@ -72,7 +72,7 @@ export const getConfigRowMetadata = (
       throw new Error("Network ACLs do not have row metadata");
   }
 
-  return {value: "", source: ""};
+  return { value: "", source: "" };
 };
 
 const getConfigOptions = () => {

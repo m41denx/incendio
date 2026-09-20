@@ -28,9 +28,7 @@ import { instanceCreationTypes } from "util/instanceOptions";
 import { useSettings } from "context/useSettings";
 import { useParams } from "react-router-dom";
 import { useRemoteImages, useLocalImagesInProject } from "context/useImages";
-import {
-  linuxContainersServer,
-} from "util/imageLegacy";
+import { linuxContainersServer } from "util/imageLegacy";
 
 interface Props {
   onSelect: (image: RemoteImage, type?: LxdImageType) => void;
@@ -191,12 +189,6 @@ const ImageSelector: FC<Props> = ({ onSelect, onClose }) => {
             ? item.registryName.split("-").map(capitalizeFirstLetter).join(" ")
             : item.registryName;
         }
-        const isKnownRegistry = [
-          "images",
-          "ubuntu",
-          "ubuntu-minimal",
-          "",
-        ].includes(item.registryName ?? "");
         if (item.server === linuxContainersServer) {
           source = "Linux Containers";
         }

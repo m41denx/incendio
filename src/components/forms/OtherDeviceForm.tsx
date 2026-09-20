@@ -195,7 +195,9 @@ const OtherDeviceForm: FC<Props> = ({ formik, project }) => {
     const id = `${type}`;
 
     const rawOptions = configOptions?.configs.devices[id];
-    const configFields = rawOptions ? toConfigFields({ device: rawOptions }) : [];
+    const configFields = rawOptions
+      ? toConfigFields({ device: rawOptions })
+      : [];
 
     customRows.push(
       getConfigurationRowBase({

@@ -1,7 +1,7 @@
-import { FC, ReactNode, useState } from "react";
+import { useState, type FC, type ReactNode } from "react";
 import { Button, Modal, Select } from "@canonical/react-components";
 import type { InstanceAndProfileFormikProps } from "types/forms/instanceAndProfileFormProps";
-import { LxdDiskDevice } from "types/device";
+import type { LxdDiskDevice } from "types/device";
 import { getSpecialDiskSourceOptions } from "util/storageVolume";
 
 interface Props {

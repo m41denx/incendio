@@ -164,10 +164,7 @@ const InstanceFormMenu: FC<Props> = ({
           <MenuItem
             label={USER_PROPERTIES}
             {...menuItemProps}
-            isBold={hasPrefixValue(
-              formik,
-              "user.",
-            )}
+            isBold={hasPrefixValue(formik, "user.")}
           />
         </ul>
       </nav>

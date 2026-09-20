@@ -144,7 +144,9 @@ const AttachDiskDeviceModal: FC<Props> = ({
               <FormLink
                 icon="file"
                 title="Special disk device"
-                onClick={() => setType("special device")}
+                onClick={() => {
+                  setType("special device");
+                }}
               />
             )}
           </div>

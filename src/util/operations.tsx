@@ -141,14 +141,22 @@ export const instanceLinkFromOperation = (args: {
   );
 };
 
-export const findOperation = (instance: LxdInstance, operations: LxdOperation[], operation_type: string) => {
+export const findOperation = (
+  instance: LxdInstance,
+  operations: LxdOperation[],
+  operation_type: string,
+) => {
   return operations.find((operation) => {
     const projectName = getProjectName(operation);
     const instanceName = getInstanceName(operation);
 
-    if (projectName == instance.project && instanceName == instance.name && operation_type == operation.description) {
+    if (
+      projectName == instance.project &&
+      instanceName == instance.name &&
+      operation_type == operation.description
+    ) {
       return true;
     }
     return false;
   });
-}
+};

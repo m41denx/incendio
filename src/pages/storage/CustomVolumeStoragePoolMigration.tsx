@@ -1,7 +1,7 @@
-import { FC } from "react";
+import type { FC } from "react";
 import { ActionButton, Button } from "@canonical/react-components";
 import StoragePoolSelectTable from "../storage/StoragePoolSelectTable";
-import { LxdStorageVolume } from "types/storage";
+import type { LxdStorageVolume } from "types/storage";
 
 interface Props {
   storageVolume: LxdStorageVolume;
@@ -56,7 +56,9 @@ const CustomVolumeStoragePoolMigration: FC<Props> = ({
           <ActionButton
             appearance="positive"
             className="u-no-margin--bottom"
-            onClick={() => migrate(targetPool, undefined)}
+            onClick={() => {
+              migrate(targetPool, undefined);
+            }}
             disabled={!targetPool}
           >
             Migrate

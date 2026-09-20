@@ -34,9 +34,9 @@ const generateCert = (password: string) => {
   cert.publicKey = keys.publicKey;
 
   // Generate a positive serial number
-  let serialBytes = getRandomBytes(16);
+  const serialBytes = getRandomBytes(16);
   if (serialBytes[0] >= 128) {
-    serialBytes[0] &= 0x7F; // Ensure the first bit is not set (make it positive)
+    serialBytes[0] &= 0x7f; // Ensure the first bit is not set (make it positive)
   }
   const serialHex = Array.from(serialBytes)
     .map((b) => b.toString(16).padStart(2, "0"))
@@ -66,4 +66,3 @@ const generateCert = (password: string) => {
     pfx: pfx,
   };
 };
-

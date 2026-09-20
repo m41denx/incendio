@@ -80,13 +80,13 @@ export const sortIpv6Addresses = (ipv6Addresses: IpAddress[]): IpAddress[] => {
   });
 };
 
-export const getMACAddresses = (
-  instance: LxdInstance,
-) => {
+export const getMACAddresses = (instance: LxdInstance) => {
   if (!instance.state?.network) return [];
   return Object.entries(instance.state.network)
     .filter(([_key, value]) => value.type == "broadcast")
-    .map(([key, value]) => {return { iface: key, hwaddr: value.hwaddr }});
+    .map(([key, value]) => {
+      return { iface: key, hwaddr: value.hwaddr };
+    });
 };
 
 export const networkFormFieldToPayloadName: Record<

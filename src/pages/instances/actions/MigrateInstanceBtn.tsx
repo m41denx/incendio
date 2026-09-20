@@ -3,7 +3,6 @@ import { Button, Icon, usePortal } from "@canonical/react-components";
 import type { LxdInstance } from "types/instance";
 import { useInstanceLoading } from "context/instanceLoading";
 import MigrateInstanceModal from "../MigrateInstanceModal";
-import classNames from "classnames";
 import { useInstanceEntitlements } from "util/entitlements/instances";
 
 interface Props {
@@ -12,7 +11,7 @@ interface Props {
   onClose?: () => void;
 }
 
-const MigrateInstanceBtn: FC<Props> = ({ instance, classname }) => {
+const MigrateInstanceBtn: FC<Props> = ({ instance }) => {
   const { openPortal, closePortal, isOpen, Portal } = usePortal();
   const { canEditInstance } = useInstanceEntitlements();
   const instanceLoading = useInstanceLoading();

@@ -28,11 +28,7 @@ interface Props {
   onSuccess?: () => void;
 }
 
-export const useInstanceMigration = ({
-  instance,
-  close,
-  type,
-}: Props) => {
+export const useInstanceMigration = ({ instance, close, type }: Props) => {
   const toastNotify = useToastNotification();
   const instanceLoading = useInstanceLoading();
   const eventQueue = useEventQueue();
@@ -138,13 +134,17 @@ export const useInstanceMigration = ({
     instanceLoading.setFinish(instance);
   };
 
-  const handleMigrate = (targetMember: string, targetPool: string, targetProject: string) => {
+  const handleMigrate = (
+    targetMember: string,
+    targetPool: string,
+    targetProject: string,
+  ) => {
     let target = "";
     if (type === "cluster member") {
       target = targetMember;
-    } else if (type === "root storage pool" ) {
+    } else if (type === "root storage pool") {
       target = targetPool;
-    } else if (type === "project" ) {
+    } else if (type === "project") {
       target = targetProject;
     }
     instanceLoading.setLoading(instance, "Migrating");
