@@ -99,7 +99,10 @@ const getLimitChanges = (formik: ConfigurationRowFormikProps): number => {
 const getDevicePairFieldChanges = (a: FormDevice, b: FormDevice): number => {
   let changeCount = 0;
 
-  for (const key in a) {
+  // Iterate the union of keys so both added and removed fields are detected
+  // regardless of argument order.
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+  for (const key of keys) {
     const keyType = key as keyof FormDevice;
     if (isRootDisk(a) && !["size", "pool"].includes(keyType)) {
       continue;

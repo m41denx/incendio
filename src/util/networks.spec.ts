@@ -378,6 +378,6 @@ describe("supportsNicDeviceAcls", () => {
 
   it('should return true if network type is "bridge"', () => {
     const network = { type: "bridge" } as LxdNetwork;
-    expect(supportsNicDeviceAcls(network)).toBe(false);
+    expect(supportsNicDeviceAcls(network)).toBe(true);
   });
 });

@@ -196,7 +196,7 @@ export const addNicDevice = ({
 }) => {
   const copy = [...formik.values.devices].filter((t) => t.name !== deviceName);
 
-  if (deviceParentName != "") {
+  if (deviceParentName) {
     copy.push({
       type: "nic",
       name: deviceName,
