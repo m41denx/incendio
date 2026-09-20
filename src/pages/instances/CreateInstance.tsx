@@ -45,6 +45,7 @@ import InstanceFormMenu, {
   OCI_CONFIG,
   OTHER_DEVICES,
   PROXY_DEVICES,
+  RAW_CONFIG,
   RESOURCE_LIMITS,
   SECURITY_POLICIES,
   SNAPSHOTS,
@@ -67,6 +68,7 @@ import { instanceNameValidation } from "util/instances";
 import MigrationForm from "components/forms/MigrationForm";
 import NvidiaForm from "components/forms/NvidiaForm";
 import OciForm from "components/forms/OciForm";
+import RawConfigForm from "components/forms/RawConfigForm";
 import { useSupportedFeatures } from "context/useSupportedFeatures";
 import GPUDevicesForm from "components/forms/GPUDeviceForm";
 import OtherDeviceForm from "components/forms/OtherDeviceForm";
@@ -84,6 +86,7 @@ import {
   migrationPayload,
   nvidiaPayload,
   ociPayload,
+  rawConfigPayload,
   sshKeyPayload,
   instanceDetailPayload,
   formDeviceToPayload,
@@ -428,6 +431,7 @@ const CreateInstance: FC = () => {
         ...migrationPayload(values),
         ...nvidiaPayload(values),
         ...ociPayload(values),
+        ...rawConfigPayload(values),
         ...bootPayload(values),
         ...cloudInitPayload(values),
         ...sshKeyPayload(values),
@@ -527,6 +531,8 @@ const CreateInstance: FC = () => {
             {section === NVIDIA_CONFIG && <NvidiaForm formik={formik} />}
 
             {section === OCI_CONFIG && <OciForm formik={formik} />}
+
+            {section === RAW_CONFIG && <RawConfigForm formik={formik} />}
 
             {section === BOOT && <BootForm formik={formik} />}
 

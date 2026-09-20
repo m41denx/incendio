@@ -92,6 +92,20 @@ export interface OciFormValues {
   oci_dns_search?: string;
 }
 
+export interface RawConfigFormValues {
+  raw_lxc?: string;
+  raw_seccomp?: string;
+  raw_idmap?: string;
+  raw_apparmor?: string;
+  raw_qemu?: string;
+  raw_qemu_conf?: string;
+  raw_qemu_scriptlet?: string;
+  raw_qemu_qmp_early?: string;
+  raw_qemu_qmp_pre_start?: string;
+  raw_qemu_qmp_post_start?: string;
+  linux_kernel_modules?: string;
+}
+
 export interface ProfileDetailsFormValues {
   name: string;
   description?: string;
@@ -196,6 +210,7 @@ export type CreateInstanceFormValues = InstanceDetailsFormValues &
   MigrationFormValues &
   NvidiaFormValues &
   OciFormValues &
+  RawConfigFormValues &
   BootFormValues &
   CloudInitFormValues &
   SshKeyFormValues &
@@ -209,6 +224,7 @@ export type CreateProfileFormValues = ProfileDetailsFormValues &
   MigrationFormValues &
   NvidiaFormValues &
   OciFormValues &
+  RawConfigFormValues &
   BootFormValues &
   CloudInitFormValues &
   SshKeyFormValues &
@@ -222,6 +238,7 @@ export type EditInstanceFormValues = InstanceEditDetailsFormValues &
   MigrationFormValues &
   NvidiaFormValues &
   OciFormValues &
+  RawConfigFormValues &
   BootFormValues &
   CloudInitFormValues &
   SshKeyFormValues &
@@ -235,6 +252,7 @@ export type EditProfileFormValues = ProfileDetailsFormValues &
   MigrationFormValues &
   NvidiaFormValues &
   OciFormValues &
+  RawConfigFormValues &
   BootFormValues &
   CloudInitFormValues &
   SshKeyFormValues &

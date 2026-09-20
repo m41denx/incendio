@@ -25,6 +25,7 @@ export const MIGRATION = "Migration";
 export const SNAPSHOTS = "Snapshots";
 export const NVIDIA_CONFIG = "NVIDIA";
 export const OCI_CONFIG = "OCI";
+export const RAW_CONFIG = "Raw configuration";
 export const BOOT = "Boot";
 export const CLOUD_INIT = "Cloud init";
 export const USER_PROPERTIES = "User properties";
@@ -158,6 +159,14 @@ const InstanceFormMenu: FC<Props> = ({
             label={OCI_CONFIG}
             {...menuItemProps}
             isBold={hasPrefixValue(formik, "oci_")}
+          />
+          <MenuItem
+            label={RAW_CONFIG}
+            {...menuItemProps}
+            isBold={
+              hasPrefixValue(formik, "raw_") ||
+              hasPrefixValue(formik, "linux_kernel_modules")
+            }
           />
           <MenuItem
             label={BOOT}

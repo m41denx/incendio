@@ -36,6 +36,7 @@ import InstanceFormMenu, {
   OCI_CONFIG,
   OTHER_DEVICES,
   PROXY_DEVICES,
+  RAW_CONFIG,
   RESOURCE_LIMITS,
   SECURITY_POLICIES,
   SNAPSHOTS,
@@ -57,6 +58,7 @@ import { hasDiskError, hasNetworkError } from "util/instanceValidation";
 import MigrationForm from "components/forms/MigrationForm";
 import NvidiaForm from "components/forms/NvidiaForm";
 import OciForm from "components/forms/OciForm";
+import RawConfigForm from "components/forms/RawConfigForm";
 import UserPropertiesForm from "components/forms/UserPropertiesForm";
 import GPUDeviceForm from "components/forms/GPUDeviceForm";
 import OtherDeviceForm from "components/forms/OtherDeviceForm";
@@ -275,6 +277,10 @@ const EditInstance: FC<Props> = ({ instance }) => {
             )}
 
             {section === slugify(OCI_CONFIG) && <OciForm formik={formik} />}
+
+            {section === slugify(RAW_CONFIG) && (
+              <RawConfigForm formik={formik} />
+            )}
 
             {section === slugify(BOOT) && <BootForm formik={formik} />}
 

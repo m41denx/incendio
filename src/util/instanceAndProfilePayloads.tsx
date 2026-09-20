@@ -12,6 +12,7 @@ import type {
   MigrationFormValues,
   NvidiaFormValues,
   OciFormValues,
+  RawConfigFormValues,
   ProfileDetailsFormValues,
   ResourceLimitsFormValues,
   SecurityPoliciesFormValues,
@@ -62,6 +63,7 @@ export const getInstancePayload = (
       ...migrationPayload(values),
       ...nvidiaPayload(values),
       ...ociPayload(values),
+      ...rawConfigPayload(values),
       ...bootPayload(values),
       ...cloudInitPayload(values),
       ...sshKeyPayload(values),
@@ -316,6 +318,23 @@ export const ociPayload = (values: OciFormValues) => {
   };
 };
 
+export const rawConfigPayload = (values: RawConfigFormValues) => {
+  return {
+    [getInstanceField("raw_lxc")]: values.raw_lxc,
+    [getInstanceField("raw_seccomp")]: values.raw_seccomp,
+    [getInstanceField("raw_idmap")]: values.raw_idmap,
+    [getInstanceField("raw_apparmor")]: values.raw_apparmor,
+    [getInstanceField("raw_qemu")]: values.raw_qemu,
+    [getInstanceField("raw_qemu_conf")]: values.raw_qemu_conf,
+    [getInstanceField("raw_qemu_scriptlet")]: values.raw_qemu_scriptlet,
+    [getInstanceField("raw_qemu_qmp_early")]: values.raw_qemu_qmp_early,
+    [getInstanceField("raw_qemu_qmp_pre_start")]: values.raw_qemu_qmp_pre_start,
+    [getInstanceField("raw_qemu_qmp_post_start")]:
+      values.raw_qemu_qmp_post_start,
+    [getInstanceField("linux_kernel_modules")]: values.linux_kernel_modules,
+  };
+};
+
 export const bootPayload = (values: BootFormValues) => {
   return {
     [getInstanceField("boot_autostart")]: values.boot_autostart?.toString(),
@@ -406,6 +425,7 @@ export const getProfilePayload = (
       ...migrationPayload(values),
       ...nvidiaPayload(values),
       ...ociPayload(values),
+      ...rawConfigPayload(values),
       ...bootPayload(values),
       ...cloudInitPayload(values),
       ...sshKeyPayload(values),
@@ -635,6 +655,18 @@ const getEditValues = (
     oci_dns_domain: item.config["oci.dns.domain"],
     oci_dns_nameservers: item.config["oci.dns.nameservers"],
     oci_dns_search: item.config["oci.dns.search"],
+
+    raw_lxc: item.config["raw.lxc"],
+    raw_seccomp: item.config["raw.seccomp"],
+    raw_idmap: item.config["raw.idmap"],
+    raw_apparmor: item.config["raw.apparmor"],
+    raw_qemu: item.config["raw.qemu"],
+    raw_qemu_conf: item.config["raw.qemu.conf"],
+    raw_qemu_scriptlet: item.config["raw.qemu.scriptlet"],
+    raw_qemu_qmp_early: item.config["raw.qemu.qmp.early"],
+    raw_qemu_qmp_pre_start: item.config["raw.qemu.qmp.pre-start"],
+    raw_qemu_qmp_post_start: item.config["raw.qemu.qmp.post-start"],
+    linux_kernel_modules: item.config["linux.kernel_modules"],
 
     boot_autostart: item.config["boot.autostart"],
     boot_autostart_delay: item.config["boot.autostart.delay"],

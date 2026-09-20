@@ -35,6 +35,7 @@ import ProfileFormMenu, {
   OCI_CONFIG,
   OTHER_DEVICES,
   PROXY_DEVICES,
+  RAW_CONFIG,
   RESOURCE_LIMITS,
   SECURITY_POLICIES,
   SNAPSHOTS,
@@ -51,6 +52,7 @@ import FormFooterLayout from "components/forms/FormFooterLayout";
 import MigrationForm from "components/forms/MigrationForm";
 import NvidiaForm from "components/forms/NvidiaForm";
 import OciForm from "components/forms/OciForm";
+import RawConfigForm from "components/forms/RawConfigForm";
 import GPUDevicesForm from "components/forms/GPUDeviceForm";
 import OtherDeviceForm from "components/forms/OtherDeviceForm";
 import YamlSwitch from "components/forms/YamlSwitch";
@@ -67,6 +69,7 @@ import {
   migrationPayload,
   nvidiaPayload,
   ociPayload,
+  rawConfigPayload,
   sshKeyPayload,
   formDeviceToPayload,
   profileDetailPayload,
@@ -164,6 +167,7 @@ const CreateProfile: FC = () => {
         ...migrationPayload(values),
         ...nvidiaPayload(values),
         ...ociPayload(values),
+        ...rawConfigPayload(values),
         ...bootPayload(values),
         ...cloudInitPayload(values),
         ...sshKeyPayload(values),
@@ -243,6 +247,8 @@ const CreateProfile: FC = () => {
             {section === NVIDIA_CONFIG && <NvidiaForm formik={formik} />}
 
             {section === OCI_CONFIG && <OciForm formik={formik} />}
+
+            {section === RAW_CONFIG && <RawConfigForm formik={formik} />}
 
             {section === BOOT && <BootForm formik={formik} />}
 
