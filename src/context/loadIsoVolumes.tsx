@@ -43,7 +43,7 @@ export const collectAllStorageVolumes = async (
   isFineGrained: boolean | null,
 ): Promise<LxdStorageVolume[]> => {
   const allVolumes: LxdStorageVolume[] = [];
-  const pools = await fetchStoragePools(isFineGrained);
+  const pools = await fetchStoragePools(isFineGrained, null);
 
   const poolVolumes = await Promise.allSettled(
     pools.map(async (pool) =>

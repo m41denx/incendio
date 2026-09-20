@@ -35,7 +35,7 @@ export const useStoragePools = (
   const { isFineGrained } = useAuth();
   return useQuery({
     queryKey: [queryKeys.storage, project],
-    queryFn: async () => fetchStoragePools(isFineGrained, project),
+    queryFn: async () => fetchStoragePools(isFineGrained, project ?? null),
     enabled: enabled && isFineGrained !== null,
   });
 };

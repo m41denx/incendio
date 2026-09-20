@@ -41,7 +41,7 @@ export const fetchAllStorageBuckets = async (
   isFineGrained: boolean | null,
   project: string,
 ): Promise<LxdStorageBucket[]> => {
-  const pools = await fetchStoragePools(isFineGrained);
+  const pools = await fetchStoragePools(isFineGrained, null);
 
   const fetches = pools
     .filter((pool) => {

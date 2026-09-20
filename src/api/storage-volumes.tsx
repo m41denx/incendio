@@ -201,7 +201,7 @@ export const copyCustomVolumeToTarget = (
 
   return new Promise((resolve, reject) => {
     fetch(
-      `/1.0/storage-pools/${encodeURIComponent(volume.pool)}/volumes?${params.toString()}`,
+      `/1.0/storage-pools/${encodeURIComponent(volume.pool ?? "")}/volumes?${params.toString()}`,
       {
         method: "POST",
         headers: {
