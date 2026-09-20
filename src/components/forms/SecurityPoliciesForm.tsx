@@ -10,6 +10,7 @@ import {
   getConfigurationRowBase,
 } from "components/ConfigurationRow";
 import ScrollableConfigurationTable from "components/forms/ScrollableConfigurationTable";
+import AutoExpandingTextArea from "components/AutoExpandingTextArea";
 import { optionRenderer } from "util/formFields";
 import { useSupportedFeatures } from "context/useSupportedFeatures";
 import { BOOT } from "pages/instances/forms/InstanceFormMenu";
@@ -248,6 +249,438 @@ const SecurityPoliciesForm: FC<Props> = ({ formik, setSection }) => {
           readOnlyRenderer: (val) => optionRenderer(val, optionTrueFalse),
           children: (
             <Select options={optionTrueFalse} disabled={isVmOnlyDisabled} />
+          ),
+        }),
+
+        getConfigurationRow({
+          formik,
+          label: "SELinux process domain",
+          name: "security_selinux_domain",
+          defaultValue: "",
+          children: <Input type="text" />,
+        }),
+
+        getConfigurationRow({
+          formik,
+          label: "SELinux MCS level",
+          name: "security_selinux_level",
+          defaultValue: "",
+          children: <Input type="text" />,
+        }),
+
+        getConfigurationRow({
+          formik,
+          label: "SELinux file type",
+          name: "security_selinux_type",
+          defaultValue: "",
+          children: <Input type="text" />,
+        }),
+
+        getConfigurationRow({
+          formik,
+          label: "SELinux rootfs labeling mode (Containers only)",
+          name: "security_selinux_label_rootfs",
+          defaultValue: "",
+          disabled: isContainerOnlyDisabled,
+          disabledReason: isContainerOnlyDisabled
+            ? "Only available for containers"
+            : undefined,
+          children: (
+            <Input
+              type="text"
+              disabled={isContainerOnlyDisabled}
+              labelClassName={classnames({
+                "is-disabled": isContainerOnlyDisabled,
+              })}
+            />
+          ),
+        }),
+
+        getConfigurationRow({
+          formik,
+          label: "BPF attach types to delegate (Containers only)",
+          name: "security_bpffs_delegate_attachs",
+          defaultValue: "",
+          disabled: isContainerOnlyDisabled,
+          disabledReason: isContainerOnlyDisabled
+            ? "Only available for containers"
+            : undefined,
+          children: (
+            <Input
+              type="text"
+              disabled={isContainerOnlyDisabled}
+              labelClassName={classnames({
+                "is-disabled": isContainerOnlyDisabled,
+              })}
+            />
+          ),
+        }),
+
+        getConfigurationRow({
+          formik,
+          label: "BPF command types to delegate (Containers only)",
+          name: "security_bpffs_delegate_cmds",
+          defaultValue: "",
+          disabled: isContainerOnlyDisabled,
+          disabledReason: isContainerOnlyDisabled
+            ? "Only available for containers"
+            : undefined,
+          children: (
+            <Input
+              type="text"
+              disabled={isContainerOnlyDisabled}
+              labelClassName={classnames({
+                "is-disabled": isContainerOnlyDisabled,
+              })}
+            />
+          ),
+        }),
+
+        getConfigurationRow({
+          formik,
+          label: "BPF map types to delegate (Containers only)",
+          name: "security_bpffs_delegate_maps",
+          defaultValue: "",
+          disabled: isContainerOnlyDisabled,
+          disabledReason: isContainerOnlyDisabled
+            ? "Only available for containers"
+            : undefined,
+          children: (
+            <Input
+              type="text"
+              disabled={isContainerOnlyDisabled}
+              labelClassName={classnames({
+                "is-disabled": isContainerOnlyDisabled,
+              })}
+            />
+          ),
+        }),
+
+        getConfigurationRow({
+          formik,
+          label: "BPF program types to delegate (Containers only)",
+          name: "security_bpffs_delegate_progs",
+          defaultValue: "",
+          disabled: isContainerOnlyDisabled,
+          disabledReason: isContainerOnlyDisabled
+            ? "Only available for containers"
+            : undefined,
+          children: (
+            <Input
+              type="text"
+              disabled={isContainerOnlyDisabled}
+              labelClassName={classnames({
+                "is-disabled": isContainerOnlyDisabled,
+              })}
+            />
+          ),
+        }),
+
+        getConfigurationRow({
+          formik,
+          label: "BPF file system mount path (Containers only)",
+          name: "security_bpffs_path",
+          defaultValue: "",
+          disabled: isContainerOnlyDisabled,
+          disabledReason: isContainerOnlyDisabled
+            ? "Only available for containers"
+            : undefined,
+          children: (
+            <Input
+              type="text"
+              disabled={isContainerOnlyDisabled}
+              labelClassName={classnames({
+                "is-disabled": isContainerOnlyDisabled,
+              })}
+            />
+          ),
+        }),
+
+        getConfigurationRow({
+          formik,
+          label: "SEV session blob (VMs only)",
+          name: "security_sev_session_data",
+          defaultValue: "",
+          disabled: isVmOnlyDisabled,
+          disabledReason: isVmOnlyDisabled
+            ? "Only available for virtual machines"
+            : undefined,
+          children: (
+            <Input
+              type="text"
+              disabled={isVmOnlyDisabled}
+              labelClassName={classnames({
+                "is-disabled": isVmOnlyDisabled,
+              })}
+            />
+          ),
+        }),
+
+        getConfigurationRow({
+          formik,
+          label: "SEV Diffie-Hellman key (VMs only)",
+          name: "security_sev_session_dh",
+          defaultValue: "",
+          disabled: isVmOnlyDisabled,
+          disabledReason: isVmOnlyDisabled
+            ? "Only available for virtual machines"
+            : undefined,
+          children: (
+            <Input
+              type="text"
+              disabled={isVmOnlyDisabled}
+              labelClassName={classnames({
+                "is-disabled": isVmOnlyDisabled,
+              })}
+            />
+          ),
+        }),
+
+        getConfigurationRow({
+          formik,
+          label: "Allowed syscalls (Containers only)",
+          name: "security_syscalls_allow",
+          defaultValue: "",
+          disabled: isContainerOnlyDisabled,
+          disabledReason: isContainerOnlyDisabled
+            ? "Only available for containers"
+            : undefined,
+          children: (
+            <AutoExpandingTextArea disabled={isContainerOnlyDisabled} />
+          ),
+        }),
+
+        getConfigurationRow({
+          formik,
+          label: "Denied syscalls (Containers only)",
+          name: "security_syscalls_deny",
+          defaultValue: "",
+          disabled: isContainerOnlyDisabled,
+          disabledReason: isContainerOnlyDisabled
+            ? "Only available for containers"
+            : undefined,
+          children: (
+            <AutoExpandingTextArea disabled={isContainerOnlyDisabled} />
+          ),
+        }),
+
+        getConfigurationRow({
+          formik,
+          label: "Block compat_* syscalls (Containers only)",
+          name: "security_syscalls_deny_compat",
+          defaultValue: "",
+          disabled: isContainerOnlyDisabled,
+          disabledReason: isContainerOnlyDisabled
+            ? "Only available for containers"
+            : undefined,
+          readOnlyRenderer: (val) => optionRenderer(val, optionTrueFalse),
+          children: (
+            <Select
+              options={optionTrueFalse}
+              disabled={isContainerOnlyDisabled}
+            />
+          ),
+        }),
+
+        getConfigurationRow({
+          formik,
+          label: "Enable default syscall deny (Containers only)",
+          name: "security_syscalls_deny_default",
+          defaultValue: "",
+          disabled: isContainerOnlyDisabled,
+          disabledReason: isContainerOnlyDisabled
+            ? "Only available for containers"
+            : undefined,
+          readOnlyRenderer: (val) => optionRenderer(val, optionTrueFalse),
+          children: (
+            <Select
+              options={optionTrueFalse}
+              disabled={isContainerOnlyDisabled}
+            />
+          ),
+        }),
+
+        getConfigurationRow({
+          formik,
+          label: "Intercept bpf() syscall (Containers only)",
+          name: "security_syscalls_intercept_bpf",
+          defaultValue: "",
+          disabled: isContainerOnlyDisabled,
+          disabledReason: isContainerOnlyDisabled
+            ? "Only available for containers"
+            : undefined,
+          readOnlyRenderer: (val) => optionRenderer(val, optionTrueFalse),
+          children: (
+            <Select
+              options={optionTrueFalse}
+              disabled={isContainerOnlyDisabled}
+            />
+          ),
+        }),
+
+        getConfigurationRow({
+          formik,
+          label: "Allow BPF programs (Containers only)",
+          name: "security_syscalls_intercept_bpf_devices",
+          defaultValue: "",
+          disabled: isContainerOnlyDisabled,
+          disabledReason: isContainerOnlyDisabled
+            ? "Only available for containers"
+            : undefined,
+          readOnlyRenderer: (val) => optionRenderer(val, optionTrueFalse),
+          children: (
+            <Select
+              options={optionTrueFalse}
+              disabled={isContainerOnlyDisabled}
+            />
+          ),
+        }),
+
+        getConfigurationRow({
+          formik,
+          label: "Intercept mknod/mknodat syscalls (Containers only)",
+          name: "security_syscalls_intercept_mknod",
+          defaultValue: "",
+          disabled: isContainerOnlyDisabled,
+          disabledReason: isContainerOnlyDisabled
+            ? "Only available for containers"
+            : undefined,
+          readOnlyRenderer: (val) => optionRenderer(val, optionTrueFalse),
+          children: (
+            <Select
+              options={optionTrueFalse}
+              disabled={isContainerOnlyDisabled}
+            />
+          ),
+        }),
+
+        getConfigurationRow({
+          formik,
+          label: "Intercept mount syscall (Containers only)",
+          name: "security_syscalls_intercept_mount",
+          defaultValue: "",
+          disabled: isContainerOnlyDisabled,
+          disabledReason: isContainerOnlyDisabled
+            ? "Only available for containers"
+            : undefined,
+          readOnlyRenderer: (val) => optionRenderer(val, optionTrueFalse),
+          children: (
+            <Select
+              options={optionTrueFalse}
+              disabled={isContainerOnlyDisabled}
+            />
+          ),
+        }),
+
+        getConfigurationRow({
+          formik,
+          label: "File systems that can be mounted (Containers only)",
+          name: "security_syscalls_intercept_mount_allowed",
+          defaultValue: "",
+          disabled: isContainerOnlyDisabled,
+          disabledReason: isContainerOnlyDisabled
+            ? "Only available for containers"
+            : undefined,
+          children: (
+            <Input
+              type="text"
+              disabled={isContainerOnlyDisabled}
+              labelClassName={classnames({
+                "is-disabled": isContainerOnlyDisabled,
+              })}
+            />
+          ),
+        }),
+
+        getConfigurationRow({
+          formik,
+          label: "File systems redirected to FUSE (Containers only)",
+          name: "security_syscalls_intercept_mount_fuse",
+          defaultValue: "",
+          disabled: isContainerOnlyDisabled,
+          disabledReason: isContainerOnlyDisabled
+            ? "Only available for containers"
+            : undefined,
+          children: (
+            <Input
+              type="text"
+              disabled={isContainerOnlyDisabled}
+              labelClassName={classnames({
+                "is-disabled": isContainerOnlyDisabled,
+              })}
+            />
+          ),
+        }),
+
+        getConfigurationRow({
+          formik,
+          label: "Use idmapped mounts for interception (Containers only)",
+          name: "security_syscalls_intercept_mount_shift",
+          defaultValue: "",
+          disabled: isContainerOnlyDisabled,
+          disabledReason: isContainerOnlyDisabled
+            ? "Only available for containers"
+            : undefined,
+          readOnlyRenderer: (val) => optionRenderer(val, optionTrueFalse),
+          children: (
+            <Select
+              options={optionTrueFalse}
+              disabled={isContainerOnlyDisabled}
+            />
+          ),
+        }),
+
+        getConfigurationRow({
+          formik,
+          label: "Intercept sched_setscheduler syscall (Containers only)",
+          name: "security_syscalls_intercept_sched_setscheduler",
+          defaultValue: "",
+          disabled: isContainerOnlyDisabled,
+          disabledReason: isContainerOnlyDisabled
+            ? "Only available for containers"
+            : undefined,
+          readOnlyRenderer: (val) => optionRenderer(val, optionTrueFalse),
+          children: (
+            <Select
+              options={optionTrueFalse}
+              disabled={isContainerOnlyDisabled}
+            />
+          ),
+        }),
+
+        getConfigurationRow({
+          formik,
+          label: "Intercept setxattr syscall (Containers only)",
+          name: "security_syscalls_intercept_setxattr",
+          defaultValue: "",
+          disabled: isContainerOnlyDisabled,
+          disabledReason: isContainerOnlyDisabled
+            ? "Only available for containers"
+            : undefined,
+          readOnlyRenderer: (val) => optionRenderer(val, optionTrueFalse),
+          children: (
+            <Select
+              options={optionTrueFalse}
+              disabled={isContainerOnlyDisabled}
+            />
+          ),
+        }),
+
+        getConfigurationRow({
+          formik,
+          label: "Intercept sysinfo syscall (Containers only)",
+          name: "security_syscalls_intercept_sysinfo",
+          defaultValue: "",
+          disabled: isContainerOnlyDisabled,
+          disabledReason: isContainerOnlyDisabled
+            ? "Only available for containers"
+            : undefined,
+          readOnlyRenderer: (val) => optionRenderer(val, optionTrueFalse),
+          children: (
+            <Select
+              options={optionTrueFalse}
+              disabled={isContainerOnlyDisabled}
+            />
           ),
         }),
 

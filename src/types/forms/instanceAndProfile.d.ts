@@ -104,6 +104,31 @@ export interface SecurityPoliciesFormValues {
   security_sev_policy_es?: string;
   security_agent_metrics?: string;
   security_protection_start?: string;
+  security_bpffs_delegate_attachs?: string;
+  security_bpffs_delegate_cmds?: string;
+  security_bpffs_delegate_maps?: string;
+  security_bpffs_delegate_progs?: string;
+  security_bpffs_path?: string;
+  security_selinux_domain?: string;
+  security_selinux_label_rootfs?: string;
+  security_selinux_level?: string;
+  security_selinux_type?: string;
+  security_sev_session_data?: string;
+  security_sev_session_dh?: string;
+  security_syscalls_allow?: string;
+  security_syscalls_deny?: string;
+  security_syscalls_deny_compat?: string;
+  security_syscalls_deny_default?: string;
+  security_syscalls_intercept_bpf?: string;
+  security_syscalls_intercept_bpf_devices?: string;
+  security_syscalls_intercept_mknod?: string;
+  security_syscalls_intercept_mount?: string;
+  security_syscalls_intercept_mount_allowed?: string;
+  security_syscalls_intercept_mount_fuse?: string;
+  security_syscalls_intercept_mount_shift?: string;
+  security_syscalls_intercept_sched_setscheduler?: string;
+  security_syscalls_intercept_setxattr?: string;
+  security_syscalls_intercept_sysinfo?: string;
 }
 
 export interface SnapshotFormValues {

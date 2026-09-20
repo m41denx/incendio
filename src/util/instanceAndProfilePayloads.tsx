@@ -201,6 +201,52 @@ export const securityPoliciesPayload = (values: SecurityPoliciesFormValues) => {
     [getInstanceField("security_agent_metrics")]: values.security_agent_metrics,
     [getInstanceField("security_protection_start")]:
       values.security_protection_start,
+    [getInstanceField("security_bpffs_delegate_attachs")]:
+      values.security_bpffs_delegate_attachs,
+    [getInstanceField("security_bpffs_delegate_cmds")]:
+      values.security_bpffs_delegate_cmds,
+    [getInstanceField("security_bpffs_delegate_maps")]:
+      values.security_bpffs_delegate_maps,
+    [getInstanceField("security_bpffs_delegate_progs")]:
+      values.security_bpffs_delegate_progs,
+    [getInstanceField("security_bpffs_path")]: values.security_bpffs_path,
+    [getInstanceField("security_selinux_domain")]:
+      values.security_selinux_domain,
+    [getInstanceField("security_selinux_label_rootfs")]:
+      values.security_selinux_label_rootfs,
+    [getInstanceField("security_selinux_level")]: values.security_selinux_level,
+    [getInstanceField("security_selinux_type")]: values.security_selinux_type,
+    [getInstanceField("security_sev_session_data")]:
+      values.security_sev_session_data,
+    [getInstanceField("security_sev_session_dh")]:
+      values.security_sev_session_dh,
+    [getInstanceField("security_syscalls_allow")]:
+      values.security_syscalls_allow,
+    [getInstanceField("security_syscalls_deny")]: values.security_syscalls_deny,
+    [getInstanceField("security_syscalls_deny_compat")]:
+      values.security_syscalls_deny_compat,
+    [getInstanceField("security_syscalls_deny_default")]:
+      values.security_syscalls_deny_default,
+    [getInstanceField("security_syscalls_intercept_bpf")]:
+      values.security_syscalls_intercept_bpf,
+    [getInstanceField("security_syscalls_intercept_bpf_devices")]:
+      values.security_syscalls_intercept_bpf_devices,
+    [getInstanceField("security_syscalls_intercept_mknod")]:
+      values.security_syscalls_intercept_mknod,
+    [getInstanceField("security_syscalls_intercept_mount")]:
+      values.security_syscalls_intercept_mount,
+    [getInstanceField("security_syscalls_intercept_mount_allowed")]:
+      values.security_syscalls_intercept_mount_allowed,
+    [getInstanceField("security_syscalls_intercept_mount_fuse")]:
+      values.security_syscalls_intercept_mount_fuse,
+    [getInstanceField("security_syscalls_intercept_mount_shift")]:
+      values.security_syscalls_intercept_mount_shift,
+    [getInstanceField("security_syscalls_intercept_sched_setscheduler")]:
+      values.security_syscalls_intercept_sched_setscheduler,
+    [getInstanceField("security_syscalls_intercept_setxattr")]:
+      values.security_syscalls_intercept_setxattr,
+    [getInstanceField("security_syscalls_intercept_sysinfo")]:
+      values.security_syscalls_intercept_sysinfo,
   };
 };
 
@@ -459,6 +505,45 @@ const getEditValues = (
     security_sev_policy_es: item.config["security.sev.policy.es"],
     security_agent_metrics: item.config["security.agent.metrics"],
     security_protection_start: item.config["security.protection.start"],
+    security_bpffs_delegate_attachs:
+      item.config["security.bpffs.delegate_attachs"],
+    security_bpffs_delegate_cmds: item.config["security.bpffs.delegate_cmds"],
+    security_bpffs_delegate_maps: item.config["security.bpffs.delegate_maps"],
+    security_bpffs_delegate_progs: item.config["security.bpffs.delegate_progs"],
+    security_bpffs_path: item.config["security.bpffs.path"],
+    security_selinux_domain: item.config["security.selinux.domain"],
+    security_selinux_label_rootfs:
+      item.config["security.selinux.label_rootfs"],
+    security_selinux_level: item.config["security.selinux.level"],
+    security_selinux_type: item.config["security.selinux.type"],
+    security_sev_session_data: item.config["security.sev.session.data"],
+    security_sev_session_dh: item.config["security.sev.session.dh"],
+    security_syscalls_allow: item.config["security.syscalls.allow"],
+    security_syscalls_deny: item.config["security.syscalls.deny"],
+    security_syscalls_deny_compat:
+      item.config["security.syscalls.deny_compat"],
+    security_syscalls_deny_default:
+      item.config["security.syscalls.deny_default"],
+    security_syscalls_intercept_bpf:
+      item.config["security.syscalls.intercept.bpf"],
+    security_syscalls_intercept_bpf_devices:
+      item.config["security.syscalls.intercept.bpf.devices"],
+    security_syscalls_intercept_mknod:
+      item.config["security.syscalls.intercept.mknod"],
+    security_syscalls_intercept_mount:
+      item.config["security.syscalls.intercept.mount"],
+    security_syscalls_intercept_mount_allowed:
+      item.config["security.syscalls.intercept.mount.allowed"],
+    security_syscalls_intercept_mount_fuse:
+      item.config["security.syscalls.intercept.mount.fuse"],
+    security_syscalls_intercept_mount_shift:
+      item.config["security.syscalls.intercept.mount.shift"],
+    security_syscalls_intercept_sched_setscheduler:
+      item.config["security.syscalls.intercept.sched_setscheduler"],
+    security_syscalls_intercept_setxattr:
+      item.config["security.syscalls.intercept.setxattr"],
+    security_syscalls_intercept_sysinfo:
+      item.config["security.syscalls.intercept.sysinfo"],
 
     snapshots_pattern: item.config["snapshots.pattern"],
     snapshots_expiry: item.config["snapshots.expiry"],
