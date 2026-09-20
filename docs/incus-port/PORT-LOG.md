@@ -78,11 +78,26 @@ Approach: diff the UI's exposed config keys against live `sudo incus query /1.0/
   `security.agent.metrics`, `security.protection.start`. Each wired through `instanceConfigFields` map +
   `SecurityPoliciesFormValues` type + `securityPoliciesPayload`/edit-values + `SecurityPoliciesForm` row
   (container/VM gated). Pattern for adding a field = those 4 touch-points + 1 UI row.
-- **Next candidates** (same mechanism): container syscall-interception group (`security.syscalls.intercept.*`,
-  `security.syscalls.deny_default`), `security.selinux.*`, `security.bpffs.*`; resource `limits.*` gaps
-  (`limits.memory.hugepages`, kernel limits); other config groups (`raw.*`, `oci.*`, `boot.*`).
-- Also live: deployed to `/opt/incus/ui` on this host (apt pkg held); redeploy = `yarn build` +
-  copy `build/ui/.` → `/opt/incus/ui`.
+- **Done** — full instance-config coverage pass. Goal: expose all settable container/VM instance
+  settings in the forms. Gap method = diff the config-key map (`instanceConfigFields.tsx`) against
+  `sudo incus query /1.0/metadata/configuration` (instance group, excluding `volatile.*`/`image.*`).
+  Result: **101 / 110 settable keys exposed** (was 35).
+  - Existing sections expanded (+43): Security `1052a5fa05` (syscalls intercept/deny, selinux, bpffs,
+    sev.session), Resource limits `c894f6b305` (cpu allowance/nodes/priority, memory enforce/hotplug/
+    hugepages/oom, hugepages.*), Boot `9342ac6ff1`, Migration `6448071996`, Snapshots `2ae5250074`,
+    prettier `9427633b6e`.
+  - New sections (+23): NVIDIA `03afae2a69`, OCI `a6fe9c3db6`, Raw configuration `11852e077d`
+    (raw.lxc/qemu/apparmor/seccomp/idmap/qemu.qmp.*/scriptlet + linux.kernel_modules, textareas),
+    agent.nic_config fold `c7bf156692`. A new section needs: constant+MenuItem in BOTH
+    `InstanceFormMenu.tsx` and `ProfileFormMenu.tsx`; a `<Name>Form.tsx`; `<Name>FormValues` type in all
+    4 intersections; payload fn wired into `getInstancePayload`/`getProfilePayload` + the inline
+    Create*/Edit* payload builders; edit-values lines; and a render line in all 4 host files
+    (Create/Edit × Instance/Profile — Edit\* use `section === slugify(CONST)`).
+  - **Intentionally NOT exposed** (9): `initial.secureboot.*` (6 secureboot key-material blobs → YAML
+    editor only) and `user.network-config`/`user.user-data`/`user.vendor-data` (3 → redundant with the
+    Cloud-init section + User properties).
+- Deployed live to `/opt/incus/ui` on this host (apt pkg held); redeploy = `yarn build` +
+  copy `build/ui/.` → `/opt/incus/ui` (root:root).
 
 ## Phase 2 candidates (reassess with user before starting — per decision)
 - Read-only `instance_access`/`project_access` entitlement panels.
