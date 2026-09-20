@@ -18,6 +18,7 @@ import { ROOT_PATH } from "util/rootPath";
 import { updateLoadBalancer } from "api/load-balancers";
 import LoadBalancerForm, {
   LoadBalancerSchema,
+  LoadBalancerBackendSchema,
   toLoadBalancer,
 } from "pages/networks/forms/LoadBalancerForm";
 import type { LoadBalancerFormValues } from "types/forms/loadBalancers";
@@ -27,6 +28,7 @@ import EditLoadBalancerPoolPanel from "pages/networks/panels/EditLoadBalancerPoo
 import { useLoadBalancer } from "context/useLoadBalancers";
 import { useCurrentProject } from "context/useCurrentProject";
 import { setLoadBalancerCreatedPool } from "util/loadBalancers";
+import { useSupportedFeatures } from "context/useSupportedFeatures";
 
 const EditLoadBalancer: FC = () => {
   const navigate = useNavigate();
@@ -60,6 +62,9 @@ const EditLoadBalancer: FC = () => {
       notify.failure("Loading network failed", error);
     }
   }, [error]);
+
+  const { hasLoadBalancerPools } = useSupportedFeatures();
+  const useBackends = !hasLoadBalancerPools;
 
   const { data: loadBalancer, isLoading: isBalancerLoading } = useLoadBalancer(
     networkName,
@@ -104,19 +109,41 @@ const EditLoadBalancer: FC = () => {
   };
 
   const formik = useFormik<LoadBalancerFormValues>({
-    initialValues: {
-      listenAddress: listenAddress ?? "",
-      description: loadBalancer?.description ?? "",
-      ports:
-        loadBalancer?.ports.map((port) => ({
-          key: `edit-${port.listen_port}`,
-          listenPort: port.listen_port,
-          protocol: port.protocol,
-          targetPool: port.target_pool,
-        })) ?? [],
-    },
+    initialValues: useBackends
+      ? {
+          listenAddress: listenAddress ?? "",
+          description: loadBalancer?.description ?? "",
+          backends:
+            loadBalancer?.backends?.map((backend, index) => ({
+              key: `edit-backend-${index}`,
+              name: backend.name,
+              targetAddress: backend.target_address,
+              targetPort: backend.target_port,
+              description: backend.description,
+            })) ?? [],
+          ports:
+            loadBalancer?.ports.map((port) => ({
+              key: `edit-${port.listen_port}`,
+              listenPort: port.listen_port,
+              protocol: port.protocol,
+              targetBackend: port.target_backend?.[0] ?? "",
+            })) ?? [],
+        }
+      : {
+          listenAddress: listenAddress ?? "",
+          description: loadBalancer?.description ?? "",
+          ports:
+            loadBalancer?.ports.map((port) => ({
+              key: `edit-${port.listen_port}`,
+              listenPort: port.listen_port,
+              protocol: port.protocol,
+              targetPool: port.target_pool,
+            })) ?? [],
+        },
     enableReinitialize: true,
-    validationSchema: LoadBalancerSchema,
+    validationSchema: useBackends
+      ? LoadBalancerBackendSchema
+      : LoadBalancerSchema,
     onSubmit: (values) => {
       const loadBalancer = toLoadBalancer(values);
 
@@ -179,21 +206,23 @@ const EditLoadBalancer: FC = () => {
         </ActionButton>
       </FormFooterLayout>
 
-      {panelParams.panel === panels.createLoadBalancerPool && network && (
-        <CreateLoadBalancerPoolPanel
-          network={network}
-          onCreate={(name) => {
-            setLoadBalancerCreatedPool(name, formik);
-          }}
-          onCancel={() => {
-            setLoadBalancerCreatedPool("", formik);
-          }}
-        />
-      )}
+      {!useBackends &&
+        panelParams.panel === panels.createLoadBalancerPool &&
+        network && (
+          <CreateLoadBalancerPoolPanel
+            network={network}
+            onCreate={(name) => {
+              setLoadBalancerCreatedPool(name, formik);
+            }}
+            onCancel={() => {
+              setLoadBalancerCreatedPool("", formik);
+            }}
+          />
+        )}
 
-      {panelParams.panel === panels.editLoadBalancerPool && network && (
-        <EditLoadBalancerPoolPanel network={network} />
-      )}
+      {!useBackends &&
+        panelParams.panel === panels.editLoadBalancerPool &&
+        network && <EditLoadBalancerPoolPanel network={network} />}
     </BaseLayout>
   );
 };

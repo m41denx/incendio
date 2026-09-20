@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 import { ROOT_PATH } from "util/rootPath";
 import { useLoadBalancerPools } from "context/useLoadBalancerPools";
 import { useCurrentProject } from "context/useCurrentProject";
+import { useSupportedFeatures } from "context/useSupportedFeatures";
 
 interface Props {
   network: LxdNetwork;
@@ -25,11 +26,18 @@ const CreateLoadBalancerBtn: FC<Props> = ({
   const { canEditNetwork } = useNetworkEntitlements();
   const navigate = useNavigate();
   const { projectName: project } = useCurrentProject();
-  const { data: pools = [] } = useLoadBalancerPools(network.name, project);
-  const hasPools = pools.length > 0;
+  const { hasLoadBalancerPools } = useSupportedFeatures();
+  const { data: pools = [] } = useLoadBalancerPools(
+    network.name,
+    project,
+    hasLoadBalancerPools,
+  );
+  // On Incus (backend model) there are no pools, so pool availability is not
+  // a prerequisite for creating a load balancer.
+  const poolPrerequisiteMet = !hasLoadBalancerPools || pools.length > 0;
 
   const getTitle = () => {
-    if (!hasPools) {
+    if (!poolPrerequisiteMet) {
       return "Create a load balancer pool to enable load balancer creation";
     }
 
@@ -50,7 +58,7 @@ const CreateLoadBalancerBtn: FC<Props> = ({
         );
       }}
       className={className}
-      disabled={!canEditNetwork(network) || !hasPools}
+      disabled={!canEditNetwork(network) || !poolPrerequisiteMet}
       title={getTitle()}
     >
       {!isSmallScreen && hasIcon && <Icon name="plus" light />}

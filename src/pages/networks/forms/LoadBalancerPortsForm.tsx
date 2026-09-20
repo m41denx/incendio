@@ -143,7 +143,7 @@ const LoadBalancerPortsForm: FC<Props> = ({ formik, network }) => {
                   availablePools={loadBalancerPools.filter(
                     (pool) => pool.config.protocol === port.protocol,
                   )}
-                  value={port.targetPool}
+                  value={port.targetPool ?? ""}
                   setValue={(value) => {
                     formik.setFieldValue(`ports.${index}.targetPool`, value);
                   }}
@@ -181,7 +181,7 @@ const LoadBalancerPortsForm: FC<Props> = ({ formik, network }) => {
               <td className="pool-action">
                 <EditLoadBalancerPoolBtn
                   network={network}
-                  pool={port.targetPool}
+                  pool={port.targetPool ?? ""}
                 />
               </td>
               <td className="actions u-align--right">

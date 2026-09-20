@@ -9,6 +9,7 @@ import LoadBalancerPoolsTab from "pages/networks/LoadBalancerPoolsTab";
 import usePanelParams, { panels } from "util/usePanelParams";
 import CreateLoadBalancerPoolPanel from "pages/networks/panels/CreateLoadBalancerPoolPanel";
 import EditLoadBalancerPoolPanel from "pages/networks/panels/EditLoadBalancerPoolPanel";
+import { useSupportedFeatures } from "context/useSupportedFeatures";
 
 interface Props {
   network: LxdNetwork;
@@ -21,6 +22,13 @@ const LoadBalancers: FC<Props> = ({ network }) => {
   }>();
   const navigate = useNavigate();
   const panelParams = usePanelParams();
+  const { hasLoadBalancerPools } = useSupportedFeatures();
+
+  // Incus has no load-balancer pools: show the load balancers table directly,
+  // without the pools sub-navigation or pool panels.
+  if (!hasLoadBalancerPools) {
+    return <LoadBalancersTab network={network} />;
+  }
 
   return (
     <>

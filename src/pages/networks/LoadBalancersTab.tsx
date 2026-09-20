@@ -15,6 +15,7 @@ import LoadBalancersTable from "pages/networks/LoadBalancersTable";
 import LoadBalancerTableHeading from "pages/networks/LoadBalancerTableHeading";
 import CreateLoadBalancerPoolBtn from "pages/networks/actions/CreateLoadBalancerPoolBtn";
 import { useLoadBalancerPools } from "context/useLoadBalancerPools";
+import { useSupportedFeatures } from "context/useSupportedFeatures";
 
 interface Props {
   network: LxdNetwork;
@@ -23,13 +24,18 @@ interface Props {
 const LoadBalancersTab: FC<Props> = ({ network }) => {
   const { projectName: project } = useCurrentProject();
   const notify = useNotify();
+  const { hasLoadBalancerPools } = useSupportedFeatures();
 
   const {
     data: loadBalancers = [],
     error,
     isLoading,
   } = useLoadBalancers(network.name, project);
-  const { data: pools = [] } = useLoadBalancerPools(network.name, project);
+  const { data: pools = [] } = useLoadBalancerPools(
+    network.name,
+    project,
+    hasLoadBalancerPools,
+  );
   const hasPools = pools.length > 0;
 
   if (error) {
@@ -49,8 +55,13 @@ const LoadBalancersTab: FC<Props> = ({ network }) => {
         image={<Icon className="empty-state-icon" name="exposed" />}
         title="No load balancers found"
       >
-        {hasPools && <p>There are no load balancers in this network.</p>}
-        {!hasPools && (
+        {!hasLoadBalancerPools && (
+          <p>There are no load balancers in this network.</p>
+        )}
+        {hasLoadBalancerPools && hasPools && (
+          <p>There are no load balancers in this network.</p>
+        )}
+        {hasLoadBalancerPools && !hasPools && (
           <>
             <p>There are neither load balancers nor pools in this network.</p>
             <p>
@@ -69,7 +80,9 @@ const LoadBalancersTab: FC<Props> = ({ network }) => {
           appearance="positive"
           className="empty-state-button"
         />
-        <CreateLoadBalancerPoolBtn network={network} appearance="" />
+        {hasLoadBalancerPools && (
+          <CreateLoadBalancerPoolBtn network={network} appearance="" />
+        )}
       </EmptyState>
     );
   }

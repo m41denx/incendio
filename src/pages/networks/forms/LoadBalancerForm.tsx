@@ -23,11 +23,33 @@ import ScrollableForm from "components/ScrollableForm";
 import { focusField } from "util/formFields";
 import type { LoadBalancerFormValues } from "types/forms/loadBalancers";
 import LoadBalancerPortsForm from "pages/networks/forms/LoadBalancerPortsForm";
+import LoadBalancerBackendsForm from "pages/networks/forms/LoadBalancerBackendsForm";
 import type { LxdLoadBalancer } from "types/loadBalancers";
+import { useSupportedFeatures } from "context/useSupportedFeatures";
 
 export const toLoadBalancer = (
   values: LoadBalancerFormValues,
 ): LxdLoadBalancer => {
+  // The presence of `backends` (Incus backend model) switches the payload
+  // shape away from the LXD pool model.
+  if (values.backends !== undefined) {
+    return {
+      listen_address: values.listenAddress,
+      description: values.description,
+      backends: values.backends.map((backend) => ({
+        name: backend.name,
+        description: backend.description ?? "",
+        target_address: backend.targetAddress,
+        target_port: backend.targetPort,
+      })),
+      ports: values.ports.map((port) => ({
+        protocol: port.protocol,
+        listen_port: port.listenPort.toString(),
+        target_backend: port.targetBackend ? [port.targetBackend] : [],
+      })),
+    };
+  }
+
   return {
     listen_address: values.listenAddress,
     description: values.description,
@@ -54,6 +76,31 @@ export const LoadBalancerSchema = Yup.object().shape({
   ),
 });
 
+// Incus backend model: listen ports forward to named backends (addr:port).
+// listen/target ports may be comma-delimited ranges, so they are only
+// required (not single-port validated).
+export const LoadBalancerBackendSchema = Yup.object().shape({
+  listenAddress: Yup.string()
+    .test("valid-ip", "Invalid IP address", testValidIp)
+    .required("Listen address is required"),
+  backends: Yup.array().of(
+    Yup.object().shape({
+      name: Yup.string().required("Name is required"),
+      targetAddress: Yup.string()
+        .test("valid-ip", "Invalid IP address", testValidIp)
+        .required("Target address is required"),
+      targetPort: Yup.string().required("Target port is required"),
+    }),
+  ),
+  ports: Yup.array().of(
+    Yup.object().shape({
+      listenPort: Yup.string().required("Port required"),
+      protocol: Yup.string().required("Protocol is required"),
+      targetBackend: Yup.string().required("Target backend is required"),
+    }),
+  ),
+});
+
 interface Props {
   formik: FormikProps<LoadBalancerFormValues>;
   isEdit?: boolean;
@@ -62,6 +109,9 @@ interface Props {
 
 const LoadBalancerForm: FC<Props> = ({ formik, isEdit, network }) => {
   const notify = useNotify();
+  const { hasLoadBalancerPools } = useSupportedFeatures();
+  // Incus uses the backend model; LXD uses load-balancer pools.
+  const useBackends = !hasLoadBalancerPools;
 
   const updateFormHeight = () => {
     updateMaxHeight("form-contents", "p-bottom-controls");
@@ -175,17 +225,25 @@ const LoadBalancerForm: FC<Props> = ({ formik, isEdit, network }) => {
           placeholder="Enter description"
           stacked
         />
-        {formik.values.ports.length > 0 && (
+        {useBackends ? (
           <Row className="load-balancer-ports-row">
-            <LoadBalancerPortsForm formik={formik} network={network} />
+            <LoadBalancerBackendsForm formik={formik} network={network} />
           </Row>
+        ) : (
+          <>
+            {formik.values.ports.length > 0 && (
+              <Row className="load-balancer-ports-row">
+                <LoadBalancerPortsForm formik={formik} network={network} />
+              </Row>
+            )}
+            <div>
+              <Button hasIcon onClick={addPort} type="button">
+                <Icon name="plus" />
+                <span>Add port</span>
+              </Button>
+            </div>
+          </>
         )}
-        <div>
-          <Button hasIcon onClick={addPort} type="button">
-            <Icon name="plus" />
-            <span>Add port</span>
-          </Button>
-        </div>
       </ScrollableForm>
     </Form>
   );

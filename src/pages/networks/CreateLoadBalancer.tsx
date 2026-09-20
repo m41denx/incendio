@@ -17,6 +17,7 @@ import { ROOT_PATH } from "util/rootPath";
 import type { LoadBalancerFormValues } from "types/forms/loadBalancers";
 import LoadBalancerForm, {
   LoadBalancerSchema,
+  LoadBalancerBackendSchema,
   toLoadBalancer,
 } from "pages/networks/forms/LoadBalancerForm";
 import { createLoadBalancer } from "api/load-balancers";
@@ -25,6 +26,7 @@ import CreateLoadBalancerPoolPanel from "pages/networks/panels/CreateLoadBalance
 import EditLoadBalancerPoolPanel from "pages/networks/panels/EditLoadBalancerPoolPanel";
 import { setLoadBalancerCreatedPool } from "util/loadBalancers";
 import { useLoadBalancerPools } from "context/useLoadBalancerPools";
+import { useSupportedFeatures } from "context/useSupportedFeatures";
 
 const CreateLoadBalancer: FC = () => {
   const eventQueue = useEventQueue();
@@ -51,7 +53,13 @@ const CreateLoadBalancer: FC = () => {
     project,
   );
 
-  const { data: pools = [] } = useLoadBalancerPools(networkName, project);
+  const { hasLoadBalancerPools } = useSupportedFeatures();
+  const useBackends = !hasLoadBalancerPools;
+  const { data: pools = [] } = useLoadBalancerPools(
+    networkName,
+    project,
+    hasLoadBalancerPools,
+  );
 
   useEffect(() => {
     if (networkError) {
@@ -93,20 +101,44 @@ const CreateLoadBalancer: FC = () => {
   };
 
   const formik = useFormik<LoadBalancerFormValues>({
-    initialValues: {
-      listenAddress: getDefaultListenAddress(),
-      description: "",
-      ports: [
-        {
-          key: "initial",
-          protocol: "tcp",
-          listenPort: "",
-          targetPool: pools[0]?.name,
+    initialValues: useBackends
+      ? {
+          listenAddress: getDefaultListenAddress(),
+          description: "",
+          backends: [
+            {
+              key: "initial",
+              name: "",
+              targetAddress: "",
+              targetPort: "",
+              description: "",
+            },
+          ],
+          ports: [
+            {
+              key: "initial",
+              protocol: "tcp",
+              listenPort: "",
+              targetBackend: "",
+            },
+          ],
+        }
+      : {
+          listenAddress: getDefaultListenAddress(),
+          description: "",
+          ports: [
+            {
+              key: "initial",
+              protocol: "tcp",
+              listenPort: "",
+              targetPool: pools[0]?.name,
+            },
+          ],
         },
-      ],
-    },
     enableReinitialize: true,
-    validationSchema: LoadBalancerSchema,
+    validationSchema: useBackends
+      ? LoadBalancerBackendSchema
+      : LoadBalancerSchema,
     onSubmit: (values) => {
       const loadBalancer = toLoadBalancer(values);
       createLoadBalancer(networkName, project, loadBalancer)
@@ -168,21 +200,23 @@ const CreateLoadBalancer: FC = () => {
         </ActionButton>
       </FormFooterLayout>
 
-      {panelParams.panel === panels.createLoadBalancerPool && network && (
-        <CreateLoadBalancerPoolPanel
-          network={network}
-          onCreate={(name) => {
-            setLoadBalancerCreatedPool(name, formik);
-          }}
-          onCancel={() => {
-            setLoadBalancerCreatedPool("", formik);
-          }}
-        />
-      )}
+      {!useBackends &&
+        panelParams.panel === panels.createLoadBalancerPool &&
+        network && (
+          <CreateLoadBalancerPoolPanel
+            network={network}
+            onCreate={(name) => {
+              setLoadBalancerCreatedPool(name, formik);
+            }}
+            onCancel={() => {
+              setLoadBalancerCreatedPool("", formik);
+            }}
+          />
+        )}
 
-      {panelParams.panel === panels.editLoadBalancerPool && network && (
-        <EditLoadBalancerPoolPanel network={network} />
-      )}
+      {!useBackends &&
+        panelParams.panel === panels.editLoadBalancerPool &&
+        network && <EditLoadBalancerPoolPanel network={network} />}
     </BaseLayout>
   );
 };

@@ -28,7 +28,8 @@ import { useSupportedFeatures } from "context/useSupportedFeatures";
 
 const NetworkDetail: FC = () => {
   const notify = useNotify();
-  const { hasLoadBalancerPools } = useSupportedFeatures();
+  const { hasLoadBalancerPools, hasNetworkLoadBalancers } =
+    useSupportedFeatures();
 
   const { name, project, member, activeTab } = useParams<{
     name: string;
@@ -102,7 +103,7 @@ const NetworkDetail: FC = () => {
   const tabs = [
     "Configuration",
     getTabLink("Forwards", hasForwards, "forwards"),
-    ...(hasLoadBalancerPools
+    ...(hasLoadBalancerPools || hasNetworkLoadBalancers
       ? [getTabLink("Load balancers", hasLoadBalancers, "load-balancers")]
       : []),
     getTabLink("Leases", hasLeases, "leases"),

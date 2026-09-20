@@ -69,5 +69,8 @@ export const useSupportedFeatures = () => {
     ),
     // Incus-only: OVN interconnect network integrations.
     hasNetworkIntegrations: apiExtensions.has("network_integrations"),
+    // Incus network load balancers (backend model). LXD's load-balancer
+    // *pools* (hasLoadBalancerPools) are a separate, LXD-only feature.
+    hasNetworkLoadBalancers: apiExtensions.has("network_load_balancer"),
   };
 };

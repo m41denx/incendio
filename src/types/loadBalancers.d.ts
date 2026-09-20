@@ -13,9 +13,13 @@ export interface LxdLoadBalancerLegacyBackend {
 }
 
 export interface LxdLoadBalancerPort {
+  description?: string;
   protocol: "tcp" | "udp";
   listen_port: string;
-  target_pool: string;
+  // LXD load-balancer pool model.
+  target_pool?: string;
+  // Incus backend model: names of the backends this port forwards to.
+  target_backend?: string[];
 }
 
 export interface LxdLoadBalancerPool {

@@ -13,6 +13,7 @@ import type {
 export const useLoadBalancerPools = (
   network: string,
   project: string,
+  enabled?: boolean,
 ): UseQueryResult<LxdLoadBalancerPool[]> => {
   return useQuery({
     queryKey: [
@@ -23,6 +24,7 @@ export const useLoadBalancerPools = (
       queryKeys.loadBalancerPools,
     ],
     queryFn: async () => fetchLoadBalancerPools(network, project),
+    enabled: enabled ?? true,
   });
 };
 

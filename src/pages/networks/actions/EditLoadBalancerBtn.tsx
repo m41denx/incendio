@@ -6,6 +6,7 @@ import { Link } from "react-router-dom";
 import { ROOT_PATH } from "util/rootPath";
 import type { LxdLoadBalancer } from "types/loadBalancers";
 import { isLegacyLoadBalancer } from "util/loadBalancers";
+import { useSupportedFeatures } from "context/useSupportedFeatures";
 
 interface Props {
   network: LxdNetwork;
@@ -15,7 +16,10 @@ interface Props {
 
 const EditLoadBalancerBtn: FC<Props> = ({ network, loadBalancer, project }) => {
   const { canEditNetwork } = useNetworkEntitlements();
-  const isLegacy = isLegacyLoadBalancer(loadBalancer);
+  const { hasLoadBalancerPools } = useSupportedFeatures();
+  // The backend model is "legacy" (read-only) only under LXD's pool model.
+  // On Incus the backend model is the native, editable form.
+  const isLegacy = hasLoadBalancerPools && isLegacyLoadBalancer(loadBalancer);
 
   if (!canEditNetwork(network) || isLegacy) {
     return (

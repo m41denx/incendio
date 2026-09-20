@@ -23,13 +23,13 @@ const LoadBalancerPortStatus: FC<Props> = ({
   const { data: pool } = useLoadBalancerPool(
     network.name,
     project,
-    port.target_pool,
+    port.target_pool ?? "",
   );
 
   const { data: poolState } = useLoadBalancerPoolState(
     network.name,
     project,
-    port.target_pool,
+    port.target_pool ?? "",
   );
 
   const portTargets = poolState?.targets?.filter((item) => {
