@@ -14,6 +14,7 @@ import StoragePoolFormMenu, {
   CEPH_CONFIGURATION,
   CEPHFS_CONFIGURATION,
   CEPHOBJECT_CONFIGURATION,
+  LINSTOR_CONFIGURATION,
   LVM_CONFIGURATION,
   MAIN_CONFIGURATION,
   YAML_CONFIGURATION,
@@ -24,6 +25,7 @@ import type { LxdStoragePool } from "types/storage";
 import {
   cephObject,
   getSupportedStorageDrivers,
+  linstorDriver,
   lvmDriver,
   zfsDriver,
 } from "util/storageOptions";
@@ -35,6 +37,7 @@ import DocLink from "components/DocLink";
 import StoragePoolFormCeph from "./StoragePoolFormCeph";
 import StoragePoolFormZFS from "./StoragePoolFormZFS";
 import StoragePoolFormLVM from "./StoragePoolFormLVM";
+import StoragePoolFormLINSTOR from "./StoragePoolFormLINSTOR";
 import { useSettings } from "context/useSettings";
 import { ensureEditMode } from "util/editMode";
 import StoragePoolFormCephFS from "pages/storage/forms/StoragePoolFormCephFS";
@@ -57,6 +60,7 @@ export const toStoragePool = (
   const isZFSDriver = values.driver === zfsDriver;
   const isCephObjectDriver = values.driver === cephObject;
   const isLVMDriver = values.driver === lvmDriver;
+  const isLINSTORDriver = values.driver === linstorDriver;
   const hasValidSize = values.size?.match(/^\d/);
 
   const getConfig = () => {
@@ -114,6 +118,21 @@ export const toStoragePool = (
           values.lvm_thinpool_metadata_size,
         [getPoolKey("lvm_vg_force_reuse")]: values.lvm_vg_force_reuse,
         size: hasValidSize ? values.size : undefined,
+      };
+    }
+    if (isLINSTORDriver) {
+      return {
+        [getPoolKey("linstor_resource_group_name")]:
+          values.linstor_resource_group_name,
+        [getPoolKey("linstor_resource_group_place_count")]:
+          values.linstor_resource_group_place_count,
+        [getPoolKey("linstor_resource_group_storage_pool")]:
+          values.linstor_resource_group_storage_pool,
+        [getPoolKey("linstor_volume_prefix")]: values.linstor_volume_prefix,
+        [getPoolKey("drbd_on_no_quorum")]: values.drbd_on_no_quorum,
+        [getPoolKey("drbd_auto_add_quorum_tiebreaker")]:
+          values.drbd_auto_add_quorum_tiebreaker,
+        [getPoolKey("drbd_auto_diskful")]: values.drbd_auto_diskful,
       };
     }
     return {
@@ -215,6 +234,9 @@ const StoragePoolForm: FC<Props> = ({
           )}
           {section === slugify(LVM_CONFIGURATION) && (
             <StoragePoolFormLVM formik={formik} />
+          )}
+          {section === slugify(LINSTOR_CONFIGURATION) && (
+            <StoragePoolFormLINSTOR formik={formik} />
           )}
           {section === slugify(YAML_CONFIGURATION) && (
             <YamlForm

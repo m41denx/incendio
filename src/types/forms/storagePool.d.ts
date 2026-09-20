@@ -40,6 +40,13 @@ export interface StoragePoolFormValues {
   lvm_metadata_size?: string;
   lvm_thinpool_metadata_size?: string;
   lvm_vg_force_reuse?: string;
+  linstor_resource_group_name?: string;
+  linstor_resource_group_place_count?: string;
+  linstor_resource_group_storage_pool?: string;
+  linstor_volume_prefix?: string;
+  drbd_on_no_quorum?: string;
+  drbd_auto_add_quorum_tiebreaker?: string;
+  drbd_auto_diskful?: string;
   zfsPoolNamePerClusterMember?: ClusterSpecificValues;
   editRestriction?: string;
 }

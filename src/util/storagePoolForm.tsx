@@ -11,6 +11,7 @@ import {
   dirDriver,
   cephDriver,
   cephFSDriver,
+  linstorDriver,
 } from "util/storageOptions";
 import type { ReactNode } from "react";
 import type { FormikProps } from "formik";
@@ -28,6 +29,7 @@ export const isStoragePoolWithSource = (driver: string) => {
     zfsDriver,
     cephDriver,
     cephFSDriver,
+    linstorDriver,
   ];
   return driversWithSource.includes(driver);
 };
@@ -88,6 +90,16 @@ export const toStoragePoolFormValues = (
     lvm_metadata_size: pool.config?.["lvm.metadata_size"],
     lvm_thinpool_metadata_size: pool.config?.["lvm.thinpool_metadata_size"],
     lvm_vg_force_reuse: pool.config?.["lvm.vg.force_reuse"],
+    linstor_resource_group_name: pool.config?.["linstor.resource_group.name"],
+    linstor_resource_group_place_count:
+      pool.config?.["linstor.resource_group.place_count"],
+    linstor_resource_group_storage_pool:
+      pool.config?.["linstor.resource_group.storage_pool"],
+    linstor_volume_prefix: pool.config?.["linstor.volume.prefix"],
+    drbd_on_no_quorum: pool.config?.["drbd.on_no_quorum"],
+    drbd_auto_add_quorum_tiebreaker:
+      pool.config?.["drbd.auto_add_quorum_tiebreaker"],
+    drbd_auto_diskful: pool.config?.["drbd.auto_diskful"],
     zfsPoolNamePerClusterMember,
     editRestriction,
   };
@@ -110,6 +122,13 @@ export const handleConfigKeys = [
   "lvm.metadata_size",
   "lvm.thinpool_metadata_size",
   "lvm.vg.force_reuse",
+  "linstor.resource_group.name",
+  "linstor.resource_group.place_count",
+  "linstor.resource_group.storage_pool",
+  "linstor.volume.prefix",
+  "drbd.on_no_quorum",
+  "drbd.auto_add_quorum_tiebreaker",
+  "drbd.auto_diskful",
 ];
 
 export const getFormProps = (

@@ -45,6 +45,13 @@ export const storagePoolFormFieldToPayloadName: Record<string, string> = {
   lvm_metadata_size: "lvm.metadata_size",
   lvm_thinpool_metadata_size: "lvm.thinpool_metadata_size",
   lvm_vg_force_reuse: "lvm.vg.force_reuse",
+  linstor_resource_group_name: "linstor.resource_group.name",
+  linstor_resource_group_place_count: "linstor.resource_group.place_count",
+  linstor_resource_group_storage_pool: "linstor.resource_group.storage_pool",
+  linstor_volume_prefix: "linstor.volume.prefix",
+  drbd_on_no_quorum: "drbd.on_no_quorum",
+  drbd_auto_add_quorum_tiebreaker: "drbd.auto_add_quorum_tiebreaker",
+  drbd_auto_diskful: "drbd.auto_diskful",
 };
 
 export const isClusterLocalDriver = (poolDriver: string) => {
