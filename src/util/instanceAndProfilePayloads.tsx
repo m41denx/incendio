@@ -550,16 +550,14 @@ const getEditValues = (
     security_bpffs_delegate_progs: item.config["security.bpffs.delegate_progs"],
     security_bpffs_path: item.config["security.bpffs.path"],
     security_selinux_domain: item.config["security.selinux.domain"],
-    security_selinux_label_rootfs:
-      item.config["security.selinux.label_rootfs"],
+    security_selinux_label_rootfs: item.config["security.selinux.label_rootfs"],
     security_selinux_level: item.config["security.selinux.level"],
     security_selinux_type: item.config["security.selinux.type"],
     security_sev_session_data: item.config["security.sev.session.data"],
     security_sev_session_dh: item.config["security.sev.session.dh"],
     security_syscalls_allow: item.config["security.syscalls.allow"],
     security_syscalls_deny: item.config["security.syscalls.deny"],
-    security_syscalls_deny_compat:
-      item.config["security.syscalls.deny_compat"],
+    security_syscalls_deny_compat: item.config["security.syscalls.deny_compat"],
     security_syscalls_deny_default:
       item.config["security.syscalls.deny_default"],
     security_syscalls_intercept_bpf:

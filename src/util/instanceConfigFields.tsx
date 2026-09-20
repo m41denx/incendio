@@ -62,8 +62,7 @@ const instanceConfigFormFieldsToPayload: Record<string, string> = {
     "security.syscalls.intercept.mount.shift",
   security_syscalls_intercept_sched_setscheduler:
     "security.syscalls.intercept.sched_setscheduler",
-  security_syscalls_intercept_setxattr:
-    "security.syscalls.intercept.setxattr",
+  security_syscalls_intercept_setxattr: "security.syscalls.intercept.setxattr",
   security_syscalls_intercept_sysinfo: "security.syscalls.intercept.sysinfo",
   snapshots_pattern: "snapshots.pattern",
   snapshots_expiry: "snapshots.expiry",
