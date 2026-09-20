@@ -96,6 +96,7 @@ const Navigation: FC = () => {
     hasReplicators,
     hasPlacementGroups,
     hasNetworkIntegrations,
+    hasNetworkAddressSets,
   } = useSupportedFeatures();
   const { loggedInUserName, loggedInUserID } = useLoggedInUser();
   const [scroll, setScroll] = useState(false);
@@ -350,6 +351,8 @@ const Navigation: FC = () => {
                                 ignoreUrlMatches={[
                                   "network-acl",
                                   "network-acls",
+                                  "network-address-set",
+                                  "network-address-sets",
                                   "network-ipam",
                                 ]}
                               >
@@ -368,6 +371,26 @@ const Navigation: FC = () => {
                                 ACLs
                               </NavLink>
                             </SideNavigationItem>,
+                            ...(hasNetworkAddressSets
+                              ? [
+                                  <SideNavigationItem
+                                    key={`/ui/project/${encodeURIComponent(projectName)}/network-address-sets`}
+                                  >
+                                    <NavLink
+                                      to={`${ROOT_PATH}/ui/project/${encodeURIComponent(projectName)}/network-address-sets`}
+                                      title={`Address sets (${projectName})`}
+                                      onClick={softToggleMenu}
+                                      activeUrlMatches={[
+                                        "network-address-set",
+                                        "network-address-sets",
+                                      ]}
+                                      className="accordion-nav-secondary"
+                                    >
+                                      Address sets
+                                    </NavLink>
+                                  </SideNavigationItem>,
+                                ]
+                              : []),
                             <SideNavigationItem
                               key={`/ui/project/${encodeURIComponent(projectName)}/network-ipam`}
                             >

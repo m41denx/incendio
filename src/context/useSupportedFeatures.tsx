@@ -16,7 +16,8 @@ export const useSupportedFeatures = () => {
     hasProjectsNetworksZones: apiExtensions.has("projects_networks_zones"),
     hasStorageBuckets: apiExtensions.has("storage_buckets"),
     hasMetadataConfiguration: apiExtensions.has("metadata_configuration"),
-    hasStorageVolumesAll: apiExtensions.has("storage_volumes_all"),
+    // Incus exposes "volumes across all projects" under a different name.
+    hasStorageVolumesAll: apiExtensions.has("storage_volumes_all_projects"),
     hasLocalDocumentation:
       (!!serverVersion && serverMajor >= 5 && serverMinor >= 19) ||
       serverMajor > 5,
@@ -25,7 +26,6 @@ export const useSupportedFeatures = () => {
       serverMajor > 5,
     hasAccessManagement: apiExtensions.has("access_management"),
     hasAccessManagementTLS: apiExtensions.has("access_management_tls"),
-    hasExplicitTrustToken: apiExtensions.has("explicit_trust_token"),
     // LXD-only: Incus uses placement scriptlets instead of placement groups.
     hasPlacementGroups: apiExtensions.has("instance_placement_groups"),
     hasInstanceCreateStart: apiExtensions.has("instance_create_start"),
@@ -69,6 +69,8 @@ export const useSupportedFeatures = () => {
     ),
     // Incus-only: OVN interconnect network integrations.
     hasNetworkIntegrations: apiExtensions.has("network_integrations"),
+    // Named IP/CIDR/range groups usable in ACL rules.
+    hasNetworkAddressSets: apiExtensions.has("network_address_set"),
     // Incus network load balancers (backend model). LXD's load-balancer
     // *pools* (hasLoadBalancerPools) are a separate, LXD-only feature.
     hasNetworkLoadBalancers: apiExtensions.has("network_load_balancer"),

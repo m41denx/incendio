@@ -22,6 +22,7 @@ export const queryKeys = {
   metrics: "metrics",
   networks: "networks",
   networkAcls: "network-acls",
+  networkAddressSets: "network-address-sets",
   networkAllocations: "network-allocations",
   networkIntegrations: "network-integrations",
   operations: "operations",

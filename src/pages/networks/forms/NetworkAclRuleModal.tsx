@@ -150,7 +150,7 @@ const NetworkAclRuleModal: FC<Props> = ({
           label="Source"
           placeholder="Enter source"
           type="text"
-          help="Sources can be specified as CIDR or IP ranges, source subject name selectors (for ingress rules), or be left empty for any."
+          help="Sources can be specified as CIDR or IP ranges, source subject name selectors (for ingress rules), an address set reference ($name), or be left empty for any."
           {...formik.getFieldProps("source")}
         />
         {["tcp", "udp"].includes(formik.values.protocol ?? "") && (
@@ -168,7 +168,7 @@ const NetworkAclRuleModal: FC<Props> = ({
           label="Destination"
           placeholder="Enter destination"
           type="text"
-          help="Destinations can be specified as CIDR or IP ranges, destination subject name selectors (for egress rules), or be left empty for any."
+          help="Destinations can be specified as CIDR or IP ranges, destination subject name selectors (for egress rules), an address set reference ($name), or be left empty for any."
           {...formik.getFieldProps("destination")}
         />
         {["tcp", "udp"].includes(formik.values.protocol ?? "") && (

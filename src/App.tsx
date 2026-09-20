@@ -86,6 +86,15 @@ const NetworkAclDetail = lazy(
 const NetworkAclList = lazy(
   async () => import("pages/networks/NetworkAclList"),
 );
+const CreateNetworkAddressSet = lazy(
+  async () => import("pages/networks/CreateNetworkAddressSet"),
+);
+const EditNetworkAddressSet = lazy(
+  async () => import("pages/networks/EditNetworkAddressSet"),
+);
+const NetworkAddressSetList = lazy(
+  async () => import("pages/networks/NetworkAddressSetList"),
+);
 const NetworkDetail = lazy(async () => import("pages/networks/NetworkDetail"));
 const NetworkIPAM = lazy(async () => import("pages/networks/NetworkIPAM"));
 const NetworkList = lazy(async () => import("pages/networks/NetworkList"));
@@ -431,6 +440,30 @@ const App: FC = () => {
           element={
             <ProtectedRoute
               outlet={<ProjectLoader outlet={<NetworkAclDetail />} />}
+            />
+          }
+        />
+        <Route
+          path={`${ROOT_PATH}/ui/project/:project/network-address-sets`}
+          element={
+            <ProtectedRoute
+              outlet={<ProjectLoader outlet={<NetworkAddressSetList />} />}
+            />
+          }
+        />
+        <Route
+          path={`${ROOT_PATH}/ui/project/:project/network-address-sets/create`}
+          element={
+            <ProtectedRoute
+              outlet={<ProjectLoader outlet={<CreateNetworkAddressSet />} />}
+            />
+          }
+        />
+        <Route
+          path={`${ROOT_PATH}/ui/project/:project/network-address-set/:name`}
+          element={
+            <ProtectedRoute
+              outlet={<ProjectLoader outlet={<EditNetworkAddressSet />} />}
             />
           }
         />
