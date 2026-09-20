@@ -120,9 +120,14 @@ Commit `e7b1d73a1f`. Files: `api/network-integrations.tsx`, `context/useNetworkI
 `useSupportedFeatures.hasNetworkIntegrations`, 3 global routes in `App.tsx`, nav entry near
 Certificates (gated on the extension). Config exposed: `ovn.northbound_connection` (required),
 `ovn.transit.pattern`, `ovn.ca_cert`, `ovn.client_cert`, `ovn.client_key`; `type` fixed to `ovn`.
-Deployed to `/opt/incus/ui`. **Follow-up:** network-peer `type: remote` + `target_integration`
-(the `network_integrations_peer_name` side) — lets a network actually peer through an integration;
-not yet surfaced in NetworkPeers.
+Deployed to `/opt/incus/ui`. **Corrected after reading the howto** (`0382b2d533`): added the second
+required key `ovn.southbound_connection` and fixed the `ovn.transit.pattern` default template.
+**Consumption side done** (`0a509a8c3c`): NetworkLocalPeeringForm gained a local/remote "Peer type"
+selector (gated on `network_integrations`); remote builds `{type: "remote", target_integration}`
+via `createNetworkPeer`, mirroring `incus network peer create <net> <peer> <integration> --type=remote`.
+`LxdNetworkPeer` gained `type`/`target_integration`; the NetworkPeers table links the integration in
+the target column for remote peers; edit seeds peerType/targetIntegration (description stays the only
+mutable field).
 
 ## Phase 2 candidates (reassess with user before starting — per decision)
 - Read-only `instance_access`/`project_access` entitlement panels.
