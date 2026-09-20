@@ -111,6 +111,19 @@ Commits `b2fe98f223`..`6711d5fef2`. **Metadata quirks skipped** (verified vs off
 (real key `cephobject.bucket.name_prefix`, already wired). **Still open for storage:** per-driver
 storage *volume* config (storage_volume_* groups, ~120 keys) and storage buckets.
 
+## Phase 2 — OVN interconnect network integrations (done)
+New Incus-only surface (`network_integrations` ext, live on 7.4). Server-global entity
+(`/1.0/network-integrations`, no project scope, synchronous CRUD, no fine-grained entitlements).
+Commit `e7b1d73a1f`. Files: `api/network-integrations.tsx`, `context/useNetworkIntegrations.tsx`,
+`pages/networks/{NetworkIntegrationList,CreateNetworkIntegration,EditNetworkIntegration}.tsx` +
+`forms/NetworkIntegrationForm.tsx`; wired `queryKeys.networkIntegrations`,
+`useSupportedFeatures.hasNetworkIntegrations`, 3 global routes in `App.tsx`, nav entry near
+Certificates (gated on the extension). Config exposed: `ovn.northbound_connection` (required),
+`ovn.transit.pattern`, `ovn.ca_cert`, `ovn.client_cert`, `ovn.client_key`; `type` fixed to `ovn`.
+Deployed to `/opt/incus/ui`. **Follow-up:** network-peer `type: remote` + `target_integration`
+(the `network_integrations_peer_name` side) — lets a network actually peer through an integration;
+not yet surfaced in NetworkPeers.
+
 ## Phase 2 candidates (reassess with user before starting — per decision)
 - Read-only `instance_access`/`project_access` entitlement panels.
 - Gate `/ui/permissions/*` routes behind `hasAccessManagement` (nav already hidden; blocks manual URL entry only).

@@ -111,7 +111,8 @@ High-value, self-contained first:
 - [ ] **Custom-volume file browser** (`file_storage_volume` + `custom_volume_sftp`).
 - [x] **LINSTOR/TrueNAS** driver forms — done as part of full storage-pool driver config coverage
       (also added LVM/Btrfs/Dir sub-forms + extended Ceph/CephFS/CephObject; +31 pool config keys).
-- [ ] **Network integrations** (OVN interconnect) CRUD.
+- [x] **Network integrations** (OVN interconnect) CRUD — server-global List/Create/Edit,
+      gated behind `network_integrations`; peers-side `type: remote` targeting is a follow-up.
 - [ ] **Load-balancer health checks + state** panel.
 - [x] First-class VM knobs: `boot.autorestart`, memory hotplug, OOM priority. *(part of the instance-config coverage pass — 101/110 settable keys now exposed)*
 - [ ] **Access panels** (`instance_access`/`project_access`) + certificate descriptions.
