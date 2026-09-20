@@ -56,6 +56,20 @@ const StoragePoolFormCephFS: FC<Props> = ({ formik }) => {
           defaultValue: "",
           children: <Input type="text" placeholder="Enter pool name" />,
         }),
+        getConfigurationRow({
+          formik,
+          label: "Data pool",
+          name: "cephfs_data_pool",
+          defaultValue: "",
+          children: <Input type="text" placeholder="Enter data pool" />,
+        }),
+        getConfigurationRow({
+          formik,
+          label: "Metadata pool",
+          name: "cephfs_meta_pool",
+          defaultValue: "",
+          children: <Input type="text" placeholder="Enter metadata pool" />,
+        }),
       ]}
     />
   );

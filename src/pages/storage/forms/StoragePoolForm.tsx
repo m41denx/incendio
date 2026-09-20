@@ -84,6 +84,8 @@ export const toStoragePool = (
         [getPoolKey("ceph_rbd_du")]: values.ceph_rbd_du,
         [getPoolKey("ceph_user_name")]: values.ceph_user_name,
         [getPoolKey("ceph_rbd_features")]: values.ceph_rbd_features,
+        [getPoolKey("ceph_osd_data_pool_name")]: values.ceph_osd_data_pool_name,
+        [getPoolKey("ceph_rbd_backend")]: values.ceph_rbd_backend,
         source: hasRemoteDropSource ? undefined : values.source,
         [getPoolKey("ceph_osd_pool_name")]: hasRemoteDropSource
           ? values.ceph_osd_pool_name
@@ -96,6 +98,8 @@ export const toStoragePool = (
         [getPoolKey("cephfs_create_missing")]: values.cephfs_create_missing,
         [getPoolKey("cephfs_fscache")]: values.cephfs_fscache,
         [getPoolKey("cephfs_osd_pg_num")]: values.cephfs_osd_pg_num?.toString(),
+        [getPoolKey("cephfs_data_pool")]: values.cephfs_data_pool,
+        [getPoolKey("cephfs_meta_pool")]: values.cephfs_meta_pool,
         source: hasRemoteDropSource ? undefined : values.source,
         [getPoolKey("cephfs_path")]: hasRemoteDropSource
           ? values.cephfs_path
@@ -110,6 +114,8 @@ export const toStoragePool = (
         [getPoolKey("cephobject_user_name")]: values.cephobject_user_name,
         [getPoolKey("cephobject_bucket_name_prefix")]:
           values.cephobject_bucket_name_prefix,
+        [getPoolKey("cephobject_radosgw_endpoint_cert")]:
+          values.cephobject_radosgw_endpoint_cert,
       };
     }
     if (isZFSDriver) {

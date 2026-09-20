@@ -75,6 +75,22 @@ const StoragePoolFormCeph: FC<Props> = ({ formik }) => {
           defaultValue: "",
           children: <Input type="text" placeholder="Enter RBD features" />,
         }),
+        getConfigurationRow({
+          formik,
+          label: "OSD data pool name",
+          name: "ceph_osd_data_pool_name",
+          defaultValue: "",
+          children: (
+            <Input type="text" placeholder="Enter OSD data pool name" />
+          ),
+        }),
+        getConfigurationRow({
+          formik,
+          label: "RBD backend",
+          name: "ceph_rbd_backend",
+          defaultValue: "",
+          children: <Input type="text" placeholder="Enter RBD backend" />,
+        }),
       ]}
     />
   );

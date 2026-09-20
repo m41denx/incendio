@@ -36,6 +36,18 @@ const StoragePoolFormCephObject: FC<Props> = ({ formik }) => {
           defaultValue: "",
           children: <Input type="text" placeholder="Enter pool name" />,
         }),
+        getConfigurationRow({
+          formik,
+          label: "radosgw endpoint certificate (PEM)",
+          name: "cephobject_radosgw_endpoint_cert",
+          defaultValue: "",
+          children: (
+            <Input
+              type="text"
+              placeholder="Enter radosgw endpoint certificate"
+            />
+          ),
+        }),
       ]}
     />
   );
