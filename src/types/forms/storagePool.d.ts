@@ -56,6 +56,8 @@ export interface StoragePoolFormValues {
   truenas_clone_copy?: string;
   truenas_force_reuse?: string;
   truenas_config?: string;
+  btrfs_create_options?: string;
+  btrfs_mount_options?: string;
   zfsPoolNamePerClusterMember?: ClusterSpecificValues;
   editRestriction?: string;
 }

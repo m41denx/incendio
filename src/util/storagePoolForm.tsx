@@ -111,6 +111,8 @@ export const toStoragePoolFormValues = (
     truenas_clone_copy: pool.config?.["truenas.clone_copy"],
     truenas_force_reuse: pool.config?.["truenas.force_reuse"],
     truenas_config: pool.config?.["truenas.config"],
+    btrfs_create_options: pool.config?.["btrfs.create_options"],
+    btrfs_mount_options: pool.config?.["btrfs.mount_options"],
     zfsPoolNamePerClusterMember,
     editRestriction,
   };
@@ -149,6 +151,8 @@ export const handleConfigKeys = [
   "truenas.clone_copy",
   "truenas.force_reuse",
   "truenas.config",
+  "btrfs.create_options",
+  "btrfs.mount_options",
 ];
 
 export const getFormProps = (

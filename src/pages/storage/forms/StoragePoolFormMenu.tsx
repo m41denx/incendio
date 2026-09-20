@@ -5,6 +5,7 @@ import { updateMaxHeight } from "util/updateMaxHeight";
 import type { FormikProps } from "formik";
 import type { StoragePoolFormValues } from "types/forms/storagePool";
 import {
+  btrfsDriver,
   cephDriver,
   cephFSDriver,
   cephObject,
@@ -22,6 +23,7 @@ export const ZFS_CONFIGURATION = "ZFS";
 export const LVM_CONFIGURATION = "LVM";
 export const LINSTOR_CONFIGURATION = "LINSTOR";
 export const TRUENAS_CONFIGURATION = "TrueNAS";
+export const BTRFS_CONFIGURATION = "Btrfs";
 export const YAML_CONFIGURATION = "YAML configuration";
 
 interface Props {
@@ -50,6 +52,7 @@ const StoragePoolFormMenu: FC<Props> = ({
   const isLvmDriver = formik.values.driver === lvmDriver;
   const isLinstorDriver = formik.values.driver === linstorDriver;
   const isTruenasDriver = formik.values.driver === truenasDriver;
+  const isBtrfsDriver = formik.values.driver === btrfsDriver;
   const hasName = formik.values.name.length > 0;
   const getDisableReason = () => {
     if (!hasName) {
@@ -117,6 +120,13 @@ const StoragePoolFormMenu: FC<Props> = ({
           {isTruenasDriver && (
             <MenuItem
               label={TRUENAS_CONFIGURATION}
+              {...menuItemProps}
+              disableReason={disableReason}
+            />
+          )}
+          {isBtrfsDriver && (
+            <MenuItem
+              label={BTRFS_CONFIGURATION}
               {...menuItemProps}
               disableReason={disableReason}
             />

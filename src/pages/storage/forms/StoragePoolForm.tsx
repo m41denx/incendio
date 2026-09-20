@@ -14,6 +14,7 @@ import StoragePoolFormMenu, {
   CEPH_CONFIGURATION,
   CEPHFS_CONFIGURATION,
   CEPHOBJECT_CONFIGURATION,
+  BTRFS_CONFIGURATION,
   LINSTOR_CONFIGURATION,
   LVM_CONFIGURATION,
   TRUENAS_CONFIGURATION,
@@ -24,6 +25,7 @@ import StoragePoolFormMenu, {
 import { updateMaxHeight } from "util/updateMaxHeight";
 import type { LxdStoragePool } from "types/storage";
 import {
+  btrfsDriver,
   cephObject,
   getSupportedStorageDrivers,
   linstorDriver,
@@ -41,6 +43,7 @@ import StoragePoolFormZFS from "./StoragePoolFormZFS";
 import StoragePoolFormLVM from "./StoragePoolFormLVM";
 import StoragePoolFormLINSTOR from "./StoragePoolFormLINSTOR";
 import StoragePoolFormTrueNAS from "./StoragePoolFormTrueNAS";
+import StoragePoolFormBtrfs from "./StoragePoolFormBtrfs";
 import { useSettings } from "context/useSettings";
 import { ensureEditMode } from "util/editMode";
 import StoragePoolFormCephFS from "pages/storage/forms/StoragePoolFormCephFS";
@@ -65,6 +68,7 @@ export const toStoragePool = (
   const isLVMDriver = values.driver === lvmDriver;
   const isLINSTORDriver = values.driver === linstorDriver;
   const isTrueNASDriver = values.driver === truenasDriver;
+  const isBtrfsDriver = values.driver === btrfsDriver;
   const hasValidSize = values.size?.match(/^\d/);
 
   const getConfig = () => {
@@ -150,6 +154,13 @@ export const toStoragePool = (
         [getPoolKey("truenas_clone_copy")]: values.truenas_clone_copy,
         [getPoolKey("truenas_force_reuse")]: values.truenas_force_reuse,
         [getPoolKey("truenas_config")]: values.truenas_config,
+      };
+    }
+    if (isBtrfsDriver) {
+      return {
+        [getPoolKey("btrfs_create_options")]: values.btrfs_create_options,
+        [getPoolKey("btrfs_mount_options")]: values.btrfs_mount_options,
+        size: hasValidSize ? values.size : undefined,
       };
     }
     return {
@@ -257,6 +268,9 @@ const StoragePoolForm: FC<Props> = ({
           )}
           {section === slugify(TRUENAS_CONFIGURATION) && (
             <StoragePoolFormTrueNAS formik={formik} />
+          )}
+          {section === slugify(BTRFS_CONFIGURATION) && (
+            <StoragePoolFormBtrfs formik={formik} />
           )}
           {section === slugify(YAML_CONFIGURATION) && (
             <YamlForm

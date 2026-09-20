@@ -61,6 +61,8 @@ export const storagePoolFormFieldToPayloadName: Record<string, string> = {
   truenas_clone_copy: "truenas.clone_copy",
   truenas_force_reuse: "truenas.force_reuse",
   truenas_config: "truenas.config",
+  btrfs_create_options: "btrfs.create_options",
+  btrfs_mount_options: "btrfs.mount_options",
 };
 
 export const isClusterLocalDriver = (poolDriver: string) => {
