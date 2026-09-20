@@ -99,6 +99,18 @@ Approach: diff the UI's exposed config keys against live `sudo incus query /1.0/
 - Deployed live to `/opt/incus/ui` on this host (apt pkg held); redeploy = `yarn build` +
   copy `build/ui/.` → `/opt/incus/ui` (root:root).
 
+## Phase 2 — storage pool driver config coverage (done)
+Same gap method vs `/1.0/metadata/configuration` storage_* groups (pool-level). **+31 keys**, all
+deployed. New driver sub-forms `StoragePoolForm{LVM,LINSTOR,TrueNAS,Btrfs,Dir}.tsx` (menu section
+constant + `is<D>Driver` gate + MenuItem in `StoragePoolFormMenu.tsx`; render in `StoragePoolForm.tsx`;
+LINSTOR/TrueNAS added to `isStoragePoolWithSource`). Extended Ceph/CephFS/CephObject. Per-field
+touch-points: `util/storagePool.tsx` map, `types/forms/storagePool.d.ts`, payload in `StoragePoolForm.tsx`
+(`getPoolKey`), `toStoragePoolFormValues` + `handleConfigKeys` in `util/storagePoolForm.tsx`, sub-form row.
+Commits `b2fe98f223`..`6711d5fef2`. **Metadata quirks skipped** (verified vs official incus-ui bundle):
+`ceph.osd.pg_name` (real key is `ceph.osd.pg_num`, already wired), `cephobject.bucket_name_prefix`
+(real key `cephobject.bucket.name_prefix`, already wired). **Still open for storage:** per-driver
+storage *volume* config (storage_volume_* groups, ~120 keys) and storage buckets.
+
 ## Phase 2 candidates (reassess with user before starting — per decision)
 - Read-only `instance_access`/`project_access` entitlement panels.
 - Gate `/ui/permissions/*` routes behind `hasAccessManagement` (nav already hidden; blocks manual URL entry only).

@@ -109,7 +109,8 @@ non-merge commits touch files that also changed upstream (`9cbb82d9`→`0.22`), 
 High-value, self-contained first:
 - [ ] **Network address sets** page + ACL integration (`network_address_set`).
 - [ ] **Custom-volume file browser** (`file_storage_volume` + `custom_volume_sftp`).
-- [ ] **LINSTOR/TrueNAS** driver forms (also lands in Phase 1a).
+- [x] **LINSTOR/TrueNAS** driver forms — done as part of full storage-pool driver config coverage
+      (also added LVM/Btrfs/Dir sub-forms + extended Ceph/CephFS/CephObject; +31 pool config keys).
 - [ ] **Network integrations** (OVN interconnect) CRUD.
 - [ ] **Load-balancer health checks + state** panel.
 - [x] First-class VM knobs: `boot.autorestart`, memory hotplug, OOM priority. *(part of the instance-config coverage pass — 101/110 settable keys now exposed)*
