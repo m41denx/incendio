@@ -153,6 +153,19 @@ that forward a listen port to named backends. Commit `8da7f80dc4`. Changes:
 - Renamed user-facing "Local peering(s)" → "Peering(s)" (peers can be remote now); route slug
   `local-peerings` unchanged (`NetworkDetail` tab slug derives from path, not label).
 
+## Phase 2 — network address sets + parity cleanup (done)
+- **Network address sets** (`network_address_set`, `fb084a20bf`): project-scoped CRUD of named
+  IP/CIDR/range groups. `api/network-address-sets.tsx`, `context/useNetworkAddressSets.tsx`,
+  `pages/networks/{NetworkAddressSetList,CreateNetworkAddressSet,EditNetworkAddressSet}.tsx` +
+  `forms/NetworkAddressSetForm.tsx` (addresses one-per-line). Project-scoped routes, nav item under
+  Networking after ACLs, `queryKeys.networkAddressSets`, `hasNetworkAddressSets` flag. ACL rule
+  source/destination help notes the `$name` reference. Verified payload vs live Incus 7.4.
+- **`storage_volumes_all` → `storage_volumes_all_projects`**: `hasStorageVolumesAll` now gates on the
+  Incus extension (True on 7.4), restoring the all-projects volumes feature.
+- **Removed dead `hasExplicitTrustToken`** flag.
+- Terminology pass ("Cluster member"→"Location", drop VM/container qualifiers) **intentionally dropped**
+  from scope per user.
+
 ## Phase 2 candidates (reassess with user before starting — per decision)
 - Read-only `instance_access`/`project_access` entitlement panels.
 - Gate `/ui/permissions/*` routes behind `hasAccessManagement` (nav already hidden; blocks manual URL entry only).

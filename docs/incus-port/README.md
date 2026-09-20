@@ -69,7 +69,9 @@ non-merge commits touch files that also changed upstream (`9cbb82d9`→`0.22`), 
 > load balancers**. Remaining Incus gaps are checklisted under "Phase 2" below. See
 > [`PORT-LOG.md`](PORT-LOG.md) for the authoritative per-commit record.
 
-### Phase 0 — Foundation & branding  *(prereq for everything)*
+<details>
+<summary><strong>Phase 0 — Foundation &amp; branding</strong> <em>(prereq)</em> — ✅ complete</summary>
+
 - [x] Branding sweep → **Incendio** name; **MicroCloud logo** where possible, else LXD logo
       (`Logo.tsx`, `title.tsx`, `favicon.tsx`, `certificate.tsx`). Drop the LXD/MicroCloud branches.
 - [x] External links → Incus: docs base `/documentation` (remote `linuxcontainers.org/incus/docs`),
@@ -77,20 +79,24 @@ non-merge commits touch files that also changed upstream (`9cbb82d9`→`0.22`), 
 - [x] Image servers → `images.linuxcontainers.org`; relabel to "Linux Containers". *(D §6, B §2b)*
 - [x] Remove the LXD version-check nag. *(B §2c)*
 
-### Phase 1 — Parity (a working Incus UI on the 0.22 base)
+</details>
+
+<details>
+<summary><strong>Phase 1 — Parity</strong> (a working Incus UI on the 0.22 base) — ✅ complete</summary>
+
 **1a. Remove LXD-only / Canonical surface** *(analysis B, D)*
 - [x] **Remove placement groups** (fails open / 404s). *(B §2a — highest priority)*
 - [x] Storage drivers: drop PowerFlex/PowerStore/Pure/Alletra; add **LINSTOR + TrueNAS**. *(D §3, B §1b)*
 - [x] Remove/leave-gated: replicators, cluster-links, LXD load-balancer *pools*, managed SSH keys,
       import/conversion, backup-metadata-version, boot-mode. *(B §1a)*
-- [ ] `storage_volumes_all` → re-gate on Incus's `storage_volumes_all_projects`. *(B §1c)*
+- [x] `storage_volumes_all` → re-gated on Incus's `storage_volumes_all_projects`. *(B §1c)*
 - [x] **Access area (revised — see `analysis/` + memory `incus-auth-model`):** Incus has **no** permissions-management API (OpenFGA is external/config-driven). So: disable the LXD identity/fine-grained section, and build the Incus-manageable surfaces — a **Trusted Certificates** page (`/1.0/certificates`) + read-only `instance_access`/`project_access` panels. *(B §2d)*
-- [ ] Delete unused `hasExplicitTrustToken` flag. *(B §1c)*
+- [x] Deleted the unused `hasExplicitTrustToken` flag. *(B §1c)*
 
 **1b. Config-key & terminology deltas** *(analysis D)*
 - [x] Rename `user.ui_*` → `user.ui.*` (4 keys); add `user.ui.sso_only`, `user.ui.image_servers`. *(D §1)*
 - [x] **Fix zabbly's miss:** `security.devlxd[.images]` → `security.guestapi[.images]`; `/dev/lxd`→`/dev/incus`. *(D §2)*
-- [ ] Terminology: "Cluster member"→"Location"; drop "(VMs/Containers only)" qualifiers. *(D §5)*
+- ~~Terminology: "Cluster member"→"Location"; drop "(VMs/Containers only)" qualifiers.~~ *(D §5 — intentionally out of scope)*
 
 **1c. Port zabbly's Incus features & fixes** *(analysis C — 83 portable commits)*
 - [x] core-api/config cluster: certificate generation, OpenFGA, key renames, storage-driver match.
@@ -107,7 +113,10 @@ non-merge commits touch files that also changed upstream (`9cbb82d9`→`0.22`), 
 - [x] Manual smoke against the local Incus 7.4 daemon (API-level; daemon reachable via unix socket).
 - [x] Compare behavior against the shipped `incus-ui-canonical` (`/opt/incus/ui`).
 
-### Phase 2 — Incus features beyond zabbly *(analysis A — prioritized)*
+</details>
+
+<details open>
+<summary><strong>Phase 2 — Incus features beyond zabbly</strong> <em>(analysis A — prioritized)</em> — 🚧 in progress</summary>
 
 **Done**
 - [x] **Storage-pool driver forms** — LINSTOR + TrueNAS + LVM/Btrfs/Dir sub-forms, extended
@@ -123,11 +132,13 @@ non-merge commits touch files that also changed upstream (`9cbb82d9`→`0.22`), 
       `boot.autorestart`, `limits.memory.hotplug`, `limits.memory.oom_priority`, `migration.stateful`,
       `security.iommu`, `security.selinux.*`, `security.sev*`, syscalls intercept, `nvidia.runtime`,
       OCI, and a raw-config section (`raw.lxc/qemu/apparmor/...`).
+- [x] **Network address sets** (`network_address_set`) — project-scoped CRUD of named IP/CIDR/range
+      groups (List/Create/Edit), nav under Networking; ACL rule source/destination help notes the
+      `$name` reference syntax.
 
 **Still missing — Incus functionality with no dedicated UI** (ranked; see [`analysis/A`](analysis/A-incus-opportunities.md))
 
 *Networking*
-- [ ] **Network address sets** (`network_address_set`, `_ip_ranges`) — new CRUD object + ACL rule integration. **High**.
 - [ ] **Network zones** management page (`network_zones*`) — missing entirely. **Med**.
 - [ ] **Load-balancer health checks + live state** panel (`network_load_balancer_health_check`, `_state`). **Med**.
 - [ ] Forward **SNAT** toggle (`network_forward_snat`). **Low**.
@@ -159,6 +170,8 @@ non-merge commits touch files that also changed upstream (`9cbb82d9`→`0.22`), 
       **device** (~290) keys, and per-driver storage **volume** config.
 
 Full ranked list with extensions/coverage: [`analysis/A`](analysis/A-incus-opportunities.md).
+
+</details>
 
 ---
 
