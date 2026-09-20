@@ -1,6 +1,6 @@
 import type { FC } from "react";
 import { Input, Select } from "@canonical/react-components";
-import { optionYesNo } from "util/options";
+import { optionTrueFalse, optionYesNo } from "util/options";
 import { bootModeOptions } from "util/instanceOptions";
 import type { InstanceAndProfileFormikProps } from "types/forms/instanceAndProfileFormProps";
 import { getConfigurationRow } from "components/ConfigurationRow";
@@ -85,6 +85,23 @@ const BootForm: FC<Props> = ({ formik }) => {
           name: "boot_stop_priority",
           defaultValue: "",
           children: <Input placeholder="Enter number" type="number" />,
+        }),
+
+        getConfigurationRow({
+          formik,
+          label: "Autorestart on unexpected exit",
+          name: "boot_autorestart",
+          defaultValue: "",
+          readOnlyRenderer: (val) => optionRenderer(val, optionTrueFalse),
+          children: <Select options={optionTrueFalse} />,
+        }),
+
+        getConfigurationRow({
+          formik,
+          label: "Host shutdown action",
+          name: "boot_host_shutdown_action",
+          defaultValue: "",
+          children: <Input placeholder="Enter action" type="text" />,
         }),
       ]}
     />

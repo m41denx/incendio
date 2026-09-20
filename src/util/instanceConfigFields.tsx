@@ -77,6 +77,8 @@ const instanceConfigFormFieldsToPayload: Record<string, string> = {
   boot_host_shutdown_timeout: "boot.host_shutdown_timeout",
   boot_mode: "boot.mode",
   boot_stop_priority: "boot.stop.priority",
+  boot_autorestart: "boot.autorestart",
+  boot_host_shutdown_action: "boot.host_shutdown_action",
   cloud_init_network_config: "cloud-init.network-config",
   cloud_init_user_data: "cloud-init.user-data",
   cloud_init_vendor_data: "cloud-init.vendor-data",

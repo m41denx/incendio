@@ -294,6 +294,9 @@ export const bootPayload = (values: BootFormValues) => {
     [getInstanceField("boot_mode")]: values.boot_mode?.toString(),
     [getInstanceField("boot_stop_priority")]:
       values.boot_stop_priority?.toString(),
+    [getInstanceField("boot_autorestart")]: values.boot_autorestart,
+    [getInstanceField("boot_host_shutdown_action")]:
+      values.boot_host_shutdown_action,
   };
 };
 
@@ -586,6 +589,8 @@ const getEditValues = (
     boot_host_shutdown_timeout: item.config["boot.host_shutdown_timeout"],
     boot_mode: item.config["boot.mode"],
     boot_stop_priority: item.config["boot.stop.priority"],
+    boot_autorestart: item.config["boot.autorestart"],
+    boot_host_shutdown_action: item.config["boot.host_shutdown_action"],
 
     cloud_init_network_config: item.config["cloud-init.network-config"],
     cloud_init_user_data: item.config["cloud-init.user-data"],

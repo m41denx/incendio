@@ -11,6 +11,8 @@ export interface BootFormValues {
   boot_host_shutdown_timeout?: string;
   boot_mode?: string;
   boot_stop_priority?: string;
+  boot_autorestart?: string;
+  boot_host_shutdown_action?: string;
 }
 
 export interface CloudInitFormValues {
