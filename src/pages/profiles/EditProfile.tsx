@@ -29,6 +29,7 @@ import ProfileFormMenu, {
   MIGRATION,
   NETWORK_DEVICES,
   NVIDIA_CONFIG,
+  OCI_CONFIG,
   OTHER_DEVICES,
   PROXY_DEVICES,
   RESOURCE_LIMITS,
@@ -47,6 +48,7 @@ import { hasDiskError, hasNetworkError } from "util/instanceValidation";
 import FormFooterLayout from "components/forms/FormFooterLayout";
 import MigrationForm from "components/forms/MigrationForm";
 import NvidiaForm from "components/forms/NvidiaForm";
+import OciForm from "components/forms/OciForm";
 import GPUDeviceForm from "components/forms/GPUDeviceForm";
 import OtherDeviceForm from "components/forms/OtherDeviceForm";
 import YamlSwitch from "components/forms/YamlSwitch";
@@ -248,6 +250,8 @@ const EditProfile: FC<Props> = ({ profile }) => {
             {section === slugify(NVIDIA_CONFIG) && (
               <NvidiaForm formik={formik} />
             )}
+
+            {section === slugify(OCI_CONFIG) && <OciForm formik={formik} />}
 
             {section === slugify(BOOT) && <BootForm formik={formik} />}
 

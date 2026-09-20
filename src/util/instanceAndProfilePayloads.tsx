@@ -11,6 +11,7 @@ import type {
   EditInstanceFormValues,
   MigrationFormValues,
   NvidiaFormValues,
+  OciFormValues,
   ProfileDetailsFormValues,
   ResourceLimitsFormValues,
   SecurityPoliciesFormValues,
@@ -60,6 +61,7 @@ export const getInstancePayload = (
       ...snapshotsPayload(values),
       ...migrationPayload(values),
       ...nvidiaPayload(values),
+      ...ociPayload(values),
       ...bootPayload(values),
       ...cloudInitPayload(values),
       ...sshKeyPayload(values),
@@ -302,6 +304,18 @@ export const nvidiaPayload = (values: NvidiaFormValues) => {
   };
 };
 
+export const ociPayload = (values: OciFormValues) => {
+  return {
+    [getInstanceField("oci_entrypoint")]: values.oci_entrypoint,
+    [getInstanceField("oci_cwd")]: values.oci_cwd,
+    [getInstanceField("oci_uid")]: values.oci_uid,
+    [getInstanceField("oci_gid")]: values.oci_gid,
+    [getInstanceField("oci_dns_domain")]: values.oci_dns_domain,
+    [getInstanceField("oci_dns_nameservers")]: values.oci_dns_nameservers,
+    [getInstanceField("oci_dns_search")]: values.oci_dns_search,
+  };
+};
+
 export const bootPayload = (values: BootFormValues) => {
   return {
     [getInstanceField("boot_autostart")]: values.boot_autostart?.toString(),
@@ -391,6 +405,7 @@ export const getProfilePayload = (
       ...snapshotsPayload(values),
       ...migrationPayload(values),
       ...nvidiaPayload(values),
+      ...ociPayload(values),
       ...bootPayload(values),
       ...cloudInitPayload(values),
       ...sshKeyPayload(values),
@@ -612,6 +627,14 @@ const getEditValues = (
     nvidia_driver_capabilities: item.config["nvidia.driver.capabilities"],
     nvidia_require_cuda: item.config["nvidia.require.cuda"],
     nvidia_require_driver: item.config["nvidia.require.driver"],
+
+    oci_entrypoint: item.config["oci.entrypoint"],
+    oci_cwd: item.config["oci.cwd"],
+    oci_uid: item.config["oci.uid"],
+    oci_gid: item.config["oci.gid"],
+    oci_dns_domain: item.config["oci.dns.domain"],
+    oci_dns_nameservers: item.config["oci.dns.nameservers"],
+    oci_dns_search: item.config["oci.dns.search"],
 
     boot_autostart: item.config["boot.autostart"],
     boot_autostart_delay: item.config["boot.autostart.delay"],

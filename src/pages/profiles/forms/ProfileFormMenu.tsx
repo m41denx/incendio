@@ -25,6 +25,7 @@ export const SECURITY_POLICIES = "Security policies";
 export const SNAPSHOTS = "Snapshots";
 export const MIGRATION = "Migration";
 export const NVIDIA_CONFIG = "NVIDIA";
+export const OCI_CONFIG = "OCI";
 export const BOOT = "Boot";
 export const CLOUD_INIT = "Cloud init";
 export const YAML_CONFIGURATION = "YAML configuration";
@@ -148,6 +149,11 @@ const ProfileFormMenu: FC<Props> = ({
             label={NVIDIA_CONFIG}
             {...menuItemProps}
             isBold={hasPrefixValue(formik, "nvidia_")}
+          />
+          <MenuItem
+            label={OCI_CONFIG}
+            {...menuItemProps}
+            isBold={hasPrefixValue(formik, "oci_")}
           />
           <MenuItem
             label={BOOT}

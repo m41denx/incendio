@@ -82,6 +82,16 @@ export interface NvidiaFormValues {
   nvidia_require_driver?: string;
 }
 
+export interface OciFormValues {
+  oci_entrypoint?: string;
+  oci_cwd?: string;
+  oci_uid?: string;
+  oci_gid?: string;
+  oci_dns_domain?: string;
+  oci_dns_nameservers?: string;
+  oci_dns_search?: string;
+}
+
 export interface ProfileDetailsFormValues {
   name: string;
   description?: string;
@@ -185,6 +195,7 @@ export type CreateInstanceFormValues = InstanceDetailsFormValues &
   SnapshotFormValues &
   MigrationFormValues &
   NvidiaFormValues &
+  OciFormValues &
   BootFormValues &
   CloudInitFormValues &
   SshKeyFormValues &
@@ -197,6 +208,7 @@ export type CreateProfileFormValues = ProfileDetailsFormValues &
   SnapshotFormValues &
   MigrationFormValues &
   NvidiaFormValues &
+  OciFormValues &
   BootFormValues &
   CloudInitFormValues &
   SshKeyFormValues &
@@ -209,6 +221,7 @@ export type EditInstanceFormValues = InstanceEditDetailsFormValues &
   SnapshotFormValues &
   MigrationFormValues &
   NvidiaFormValues &
+  OciFormValues &
   BootFormValues &
   CloudInitFormValues &
   SshKeyFormValues &
@@ -221,6 +234,7 @@ export type EditProfileFormValues = ProfileDetailsFormValues &
   SnapshotFormValues &
   MigrationFormValues &
   NvidiaFormValues &
+  OciFormValues &
   BootFormValues &
   CloudInitFormValues &
   SshKeyFormValues &
