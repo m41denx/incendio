@@ -64,7 +64,9 @@ non-merge commits touch files that also changed upstream (`9cbb82d9`→`0.22`), 
 ## Three-phase plan
 
 > **Status (2026-09-20):** Phase 0 + Phase 1 **complete** and deployed to `/opt/incus/ui`.
-> Phase 2 **in progress** — full instance-config coverage done (101/110 settable keys). See
+> Phase 2 **in progress** — done so far: instance-config coverage (101/110 keys), storage-pool
+> driver forms, **OVN interconnect network integrations** (+ remote peers), and **OVN network
+> load balancers**. Remaining Incus gaps are checklisted under "Phase 2" below. See
 > [`PORT-LOG.md`](PORT-LOG.md) for the authoritative per-commit record.
 
 ### Phase 0 — Foundation & branding  *(prereq for everything)*
@@ -106,19 +108,55 @@ non-merge commits touch files that also changed upstream (`9cbb82d9`→`0.22`), 
 - [x] Compare behavior against the shipped `incus-ui-canonical` (`/opt/incus/ui`).
 
 ### Phase 2 — Incus features beyond zabbly *(analysis A — prioritized)*
-High-value, self-contained first:
-- [ ] **Network address sets** page + ACL integration (`network_address_set`).
-- [ ] **Custom-volume file browser** (`file_storage_volume` + `custom_volume_sftp`).
-- [x] **LINSTOR/TrueNAS** driver forms — done as part of full storage-pool driver config coverage
-      (also added LVM/Btrfs/Dir sub-forms + extended Ceph/CephFS/CephObject; +31 pool config keys).
-- [x] **Network integrations** (OVN interconnect) CRUD — server-global List/Create/Edit,
-      gated behind `network_integrations`. Consumption side done too: OVN networks can create
-      `type: remote` peers targeting an integration (peer form + NetworkPeers table).
-- [ ] **Load-balancer health checks + state** panel.
-- [x] First-class VM knobs: `boot.autorestart`, memory hotplug, OOM priority. *(part of the instance-config coverage pass — 101/110 settable keys now exposed)*
-- [ ] **Access panels** (`instance_access`/`project_access`) + certificate descriptions.
-- [ ] Server **logging targets** panel + **ACME** settings.
-- [ ] **VGA console screenshot** action (quick win). · **Network zones** page. · Snapshot schedule aliases.
+
+**Done**
+- [x] **Storage-pool driver forms** — LINSTOR + TrueNAS + LVM/Btrfs/Dir sub-forms, extended
+      Ceph/CephFS/CephObject; +31 pool config keys. Driver picker greys out unsupported drivers.
+- [x] **Network integrations** (OVN interconnect) CRUD — server-global List/Create/Edit
+      (`ovn.northbound_connection`/`southbound_connection`/certs/transit pattern), gated on
+      `network_integrations`. Consumption side too: OVN networks create `type: remote` peers
+      targeting an integration (peer form + NetworkPeers table). Nav "Interconnect" below Clustering.
+- [x] **OVN network load balancers** (backend model, `network_load_balancer`) — the Load balancers
+      tab was gated behind the LXD-only pool extension and never showed on Incus; now a backend-based
+      form (backends + ports→target_backend) create/edit/delete, pool sub-nav hidden on Incus.
+- [x] **First-class VM knobs** (part of instance-config coverage, 101/110 settable keys) —
+      `boot.autorestart`, `limits.memory.hotplug`, `limits.memory.oom_priority`, `migration.stateful`,
+      `security.iommu`, `security.selinux.*`, `security.sev*`, syscalls intercept, `nvidia.runtime`,
+      OCI, and a raw-config section (`raw.lxc/qemu/apparmor/...`).
+
+**Still missing — Incus functionality with no dedicated UI** (ranked; see [`analysis/A`](analysis/A-incus-opportunities.md))
+
+*Networking*
+- [ ] **Network address sets** (`network_address_set`, `_ip_ranges`) — new CRUD object + ACL rule integration. **High**.
+- [ ] **Network zones** management page (`network_zones*`) — missing entirely. **Med**.
+- [ ] **Load-balancer health checks + live state** panel (`network_load_balancer_health_check`, `_state`). **Med**.
+- [ ] Forward **SNAT** toggle (`network_forward_snat`). **Low**.
+- [ ] Richer bridge/OVN/NIC widgets (DNS nameservers, DHCP routes, IPv6 RA, macvlan mode, OVN
+      isolated/tunnels, SR-IOV) — currently raw config only. **Low/Med**.
+
+*Storage*
+- [ ] **Custom-volume file browser** (`file_storage_volume` + `custom_volume_sftp`) — browse/upload/download. **High**.
+- [ ] Storage **volume** config coverage (`storage_volume_*`, ~120 keys) + volume **rebuild** + `dependent` disk flag. **Med**.
+- [ ] Storage **bucket backups** (export/import) + local buckets on non-object pools. **Med**.
+- [ ] ZFS vdev/raid builder, btrfs compression, initial-owner on volume forms. **Med/Low**.
+
+*Instances / VM*
+- [ ] Explicit **CPU topology** builder (`instance_limits_cpu_topology` sockets/cores/threads) — still raw. **Med**.
+- [ ] **Snapshot** schedule aliases (`@daily`/`@startup`), manual expiry, disk-only restore. **Med**.
+- [ ] **VGA console screenshot** action (`instance_console_screenshot`) — quick win on the graphic console. **Med**.
+- [ ] Migration **refresh** (incremental) + **live project move** options. **Low**.
+- [ ] UEFI/**NVRAM** viewer + **QEMU scriptlet** config (`instance_nvram`, `qemu_scriptlet`). **Low**.
+- [ ] Uptime/started-at + allocated CPU-time columns; richer disk-device widgets (io.bus/cache,
+      combined byte+IOPS limits, burst, wwn, tmpfs); smbios11/systemd credentials (raw). **Low**.
+
+*Cluster / server / auth*
+- [ ] **Access panels** (`instance_access`/`project_access`) + **certificate descriptions**. **Med**.
+- [ ] Server **logging targets** panel (loki/webhook/syslog) + **ACME** settings section. **Med**.
+- [ ] Cluster **evacuation mode** options, **rebalance** settings, cluster-group config/used-by,
+      **placement scriptlet** editor (Incus uses scriptlets, not placement groups). **Med/Low**.
+- [ ] Project restriction toggles (`restricted.storage-pools`, VM nesting). **Low**.
+- [ ] Config-coverage passes still open: **project** (~53), **server** (~107), **network** (bridge/OVN/…),
+      **device** (~290) keys, and per-driver storage **volume** config.
 
 Full ranked list with extensions/coverage: [`analysis/A`](analysis/A-incus-opportunities.md).
 
@@ -127,5 +165,7 @@ Full ranked list with extensions/coverage: [`analysis/A`](analysis/A-incus-oppor
 ## Open decisions — RESOLVED
 1. ~~**Depth of Phase 1a:**~~ **leave-gated** (dead LXD subtrees kept, subject to later porting).
 2. ~~**Permissions:**~~ Incus has no perms API → disabled fine-grained perms + built **Trusted Certificates** page.
-3. ~~**Phase 2 selection:**~~ current focus = **expose all settable container/VM settings** (instance config done; project/server/network/storage/device config still open).
+3. ~~**Phase 2 selection:**~~ instance config + storage-pool drivers + OVN integrations + OVN load
+   balancers done; project/server/network/device/volume config coverage and the networking/storage/auth
+   feature gaps in the Phase 2 checklist above are still open.
 4. ~~**`user.ui_terminal_default_payload`:**~~ finished the `user.ui.*` rename.

@@ -235,13 +235,23 @@ only inside a state view), `image_locations` (a field, surface in image detail),
 (initial NVRAM defaults — config-only), `bpf_token_delegation`.
 
 ## Top opportunities (post-parity feature phase)
-1. **Network address sets** page + ACL integration — new self-contained object, high value, zero coverage.
-2. **Custom-volume file browser** (list/upload/download via volume files API + SFTP) — genuinely new UX.
-3. **LINSTOR + TrueNAS storage drivers** in the pool create form — missing drivers vs Incus capability.
-4. **Network integrations (OVN interconnect)** CRUD — whole new API object, no coverage.
-5. **Load-balancer health checks + state** panel — extends the existing LB view.
-6. **First-class VM knobs**: auto-restart, explicit CPU topology, memory hotplug max, OOM priority.
-7. **Access panels** (`instance_access`/`project_access`) + **certificate descriptions**.
-8. **Server logging targets** panel (loki/webhook) + **ACME** settings section.
-9. **VGA console screenshot** action (quick win on existing graphic console).
-10. **Network zones** management page (missing entirely) + DNS/DHCP-route/IPv6-RA widgets.
+Status as of the current branch (see `../PORT-LOG.md` for commits): ✅ done · 🟡 partial · ⬜ open.
+
+1. ⬜ **Network address sets** page + ACL integration — new self-contained object, high value, zero coverage.
+2. ⬜ **Custom-volume file browser** (list/upload/download via volume files API + SFTP) — genuinely new UX.
+3. ✅ **LINSTOR + TrueNAS storage drivers** in the pool create form — done (full pool-driver coverage: also
+   LVM/Btrfs/Dir sub-forms + extended Ceph/CephFS/CephObject, +31 keys; picker greys out unsupported drivers).
+4. ✅ **Network integrations (OVN interconnect)** CRUD — done, incl. the `type: remote` peer consumption side.
+5. 🟡 **Load-balancer health checks + state** panel — the base OVN LB view now works on Incus (backend model);
+   healthcheck config fields + live `/state` panel still open.
+6. 🟡 **First-class VM knobs** — auto-restart, memory hotplug, OOM priority, `migration.stateful`,
+   `nvidia.runtime`, iommu/selinux/sev done; **explicit CPU topology** (sockets/cores/threads) still raw.
+7. ⬜ **Access panels** (`instance_access`/`project_access`) + **certificate descriptions**.
+8. ⬜ **Server logging targets** panel (loki/webhook) + **ACME** settings section.
+9. ⬜ **VGA console screenshot** action (quick win on existing graphic console).
+10. ⬜ **Network zones** management page (missing entirely) + DNS/DHCP-route/IPv6-RA widgets.
+
+Also since this report: config-coverage passes remain open for **project** (~53), **server** (~107),
+**network** (bridge/OVN/…) and **device** (~290) keys, plus per-driver storage **volume** config
+(`storage_volume_*`, ~120 keys), storage **bucket backups**, snapshot schedule aliases / manual expiry /
+disk-only restore, migration refresh + live project move, and cluster evacuation/rebalance/placement-scriptlet UI.
