@@ -93,6 +93,48 @@ export const getSupportedStorageDrivers = (
   );
 };
 
+// Options for the driver picker: every Incus driver Incendio knows about, with
+// the ones this server does not support shown but disabled (greyed out) so the
+// user can see what exists without being able to pick an unusable driver.
+export const getStorageDriverSelectOptions = (
+  settings?: LxdSettings,
+): CustomSelectOption[] => {
+  const supported = new Set(
+    (settings?.environment?.storage_supported_drivers || []).map(
+      (driver) => driver.Name,
+    ),
+  );
+
+  const options: CustomSelectOption[] = Object.keys(storageDriverLabels).map(
+    (name) => {
+      const text = storageDriverLabels[name];
+      const isSupported = supported.has(name);
+      const description = isSupported
+        ? storageDriverDescriptions[name]
+        : "Not available on this server";
+      return {
+        value: name,
+        text,
+        disabled: !isSupported,
+        label: (
+          <div className="storage-driver-label">
+            <span className="storage-driver-name">{text}</span>
+            {description && (
+              <span className="storage-driver-description u-text--muted">
+                {description}
+              </span>
+            )}
+          </div>
+        ),
+      };
+    },
+  );
+
+  return options.sort((a, b) =>
+    (a.text as string).localeCompare(b.text as string),
+  );
+};
+
 const storageDriverToSourceHelp: Record<string, string> = {
   btrfs:
     "Optional, path to an existing block device, loop file or Btrfs subvolume",

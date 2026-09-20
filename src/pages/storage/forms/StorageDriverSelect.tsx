@@ -8,7 +8,7 @@ import {
 import {
   zfsDriver,
   cephDriver,
-  getStorageDriverOptions,
+  getStorageDriverSelectOptions,
   cephObject,
   storageDriverLabels,
 } from "util/storageOptions";
@@ -27,7 +27,7 @@ interface Props {
 const StorageDriverSelect: FC<Props> = ({ formik }) => {
   const { data: settings } = useSettings();
 
-  const storageDriverOptions = getStorageDriverOptions(settings);
+  const storageDriverOptions = getStorageDriverSelectOptions(settings);
 
   const cephObjectNotice = (
     <>
@@ -45,7 +45,7 @@ const StorageDriverSelect: FC<Props> = ({ formik }) => {
     } else if (formik.values.driver === cephObject) {
       return cephObjectNotice;
     }
-    return undefined;
+    return "Drivers not supported by this server are greyed out.";
   };
 
   const onChange = (val: string) => {
