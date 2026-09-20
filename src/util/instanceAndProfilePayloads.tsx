@@ -279,6 +279,12 @@ export const migrationPayload = (values: MigrationFormValues) => {
   return {
     [getInstanceField("migration_stateful")]: values.migration_stateful,
     [getInstanceField("cluster_evacuate")]: values.cluster_evacuate,
+    [getInstanceField("migration_incremental_memory")]:
+      values.migration_incremental_memory,
+    [getInstanceField("migration_incremental_memory_goal")]:
+      values.migration_incremental_memory_goal,
+    [getInstanceField("migration_incremental_memory_iterations")]:
+      values.migration_incremental_memory_iterations,
   };
 };
 
@@ -582,6 +588,11 @@ const getEditValues = (
 
     migration_stateful: item.config["migration.stateful"],
     cluster_evacuate: item.config["cluster.evacuate"],
+    migration_incremental_memory: item.config["migration.incremental.memory"],
+    migration_incremental_memory_goal:
+      item.config["migration.incremental.memory.goal"],
+    migration_incremental_memory_iterations:
+      item.config["migration.incremental.memory.iterations"],
 
     boot_autostart: item.config["boot.autostart"],
     boot_autostart_delay: item.config["boot.autostart.delay"],

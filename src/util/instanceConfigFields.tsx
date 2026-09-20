@@ -70,6 +70,10 @@ const instanceConfigFormFieldsToPayload: Record<string, string> = {
   snapshots_schedule: "snapshots.schedule",
   snapshots_schedule_stopped: "snapshots.schedule.stopped",
   migration_stateful: "migration.stateful",
+  migration_incremental_memory: "migration.incremental.memory",
+  migration_incremental_memory_goal: "migration.incremental.memory.goal",
+  migration_incremental_memory_iterations:
+    "migration.incremental.memory.iterations",
   cluster_evacuate: "cluster.evacuate",
   boot_autostart: "boot.autostart",
   boot_autostart_delay: "boot.autostart.delay",

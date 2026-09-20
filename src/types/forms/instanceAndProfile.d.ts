@@ -70,6 +70,9 @@ export interface InstanceRestrictionFormValues {
 export interface MigrationFormValues {
   migration_stateful?: string;
   cluster_evacuate?: string;
+  migration_incremental_memory?: string;
+  migration_incremental_memory_goal?: string;
+  migration_incremental_memory_iterations?: string;
 }
 
 export interface ProfileDetailsFormValues {
