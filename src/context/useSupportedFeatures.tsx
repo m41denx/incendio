@@ -67,5 +67,7 @@ export const useSupportedFeatures = () => {
     hasLoadBalancerHealthChecks: apiExtensions.has(
       "network_load_balancer_pool_health_checks",
     ),
+    // Incus-only: OVN interconnect network integrations.
+    hasNetworkIntegrations: apiExtensions.has("network_integrations"),
   };
 };

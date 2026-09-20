@@ -23,6 +23,7 @@ export const queryKeys = {
   networks: "networks",
   networkAcls: "network-acls",
   networkAllocations: "network-allocations",
+  networkIntegrations: "network-integrations",
   operations: "operations",
   os: "os",
   osApps: "osApps",

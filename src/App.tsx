@@ -50,6 +50,15 @@ const CreateNetworkAcl = lazy(
 const CreateNetworkForward = lazy(
   async () => import("pages/networks/CreateNetworkForward"),
 );
+const CreateNetworkIntegration = lazy(
+  async () => import("pages/networks/CreateNetworkIntegration"),
+);
+const EditNetworkIntegration = lazy(
+  async () => import("pages/networks/EditNetworkIntegration"),
+);
+const NetworkIntegrationList = lazy(
+  async () => import("pages/networks/NetworkIntegrationList"),
+);
 const CreateLoadBalancer = lazy(
   async () => import("pages/networks/CreateLoadBalancer"),
 );
@@ -424,6 +433,18 @@ const App: FC = () => {
               outlet={<ProjectLoader outlet={<NetworkAclDetail />} />}
             />
           }
+        />
+        <Route
+          path={`${ROOT_PATH}/ui/network-integrations`}
+          element={<ProtectedRoute outlet={<NetworkIntegrationList />} />}
+        />
+        <Route
+          path={`${ROOT_PATH}/ui/network-integrations/create`}
+          element={<ProtectedRoute outlet={<CreateNetworkIntegration />} />}
+        />
+        <Route
+          path={`${ROOT_PATH}/ui/network-integration/:name`}
+          element={<ProtectedRoute outlet={<EditNetworkIntegration />} />}
         />
         <Route
           path={`${ROOT_PATH}/ui/project/:project/network-ipam`}

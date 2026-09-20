@@ -95,6 +95,7 @@ const Navigation: FC = () => {
     hasClusterLinks,
     hasReplicators,
     hasPlacementGroups,
+    hasNetworkIntegrations,
   } = useSupportedFeatures();
   const { loggedInUserName, loggedInUserID } = useLoggedInUser();
   const [scroll, setScroll] = useState(false);
@@ -713,6 +714,24 @@ const Navigation: FC = () => {
                               </SideNavigationItem>,
                             ]}
                           </NavAccordion>
+                        </SideNavigationItem>
+                      )}
+                      {hasNetworkIntegrations && (
+                        <SideNavigationItem>
+                          <NavLink
+                            to={`${ROOT_PATH}/ui/network-integrations`}
+                            title="Network integrations"
+                            onClick={softToggleMenu}
+                            activeUrlMatches={[
+                              `${ROOT_PATH}/ui/network-integration`,
+                            ]}
+                          >
+                            <Icon
+                              className="is-light p-side-navigation__icon"
+                              name="connected"
+                            />{" "}
+                            Network integrations
+                          </NavLink>
                         </SideNavigationItem>
                       )}
                       <SideNavigationItem>

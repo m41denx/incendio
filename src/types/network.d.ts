@@ -167,6 +167,15 @@ export interface LxdNetworkAcl {
   access_entitlements?: string[];
 }
 
+export interface LxdNetworkIntegration {
+  name: string;
+  description?: string;
+  type: string;
+  config?: Record<string, string>;
+  used_by?: string[];
+  etag?: string;
+}
+
 export interface LxdNetworkLease {
   address: "string";
   hostname: "string";
