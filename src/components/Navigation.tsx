@@ -717,9 +717,23 @@ const Navigation: FC = () => {
                       )}
                       <SideNavigationItem>
                         <NavLink
+                          to={`${ROOT_PATH}/ui/settings/certificates`}
+                          title="Trusted certificates"
+                          onClick={softToggleMenu}
+                        >
+                          <Icon
+                            className="is-light p-side-navigation__icon"
+                            name="security"
+                          />{" "}
+                          Certificates
+                        </NavLink>
+                      </SideNavigationItem>
+                      <SideNavigationItem>
+                        <NavLink
                           to={`${ROOT_PATH}/ui/settings`}
                           title="Settings"
                           onClick={softToggleMenu}
+                          ignoreUrlMatches={["settings/certificates"]}
                         >
                           <Icon
                             className="is-light p-side-navigation__icon"

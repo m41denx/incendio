@@ -25,3 +25,11 @@ export const addCertificate = async (token: string): Promise<void> => {
     }),
   }).then(handleResponse);
 };
+
+export const deleteCertificate = async (
+  fingerprint: string,
+): Promise<void> => {
+  await fetch(`${ROOT_PATH}/1.0/certificates/${fingerprint}`, {
+    method: "DELETE",
+  }).then(handleResponse);
+};
