@@ -136,6 +136,21 @@ export const resourceLimitsPayload = (values: ResourceLimitsFormValues) => {
     [getInstanceField("limits_disk_priority")]:
       values.limits_disk_priority?.toString(),
     [getInstanceField("limits_processes")]: values.limits_processes?.toString(),
+    [getInstanceField("limits_cpu_allowance")]: values.limits_cpu_allowance,
+    [getInstanceField("limits_cpu_nodes")]: values.limits_cpu_nodes,
+    [getInstanceField("limits_cpu_priority")]: values.limits_cpu_priority,
+    [getInstanceField("limits_hugepages_1GB")]: values.limits_hugepages_1GB,
+    [getInstanceField("limits_hugepages_1MB")]: values.limits_hugepages_1MB,
+    [getInstanceField("limits_hugepages_2MB")]: values.limits_hugepages_2MB,
+    [getInstanceField("limits_hugepages_64KB")]: values.limits_hugepages_64KB,
+    [getInstanceField("limits_memory_enforce")]: values.limits_memory_enforce,
+    [getInstanceField("limits_memory_hotplug")]: values.limits_memory_hotplug,
+    [getInstanceField("limits_memory_hugepages")]:
+      values.limits_memory_hugepages,
+    [getInstanceField("limits_memory_oom_priority")]:
+      values.limits_memory_oom_priority,
+    [getInstanceField("limits_memory_swap_priority")]:
+      values.limits_memory_swap_priority,
   };
 };
 
@@ -484,6 +499,18 @@ const getEditValues = (
     limits_processes: item.config["limits.processes"]
       ? parseInt(item.config["limits.processes"])
       : undefined,
+    limits_cpu_allowance: item.config["limits.cpu.allowance"],
+    limits_cpu_nodes: item.config["limits.cpu.nodes"],
+    limits_cpu_priority: item.config["limits.cpu.priority"],
+    limits_hugepages_1GB: item.config["limits.hugepages.1GB"],
+    limits_hugepages_1MB: item.config["limits.hugepages.1MB"],
+    limits_hugepages_2MB: item.config["limits.hugepages.2MB"],
+    limits_hugepages_64KB: item.config["limits.hugepages.64KB"],
+    limits_memory_enforce: item.config["limits.memory.enforce"],
+    limits_memory_hotplug: item.config["limits.memory.hotplug"],
+    limits_memory_hugepages: item.config["limits.memory.hugepages"],
+    limits_memory_oom_priority: item.config["limits.memory.oom_priority"],
+    limits_memory_swap_priority: item.config["limits.memory.swap.priority"],
 
     placement_group: item.config["placement.group"],
 

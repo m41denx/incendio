@@ -85,6 +85,18 @@ export interface ResourceLimitsFormValues {
   limits_memory_swap?: string;
   limits_disk_priority?: number;
   limits_processes?: number;
+  limits_cpu_allowance?: string;
+  limits_cpu_nodes?: string;
+  limits_cpu_priority?: string;
+  limits_hugepages_1GB?: string;
+  limits_hugepages_1MB?: string;
+  limits_hugepages_2MB?: string;
+  limits_hugepages_64KB?: string;
+  limits_memory_enforce?: string;
+  limits_memory_hotplug?: string;
+  limits_memory_hugepages?: string;
+  limits_memory_oom_priority?: string;
+  limits_memory_swap_priority?: string;
 }
 
 export interface SecurityPoliciesFormValues {
