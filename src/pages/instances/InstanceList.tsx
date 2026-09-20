@@ -37,7 +37,6 @@ import {
   parseFilters,
   showInstance,
 } from "util/instanceFilter";
-import { enrichStatuses } from "util/instanceFilter";
 import { fetchOperations } from "api/operations";
 import CancelOperationBtn from "pages/operations/actions/CancelOperationBtn";
 import type {
@@ -85,7 +84,6 @@ import { useInstances } from "context/useInstances";
 import { useProjectEntitlements } from "util/entitlements/projects";
 import { useCurrentProject } from "context/useCurrentProject";
 import { useProject } from "context/useProjects";
-import { getTypeFromDisplayName } from "util/images";
 import {
   getInstanceKey,
   getInstanceOSName,
@@ -94,7 +92,6 @@ import {
 import DocLink from "components/DocLink";
 import TruncatedList from "components/TruncatedList";
 import ClusterMemberRichChip from "pages/cluster/ClusterMemberRichChip";
-import { useIsClustered } from "context/useIsClustered";
 import { ROOT_PATH } from "util/rootPath";
 import ProjectRichChip from "pages/projects/ProjectRichChip";
 import InstanceCreationProgress from "components/InstanceCreationProgress";
@@ -135,17 +132,6 @@ const InstanceList: FC = () => {
   const { data: settings } = useSettings();
   const isClustered = isClusteredServer(settings);
   const { canCreateInstances } = useProjectEntitlements();
-
-  const filters: InstanceFilters = {
-    queries: searchParams.getAll("query").map((value) => value.toLowerCase()),
-    statuses: enrichStatuses(
-      searchParams.getAll("status") as LxdInstanceStatus[],
-    ),
-    types: searchParams.getAll("type").map(getTypeFromDisplayName),
-    profiles: searchParams.getAll("profile"),
-    clusterMembers: searchParams.getAll("member"),
-    projects: searchParams.getAll("project"),
-  };
 
   const [userHidden, setUserHidden] = useState<string[]>(loadHidden());
   const [sizeHidden, setSizeHidden] = useState<string[]>([]);
