@@ -22,7 +22,7 @@ const SsoNotification: FC = () => {
       messageElement="div"
     >
       <p>
-        LXD integrates with external identity providers using{" "}
+        Incus integrates with external identity providers using{" "}
         <b>OpenID Connect (OIDC)</b> to provide centralized login management.
       </p>
       <p className="u-no-margin--bottom">

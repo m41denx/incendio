@@ -25,12 +25,12 @@ export const ImageRegistryProtocolSelector: FC<Props> = ({ formik }) => {
       <div id="protocol">
         <RadioInput
           inline
-          aria-label="LXD"
-          labelClassName="lxd-protocol-input"
-          label="LXD"
-          checked={formik.values.protocol === "lxd"}
+          aria-label="Incus"
+          labelClassName="incus-protocol-input"
+          label="Incus"
+          checked={formik.values.protocol === "incus"}
           onChange={() => {
-            formik.setFieldValue("protocol", "lxd");
+            formik.setFieldValue("protocol", "incus");
           }}
         />
         <RadioInput

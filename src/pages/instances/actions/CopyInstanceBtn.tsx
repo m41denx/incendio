@@ -32,7 +32,7 @@ const CopyInstanceBtn: FC<Props> = ({
   const getDisableReason = () => {
     const validTargetProjects = allProjects?.filter(canCreateInstances);
     // when copying an instance, the user must always have permission to create instances in the source project
-    // LXD internally creates a new instance in the source project and then copies it to the target project
+    // Incus internally creates a new instance in the source project and then copies it to the target project
     if (!canCreateInstances(currentProject) || !validTargetProjects?.length) {
       return "You do not have permission to copy instances";
     }

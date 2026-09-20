@@ -21,7 +21,7 @@ test("create private LXD image registry", async ({
 
   const projectName = "default";
   const registryName = randomImageRegistryName();
-  await createImageRegistry(page, registryName, "LXD", {
+  await createImageRegistry(page, registryName, "Incus", {
     cluster: clusterName,
     sourceProject: projectName,
   });

@@ -183,7 +183,7 @@ const InstanceTargetSelect: FC<Props> = ({ formik }) => {
           <>
             Target{" "}
             <Tooltip
-              message={`LXD automatically selects a cluster member for the instance.\nPlacement groups allow you to control how instances are distributed across cluster members.`}
+              message={`Incus automatically selects a cluster member for the instance.\nPlacement groups allow you to control how instances are distributed across cluster members.`}
             >
               <Icon name="information" />
             </Tooltip>

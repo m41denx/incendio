@@ -637,8 +637,8 @@ export const uploadInstance = async (
     .post(`${ROOT_PATH}/1.0/instances?${params.toString()}`, file, {
       headers: {
         "Content-Type": "application/octet-stream",
-        "X-LXD-name": name,
-        "X-LXD-pool": pool,
+        "X-Incus-name": name,
+        "X-Incus-pool": pool,
       },
       onUploadProgress: (event) => {
         setUploadState({

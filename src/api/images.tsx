@@ -159,7 +159,7 @@ export const importImage = async (
     .post(`${ROOT_PATH}/1.0/images?${params.toString()}`, body, {
       headers: {
         "Content-Type": "application/octet-stream",
-        "X-LXD-public": JSON.stringify(isPublic),
+        "X-Incus-public": JSON.stringify(isPublic),
       },
       onUploadProgress: (event) => {
         setImportState({

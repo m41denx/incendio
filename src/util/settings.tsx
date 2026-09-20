@@ -72,7 +72,7 @@ export const getUserSettings = (
       longdesc:
         "e.g. https://example.org/dashboard?project={project}&name={instance}\n or https://192.0.2.1:3000/d/bGY-LSB7k/lxd?orgId=1",
       shortdesc:
-        "LXD will replace `{instance}` and `{project}` with project and instance names for deep-linking to individual grafana pages.\nSee {ref}`grafana` for more information.",
+        "Incus will replace `{instance}` and `{project}` with project and instance names for deep-linking to individual grafana pages.\nSee {ref}`grafana` for more information.",
       type: "string",
       isSaved: true,
     },
@@ -106,7 +106,7 @@ export const getUserSettings = (
       category: "user",
       default: "",
       shortdesc:
-        "Title for the LXD-UI web page. Shows the hostname when unset.",
+        "Title for the Incendio web page. Shows the hostname when unset.",
       type: "string",
       isSaved: true,
     },

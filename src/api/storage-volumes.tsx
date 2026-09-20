@@ -148,8 +148,8 @@ export const createIsoStorageVolume = async (
       {
         headers: {
           "Content-Type": "application/octet-stream",
-          "X-LXD-name": name,
-          "X-LXD-type": "iso",
+          "X-Incus-name": name,
+          "X-Incus-type": "iso",
         },
         onUploadProgress: (event) => {
           setUploadState({
@@ -358,7 +358,7 @@ export const getCopyStorageVolumePayload = (
       type: "copy",
       pool: volume.pool,
       volume_only: volumeOnly,
-      // logic from the lxc source code.
+      // logic from the incus source code.
       // We should not set source.project if target project is the same as the source project
       project: newProject !== volume.project ? volume.project : undefined,
       location: volume.location,
@@ -440,7 +440,7 @@ export const uploadVolume = async (
       {
         headers: {
           "Content-Type": "application/octet-stream",
-          "X-LXD-name": name,
+          "X-Incus-name": name,
         },
         onUploadProgress: (event) => {
           setUploadState({

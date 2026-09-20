@@ -65,7 +65,7 @@ export const EditImageRegistryPanel: FC = () => {
       description: registry?.description ?? "",
       sourceProject: registry?.config?.source_project ?? "",
       cluster: registry?.config?.cluster ?? "",
-      protocol: registry?.protocol ?? "lxd",
+      protocol: registry?.protocol ?? "incus",
       url: registry?.config?.url ?? "",
     },
     enableReinitialize: true,

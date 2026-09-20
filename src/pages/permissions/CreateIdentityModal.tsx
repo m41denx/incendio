@@ -101,7 +101,7 @@ const CreateIdentityModal: FC<Props> = ({ onClose, token, identityName }) => {
                       <>
                         For use with the LXC command-line tool, run:
                         <CodeSnippetWithCopyButton
-                          code={`lxc remote add ${location.hostname} ${token}`}
+                          code={`incus remote add ${location.hostname} ${token}`}
                           tooltipMessage="Copy command"
                           className="u-no-margin--bottom"
                         />

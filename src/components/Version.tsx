@@ -21,7 +21,7 @@ const Version: FC = () => {
       >
         {isOutdated && (
           <Tooltip
-            message="You are using an outdated server version. Update your LXD server to benefit from the latest features."
+            message="You are using an outdated server version. Update your Incus server to benefit from the latest features."
             tooltipClassName="version-warning"
             zIndex={1000}
           >

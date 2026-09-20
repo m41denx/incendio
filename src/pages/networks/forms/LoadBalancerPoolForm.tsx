@@ -157,7 +157,7 @@ const LoadBalancerPoolForm: FC<Props> = ({ formik, isEdit, network }) => {
               { value: "default", label: "Default" },
               { value: "disabled", label: "Disabled" },
             ]}
-            help="Default uses LXD's default health check settings. Custom allows you to specify the health check settings. Disabled turns off health checks."
+            help="Default uses Incus's default health check settings. Custom allows you to specify the health check settings. Disabled turns off health checks."
           />
         )}
         {formik.values.healthCheckType === "custom" && (

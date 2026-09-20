@@ -20,8 +20,7 @@ import CertificateAddNotifications from "components/CertificateAddNotifications"
 const CertificateAddToken: FC = () => {
   const { isAuthenticated, isAuthLoading, authMethod } = useAuth();
   const notify = useNotify();
-  const identityTrustTokenCommand =
-    "if ! lxc auth group show admins >/dev/null 2>&1; then lxc auth group create admins && lxc auth group permission add admins server admin; fi; lxc auth identity create tls/lxd-ui --group admins";
+  const identityTrustTokenCommand = "incus config trust add incendio-ui";
 
   if (isAuthLoading) {
     return <Spinner className="u-loader" text="Loading..." isMainComponent />;
@@ -45,8 +44,8 @@ const CertificateAddToken: FC = () => {
           )}
           <div className="p-stepped-list__content">
             <p>
-              Paste the following commands into the console of the machine where
-              LXD is running:
+              Paste the following command into the console of the machine where
+              Incus is running:
             </p>
 
             <CodeSnippetWithCopyButton code={identityTrustTokenCommand} />
@@ -57,60 +56,23 @@ const CertificateAddToken: FC = () => {
                   content: (
                     <>
                       <p>
-                        The above command is a one-line equivalent for the
-                        following steps:
+                        Incus authorizes TLS clients through its trust store.
+                        The command adds a new trusted client named{" "}
+                        <code>incendio-ui</code> and returns a trust token.
                       </p>
-                      <div>
-                        First, the command checks to see if there is an auth
-                        group <code>admins</code>. The{" "}
-                        <code>{`>/dev/null 2>&1`}</code> part ensures that if
-                        the group is missing, no error is shown.
-                      </div>
                       <CodeSnippet
                         blocks={[
                           {
-                            code: `if ! lxc auth group show admins >/dev/null 2>&1;`,
+                            code: `incus config trust add incendio-ui`,
                             wrapLines: true,
                           },
                         ]}
                       />
-                      <div>
-                        If there is no group <code>admins</code>, it is created.
-                      </div>
-                      <CodeSnippet
-                        blocks={[
-                          {
-                            code: `lxc auth group create admins`,
-                            wrapLines: true,
-                          },
-                        ]}
-                      />
-                      <div>
-                        The new group <code>admins</code> is given server admin
-                        permissions.
-                      </div>
-                      <CodeSnippet
-                        blocks={[
-                          {
-                            code: `lxc auth group permission add admins server admin`,
-                            wrapLines: true,
-                          },
-                        ]}
-                      />
-                      <div>
-                        Finally, a new identity <code>lxd-ui</code> is created
-                        and added to the group <code>admins</code>. This command
-                        returns the identity trust token which should be pasted
-                        below.
-                      </div>
-                      <CodeSnippet
-                        blocks={[
-                          {
-                            code: `lxc auth identity create tls/lxd-ui --group admins`,
-                            wrapLines: true,
-                          },
-                        ]}
-                      />
+                      <p>
+                        Paste the returned trust token below. When you submit
+                        it, the certificate generated for this browser is added
+                        to the Incus trust store, granting it access.
+                      </p>
                     </>
                   ),
                 },
@@ -119,12 +81,13 @@ const CertificateAddToken: FC = () => {
             <Accordion
               sections={[
                 {
-                  title: <>I already have an identity trust token</>,
+                  title: <>I already have a trust token</>,
                   content: (
                     <>
                       <p>
-                        If you received an identity trust token or created a TLS
-                        identity, use it below. No extra steps needed.
+                        If you already have a trust token (for example from{" "}
+                        <code>incus config trust add</code>), use it below. No
+                        extra steps needed.
                       </p>
                     </>
                   ),

@@ -159,7 +159,7 @@ const getStorageVolumeRowMetadata = (
 
   const lxdDefault = getLxdDefault(configField);
 
-  return { value: lxdDefault, source: "LXD", configField };
+  return { value: lxdDefault, source: "Incus", configField };
 };
 
 const getNetworkRowMetadata = (
@@ -181,7 +181,7 @@ export const getNetworkMetadata = (
   const configKey = getNetworkKey(name);
   const configField = configFields.find((item) => item.key === configKey);
   const lxdDefault = getLxdDefault(configField);
-  return { value: lxdDefault, source: "LXD", configField };
+  return { value: lxdDefault, source: "Incus", configField };
 };
 
 // NOTE: this is only relevant for Ceph RBD storage pools at the moment
@@ -198,7 +198,7 @@ const getStoragePoolRowMetadata = (
 
   const lxdDefault = getLxdDefault(configField);
 
-  return { value: lxdDefault, source: "LXD", configField };
+  return { value: lxdDefault, source: "Incus", configField };
 };
 
 const getInstanceProfileProjectDefaults = (
@@ -208,30 +208,30 @@ const getInstanceProfileProjectDefaults = (
 ): ConfigRowMetadata => {
   if (configKey === "limits.cpu" && values.entityType === "instance") {
     if (values.instanceType === "container") {
-      return { value: "-", source: "LXD (container)", configField };
+      return { value: "-", source: "Incus (container)", configField };
     } else {
-      return { value: "1", source: "LXD (VM)", configField };
+      return { value: "1", source: "Incus (VM)", configField };
     }
   }
   if (configKey === "limits.cpu" && values.entityType === "profile") {
     return {
       value: "None on containers, 1 core for VMs",
-      source: "LXD",
+      source: "Incus",
       configField,
     };
   }
 
   if (configKey === "limits.memory" && values.entityType === "instance") {
     if (values.instanceType === "container") {
-      return { value: "-", source: "LXD (container)", configField };
+      return { value: "-", source: "Incus (container)", configField };
     } else {
-      return { value: "1GB", source: "LXD (VM)", configField };
+      return { value: "1GB", source: "Incus (VM)", configField };
     }
   }
   if (configKey === "limits.memory" && values.entityType === "profile") {
     return {
       value: "None on containers, 1GB for VMs",
-      source: "LXD",
+      source: "Incus",
       configField,
     };
   }
@@ -252,12 +252,12 @@ const getInstanceProfileProjectDefaults = (
   }
 
   if (configKey.startsWith("cloud-init.")) {
-    return { value: "", source: "LXD", configField };
+    return { value: "", source: "Incus", configField };
   }
 
   const lxdDefault = getLxdDefault(configField);
 
-  return { value: lxdDefault, source: "LXD", configField };
+  return { value: lxdDefault, source: "Incus", configField };
 };
 
 const getInheritedDevices = (
@@ -301,7 +301,7 @@ export const getInheritedRootStorage = (
     ];
   }
 
-  return [null, "LXD"];
+  return [null, "Incus"];
 };
 
 export const getInheritedDiskDevices = (

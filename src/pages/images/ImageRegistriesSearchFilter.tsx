@@ -32,7 +32,7 @@ const InstanceSearchFilter: FC = () => {
     {
       id: 1,
       heading: "Protocol",
-      chips: ["SimpleStreams", "LXD"].map((protocol) => {
+      chips: ["SimpleStreams", "Incus"].map((protocol) => {
         return { lead: PROTOCOL, value: protocol.toLowerCase() };
       }),
     },

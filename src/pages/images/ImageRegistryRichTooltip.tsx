@@ -81,7 +81,7 @@ const ImageRegistryRichTooltip: FC<Props> = ({
     });
   }
 
-  if (imageRegistry && protcol === "lxd") {
+  if (imageRegistry && protcol === "incus") {
     rows.push({
       title: "Cluster",
       value: cluster ? (

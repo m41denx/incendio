@@ -202,7 +202,7 @@ const NetworkForwardForm: FC<Props> = ({ formik, isEdit, network }) => {
                   help={
                     isEdit
                       ? "Listen address cannot be changed after creation."
-                      : "Any address routed to LXD."
+                      : "Any address routed to Incus."
                   }
                   error={
                     formik.touched.listenAddress

@@ -142,7 +142,7 @@ const DiskDeviceFormRoot: FC<Props> = ({
             ),
           }),
 
-          ...(inheritSource && inheritSource !== "LXD"
+          ...(inheritSource && inheritSource !== "Incus"
             ? [
                 getInheritedSourceRow({
                   project,

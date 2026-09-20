@@ -119,7 +119,7 @@ const PlacementGroupSelect: FC<Props> = ({
     return (
       <>
         {!isCreateInstance &&
-          "Update does not move the instance. Changed placement policy applies only to future LXD scheduling events such as evacuation. "}
+          "Update does not move the instance. Changed placement policy applies only to future Incus scheduling events such as evacuation."}
         <>Manage {placementGroupLink(2)} for this project.</>
       </>
     );

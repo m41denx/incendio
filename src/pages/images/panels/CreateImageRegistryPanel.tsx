@@ -77,7 +77,7 @@ export const CreateImageRegistryPanel: FC = () => {
       description: "",
       sourceProject: "default",
       cluster: "",
-      protocol: "lxd",
+      protocol: "incus",
     },
     validationSchema: schema,
     onSubmit: () => {

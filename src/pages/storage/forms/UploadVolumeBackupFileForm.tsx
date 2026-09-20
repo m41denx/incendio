@@ -218,7 +218,7 @@ const UploadVolumeBackupFileForm: FC<Props> = ({
           name="volumeFile"
           type="file"
           accept=".tar, application/gzip, application/x-bzip, application/x-xz, application/x-lzma, application/x-squashfs, application/x-qcow2, application/zstd"
-          label="LXD backup archive (.tar.gz)"
+          label="Incus backup archive (.tar.gz)"
           onChange={(e) => void changeFile(e)}
         />
         <Input

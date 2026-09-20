@@ -40,7 +40,7 @@ export const visitImageRegistry = async (page: Page, name: string) => {
 export const createImageRegistry = async (
   page: Page,
   name: string,
-  protocol: "SimpleStreams" | "LXD",
+  protocol: "SimpleStreams" | "Incus",
   config: { url?: string; cluster?: string; sourceProject?: string } = {},
 ) => {
   await visitImageRegistries(page);
@@ -56,7 +56,7 @@ export const createImageRegistry = async (
     await sidePanel.getByLabel("Server").fill(config.url);
   }
 
-  if (protocol === "LXD" && config.cluster && config.sourceProject) {
+  if (protocol === "Incus" && config.cluster && config.sourceProject) {
     await expect(sidePanel.getByLabel("Server")).not.toBeVisible();
     await sidePanel.getByLabel("Cluster").click();
     await page.getByTitle(config.cluster).click();

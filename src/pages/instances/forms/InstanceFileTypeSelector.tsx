@@ -15,7 +15,7 @@ const InstanceFileTypeSelector: FC<Props> = ({ value, onChange }) => {
       <div id="file-type">
         <div className="u-sv1">
           <RadioInput
-            label="LXD backup archive (.tar.gz)"
+            label="Incus backup archive (.tar.gz)"
             checked={value === "instance-backup"}
             onChange={() => {
               onChange("instance-backup");

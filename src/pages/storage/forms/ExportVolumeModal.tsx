@@ -175,7 +175,7 @@ const ExportVolumeModal: FC<Props> = ({ volume, close }) => {
             {...formik.getFieldProps("exportVersion")}
             id="exportVersion"
             label="Export version"
-            help="Lower versions allow imports on older LXD versions"
+            help="Lower versions allow imports on older Incus versions"
             options={backupMetadataVersionRange.map((version) => ({
               value: version.toString(),
               label: version.toString(),

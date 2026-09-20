@@ -95,7 +95,7 @@ const CreateClusterLinkModal: FC<Props> = ({ onClose, token, linkName }) => {
                         For use with the LXC command-line tool, run on the
                         target cluster:
                         <CodeSnippetWithCopyButton
-                          code={`lxc cluster link create ${clusterName} --auth-group admins --token ${token}`}
+                          code={`incus cluster link create ${clusterName} --auth-group admins --token ${token}`}
                           tooltipMessage="Copy command"
                           className="u-no-margin--bottom"
                           onCopyButtonClick={() => {
