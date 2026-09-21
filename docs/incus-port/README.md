@@ -181,6 +181,16 @@ non-merge commits touch files that also changed upstream (`9cbb82d9`→`0.22`), 
 - [ ] Server **logging targets** panel (loki/webhook/syslog) + **ACME** settings section. **Med**.
 - [ ] Cluster **evacuation mode** options, **rebalance** settings, cluster-group config/used-by,
       **placement scriptlet** editor (Incus uses scriptlets, not placement groups). **Med/Low**.
+- [ ] **Placement-group replacement for Incus** (proposed; design agreed, build deferred). Incus has no
+      placement groups — emulate LXD's policy (compact/spread) + rigor (strict/permissive) via the
+      global `instances.placement.scriptlet`. Two tiers:
+      **A (faithful):** UI writes per-instance `user.placement.group/policy/rigor` and installs a
+      generated `instance_placement(request, candidate_members)` scriptlet that packs (compact) or
+      anti-affines (spread) using `get_instances()`, failing on strict / falling through on permissive.
+      Caveat: the scriptlet is singular + server-global, so the UI must manage it as one block and
+      warn/refuse when a custom scriptlet already exists; multi-member cluster only.
+      **B (lightweight):** no scriptlet — at create time the UI computes a `target` member from where
+      group-mates run (best-effort, create-time only, no evacuation/rebalance/CLI). **Med**.
 - [ ] Project restriction toggles (`restricted.storage-pools`, VM nesting). **Low**.
 - [ ] Config-coverage passes still open: **project** (~53), **server** (~107), **network** (bridge/OVN/…),
       **device** (~290) keys, and per-driver storage **volume** config.
