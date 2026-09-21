@@ -1,5 +1,9 @@
 import { useEffect, type FC } from "react";
-import { isoTimeToString } from "util/helpers";
+import {
+  isoTimeToString,
+  secondsToDurationString,
+  UNDEFINED_DATE,
+} from "util/helpers";
 import { ROOT_PATH } from "util/rootPath";
 import { Col, Row, useListener, useNotify } from "@canonical/react-components";
 import type { LxdInstance } from "types/instance";
@@ -42,6 +46,26 @@ const InstanceOverview: FC<Props> = ({ instance }) => {
   const pid =
     !instance.state || instance.state.pid === 0 ? "-" : instance.state.pid;
   const isVm = instance.type === "virtual-machine";
+
+  const startedAt =
+    instance.state?.started_at &&
+    instance.state.started_at !== UNDEFINED_DATE &&
+    new Date(instance.state.started_at).getTime() > 0
+      ? instance.state.started_at
+      : undefined;
+  const uptime = startedAt
+    ? secondsToDurationString(
+        Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000),
+      )
+    : "-";
+  const cpuUsage = instance.state?.cpu?.usage ?? 0;
+  const cpuTime =
+    cpuUsage > 0 ? secondsToDurationString(Math.floor(cpuUsage / 1e9)) : "-";
+  const cpuAllocated = instance.state?.cpu?.allocated_time ?? 0;
+  const cpuAllocatedTime =
+    cpuAllocated > 0
+      ? secondsToDurationString(Math.floor(cpuAllocated / 1e9))
+      : null;
 
   return (
     <div className="instance-overview-tab">
@@ -135,6 +159,24 @@ const InstanceOverview: FC<Props> = ({ instance }) => {
                 <th className="u-text--muted">Last used</th>
                 <td>{isoTimeToString(instance.last_used_at)}</td>
               </tr>
+              <tr>
+                <th className="u-text--muted">Started</th>
+                <td>{startedAt ? isoTimeToString(startedAt) : "-"}</td>
+              </tr>
+              <tr>
+                <th className="u-text--muted">Uptime</th>
+                <td>{uptime}</td>
+              </tr>
+              <tr>
+                <th className="u-text--muted">CPU time</th>
+                <td>{cpuTime}</td>
+              </tr>
+              {cpuAllocatedTime !== null && (
+                <tr>
+                  <th className="u-text--muted">Allocated CPU time</th>
+                  <td>{cpuAllocatedTime}</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </Col>

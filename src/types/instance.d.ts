@@ -5,6 +5,13 @@ interface LxdInstanceUsageProp {
   usage: number;
 }
 
+interface LxdInstanceCpuUsage {
+  usage: number;
+  // Total CPU time allocated to the instance (nanoseconds).
+  // API extension: instances_state_total.
+  allocated_time?: number;
+}
+
 interface LxdInstanceMemory {
   swap_usage: number;
   swap_usage_peak: number;
@@ -52,7 +59,7 @@ interface LxdInstanceOSInfo {
 }
 
 interface LxdInstanceState {
-  cpu: LxdInstanceUsageProp;
+  cpu: LxdInstanceCpuUsage;
   disk: {
     root: LxdInstanceUsageProp;
   } & Record<string, LxdInstanceUsageProp>;
@@ -62,6 +69,8 @@ interface LxdInstanceState {
   processes: number;
   status: string;
   os_info?: LxdInstanceOSInfo;
+  // When the instance was last started. API extension: instance_state_started_at.
+  started_at?: string;
   etag?: string;
 }
 

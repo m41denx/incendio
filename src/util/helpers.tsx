@@ -15,6 +15,26 @@ import { ROOT_PATH } from "util/rootPath";
 
 export const UNDEFINED_DATE = "0001-01-01T00:00:00Z";
 
+// Formats a duration given in whole seconds as e.g. "3d 4h 12m 5s".
+export const secondsToDurationString = (totalSeconds: number): string => {
+  if (!totalSeconds || totalSeconds < 0) {
+    return "-";
+  }
+  if (totalSeconds < 1) {
+    return "<1s";
+  }
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = Math.floor(totalSeconds % 60);
+  const parts: string[] = [];
+  if (days) parts.push(`${days}d`);
+  if (hours) parts.push(`${hours}h`);
+  if (minutes) parts.push(`${minutes}m`);
+  if (seconds || parts.length === 0) parts.push(`${seconds}s`);
+  return parts.join(" ");
+};
+
 export const isoTimeToString = (isoTime: string): string => {
   if (isoTime === UNDEFINED_DATE || !isoTime) {
     return "";

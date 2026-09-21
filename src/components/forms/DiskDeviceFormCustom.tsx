@@ -7,7 +7,11 @@ import {
   Select,
 } from "@canonical/react-components";
 import type { InstanceAndProfileFormikProps } from "types/forms/instanceAndProfileFormProps";
-import type { EditInstanceFormValues } from "types/forms/instanceAndProfile";
+import type {
+  CreateInstanceFormValues,
+  EditInstanceFormValues,
+} from "types/forms/instanceAndProfile";
+import type { LxdDiskDevice } from "types/device";
 import CustomVolumeSelectBtn from "pages/storage/CustomVolumeSelectBtn";
 import type {
   CustomDiskDevice,
@@ -54,6 +58,21 @@ interface Props {
   project: string;
   profiles: LxdProfile[];
 }
+
+const IO_BUS_OPTIONS = [
+  { label: "Default (virtio-scsi)", value: "" },
+  { label: "virtio-scsi", value: "virtio-scsi" },
+  { label: "virtio-blk", value: "virtio-blk" },
+  { label: "nvme", value: "nvme" },
+  { label: "usb", value: "usb" },
+];
+
+const IO_CACHE_OPTIONS = [
+  { label: "Default (none)", value: "" },
+  { label: "none", value: "none" },
+  { label: "writeback", value: "writeback" },
+  { label: "unsafe", value: "unsafe" },
+];
 
 const DiskDeviceFormCustom: FC<Props> = ({ formik, project, profiles }) => {
   const readOnly = (formik.values as EditInstanceFormValues).readOnly;
@@ -126,6 +145,81 @@ const DiskDeviceFormCustom: FC<Props> = ({ formik, project, profiles }) => {
       <Icon name="edit" />
     </Button>
   );
+
+  const isInstance = formik.values.entityType === "instance";
+  const isVmInstance =
+    isInstance &&
+    (formik.values as CreateInstanceFormValues).instanceType ===
+      "virtual-machine";
+  // VM-only device keys (io.bus/io.cache/wwn); shown on profiles too, since a
+  // profile is instance-type-agnostic.
+  const showVmDiskOptions = !isInstance || isVmInstance;
+
+  // Renders one advanced disk-device option row (Input or Select), honouring the
+  // read-only/edit toggle used by the surrounding table.
+  const diskOptionRow = (
+    index: number,
+    disk: FormDiskDevice,
+    key: keyof LxdDiskDevice,
+    label: string,
+    options?: { label: string; value: string }[],
+    placeholder?: string,
+  ): MainTableRow => {
+    // The field id is only for label association. We must NOT drive formik with
+    // a `devices.${index}.${key}` path, because dotted keys (io.bus, limits.read)
+    // would be parsed as nested objects. Instead we replace the whole device.
+    const fieldId = `devices-${index}-${String(key).replace(/\./g, "-")}`;
+    // Read from the form field, falling back to the authoritative `bare` device.
+    const rawValue = disk[key] ?? disk.bare?.[key];
+    const value = typeof rawValue === "string" ? rawValue : "";
+    const setValue = (newValue: string) => {
+      ensureEditMode(formik);
+      // Write as a flat top-level key; on payload it overrides `bare` in the
+      // `{ ...bare, ...rest }` merge (see formDeviceToPayload).
+      void formik.setFieldValue(`devices.${index}`, {
+        ...disk,
+        [key]: newValue || undefined,
+      });
+    };
+    return getConfigurationRowBase({
+      className: "no-border-top inherited-with-form",
+      configuration: (
+        <Label forId={fieldId} className="u-text--muted">
+          {label}
+        </Label>
+      ),
+      inherited: readOnly ? (
+        <div className="custom-disk-read-mode">
+          <div className="mono-font custom-disk-value u-truncate">
+            <b>{value || "-"}</b>
+          </div>
+          {editButton(fieldId)}
+        </div>
+      ) : options ? (
+        <Select
+          id={fieldId}
+          onChange={(e) => {
+            setValue(e.target.value);
+          }}
+          value={value}
+          options={options}
+          className="u-no-margin--bottom"
+        />
+      ) : (
+        <Input
+          id={fieldId}
+          type="text"
+          onChange={(e) => {
+            setValue(e.target.value);
+          }}
+          value={value}
+          placeholder={placeholder}
+          className="u-no-margin--bottom"
+        />
+      ),
+      override: "",
+    });
+  };
 
   const rows: MainTableRow[] = [];
   let customDiskDeviceCount = 0;
@@ -382,6 +476,84 @@ const DiskDeviceFormCustom: FC<Props> = ({ formik, project, profiles }) => {
             ),
             override: "",
           }),
+        );
+      }
+
+      const diskItem = item as FormDiskDevice;
+      if (showVmDiskOptions) {
+        rows.push(
+          diskOptionRow(index, diskItem, "io.bus", "I/O bus", IO_BUS_OPTIONS),
+        );
+        rows.push(
+          diskOptionRow(
+            index,
+            diskItem,
+            "io.cache",
+            "I/O cache",
+            IO_CACHE_OPTIONS,
+          ),
+        );
+      }
+      rows.push(
+        diskOptionRow(
+          index,
+          diskItem,
+          "limits.read",
+          "Read limit",
+          undefined,
+          "e.g. 30MiB or 1000iops",
+        ),
+      );
+      rows.push(
+        diskOptionRow(
+          index,
+          diskItem,
+          "limits.write",
+          "Write limit",
+          undefined,
+          "e.g. 30MiB or 1000iops",
+        ),
+      );
+      rows.push(
+        diskOptionRow(
+          index,
+          diskItem,
+          "limits.max",
+          "Read/write limit",
+          undefined,
+          "e.g. 30MiB,1000iops",
+        ),
+      );
+      rows.push(
+        diskOptionRow(
+          index,
+          diskItem,
+          "limits.max.burst",
+          "Burst limit",
+          undefined,
+          "e.g. 100MiB,5000iops",
+        ),
+      );
+      rows.push(
+        diskOptionRow(
+          index,
+          diskItem,
+          "limits.max.burst.length",
+          "Burst length",
+          undefined,
+          "e.g. 5s",
+        ),
+      );
+      if (showVmDiskOptions) {
+        rows.push(
+          diskOptionRow(
+            index,
+            diskItem,
+            "wwn",
+            "WWN (virtio-scsi)",
+            undefined,
+            "World Wide Name",
+          ),
         );
       }
     }

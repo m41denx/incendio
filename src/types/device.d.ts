@@ -8,6 +8,13 @@ export interface LxdDiskDevice {
   source?: string;
   "limits.read"?: string;
   "limits.write"?: string;
+  "limits.max"?: string;
+  "limits.max.burst"?: string;
+  "limits.max.burst.length"?: string;
+  // VM-only device options
+  "io.bus"?: string;
+  "io.cache"?: string;
+  wwn?: string;
   type: "disk";
 }
 
