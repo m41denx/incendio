@@ -31,6 +31,8 @@ export const deviceUsageRestrictionPayload = (
     [getProjectKey("restricted_devices_unix_hotplug")]:
       values.restricted_devices_unix_hotplug,
     [getProjectKey("restricted_devices_usb")]: values.restricted_devices_usb,
+    [getProjectKey("restricted_storage_pools_access")]:
+      values.restricted_storage_pools_access,
   };
 };
 
@@ -137,6 +139,20 @@ const DeviceUsageRestrictionForm: FC<Props> = ({ formik }) => {
           defaultValue: "",
           readOnlyRenderer: (val) => optionRenderer(val, optionAllowBlock),
           children: <Select options={optionAllowBlock} />,
+        }),
+
+        getConfigurationRow({
+          formik,
+          name: "restricted_storage_pools_access",
+          label: "Available storage pools",
+          defaultValue: "",
+          children: (
+            <Input
+              placeholder="Enter storage pool names"
+              type="text"
+              help="Comma-separated list of storage pools this project may use. Leave empty to allow all."
+            />
+          ),
         }),
       ]}
     />

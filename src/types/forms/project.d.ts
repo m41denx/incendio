@@ -14,6 +14,7 @@ export interface DeviceUsageRestrictionFormValues {
   restricted_devices_unix_char?: string;
   restricted_devices_unix_hotplug?: string;
   restricted_devices_usb?: string;
+  restricted_storage_pools_access?: string;
 }
 
 export interface ProjectDetailsFormValues {
@@ -51,6 +52,7 @@ export interface ProjectReplicaFormValues {
 
 export interface InstanceRestrictionFormValues {
   restricted_virtual_machines_low_level?: string;
+  restricted_virtual_machines_nesting?: string;
   restricted_containers_low_level?: string;
   restricted_containers_nesting?: string;
   restricted_containers_privilege?: string;

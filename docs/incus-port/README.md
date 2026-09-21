@@ -213,7 +213,10 @@ NIC-device type options). Remaining bits are raw-config-only advanced keys (NIC 
       warn/refuse when a custom scriptlet already exists; multi-member cluster only.
       **B (lightweight):** no scriptlet — at create time the UI computes a `target` member from where
       group-mates run (best-effort, create-time only, no evacuation/rebalance/CLI). **Med**.
-- [ ] Project restriction toggles (`restricted.storage-pools`, VM nesting). **Low**.
+- [x] Project restriction toggles (`restricted.storage-pools`, VM nesting) (0.22-p11): **VM nesting**
+      (`restricted.virtual-machines.nesting`, allow/block) added to Restrictions → Instances; **Available
+      storage pools** (`restricted.storage-pools.access`, comma-separated allow-list) added to
+      Restrictions → Device usage. Live-validated on Incus 7.4.
 - [ ] Config-coverage passes still open: **project** (~53), **server** (~107), **network** (bridge/OVN/…),
       **device** (~290) keys, and per-driver storage **volume** config.
 

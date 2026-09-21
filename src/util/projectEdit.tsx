@@ -72,6 +72,8 @@ export const getProjectEditValues = (
 
     restricted_virtual_machines_low_level:
       project.config["restricted.virtual-machines.lowlevel"],
+    restricted_virtual_machines_nesting:
+      project.config["restricted.virtual-machines.nesting"],
     restricted_containers_low_level:
       project.config["restricted.containers.lowlevel"],
     restricted_containers_nesting:
@@ -100,6 +102,8 @@ export const getProjectEditValues = (
     restricted_devices_unix_hotplug:
       project.config["restricted.devices.unix-hotplug"],
     restricted_devices_usb: project.config["restricted.devices.usb"],
+    restricted_storage_pools_access:
+      project.config["restricted.storage-pools.access"],
 
     restricted_network_access: project.config["restricted.networks.access"],
     restricted_network_subnets: project.config["restricted.networks.subnets"],

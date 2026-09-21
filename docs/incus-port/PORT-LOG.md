@@ -360,6 +360,23 @@ that forward a listen port to named backends. Commit `8da7f80dc4`. Changes:
   `description` PATCH round-tripped (set `smoke-test-desc`, read back, restored). `tsc`/`yarn lint-js`
   clean, production `yarn build` succeeds.
 
+## Project restriction toggles (0.22-p11, done)
+- **VM nesting** (`restricted.virtual-machines.nesting`): an allow/block select added to the project
+  **Restrictions → Instances** form (`InstanceRestrictionForm`), mirroring the existing
+  `restricted.containers.nesting` / low-level toggles (`optionAllowBlock`).
+- **Available storage pools** (`restricted.storage-pools.access`): a text input (comma-separated pool
+  names; empty = allow all) added to **Restrictions → Device usage** (`DeviceUsageRestrictionForm`),
+  next to the disk-device rows.
+- Plumbing: new form fields `restricted_virtual_machines_nesting` / `restricted_storage_pools_access`
+  in `types/forms/project`, key map in `util/projectConfigFields`, init in `util/projectEdit`, and the
+  respective section `*Payload` builders (only written when the project's master `restricted` toggle is
+  on, like the other restriction keys). No api-extension gating — both are standard Incus project keys.
+- **Live-validated on Incus 7.4**: `/1.0/metadata/configuration` lists both keys (VM nesting =
+  "Whether to prevent using nested virtualization"; storage-pools = "Which storage pool names are
+  allowed"); a PATCH to a temp project set `restricted.virtual-machines.nesting=block` +
+  `restricted.storage-pools.access=<pool>` and both read back correctly. `tsc`/`yarn lint-js` clean,
+  `yarn build` succeeds.
+
 ## Phase 2 candidates (reassess with user before starting — per decision)
 - Read-only `instance_access`/`project_access` entitlement panels.
 - Gate `/ui/permissions/*` routes behind `hasAccessManagement` (nav already hidden; blocks manual URL entry only).

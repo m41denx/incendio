@@ -1,3 +1,8 @@
+## 0.22-p11
+## What's Changed
+### ✨ New Features
+- (feat) Projects: new restriction toggles — **VM nesting** (`restricted.virtual-machines.nesting`, allow/block) under Restrictions → Instances, and **Available storage pools** (`restricted.storage-pools.access`, a comma-separated allow-list of pool names) under Restrictions → Device usage
+
 ## 0.22-p10
 ## What's Changed
 ### ✨ New Features

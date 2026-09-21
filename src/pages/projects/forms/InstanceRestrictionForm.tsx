@@ -21,6 +21,8 @@ export const instanceRestrictionPayload = (
   return {
     [getProjectKey("restricted_virtual_machines_low_level")]:
       values.restricted_virtual_machines_low_level,
+    [getProjectKey("restricted_virtual_machines_nesting")]:
+      values.restricted_virtual_machines_nesting,
     [getProjectKey("restricted_containers_low_level")]:
       values.restricted_containers_low_level,
     [getProjectKey("restricted_containers_nesting")]:
@@ -48,6 +50,15 @@ const InstanceRestrictionForm: FC<Props> = ({ formik }) => {
           formik,
           name: "restricted_virtual_machines_low_level",
           label: "Low level VM operations",
+          defaultValue: "",
+          readOnlyRenderer: (val) => optionRenderer(val, optionAllowBlock),
+          children: <Select options={optionAllowBlock} />,
+        }),
+
+        getConfigurationRow({
+          formik,
+          name: "restricted_virtual_machines_nesting",
+          label: "VM nesting",
           defaultValue: "",
           readOnlyRenderer: (val) => optionRenderer(val, optionAllowBlock),
           children: <Select options={optionAllowBlock} />,
