@@ -98,6 +98,8 @@ const Navigation: FC = () => {
     hasNetworkIntegrations,
     hasNetworkAddressSets,
     hasNetworkZones,
+    hasServerLogging,
+    hasAcme,
   } = useSupportedFeatures();
   const { loggedInUserName, loggedInUserID } = useLoggedInUser();
   const [scroll, setScroll] = useState(false);
@@ -793,12 +795,46 @@ const Navigation: FC = () => {
                           Certificates
                         </NavLink>
                       </SideNavigationItem>
+                      {hasServerLogging && (
+                        <SideNavigationItem>
+                          <NavLink
+                            to={`${ROOT_PATH}/ui/settings/logging`}
+                            title="Logging targets"
+                            onClick={softToggleMenu}
+                          >
+                            <Icon
+                              className="is-light p-side-navigation__icon"
+                              name="pods"
+                            />{" "}
+                            Logging
+                          </NavLink>
+                        </SideNavigationItem>
+                      )}
+                      {hasAcme && (
+                        <SideNavigationItem>
+                          <NavLink
+                            to={`${ROOT_PATH}/ui/settings/acme`}
+                            title="ACME certificates"
+                            onClick={softToggleMenu}
+                          >
+                            <Icon
+                              className="is-light p-side-navigation__icon"
+                              name="certificate"
+                            />{" "}
+                            ACME
+                          </NavLink>
+                        </SideNavigationItem>
+                      )}
                       <SideNavigationItem>
                         <NavLink
                           to={`${ROOT_PATH}/ui/settings`}
                           title="Settings"
                           onClick={softToggleMenu}
-                          ignoreUrlMatches={["settings/certificates"]}
+                          ignoreUrlMatches={[
+                            "settings/certificates",
+                            "settings/logging",
+                            "settings/acme",
+                          ]}
                         >
                           <Icon
                             className="is-light p-side-navigation__icon"

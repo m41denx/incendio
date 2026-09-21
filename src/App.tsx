@@ -126,6 +126,10 @@ const ReplicatorDetail = lazy(
 const ReplicatorList = lazy(async () => import("pages/cluster/ReplicatorList"));
 const Server = lazy(async () => import("pages/cluster/Server"));
 const Settings = lazy(async () => import("pages/settings/Settings"));
+const ServerLoggingTargets = lazy(
+  async () => import("pages/settings/ServerLoggingTargets"),
+);
+const AcmeSettings = lazy(async () => import("pages/settings/AcmeSettings"));
 const TrustedCertificates = lazy(
   async () => import("pages/settings/TrustedCertificates"),
 );
@@ -733,6 +737,14 @@ const App: FC = () => {
         <Route
           path={`${ROOT_PATH}/ui/settings/certificates`}
           element={<ProtectedRoute outlet={<TrustedCertificates />} />}
+        />
+        <Route
+          path={`${ROOT_PATH}/ui/settings/logging`}
+          element={<ProtectedRoute outlet={<ServerLoggingTargets />} />}
+        />
+        <Route
+          path={`${ROOT_PATH}/ui/settings/acme`}
+          element={<ProtectedRoute outlet={<AcmeSettings />} />}
         />
         <Route path={`${ROOT_PATH}/ui/login`} element={<Login />} />
         <Route

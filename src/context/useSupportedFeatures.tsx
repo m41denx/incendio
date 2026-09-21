@@ -100,5 +100,11 @@ export const useSupportedFeatures = () => {
     hasQemuRawQmp: apiExtensions.has("qemu_raw_qmp"),
     // raw.qemu.conf instance config key.
     hasQemuRawConf: apiExtensions.has("qemu_raw_conf"),
+    // Named server logging targets (logging.<name>.*).
+    hasServerLogging: apiExtensions.has("server_logging"),
+    // Webhook logging target type.
+    hasServerLoggingWebhook: apiExtensions.has("server_logging_webhook"),
+    // ACME certificate provisioning (acme.* server config).
+    hasAcme: apiExtensions.has("acme"),
   };
 };
