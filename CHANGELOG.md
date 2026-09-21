@@ -2,6 +2,10 @@
 ## What's Changed
 ### ✨ New Features
 - (feat) Networking: **NIC-device type options** in the network-device panel, shown by the selected managed network's type — macvlan **mode** (bridge/vepa/passthru/private) + VLAN; SR-IOV **`security.trusted`** + **`security.mac_filtering`** + VLAN; OVN **nesting** (`nested` + VLAN) and **static routes** (`ipv4.routes`/`ipv6.routes`)
+- (feat) Instances: instance overview now shows **Started**, **Uptime**, **CPU time** and **Allocated CPU time** (`instance_state_started_at`, `instances_state_total`)
+- (feat) Instances: **richer custom-disk options** — I/O bus (virtio-scsi/virtio-blk/nvme/usb), I/O cache, combined byte/s+IOPS **read/write/max limits** with **burst** + burst length, and **WWN** (virtio-scsi)
+- (feat) Instances: **migration refresh + live toggle** — the migrate dialog gains a "Refresh (incremental transfer)" checkbox and, for running instances, a "Live migration" toggle (enables live project moves) (`instance_refresh_migration`)
+- (feat) Instances: **SMBIOS & credentials** editor — a raw key/value section for `smbios11.*`, `systemd.credential.*` and `systemd.credential-binary.*` (`instance_smbios11`, `instance_systemd_credentials`)
 
 ### 📦 Other changes
 - (fix) Networking: editing a NIC device no longer drops device keys the panel doesn't manage (e.g. `hwaddr`, `mtu`, `boot.priority`) — the existing config is now preserved on save

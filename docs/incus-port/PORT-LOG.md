@@ -234,6 +234,28 @@ that forward a listen port to named backends. Commit `8da7f80dc4`. Changes:
   `qemu_raw_conf` (previously always shown).
 - Flags added: `hasInstanceNvram`, `hasQemuScriptlet`, `hasQemuRawQmp`, `hasQemuRawConf`.
 
+## Instances / VM batch (0.22-p8, done)
+- **Uptime/started-at + CPU-time** (`InstanceOverview.tsx`): added Started, Uptime, CPU time and
+  Allocated CPU time rows from `instance.state.started_at` and `instance.state.cpu.{usage,allocated_time}`
+  (extensions `instance_state_started_at`, `instances_state_total`). New `secondsToDurationString` helper;
+  `LxdInstanceState` gained `started_at`, cpu gained `allocated_time`.
+- **Richer custom-disk options** (`DiskDeviceFormCustom.tsx`): per-disk advanced rows via a `diskOptionRow`
+  helper — `io.bus` (virtio-scsi/virtio-blk/nvme/usb) + `io.cache` (VM-only selects), combined byte/s+IOPS
+  `limits.read`/`limits.write`/`limits.max` + `limits.max.burst`/`.burst.length`, and `wwn` (virtio-scsi,
+  VM-only). Writes flat top-level keys via `setFieldValue(\`devices.${i}\`, {...})` because a
+  `devices.${i}.io.bus` formik path would be parsed as a nested object. All keys daemon-validated.
+  tmpfs remains TODO (it's a disk *source type*, a separate special-disk flow).
+- **Migration refresh + live** (`migrateInstance`, `useInstanceMigration`, `MigrateInstanceModal`):
+  `migrateInstance` gained an `options` arg → `refresh` / `live` / `allow_inconsistent` in the migration
+  POST. The modal shows, at the confirm stage for cluster-member/pool/project moves, a Refresh checkbox
+  and (for running instances) a Live toggle defaulting to the prior auto-live-for-running-VMs behaviour.
+- **SMBIOS & credentials** (`CredentialPropertiesForm.tsx` + payload wiring): a raw key/value section
+  in the instance edit form for `smbios11.*`, `systemd.credential.*`, `systemd.credential-binary.*`,
+  mirroring the user-properties pattern (parse from config; clear+reapply on save, ordered after
+  `getUnhandledKeyValues` so it wins). Edit-only, like user properties. Daemon-validated: systemd
+  credentials round-trip on containers; smbios11 is VM-only (daemon rejects on containers) but the raw
+  editor is shown for both types and the daemon validates per type.
+
 ## NIC-device type options — networking close-off (0.22-p8, done)
 - **Nictype-specific NIC device widgets** in `NetworkDevicePanel.tsx`, rendered by the selected managed
   network's type via new `NetworkDeviceTypeOptions.tsx`:

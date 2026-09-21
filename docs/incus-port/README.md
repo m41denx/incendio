@@ -176,9 +176,13 @@ NIC-device type options). Remaining bits are raw-config-only advanced keys (NIC 
 *Instances / VM*
 - [ ] Explicit **CPU topology** builder (`instance_limits_cpu_topology` sockets/cores/threads) — still raw. **Med**.
 - [ ] Snapshot **manual expiry** + **disk-only restore** (schedule aliases done). **Med**.
-- [ ] Migration **refresh** (incremental) + **live project move** options. **Low**.
-- [ ] Uptime/started-at + allocated CPU-time columns; richer disk-device widgets (io.bus/cache,
-      combined byte+IOPS limits, burst, wwn, tmpfs); smbios11/systemd credentials (raw). **Low**.
+- [x] Migration **refresh** (incremental) + **live** toggle (enables live project moves) — migrate dialog
+      checkboxes wired to the migration POST (`instance_refresh_migration`, `instance_allow_inconsistent_copy`).
+- [x] **Uptime/started-at + CPU-time** on the instance overview (Started/Uptime/CPU time/Allocated CPU time,
+      from `instance_state_started_at` + `instances_state_total`).
+- [x] **Richer custom-disk options**: `io.bus`/`io.cache`, combined byte/s+IOPS `limits.read/write/max`,
+      `limits.max.burst`(+length), `wwn`. (tmpfs disk **source type** still TODO — separate special-disk flow.)
+- [x] **SMBIOS & credentials** raw key/value editor (`smbios11.*`, `systemd.credential(.*|-binary.*)`).
 
 *Cluster / server / auth*
 - [ ] **Access panels** (`instance_access`/`project_access`) + **certificate descriptions**. **Med**.
