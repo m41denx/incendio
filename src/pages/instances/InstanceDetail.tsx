@@ -17,6 +17,7 @@ import NotFound from "components/NotFound";
 import { ROOT_PATH } from "util/rootPath";
 import InstanceFileExplorer from "./InstanceFileExplorer";
 import InstanceUEFIVars from "./InstanceUEFIVars";
+import InstanceAccess from "./InstanceAccess";
 import { useSupportedFeatures } from "context/useSupportedFeatures";
 
 const tabs: string[] = [
@@ -31,7 +32,7 @@ const tabs: string[] = [
 
 const InstanceDetail: FC = () => {
   const { data: settings } = useSettings();
-  const { hasInstanceNvram } = useSupportedFeatures();
+  const { hasInstanceNvram, hasInstanceAccess } = useSupportedFeatures();
 
   const { name, project, activeTab } = useParams<{
     name: string;
@@ -57,6 +58,10 @@ const InstanceDetail: FC = () => {
 
   if (instance?.type === "virtual-machine" && hasInstanceNvram) {
     renderTabs.push("UEFI Variables");
+  }
+
+  if (hasInstanceAccess) {
+    renderTabs.push("Access");
   }
 
   const grafanaUrl = buildGrafanaUrl(name, project, settings);
@@ -158,6 +163,12 @@ const InstanceDetail: FC = () => {
           {activeTab === "uefi-variables" && (
             <div role="tabpanel" aria-labelledby="uefi-variables">
               <InstanceUEFIVars instance={instance} />
+            </div>
+          )}
+
+          {activeTab === "access" && (
+            <div role="tabpanel" aria-labelledby="access">
+              <InstanceAccess instance={instance} />
             </div>
           )}
         </Row>

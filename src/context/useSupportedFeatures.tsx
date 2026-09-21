@@ -112,5 +112,11 @@ export const useSupportedFeatures = () => {
     hasPlacementScriptlet: apiExtensions.has("instances_placement_scriptlet"),
     // Cluster group used_by list.
     hasClusterGroupUsedBy: apiExtensions.has("cluster_group_usedby"),
+    // Read-only "who can access" list on instances (GET .../access).
+    hasInstanceAccess: apiExtensions.has("instance_access"),
+    // Read-only "who can access" list on projects (GET .../access).
+    hasProjectAccess: apiExtensions.has("project_access"),
+    // description field on trusted certificates.
+    hasCertificateDescription: apiExtensions.has("certificate_description"),
   };
 };

@@ -21,23 +21,38 @@ import {
   addCertificate,
   deleteCertificate,
   fetchCertificates,
+  updateCertificateDescription,
 } from "api/certificates";
 import { queryKeys } from "util/queryKeys";
 import NotificationRow from "components/NotificationRow";
 import PageHeader from "components/PageHeader";
 import HelpLink from "components/HelpLink";
 import useSortTableData from "util/useSortTableData";
+import { useSupportedFeatures } from "context/useSupportedFeatures";
 import type { LxdCertificate } from "types/certificate";
 
 const TrustedCertificates: FC = () => {
   const notify = useNotify();
   const toastNotify = useToastNotification();
   const queryClient = useQueryClient();
+  const { hasCertificateDescription } = useSupportedFeatures();
   const { openPortal, closePortal, isOpen, Portal } = usePortal({
     programmaticallyOpen: true,
   });
+  const {
+    openPortal: openEditPortal,
+    closePortal: closeEditPortal,
+    isOpen: isEditOpen,
+    Portal: EditPortal,
+  } = usePortal({ programmaticallyOpen: true });
   const [token, setToken] = useState("");
+  const [description, setDescription] = useState("");
   const [isAdding, setAdding] = useState(false);
+  const [editCertificate, setEditCertificate] = useState<LxdCertificate | null>(
+    null,
+  );
+  const [editDescription, setEditDescription] = useState("");
+  const [isSavingDescription, setSavingDescription] = useState(false);
   const [deletingFingerprints, setDeletingFingerprints] = useState<string[]>(
     [],
   );
@@ -81,10 +96,11 @@ const TrustedCertificates: FC = () => {
 
   const handleAdd = () => {
     setAdding(true);
-    addCertificate(token.trim())
+    addCertificate(token.trim(), description.trim() || undefined)
       .then(() => {
         toastNotify.success("Certificate added to the trust store.");
         setToken("");
+        setDescription("");
         closePortal();
       })
       .catch((e) => {
@@ -96,9 +112,44 @@ const TrustedCertificates: FC = () => {
       });
   };
 
+  const openEdit = (certificate: LxdCertificate) => {
+    setEditCertificate(certificate);
+    setEditDescription(certificate.description ?? "");
+    openEditPortal();
+  };
+
+  const handleUpdateDescription = () => {
+    if (!editCertificate) {
+      return;
+    }
+    const certificate = editCertificate;
+    setSavingDescription(true);
+    updateCertificateDescription(
+      certificate.fingerprint,
+      editDescription.trim(),
+    )
+      .then(() => {
+        toastNotify.success(
+          `Description for ${certificate.name || certificate.fingerprint.slice(0, 12)} updated.`,
+        );
+        closeEditPortal();
+        setEditCertificate(null);
+      })
+      .catch((e) => {
+        notify.failure("Updating description failed", e);
+      })
+      .finally(() => {
+        setSavingDescription(false);
+        void invalidateCertificates();
+      });
+  };
+
   const headers = [
     { content: "Name", sortKey: "name" },
     { content: "Fingerprint", sortKey: "fingerprint" },
+    ...(hasCertificateDescription
+      ? [{ content: "Description", sortKey: "description" }]
+      : []),
     { content: "Type", sortKey: "type" },
     { content: "Restricted", sortKey: "restricted" },
     { content: "Projects", sortKey: "projects" },
@@ -128,6 +179,15 @@ const TrustedCertificates: FC = () => {
           role: "cell",
           "aria-label": "Fingerprint",
         },
+        ...(hasCertificateDescription
+          ? [
+              {
+                content: certificate.description || "-",
+                role: "cell",
+                "aria-label": "Description",
+              },
+            ]
+          : []),
         {
           content: certificate.type,
           role: "cell",
@@ -145,31 +205,48 @@ const TrustedCertificates: FC = () => {
         },
         {
           content: (
-            <ConfirmationButton
-              appearance="base"
-              className="has-icon"
-              loading={deletingFingerprints.includes(certificate.fingerprint)}
-              disabled={deletingFingerprints.includes(certificate.fingerprint)}
-              title="Remove certificate"
-              confirmationModalProps={{
-                title: "Confirm removal",
-                children: (
-                  <p>
-                    This will permanently remove the trusted certificate{" "}
-                    <strong>
-                      {certificate.name || certificate.fingerprint.slice(0, 12)}
-                    </strong>{" "}
-                    from the server. Any client using it will lose access.
-                  </p>
-                ),
-                confirmButtonLabel: "Remove",
-                onConfirm: () => {
-                  handleDelete(certificate);
-                },
-              }}
-            >
-              <Icon name="delete" />
-            </ConfirmationButton>
+            <>
+              {hasCertificateDescription && (
+                <Button
+                  appearance="base"
+                  className="has-icon u-no-margin--bottom"
+                  title="Edit description"
+                  onClick={() => {
+                    openEdit(certificate);
+                  }}
+                >
+                  <Icon name="edit" />
+                </Button>
+              )}
+              <ConfirmationButton
+                appearance="base"
+                className="has-icon"
+                loading={deletingFingerprints.includes(certificate.fingerprint)}
+                disabled={deletingFingerprints.includes(
+                  certificate.fingerprint,
+                )}
+                title="Remove certificate"
+                confirmationModalProps={{
+                  title: "Confirm removal",
+                  children: (
+                    <p>
+                      This will permanently remove the trusted certificate{" "}
+                      <strong>
+                        {certificate.name ||
+                          certificate.fingerprint.slice(0, 12)}
+                      </strong>{" "}
+                      from the server. Any client using it will lose access.
+                    </p>
+                  ),
+                  confirmButtonLabel: "Remove",
+                  onConfirm: () => {
+                    handleDelete(certificate);
+                  },
+                }}
+              >
+                <Icon name="delete" />
+              </ConfirmationButton>
+            </>
           ),
           role: "cell",
           "aria-label": "Actions",
@@ -179,6 +256,7 @@ const TrustedCertificates: FC = () => {
       sortData: {
         name: certificate.name.toLowerCase(),
         fingerprint: certificate.fingerprint,
+        description: (certificate.description ?? "").toLowerCase(),
         type: certificate.type,
         restricted: certificate.restricted,
         projects,
@@ -290,8 +368,69 @@ const TrustedCertificates: FC = () => {
               }}
               autoComplete="off"
             />
+            {hasCertificateDescription && (
+              <Input
+                type="text"
+                label="Description"
+                help="Optional note describing this certificate."
+                value={description}
+                onChange={(e) => {
+                  setDescription(e.target.value);
+                }}
+                autoComplete="off"
+              />
+            )}
           </Modal>
         </Portal>
+      )}
+      {isEditOpen && editCertificate && (
+        <EditPortal>
+          <Modal
+            close={() => {
+              closeEditPortal();
+              setEditCertificate(null);
+            }}
+            title="Edit certificate description"
+            buttonRow={
+              <>
+                <Button
+                  appearance="base"
+                  className="u-no-margin--bottom"
+                  onClick={() => {
+                    closeEditPortal();
+                    setEditCertificate(null);
+                  }}
+                  type="button"
+                >
+                  Cancel
+                </Button>
+                <ActionButton
+                  appearance="positive"
+                  className="u-no-margin--bottom"
+                  loading={isSavingDescription}
+                  disabled={isSavingDescription}
+                  onClick={handleUpdateDescription}
+                  type="button"
+                >
+                  Save
+                </ActionButton>
+              </>
+            }
+          >
+            <p className="u-text--muted">
+              {editCertificate.name || editCertificate.fingerprint.slice(0, 12)}
+            </p>
+            <Input
+              type="text"
+              label="Description"
+              value={editDescription}
+              onChange={(e) => {
+                setEditDescription(e.target.value);
+              }}
+              autoComplete="off"
+            />
+          </Modal>
+        </EditPortal>
       )}
     </CustomLayout>
   );

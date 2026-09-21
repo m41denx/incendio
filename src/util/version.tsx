@@ -5,7 +5,7 @@ export const RECENT_MAJOR_SERVER_VERSION = 5;
 // UI_BASE is the lxd-ui release this fork is based on; bump INCENDIO_PATCH and
 // add a matching CHANGELOG.md entry (## 0.22-p5) for each release.
 export const UI_BASE = "0.22";
-export const INCENDIO_PATCH = 9;
+export const INCENDIO_PATCH = 10;
 export const UI_VERSION = `${UI_BASE}-p${INCENDIO_PATCH}`;
 
 // defined in vite.config.ts and injected at build time

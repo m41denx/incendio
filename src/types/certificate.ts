@@ -5,4 +5,6 @@ export interface LxdCertificate {
   restricted: boolean;
   projects: string[];
   certificate?: string;
+  // API extension: certificate_description.
+  description?: string;
 }

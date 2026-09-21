@@ -1,3 +1,10 @@
+## 0.22-p10
+## What's Changed
+### ✨ New Features
+- (feat) Instances: **Access** tab — a read-only "who can access" list (identifier, role, provider) for the instance, from `GET /1.0/instances/{name}/access` (`instance_access`)
+- (feat) Projects: **Access** page in the project menu — the same read-only access list for the project, from `GET /1.0/projects/{name}/access` (`project_access`)
+- (feat) Settings: trusted certificates now support a **description** — a new Description column, an optional description field in the Add dialog, and an inline edit action to change it (`certificate_description`)
+
 ## 0.22-p9
 ## What's Changed
 ### ✨ New Features

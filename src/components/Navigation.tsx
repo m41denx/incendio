@@ -102,6 +102,7 @@ const Navigation: FC = () => {
     hasAcme,
     hasClusterRebalance,
     hasPlacementScriptlet,
+    hasProjectAccess,
   } = useSupportedFeatures();
   const { loggedInUserName, loggedInUserID } = useLoggedInUser();
   const [scroll, setScroll] = useState(false);
@@ -577,6 +578,22 @@ const Navigation: FC = () => {
                           Usage
                         </NavLink>
                       </SideNavigationItem>
+                      {hasProjectAccess && (
+                        <SideNavigationItem>
+                          <NavLink
+                            to={`${ROOT_PATH}/ui/project/${encodeURIComponent(projectName)}/access`}
+                            title={getNavTitle("access")}
+                            disabled={isAllProjects}
+                            onClick={softToggleMenu}
+                          >
+                            <Icon
+                              className="is-light p-side-navigation__icon"
+                              name="user"
+                            />{" "}
+                            Access
+                          </NavLink>
+                        </SideNavigationItem>
+                      )}
                       <hr
                         className={classnames("navigation-hr", {
                           "is-light": isLight,

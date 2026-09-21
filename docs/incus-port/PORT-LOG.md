@@ -57,7 +57,7 @@ CPU-limit type, network-device types, test fixtures, formChangeCount union-keys,
 - Cherry-picked `692f92e4` (`ca9e976478` skip LXD identity API), `45804b1b` (`92030399d3` disable fine-grained perms — `isFineGrained()` → false, dropped `fetchCurrentIdentity`), `8116826a` (`3ff1b71892` OIDC logout, keeps bearer-token support).
 - LXD identity/permissions nav already gated behind `hasAccessManagement` (`access_management` ext) — hidden on Incus (confirmed False on live 7.4); the two auto-firing identity-API callers (`useLoggedInUser`, `auth.tsx`) removed. Permission pages left in place per "gate don't delete"; routes only reachable by manual URL.
 - **New Trusted Certificates page** `1de27ea1fe` — `feat(incus)`: `src/pages/settings/TrustedCertificates.tsx` lists/adds(token)/removes trusted client certs via `/1.0/certificates`; nav "Certificates" + route `/ui/settings/certificates`; added `deleteCertificate`, extended `LxdCertificate` type.
-- Read-only `instance_access`/`project_access` panels: NOT built — deferred to Phase 2 (no upstream to port; low priority given cert page covers trust management).
+- Read-only `instance_access`/`project_access` panels: **built in 0.22-p10** (see "Access panels + certificate descriptions" below).
 
 ## Done — LB, lint, smoke
 - **zabbly LB view `405316ea` dropped** — never cherry-picked; 0.22's native network-load-balancer (CreateLoadBalancer/EditLoadBalancer/LoadBalancersTab/NetworkList) is in place and compiles.
@@ -332,6 +332,33 @@ that forward a listen port to named backends. Commit `8da7f80dc4`. Changes:
   (`instance_placement_groups`), but three render sites were not: gated the option in
   `InstanceTargetSelect`, and the `PlacementGroupSelect` in `EditInstanceDetails` and
   `ProfileDetailsForm`.
+
+## Access panels + certificate descriptions (0.22-p10, done)
+- **Read-only access panels** (`instance_access` / `project_access`): Incus exposes a
+  "who can access" list at `GET /1.0/instances/{name}/access` and `GET /1.0/projects/{name}/access`,
+  returning `Access = []AccessEntry{ identifier, role, provider }`. New `api/access.tsx`
+  (`fetchInstanceAccess`/`fetchProjectAccess`), `types/access.ts` (`LxdAccessEntry`), and a shared
+  presentational `components/ResourceAccessPanel.tsx` (sortable Identifier/Role/Provider table with
+  provider labels tls→TLS, openfga→OpenFGA, …; spinner/error/empty states). Wired as:
+  - **Instance**: a new **Access** tab in `InstanceDetail` (`InstanceAccess.tsx`), gated on
+    `hasInstanceAccess`, appended after UEFI Variables. Route already covers `:activeTab` = `access`.
+  - **Project**: a new **Access** nav item under the project (after Usage), gated on
+    `hasProjectAccess`, route `/ui/project/:project/access` → `ProjectAccess.tsx` (via `ProjectLoader`).
+  These are view-only by design — Incus manages OpenFGA role grants externally (see incus-auth-model),
+  and there is no permissions-write API. This closes the earlier "read-only access panels: NOT built"
+  deferral.
+- **Certificate descriptions** (`certificate_description`): `LxdCertificate` gained `description?`.
+  `addCertificate(token, description?)` now sends `description` in the POST (ignored by servers
+  without the extension); new `updateCertificateDescription(fingerprint, description)` PATCHes
+  `/1.0/certificates/{fingerprint}` with just `{description}`. `TrustedCertificates.tsx` gained a
+  **Description** column, an optional Description field in the Add dialog, and an inline **edit**
+  action (second `usePortal`) to change a cert's description — all gated on `hasCertificateDescription`.
+- Flags added to `useSupportedFeatures`: `hasInstanceAccess`, `hasProjectAccess`,
+  `hasCertificateDescription`. queryKey `access` added.
+- **Live-validated on Incus 7.4**: all three extensions present; `/1.0/projects/default/access` and
+  `/1.0/instances/kj/access` both return `[{identifier, provider:"tls", role:"admin"}]`; the cert
+  `description` PATCH round-tripped (set `smoke-test-desc`, read back, restored). `tsc`/`yarn lint-js`
+  clean, production `yarn build` succeeds.
 
 ## Phase 2 candidates (reassess with user before starting — per decision)
 - Read-only `instance_access`/`project_access` entitlement panels.

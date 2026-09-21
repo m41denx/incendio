@@ -11,7 +11,10 @@ export const fetchCertificates = async (): Promise<LxdCertificate[]> => {
     });
 };
 
-export const addCertificate = async (token: string): Promise<void> => {
+export const addCertificate = async (
+  token: string,
+  description?: string,
+): Promise<void> => {
   // Incus uses the classic trust store (/1.0/certificates); it does not
   // implement LXD's fine-grained identity API (/1.0/auth/identities/tls).
   await fetch(`${ROOT_PATH}/1.0/certificates`, {
@@ -22,7 +25,24 @@ export const addCertificate = async (token: string): Promise<void> => {
     body: JSON.stringify({
       type: "client",
       trust_token: token,
+      // Ignored by servers without the certificate_description extension.
+      ...(description ? { description } : {}),
     }),
+  }).then(handleResponse);
+};
+
+// PATCH only the description (certificate_description extension); other fields
+// are left untouched.
+export const updateCertificateDescription = async (
+  fingerprint: string,
+  description: string,
+): Promise<void> => {
+  await fetch(`${ROOT_PATH}/1.0/certificates/${fingerprint}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ description }),
   }).then(handleResponse);
 };
 

@@ -57,4 +57,5 @@ export const queryKeys = {
   replicators: "replicators",
   instancePreview: "instancePreview",
   projectUsage: "project-usage",
+  access: "access",
 };
