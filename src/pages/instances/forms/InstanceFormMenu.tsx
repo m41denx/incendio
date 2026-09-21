@@ -29,6 +29,7 @@ export const RAW_CONFIG = "Raw configuration";
 export const BOOT = "Boot";
 export const CLOUD_INIT = "Cloud init";
 export const USER_PROPERTIES = "User properties";
+export const CREDENTIALS = "SMBIOS & credentials";
 export const YAML_CONFIGURATION = "YAML configuration";
 
 interface Props {
@@ -186,6 +187,14 @@ const InstanceFormMenu: FC<Props> = ({
             label={USER_PROPERTIES}
             {...menuItemProps}
             isBold={hasPrefixValue(formik, "user.")}
+          />
+          <MenuItem
+            label={CREDENTIALS}
+            {...menuItemProps}
+            isBold={
+              hasPrefixValue(formik, "smbios11.") ||
+              hasPrefixValue(formik, "systemd.credential")
+            }
           />
         </ul>
       </nav>

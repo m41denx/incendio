@@ -35,6 +35,11 @@ import {
   userPropertiesFromConfig,
   type UserPropertyFormValues,
 } from "components/forms/UserPropertiesForm";
+import {
+  credentialPropertiesFromConfig,
+  CREDENTIAL_PREFIXES,
+  type CredentialPropertyFormValues,
+} from "components/forms/CredentialPropertiesForm";
 
 export const userPropPrefix = "user.";
 
@@ -69,6 +74,7 @@ export const getInstancePayload = (
       ...sshKeyPayload(values),
       ...getUnhandledKeyValues(instance.config, handledConfigKeys),
       ...userPropertiesPayload(instance.config, values),
+      ...credentialPropertiesPayload(instance.config, values),
     },
     ...getUnhandledKeyValues(instance, handledKeys),
   };
@@ -391,6 +397,28 @@ export const userPropertiesPayload = (
   return result;
 };
 
+export const credentialPropertiesPayload = (
+  config: Record<string, string | undefined>,
+  values: EditInstanceFormValues,
+) => {
+  // Clear all existing smbios11/systemd-credential keys, then re-apply the
+  // current form values (this both updates and removes deleted entries).
+  const result: Record<string, string | undefined> = Object.fromEntries(
+    Object.entries(config)
+      .filter(([k]) => CREDENTIAL_PREFIXES.some((p) => k.startsWith(p)))
+      .map(([k]) => [k, undefined]),
+  );
+
+  (values.credentialProperties ?? []).forEach(
+    (item: CredentialPropertyFormValues) => {
+      if (item.name) {
+        result[item.name] = item.value;
+      }
+    },
+  );
+  return result;
+};
+
 export const getUnhandledKeyValues = (
   item:
     | LxdConfigPair
@@ -535,7 +563,15 @@ const getEditValues = (
   item: LxdProfile | LxdInstance,
 ): Omit<EditProfileFormValues, "entityType" | "readOnly"> & {
   userProperties: UserPropertyFormValues[];
+  credentialProperties: CredentialPropertyFormValues[];
 } => {
+  const credentialProperties = credentialPropertiesFromConfig(item.config).map(
+    ([key, value]) => ({
+      name: key,
+      value: value,
+      nameEditable: false,
+    }),
+  ) as CredentialPropertyFormValues[];
   const userProperties = userPropertiesFromConfig(item.config).map(
     ([key, value]) => ({
       name: key,
@@ -684,5 +720,6 @@ const getEditValues = (
     cloud_init_vendor_data: item.config["cloud-init.vendor-data"],
     cloud_init_ssh_keys: parseSshKeys(item),
     userProperties: userProperties,
+    credentialProperties: credentialProperties,
   };
 };

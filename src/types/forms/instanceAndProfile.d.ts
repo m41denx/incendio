@@ -3,6 +3,7 @@ import type { RemoteImage } from "types/image";
 import type { CpuLimit, MemoryLimit } from "types/limits";
 import type { FormDevice } from "types/formDevice";
 import type { UserPropertyFormValues } from "components/forms/UserPropertiesForm";
+import type { CredentialPropertyFormValues } from "components/forms/CredentialPropertiesForm";
 
 export interface BootFormValues {
   boot_autostart?: string;
@@ -53,6 +54,7 @@ export interface InstanceEditDetailsFormValues {
   readOnly: boolean;
   editRestriction?: string;
   userProperties: UserPropertyFormValues[];
+  credentialProperties?: CredentialPropertyFormValues[];
 }
 
 export interface InstanceRestrictionFormValues {

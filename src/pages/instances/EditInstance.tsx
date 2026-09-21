@@ -41,6 +41,7 @@ import InstanceFormMenu, {
   SECURITY_POLICIES,
   SNAPSHOTS,
   USER_PROPERTIES,
+  CREDENTIALS,
   YAML_CONFIGURATION,
 } from "pages/instances/forms/InstanceFormMenu";
 import { updateMaxHeight } from "util/updateMaxHeight";
@@ -60,6 +61,7 @@ import NvidiaForm from "components/forms/NvidiaForm";
 import OciForm from "components/forms/OciForm";
 import RawConfigForm from "components/forms/RawConfigForm";
 import UserPropertiesForm from "components/forms/UserPropertiesForm";
+import CredentialPropertiesForm from "components/forms/CredentialPropertiesForm";
 import GPUDeviceForm from "components/forms/GPUDeviceForm";
 import OtherDeviceForm from "components/forms/OtherDeviceForm";
 import YamlSwitch from "components/forms/YamlSwitch";
@@ -294,6 +296,10 @@ const EditInstance: FC<Props> = ({ instance }) => {
 
             {section === slugify(USER_PROPERTIES) && (
               <UserPropertiesForm formik={formik} />
+            )}
+
+            {section === slugify(CREDENTIALS) && (
+              <CredentialPropertiesForm formik={formik} />
             )}
 
             {isYamlSection && (
