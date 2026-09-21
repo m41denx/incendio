@@ -121,3 +121,20 @@ export interface LxdInstance {
 }
 
 export type InstanceIconType = "container" | "virtual-machine" | "instance";
+
+// A single UEFI variable, as returned by GET /1.0/instances/{name}/nvram/... .
+// `data` is the "dissected" (human-readable) representation the daemon derives
+// from the raw bytes; `binary` is the raw byte array.
+export interface LxdInstanceNVRAMVariable {
+  attributes?: string[];
+  binary?: number[];
+  data?: unknown;
+  timestamp?: string;
+}
+
+// GET /1.0/instances/{name}/nvram?recursion=2 returns a map of
+// GUID -> variable name -> variable.
+export type LxdInstanceNVRAM = Record<
+  string,
+  Record<string, LxdInstanceNVRAMVariable>
+>;

@@ -147,12 +147,21 @@ non-merge commits touch files that also changed upstream (`9cbb82d9`→`0.22`), 
       stateful were already rendered by the network form.)
 - [x] **VGA console screenshot** (`instance_console_screenshot`) — download a PNG of a running VM console.
 - [x] Snapshot schedule **`@midnight` / `@startup`** aliases (`snapshots_schedule_aliases`).
+- [x] **UEFI/NVRAM viewer** (`instance_nvram`) — a VM-only "UEFI Variables" tab on the instance detail
+      page: lists variables grouped by GUID (attributes, dissected value, byte size) with per-variable
+      delete. Reads `GET /1.0/instances/{name}/nvram?recursion=2`.
+- [x] **QEMU scriptlet** config (`qemu_scriptlet`) — `raw.qemu.scriptlet` now uses a CodeMirror editor
+      (line numbers/folding) in the Raw-configuration section; the scriptlet + `raw.qemu.qmp.*` +
+      `raw.qemu.conf` rows are now gated on their API extensions (`qemu_scriptlet`, `qemu_raw_qmp`,
+      `qemu_raw_conf`) so they only show when supported.
 
 **Still missing — Incus functionality with no dedicated UI** (ranked; see [`analysis/A`](analysis/A-incus-opportunities.md))
 
 *Networking*
 - [ ] NIC-device widgets: **macvlan mode**, **SR-IOV** (`security.trusted`), OVN **isolated/tunnels** —
-      the NIC device panel only handles managed-network attach + ACLs; these stay raw-config for now. **Low**.
+      the NIC device panel only handles managed-network attach + ACLs; these stay raw-config for now.
+      **High** (needs a `nictype` selector + conditional field-set refactor of `NetworkDevicePanel.tsx`,
+      which is currently built around the managed-network/ACL model).
 
 *Storage*
 - [ ] **Custom-volume file browser** (`file_storage_volume` + `custom_volume_sftp`) — browse/upload/download. **High**.
@@ -164,7 +173,6 @@ non-merge commits touch files that also changed upstream (`9cbb82d9`→`0.22`), 
 - [ ] Explicit **CPU topology** builder (`instance_limits_cpu_topology` sockets/cores/threads) — still raw. **Med**.
 - [ ] Snapshot **manual expiry** + **disk-only restore** (schedule aliases done). **Med**.
 - [ ] Migration **refresh** (incremental) + **live project move** options. **Low**.
-- [ ] UEFI/**NVRAM** viewer + **QEMU scriptlet** config (`instance_nvram`, `qemu_scriptlet`). **Low**.
 - [ ] Uptime/started-at + allocated CPU-time columns; richer disk-device widgets (io.bus/cache,
       combined byte+IOPS limits, burst, wwn, tmpfs); smbios11/systemd credentials (raw). **Low**.
 

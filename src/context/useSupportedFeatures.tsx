@@ -92,5 +92,13 @@ export const useSupportedFeatures = () => {
     hasNetworkDnsNameservers: apiExtensions.has("network_dns_nameservers"),
     // VGA console screenshots for VMs.
     hasConsoleScreenshot: apiExtensions.has("instance_console_screenshot"),
+    // UEFI/NVRAM variable management endpoints for VMs.
+    hasInstanceNvram: apiExtensions.has("instance_nvram"),
+    // raw.qemu.scriptlet instance config key.
+    hasQemuScriptlet: apiExtensions.has("qemu_scriptlet"),
+    // raw.qemu.qmp.* instance config keys.
+    hasQemuRawQmp: apiExtensions.has("qemu_raw_qmp"),
+    // raw.qemu.conf instance config key.
+    hasQemuRawConf: apiExtensions.has("qemu_raw_conf"),
   };
 };

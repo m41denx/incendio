@@ -201,9 +201,11 @@ that forward a listen port to named backends. Commit `8da7f80dc4`. Changes:
   Screenshot button on the graphic console, gated on `instance_console_screenshot`.
 - **Snapshot schedule aliases**: added `@midnight` and the instance-only `@startup` option to
   `SnapshotScheduleInput` (via an `includeStartup` prop from the instance snapshots form).
-- **Deferred (Low)**: NIC-device keys (macvlan `mode`, SR-IOV `security.trusted`) and OVN
-  isolated/tunnels — the NIC device panel only handles managed-network attach + ACLs, so these stay
-  raw-config/YAML for now.
+- **Deferred (High)**: NIC-device keys (macvlan `mode`, SR-IOV `security.trusted`) and OVN
+  isolated/tunnels — the NIC device panel (`NetworkDevicePanel.tsx`) only handles managed-network
+  attach + ACLs, so these stay raw-config/YAML for now. Re-scoped from Low to **High**: it needs a
+  `nictype` selector and a conditional field-set swap, i.e. a refactor of a panel currently built
+  entirely around the managed-network/ACL model — not just extra inputs.
 
 ## Fix — storage volumes 404 + tag-based releases (0.22-p7)
 - **Volumes 404 fix**: the earlier re-gate of `hasStorageVolumesAll` onto `storage_volumes_all_projects`
@@ -214,6 +216,23 @@ that forward a listen port to named backends. Commit `8da7f80dc4`. Changes:
 - **Releases are now tag-triggered**: `.github/workflows/release.yaml` fires on `push: tags: ['*']`
   (not branch pushes). Version = `GITHUB_REF_NAME`; the body is that version's CHANGELOG section
   (awk split on `## <digit>` headings). `softprops/action-gh-release@v3`. Tag `0.22-pN` to release.
+
+## UEFI/NVRAM viewer + QEMU scriptlet (0.22-p7, done)
+- **UEFI/NVRAM viewer** (`instance_nvram`): a VM-only **"UEFI Variables"** tab on the instance detail
+  page. `fetchInstanceNVRAM` (`GET /1.0/instances/{name}/nvram?recursion=2`) returns
+  `LxdInstanceNVRAM = Record<guid, Record<var, LxdInstanceNVRAMVariable>>`; `InstanceUEFIVars.tsx`
+  renders a sortable table grouped by GUID (attributes, dissected value, byte size) with per-variable
+  delete (`deleteInstanceNVRAMVariable` → `DELETE .../nvram/{guid}/{var}`). Hook `useInstanceNVRAM`
+  (queryKey `[instances, name, project, nvram]`). Tab shown only when `instance.type ===
+  "virtual-machine"` and `hasInstanceNvram`. Daemon confirms NVRAM ops are VM-only; happy-path shape
+  matched against the swagger (no VM image cached locally to exercise live).
+- **QEMU scriptlet editor** (`qemu_scriptlet`): `raw.qemu.scriptlet` now renders in a CodeMirror
+  editor (`ScriptletConfigInput.tsx`, line numbers + fold gutter) instead of a plain textarea. The
+  input adapts CodeMirror's string `onChange` to a synthetic `{target:{name,value}}` event so it works
+  through `getConfigurationRow`'s `formik.handleChange` injection. The scriptlet + `raw.qemu.qmp.*` +
+  `raw.qemu.conf` rows in `RawConfigForm.tsx` are now gated on `qemu_scriptlet` / `qemu_raw_qmp` /
+  `qemu_raw_conf` (previously always shown).
+- Flags added: `hasInstanceNvram`, `hasQemuScriptlet`, `hasQemuRawQmp`, `hasQemuRawConf`.
 
 ## Phase 2 candidates (reassess with user before starting — per decision)
 - Read-only `instance_access`/`project_access` entitlement panels.

@@ -11,7 +11,11 @@ import {
   type BulkOperationItem,
   type BulkOperationResult,
 } from "util/promises";
-import type { LxdInstance, LxdInstanceAction } from "types/instance";
+import type {
+  LxdInstance,
+  LxdInstanceAction,
+  LxdInstanceNVRAM,
+} from "types/instance";
 import type { LxdTerminal, TerminalConnectPayload } from "types/terminal";
 import type { LxdApiResponse } from "types/apiResponse";
 import type { LxdOperationResponse } from "types/operation";
@@ -89,6 +93,40 @@ export const fetchInstanceConsoleScreenshot = async (
     throw new Error(response.statusText);
   }
   return response.blob();
+};
+
+export const fetchInstanceNVRAM = async (
+  name: string,
+  project: string,
+): Promise<LxdInstanceNVRAM> => {
+  const params = new URLSearchParams();
+  params.set("project", project);
+  params.set("recursion", "2");
+
+  return fetch(
+    `${ROOT_PATH}/1.0/instances/${encodeURIComponent(name)}/nvram?${params.toString()}`,
+  )
+    .then(handleResponse)
+    .then((data: LxdApiResponse<LxdInstanceNVRAM>) => {
+      return data.metadata;
+    });
+};
+
+export const deleteInstanceNVRAMVariable = async (
+  name: string,
+  project: string,
+  guid: string,
+  variable: string,
+): Promise<void> => {
+  const params = new URLSearchParams();
+  params.set("project", project);
+
+  await fetch(
+    `${ROOT_PATH}/1.0/instances/${encodeURIComponent(name)}/nvram/${encodeURIComponent(guid)}/${encodeURIComponent(variable)}?${params.toString()}`,
+    {
+      method: "DELETE",
+    },
+  ).then(handleResponse);
 };
 
 export const fetchInstances = async (

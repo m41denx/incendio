@@ -9,6 +9,7 @@ export const queryKeys = {
   images: "images",
   imageRegistries: "imageRegistries",
   instances: "instances",
+  nvram: "nvram",
   files: "files",
   metadata: "metadata",
   customVolumes: "customVolumes",

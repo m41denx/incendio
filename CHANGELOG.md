@@ -1,5 +1,9 @@
 ## 0.22-p7
 ## What's Changed
+### ✨ New Features
+- (feat) Instances: **UEFI/NVRAM viewer** — a VM-only "UEFI Variables" tab on the instance detail page lists UEFI variables grouped by GUID (attributes, value, size) with per-variable delete (`instance_nvram`)
+- (feat) Instances: **QEMU scriptlet editor** — `raw.qemu.scriptlet` now edits in a code editor with line numbers; the QEMU scriptlet, QMP and `raw.qemu.conf` raw-config rows are gated on their API extensions so they only appear when the server supports them
+
 ### 📦 Other changes
 - (fix) Storage: the volumes list no longer 404s on Incus — `hasStorageVolumesAll` gates on the base `storage_volumes_all` endpoint extension (absent on Incus 7.4), so the UI falls back to collecting volumes per pool
 - (chore) CI: releases are now cut by pushing a **tag** (e.g. `0.22-p7`) instead of on every push to `incus-port`; the release body is the matching CHANGELOG section

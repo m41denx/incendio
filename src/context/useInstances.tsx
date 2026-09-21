@@ -1,9 +1,13 @@
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { queryKeys } from "util/queryKeys";
-import { fetchInstance, fetchInstances } from "api/instances";
+import {
+  fetchInstance,
+  fetchInstanceNVRAM,
+  fetchInstances,
+} from "api/instances";
 import { useAuth } from "./auth";
 import { useSupportedFeatures } from "./useSupportedFeatures";
-import type { LxdInstance } from "types/instance";
+import type { LxdInstance, LxdInstanceNVRAM } from "types/instance";
 
 export const useInstances = (
   project: string | null,
@@ -43,5 +47,17 @@ export const useInstance = (
         hasInstanceStateSelectiveRecursion,
       ),
     enabled: (enabled ?? true) && isFineGrained !== null,
+  });
+};
+
+export const useInstanceNVRAM = (
+  name: string,
+  project: string,
+  enabled?: boolean,
+): UseQueryResult<LxdInstanceNVRAM> => {
+  return useQuery({
+    queryKey: [queryKeys.instances, name, project, queryKeys.nvram],
+    queryFn: async () => fetchInstanceNVRAM(name, project),
+    enabled: enabled ?? true,
   });
 };
