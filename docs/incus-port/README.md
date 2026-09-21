@@ -189,7 +189,12 @@ NIC-device type options). Remaining bits are raw-config-only advanced keys (NIC 
 - [x] **SMBIOS & credentials** raw key/value editor (`smbios11.*`, `systemd.credential(.*|-binary.*)`).
 
 *Cluster / server / auth*
-- [ ] **Access panels** (`instance_access`/`project_access`) + **certificate descriptions**. **Med**.
+- [x] **Access panels** (`instance_access`/`project_access`) + **certificate descriptions** (0.22-p10):
+      read-only "who can access" table (identifier/role/provider) as an **Access** tab on instances and
+      an **Access** page in the project nav (shared `ResourceAccessPanel`, gated on
+      `hasInstanceAccess`/`hasProjectAccess`); Trusted Certificates gained a description column, an
+      add-dialog field, and inline edit (`certificate_description`). View-only by design (Incus manages
+      OpenFGA grants externally). Live-validated on Incus 7.4.
 - [x] Server **logging targets** panel (loki/webhook/syslog) + **ACME** settings section — Settings →
       Logging (named `logging.*` targets CRUD) and Settings → ACME (dedicated `acme.*` form). Nav gated
       on `server_logging` / `acme`; config keys daemon-validated.
