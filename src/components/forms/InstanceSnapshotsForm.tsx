@@ -80,6 +80,7 @@ const InstanceSnapshotsForm: FC<Props> = ({ formik }) => {
                 setValue={(val) =>
                   void formik.setFieldValue("snapshots_schedule", val)
                 }
+                includeStartup
               />
             ),
           }),

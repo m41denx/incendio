@@ -114,6 +114,7 @@ const EditNetworkForward: FC = () => {
       listenAddress: forwardAddress ?? "",
       defaultTargetAddress: forward?.config.target_address ?? "",
       description: forward?.description ?? "",
+      snat: forward?.config.snat === "true",
       ports:
         forward?.ports.map((port) => ({
           listenPort: port.listen_port,

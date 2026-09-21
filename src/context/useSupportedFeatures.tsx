@@ -83,5 +83,9 @@ export const useSupportedFeatures = () => {
     // Network DNS zones (+ records).
     hasNetworkZones: apiExtensions.has("network_dns"),
     hasNetworkZoneRecords: apiExtensions.has("network_dns_records"),
+    // dns.nameservers on bridged/OVN networks.
+    hasNetworkDnsNameservers: apiExtensions.has("network_dns_nameservers"),
+    // VGA console screenshots for VMs.
+    hasConsoleScreenshot: apiExtensions.has("instance_console_screenshot"),
   };
 };

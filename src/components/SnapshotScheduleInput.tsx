@@ -15,6 +15,10 @@ const snapshotOptions = [
     value: "@daily",
   },
   {
+    label: "Midnight",
+    value: "@midnight",
+  },
+  {
     label: "Weekly",
     value: "@weekly",
   },
@@ -28,13 +32,25 @@ const snapshotOptions = [
   },
 ];
 
+// @startup is only valid for instances (not storage volumes).
+const startupOption = { label: "On startup", value: "@startup" };
+
 interface Props {
   value?: string;
   setValue: (value: string) => void;
+  // Offer the instance-only @startup alias (snapshots_schedule_aliases).
+  includeStartup?: boolean;
 }
 
-const SnapshotScheduleInput: FC<Props> = ({ value, setValue }) => {
+const SnapshotScheduleInput: FC<Props> = ({
+  value,
+  setValue,
+  includeStartup,
+}) => {
   const [cronSyntax, setCronSyntax] = useState(!value?.startsWith("@"));
+  const intervalOptions = includeStartup
+    ? [...snapshotOptions, startupOption]
+    : snapshotOptions;
 
   return (
     <div>
@@ -61,7 +77,7 @@ const SnapshotScheduleInput: FC<Props> = ({ value, setValue }) => {
           id="snapshots_schedule"
           name="snapshots_schedule"
           placeholder="Enter cron expression"
-          help="<minute> <hour> <dom> <month> <dow>, a comma-separated list of schedule aliases (@hourly, @daily, @midnight, @weekly, @monthly, @annually, @yearly), or empty to disable automatic snapshots (the default)"
+          help={`<minute> <hour> <dom> <month> <dow>, a comma-separated list of schedule aliases (@hourly, @daily, @midnight, @weekly, @monthly, @annually, @yearly${includeStartup ? ", @startup" : ""}), or empty to disable automatic snapshots (the default)`}
           type="text"
           value={value}
           onChange={(e) => {
@@ -76,7 +92,7 @@ const SnapshotScheduleInput: FC<Props> = ({ value, setValue }) => {
           onChange={(e) => {
             setValue(e.target.value);
           }}
-          options={snapshotOptions}
+          options={intervalOptions}
         />
       )}
     </div>

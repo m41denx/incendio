@@ -41,6 +41,7 @@ export const toNetworkForward = (
     description: values.description,
     config: {
       target_address: values.defaultTargetAddress,
+      ...(values.snat ? { snat: "true" } : {}),
     },
     ports: values.ports.map((port) => ({
       listen_port: port.listenPort?.toString(),
@@ -270,6 +271,20 @@ const NetworkForwardForm: FC<Props> = ({ formik, isEdit, network }) => {
               stacked
               disabled={!isListenAddressValid}
             />
+            {network?.type === bridgeType && (
+              <Input
+                id="snat"
+                name="snat"
+                type="checkbox"
+                label="SNAT"
+                checked={formik.values.snat ?? false}
+                onChange={(e) => {
+                  formik.setFieldValue("snat", e.target.checked);
+                }}
+                disabled={!isListenAddressValid}
+                help="Apply a matching SNAT for each forward, so traffic from the target appears to come from the forward address. Bridged networks only."
+              />
+            )}
             {formik.values.ports.length > 0 && (
               <Row>
                 <NetworkForwardFormPorts

@@ -137,6 +137,7 @@ export interface LxdNetworkForward {
   listen_address: string;
   config: {
     target_address?: string;
+    snat?: string;
   };
   description?: string;
   location?: string;

@@ -8,6 +8,7 @@ import { DNS } from "pages/networks/forms/NetworkFormMenu";
 import { slugify } from "util/slugify";
 import type { MainTableRow } from "@canonical/react-components/dist/components/MainTable/MainTable";
 import { bridgeType, physicalType } from "util/networks";
+import { useSupportedFeatures } from "context/useSupportedFeatures";
 
 interface Props {
   formik: FormikProps<NetworkFormValues>;
@@ -15,6 +16,7 @@ interface Props {
 }
 
 const NetworkFormDns: FC<Props> = ({ formik, filterRows }) => {
+  const { hasNetworkDnsNameservers } = useSupportedFeatures();
   const rows = filterRows([
     ...(formik.values.networkType !== physicalType
       ? [
@@ -80,6 +82,17 @@ const NetworkFormDns: FC<Props> = ({ formik, filterRows }) => {
             defaultValue: "",
             children: <Textarea />,
           }),
+          ...(hasNetworkDnsNameservers
+            ? [
+                getConfigurationRow({
+                  formik,
+                  name: "dns_nameservers",
+                  label: "DNS nameservers",
+                  defaultValue: "",
+                  children: <Input type="text" />,
+                }),
+              ]
+            : []),
         ]),
   ]);
 

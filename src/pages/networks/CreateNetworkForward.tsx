@@ -90,6 +90,7 @@ const CreateNetworkForward: FC = () => {
     initialValues: {
       listenAddress: getDefaultListenAddress(),
       ports: [],
+      snat: false,
     },
     validationSchema: NetworkForwardSchema,
     onSubmit: (values) => {

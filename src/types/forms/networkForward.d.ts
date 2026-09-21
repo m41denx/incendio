@@ -4,6 +4,8 @@ export interface NetworkForwardFormValues {
   description?: string;
   ports: NetworkForwardPortFormValues[];
   location?: string;
+  // Bridged networks only: apply a matching SNAT for each DNAT.
+  snat?: boolean;
 }
 
 export interface NetworkForwardPortFormValues {

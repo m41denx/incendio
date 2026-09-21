@@ -24,6 +24,7 @@ import InstanceConsoleShortcuts from "pages/instances/InstanceConsoleShortcuts";
 import { useOperations } from "context/operationsProvider";
 import { findOperation } from "util/operations";
 import { useIsMinimalConsole } from "util/minimalConsole";
+import { fetchInstanceConsoleScreenshot } from "api/instances";
 
 interface Props {
   instance: LxdInstance;
@@ -34,7 +35,24 @@ const InstanceConsole: FC<Props> = ({ instance }) => {
   const isVm = instance.type === "virtual-machine";
   const isMinimalConsole = useIsMinimalConsole();
   const [isGraphic, setGraphic] = useState(isVm);
-  const { hasCustomVolumeIso } = useSupportedFeatures();
+  const { hasCustomVolumeIso, hasConsoleScreenshot } = useSupportedFeatures();
+
+  const handleScreenshot = () => {
+    fetchInstanceConsoleScreenshot(instance.name, instance.project)
+      .then((blob) => {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `${instance.name}-console.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      })
+      .catch((e) => {
+        notify.failure("Failed to capture console screenshot", e);
+      });
+  };
   const { canUpdateInstanceState, canAccessInstanceConsole } =
     useInstanceEntitlements();
 
@@ -263,6 +281,22 @@ const InstanceConsole: FC<Props> = ({ instance }) => {
                   <Icon name="fullscreen" />
                   <span>Fullscreen</span>
                 </Button>
+                {hasConsoleScreenshot && (
+                  <Button
+                    className="u-no-margin--bottom"
+                    disabled={!isRunning}
+                    title={
+                      isRunning
+                        ? undefined
+                        : "Start the instance to take a screenshot"
+                    }
+                    onClick={handleScreenshot}
+                    hasIcon
+                  >
+                    <Icon name="screenshot" />
+                    <span>Screenshot</span>
+                  </Button>
+                )}
                 <InstanceConsoleShortcuts disabled={!isRunning} />
               </>
             )}

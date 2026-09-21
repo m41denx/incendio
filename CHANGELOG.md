@@ -1,3 +1,14 @@
+## 0.22-p6
+## What's Changed
+### ✨ New Features
+- (feat) Networking: **SNAT toggle** on network forwards (bridged networks)
+- (feat) Networking: **DNS nameservers** (`dns.nameservers`) field for bridged and OVN networks
+- (feat) Instances: **VGA console screenshot** action — download a PNG of a running VM's console
+- (feat) Instances: snapshot schedule interval gains **`@midnight`** and the instance-only **`@startup`** alias
+
+### 📦 Other changes
+- (chore) Networking: many bridge/OVN network config widgets (routes, DHCP, IPv6 stateful) were already present; remaining NIC-device keys (macvlan mode, SR-IOV) stay raw-config/YAML for now
+
 ## 0.22-p5
 ## What's Changed
 ### ✨ New Features

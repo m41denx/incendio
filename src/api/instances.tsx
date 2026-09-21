@@ -74,6 +74,23 @@ export const fetchInstance = async (
     });
 };
 
+export const fetchInstanceConsoleScreenshot = async (
+  name: string,
+  project: string,
+): Promise<Blob> => {
+  const params = new URLSearchParams();
+  params.set("project", project);
+  params.set("type", "vga");
+
+  const response = await fetch(
+    `${ROOT_PATH}/1.0/instances/${encodeURIComponent(name)}/console?${params.toString()}`,
+  );
+  if (!response.ok) {
+    throw new Error(response.statusText);
+  }
+  return response.blob();
+};
+
 export const fetchInstances = async (
   project: string | null,
   isFineGrained: boolean | null,
