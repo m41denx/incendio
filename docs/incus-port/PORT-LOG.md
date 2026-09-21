@@ -235,7 +235,8 @@ that forward a listen port to named backends. Commit `8da7f80dc4`. Changes:
 - Flags added: `hasInstanceNvram`, `hasQemuScriptlet`, `hasQemuRawQmp`, `hasQemuRawConf`.
 
 ## Cluster settings + group config/used-by (0.22-p9, done)
-- **Settings → Cluster** (`ClusterSettings.tsx`, clustered-only nav): a rebalance form
+- **Cluster settings** (`ClusterSettings.tsx`, `/ui/cluster/settings`, shown as "Settings" inside the
+  Clustering accordion): a rebalance form
   (`cluster.rebalance.interval/threshold/batch/cooldown` + `cluster.healing_threshold`,
   `cluster.offline_threshold`) and a CodeMirror `instances.placement.scriptlet` editor — Incus's
   placement-group alternative. Saved via `updateSettings`. Formats daemon-checked: cooldown is an
@@ -247,6 +248,12 @@ that forward a listen port to named backends. Commit `8da7f80dc4`. Changes:
 - Evacuation **mode** options (Auto/Stop/Migrate/Live-migrate on `EvacuateClusterMemberBtn`) and the
   per-instance `cluster.evacuate` policy (Migration form) already existed in the base — left as-is.
 - Flags: `hasClusterRebalance`, `hasPlacementScriptlet`, `hasClusterGroupUsedBy`.
+
+## Nav reorg (post-p9)
+- Settings nav grouped into a new expandable **Settings** accordion (Certificates, Logging, ACME, and
+  the original settings page renamed **Advanced**); added the `settings` `AccordionNavMenu` key.
+- Cluster settings moved from `/ui/settings/cluster` to `/ui/cluster/settings` and shown as **Settings**
+  inside the Clustering accordion.
 
 ## Server logging targets + ACME (0.22-p9, done)
 - **Server logging targets** (`server_logging`): the named `logging.<name>.*` server config keys are
