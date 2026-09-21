@@ -88,7 +88,7 @@ const CpuLimitSelector: FC<Props> = ({
         />
       )}
       {cpuLimit.selectedType === CPU_LIMIT_TYPE.TOPOLOGY && (
-        <div className="u-flex u-gap--small cpu-topology-inputs">
+        <div className="cpu-topology-inputs">
           <Input
             id="limits_cpu_sockets"
             name="limits_cpu_sockets"
