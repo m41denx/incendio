@@ -1,5 +1,5 @@
 import { useState, type FC, type KeyboardEvent } from "react";
-import { Modal } from "@canonical/react-components";
+import { CheckboxInput, Modal } from "@canonical/react-components";
 import type { LxdInstance } from "types/instance";
 import FormLink from "components/FormLink";
 import InstanceClusterMemberMigration from "./InstanceClusterMemberMigration";
@@ -22,10 +22,20 @@ const MigrateInstanceModal: FC<Props> = ({ close, instance }) => {
   const isClustered = useIsClustered();
   const [type, setType] = useState<MigrationType>("");
   const [target, setTarget] = useState("");
+  const [refresh, setRefresh] = useState(false);
+  const [liveOverride, setLiveOverride] = useState<boolean | undefined>(
+    undefined,
+  );
+
+  const isRunning = instance.status === "Running";
+  const defaultLive = isRunning && instance.type === "virtual-machine";
+  const live = liveOverride ?? defaultLive;
+
   const { handleMigrate } = useInstanceMigration({
     close,
     instance,
     type,
+    options: { refresh, live },
   });
 
   const handleEscKey = (e: KeyboardEvent<HTMLElement>) => {
@@ -124,6 +134,27 @@ const MigrateInstanceModal: FC<Props> = ({ close, instance }) => {
               setType("remote cluster");
             }}
           />
+        </div>
+      )}
+
+      {target && type !== "remote cluster" && (
+        <div className="migration-options u-sv2">
+          <CheckboxInput
+            label="Refresh (incremental transfer)"
+            checked={refresh}
+            onChange={() => {
+              setRefresh(!refresh);
+            }}
+          />
+          {isRunning && (
+            <CheckboxInput
+              label="Live migration (transfer without stopping)"
+              checked={live}
+              onChange={() => {
+                setLiveOverride(!live);
+              }}
+            />
+          )}
         </div>
       )}
 

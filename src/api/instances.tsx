@@ -224,15 +224,30 @@ export const renameInstance = async (
     });
 };
 
+export interface InstanceMigrationOptions {
+  // Incremental transfer when the target already holds a copy.
+  // API extension: instance_refresh_migration.
+  refresh?: boolean;
+  // Live migration for running instances. When undefined, defaults to running VMs.
+  live?: boolean;
+  // Allow migrating even if the copy is inconsistent.
+  // API extension: instance_allow_inconsistent_copy.
+  allowInconsistent?: boolean;
+}
+
 export const migrateInstance = async (
   instance: LxdInstance,
   target?: string,
   pool?: string,
   targetProject?: string,
+  options?: InstanceMigrationOptions,
 ): Promise<LxdOperationResponse> => {
   const params = new URLSearchParams();
   params.set("project", instance.project);
   addTarget(params, target);
+
+  const defaultLive =
+    instance.type === "virtual-machine" && instance.status === "Running";
 
   return fetch(
     `${ROOT_PATH}/1.0/instances/${encodeURIComponent(instance.name)}?${params.toString()}`,
@@ -243,8 +258,9 @@ export const migrateInstance = async (
       },
       body: JSON.stringify({
         migration: true,
-        live:
-          instance.type === "virtual-machine" && instance.status === "Running",
+        live: options?.live ?? defaultLive,
+        refresh: options?.refresh || undefined,
+        allow_inconsistent: options?.allowInconsistent || undefined,
         pool,
         project: targetProject,
       }),

@@ -2,7 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEventQueue } from "context/eventQueue";
 import { useInstanceLoading } from "context/instanceLoading";
 import { queryKeys } from "./queryKeys";
-import { migrateInstance } from "api/instances";
+import { migrateInstance, type InstanceMigrationOptions } from "api/instances";
 import type { LxdInstance } from "types/instance";
 import type { ReactNode } from "react";
 import { capitalizeFirstLetter } from "util/helpers";
@@ -26,9 +26,15 @@ interface Props {
   type: MigrationType;
   close: () => void;
   onSuccess?: () => void;
+  options?: InstanceMigrationOptions;
 }
 
-export const useInstanceMigration = ({ instance, close, type }: Props) => {
+export const useInstanceMigration = ({
+  instance,
+  close,
+  type,
+  options,
+}: Props) => {
   const toastNotify = useToastNotification();
   const instanceLoading = useInstanceLoading();
   const eventQueue = useEventQueue();
@@ -148,7 +154,7 @@ export const useInstanceMigration = ({ instance, close, type }: Props) => {
       target = targetProject;
     }
     instanceLoading.setLoading(instance, "Migrating");
-    migrateInstance(instance, targetMember, targetPool, targetProject)
+    migrateInstance(instance, targetMember, targetPool, targetProject, options)
       .then((operation) => {
         eventQueue.set(
           operation.metadata.id,
