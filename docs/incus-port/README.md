@@ -176,7 +176,10 @@ NIC-device type options). Remaining bits are raw-config-only advanced keys (NIC 
 *Instances / VM*
 - [x] Explicit **CPU topology** builder (`instance_limits_cpu_topology`) — a "topology" CPU-limit mode
       (VM/profile only) building `limits.cpu=sockets=N,cores=N,threads=N`. Daemon-validated.
-- [ ] Snapshot **manual expiry** + **disk-only restore** (schedule aliases done). **Med**.
+- [x] Snapshot **manual expiry** + **disk-only restore** — already present in the base UI (stale entry):
+      the snapshot create/edit modal has Expiry date/time inputs (`expires_at`, gate-free), and the
+      restore dialog offers a "Restore the instance state" toggle for stateful snapshots (unchecked =
+      disk-only; non-stateful snapshots restore disk-only anyway). Verified wired end-to-end on Incus.
 - [x] Migration **refresh** (incremental) + **live** toggle (enables live project moves) — migrate dialog
       checkboxes wired to the migration POST (`instance_refresh_migration`, `instance_allow_inconsistent_copy`).
 - [x] **Uptime/started-at + CPU-time** on the instance overview (Started/Uptime/CPU time/Allocated CPU time,
