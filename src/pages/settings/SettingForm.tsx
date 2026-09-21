@@ -13,6 +13,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "context/auth";
 import SettingFormCheckbox from "./SettingFormCheckbox";
 import SettingFormInput from "./SettingFormInput";
+import SettingFormSelect from "./SettingFormSelect";
 import SettingFormPassword from "./SettingFormPassword";
 import LoginProjectSelect from "./LoginProjectSelect";
 import ImageServersForm from "./ImageServersForm";
@@ -56,6 +57,32 @@ const SettingForm: FC<Props> = ({
   const isThemeSelector = configField.key === "user.ui.theme";
   const isLoginProjectSelector = configField.key === "user.ui.default_project";
   const isImageServers = configField.key === IMAGE_SERVERS_KEY;
+
+  // Server settings whose values are a fixed enumeration → render a dropdown
+  // instead of a free-text field. Values from the Incus config-option docs.
+  const compressionOptions = [
+    { label: "none", value: "none" },
+    { label: "bzip2", value: "bzip2" },
+    { label: "gzip", value: "gzip" },
+    { label: "lz4", value: "lz4" },
+    { label: "lzma", value: "lzma" },
+    { label: "xz", value: "xz" },
+    { label: "zstd", value: "zstd" },
+  ];
+  const selectOptionsByKey: Record<string, { label: string; value: string }[]> =
+    {
+      "acme.challenge": [
+        { label: "HTTP-01", value: "HTTP-01" },
+        { label: "DNS-01", value: "DNS-01" },
+      ],
+      "backups.compression_algorithm": compressionOptions,
+      "images.compression_algorithm": compressionOptions,
+      "instances.nic.host_name": [
+        { label: "random", value: "random" },
+        { label: "mac", value: "mac" },
+      ],
+    };
+  const selectOptions = selectOptionsByKey[configField.key];
 
   const settingLabel = (
     <ResourceLabel bold type="setting" value={configField.key} />
@@ -179,6 +206,15 @@ const SettingForm: FC<Props> = ({
                   initialValue={value}
                   configField={configField}
                   onSubmit={onSubmit}
+                  onCancel={onCancel}
+                />
+              ) : selectOptions ? (
+                <SettingFormSelect
+                  initialValue={value ?? ""}
+                  configField={configField}
+                  options={selectOptions}
+                  onSubmit={onSubmit}
+                  onDelete={onDelete}
                   onCancel={onCancel}
                 />
               ) : (

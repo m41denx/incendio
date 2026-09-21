@@ -1,0 +1,54 @@
+name: Release UI bundle
+
+on:
+  push:
+    branches:
+      - incus-port
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Full history so the build can stamp the short git hash.
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Build UI
+        run: yarn build
+
+      - name: Read release version from CHANGELOG
+        id: version
+        run: |
+          version="$(grep -m1 '^## ' CHANGELOG.md | sed 's/^##[[:space:]]*//')"
+          if [ -z "$version" ]; then
+            echo "No version heading found in CHANGELOG.md" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Release version: $version"
+
+      - name: Package UI bundle
+        run: |
+          cd build/ui
+          zip -r "../../incendio-ui-${{ steps.version.outputs.version }}.zip" .
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: ${{ steps.version.outputs.version }}
+          body_path: CHANGELOG.md
+          files: incendio-ui-${{ steps.version.outputs.version }}.zip

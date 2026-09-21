@@ -1,0 +1,17 @@
+## 0.22-p5
+## What's Changed
+### ✨ New Features
+- (feat) Networking: **OVN interconnect network integrations** — server-global CRUD (northbound/southbound connections, TLS certs, transit pattern) plus `type: remote` network peers that target an integration
+- (feat) Networking: **OVN network load balancers** for Incus (backend model) — the tab was previously gated behind an LXD-only extension; adds backend + port editing, health-check config and a live backend-health panel
+- (feat) Networking: **Network address sets** — project-scoped CRUD of named IP/CIDR/range groups, referenced from ACL rules via `$name`
+- (feat) Networking: **Network DNS zones** — project-scoped CRUD plus a records editor (type/value/ttl entries)
+- (feat) Storage: full **storage-pool driver** coverage — LINSTOR, TrueNAS, LVM, Btrfs, Dir sub-forms and extended Ceph/CephFS/CephObject (+31 config keys); driver picker greys out drivers unsupported by the server
+- (feat) Instances: broad instance-config coverage (101/110 settable keys) incl. `boot.autorestart`, memory hotplug, OOM priority, `security.iommu`, SELinux/SEV, syscalls interception, NVIDIA, OCI and a raw-config section
+- (feat) Settings: dropdown selectors for `acme.challenge`, `backups.compression_algorithm`, `images.compression_algorithm` and `instances.nic.host_name`
+
+### 📦 Other changes
+- (feat) Nav: "Interconnect" entry below Clustering; "Address sets" and "Zones" under Networking
+- (fix) Re-gate `storage_volumes_all` on Incus's `storage_volumes_all_projects` so "volumes across all projects" works
+- (fix) Rename user-facing "Local peering(s)" → "Peering(s)" (peers can now be remote)
+- (chore) Remove the unused `hasExplicitTrustToken` flag
+- (chore) GitHub Actions workflow: build the UI into a zip bundle and publish a release on push to `incus-port`
