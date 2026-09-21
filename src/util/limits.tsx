@@ -11,6 +11,24 @@ export const parseCpuLimit = (limit?: string): CpuLimit | undefined => {
     return undefined;
   }
 
+  // VM topology, e.g. "sockets=2,cores=4,threads=2". Check before the comma
+  // branch, since a topology string also contains commas.
+  if (limit.includes("=")) {
+    const parts: Record<string, string> = {};
+    for (const segment of limit.split(",")) {
+      const [rawKey, rawValue] = segment.split("=");
+      if (rawKey && rawValue !== undefined) {
+        parts[rawKey.trim()] = rawValue.trim();
+      }
+    }
+    return {
+      sockets: parts.sockets,
+      cores: parts.cores,
+      threads: parts.threads,
+      selectedType: CPU_LIMIT_TYPE.TOPOLOGY,
+    };
+  }
+
   if (limit.includes(",") || limit.includes("-")) {
     return {
       fixedValue: limit,

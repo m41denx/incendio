@@ -1,8 +1,9 @@
 import type { FC } from "react";
-import { RadioInput } from "@canonical/react-components";
+import { Input, RadioInput } from "@canonical/react-components";
 import { CPU_LIMIT_TYPE, type CpuLimit } from "types/limits";
 import CpuLimitInput from "components/forms/CpuLimitInput";
 import type { InstanceAndProfileFormikProps } from "types/forms/instanceAndProfileFormProps";
+import type { CreateInstanceFormValues } from "types/forms/instanceAndProfile";
 
 interface Props {
   cpuLimit?: CpuLimit;
@@ -21,6 +22,14 @@ const CpuLimitSelector: FC<Props> = ({
     return null;
   }
 
+  // Topology (sockets/cores/threads) is a VM-only feature. Profiles are
+  // instance-type-agnostic, so offer it there too.
+  const isProfile = formik.values.entityType === "profile";
+  const showTopology =
+    isProfile ||
+    (formik.values as CreateInstanceFormValues).instanceType ===
+      "virtual-machine";
+
   return (
     <div>
       <div className="cpu-limit-label">
@@ -38,6 +47,15 @@ const CpuLimitSelector: FC<Props> = ({
             setCpuLimit({ selectedType: CPU_LIMIT_TYPE.FIXED });
           }}
         />
+        {showTopology && (
+          <RadioInput
+            label="topology"
+            checked={cpuLimit.selectedType === CPU_LIMIT_TYPE.TOPOLOGY}
+            onChange={() => {
+              setCpuLimit({ selectedType: CPU_LIMIT_TYPE.TOPOLOGY });
+            }}
+          />
+        )}
       </div>
       {cpuLimit.selectedType === CPU_LIMIT_TYPE.DYNAMIC && (
         <CpuLimitInput
@@ -68,6 +86,50 @@ const CpuLimitSelector: FC<Props> = ({
           help={help}
           formik={formik}
         />
+      )}
+      {cpuLimit.selectedType === CPU_LIMIT_TYPE.TOPOLOGY && (
+        <div className="u-flex u-gap--small cpu-topology-inputs">
+          <Input
+            id="limits_cpu_sockets"
+            name="limits_cpu_sockets"
+            label="Sockets"
+            type="number"
+            min="1"
+            step="1"
+            placeholder="e.g. 2"
+            onChange={(e) => {
+              setCpuLimit({ ...cpuLimit, sockets: e.target.value });
+            }}
+            value={cpuLimit.sockets ?? ""}
+          />
+          <Input
+            id="limits_cpu_cores"
+            name="limits_cpu_cores"
+            label="Cores"
+            type="number"
+            min="1"
+            step="1"
+            placeholder="e.g. 4"
+            onChange={(e) => {
+              setCpuLimit({ ...cpuLimit, cores: e.target.value });
+            }}
+            value={cpuLimit.cores ?? ""}
+          />
+          <Input
+            id="limits_cpu_threads"
+            name="limits_cpu_threads"
+            label="Threads"
+            type="number"
+            min="1"
+            step="1"
+            placeholder="e.g. 2"
+            onChange={(e) => {
+              setCpuLimit({ ...cpuLimit, threads: e.target.value });
+            }}
+            value={cpuLimit.threads ?? ""}
+            help={help}
+          />
+        </div>
       )}
     </div>
   );

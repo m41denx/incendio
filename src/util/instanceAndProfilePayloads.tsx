@@ -190,6 +190,13 @@ export const cpuLimitToPayload = (
         return `${singleValue}-${singleValue}`;
       }
       return undefined;
+    case CPU_LIMIT_TYPE.TOPOLOGY: {
+      const parts: string[] = [];
+      if (cpuLimit.sockets) parts.push(`sockets=${cpuLimit.sockets}`);
+      if (cpuLimit.cores) parts.push(`cores=${cpuLimit.cores}`);
+      if (cpuLimit.threads) parts.push(`threads=${cpuLimit.threads}`);
+      return parts.length > 0 ? parts.join(",") : undefined;
+    }
   }
 };
 

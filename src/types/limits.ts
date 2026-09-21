@@ -28,10 +28,15 @@ export interface MemoryLimit {
 export enum CPU_LIMIT_TYPE {
   DYNAMIC = 0,
   FIXED = 1,
+  TOPOLOGY = 2,
 }
 
 export interface CpuLimit {
   dynamicValue?: number | string;
   fixedValue?: string;
+  // VM-only explicit topology: limits.cpu=sockets=2,cores=4,threads=2
+  sockets?: number | string;
+  cores?: number | string;
+  threads?: number | string;
   selectedType: CPU_LIMIT_TYPE;
 }
