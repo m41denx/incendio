@@ -130,6 +130,9 @@ const ServerLoggingTargets = lazy(
   async () => import("pages/settings/ServerLoggingTargets"),
 );
 const AcmeSettings = lazy(async () => import("pages/settings/AcmeSettings"));
+const ClusterSettings = lazy(
+  async () => import("pages/settings/ClusterSettings"),
+);
 const TrustedCertificates = lazy(
   async () => import("pages/settings/TrustedCertificates"),
 );
@@ -745,6 +748,10 @@ const App: FC = () => {
         <Route
           path={`${ROOT_PATH}/ui/settings/acme`}
           element={<ProtectedRoute outlet={<AcmeSettings />} />}
+        />
+        <Route
+          path={`${ROOT_PATH}/ui/settings/cluster`}
+          element={<ProtectedRoute outlet={<ClusterSettings />} />}
         />
         <Route path={`${ROOT_PATH}/ui/login`} element={<Login />} />
         <Route

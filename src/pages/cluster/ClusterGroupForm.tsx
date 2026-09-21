@@ -12,6 +12,9 @@ export interface Props {
 const ClusterGroupForm: FC<Props> = ({ formik }) => {
   const { data: members = [] } = useClusterMembers();
 
+  const configEntries = Object.entries(formik.values.bareGroup?.config ?? {});
+  const usedBy = formik.values.bareGroup?.used_by ?? [];
+
   const previousMembers = formik.values.bareGroup?.members ?? [];
   const addedMembers = formik.values.members.filter(
     (member) => !previousMembers.includes(member),
@@ -53,6 +56,33 @@ const ClusterGroupForm: FC<Props> = ({ formik }) => {
         label="Description"
         placeholder="Enter description"
       />
+      {configEntries.length > 0 && (
+        <>
+          <p className="u-sv-1">Configuration</p>
+          <table className="u-no-margin--bottom">
+            <tbody>
+              {configEntries.map(([key, value]) => (
+                <tr key={key}>
+                  <th className="u-text--muted">{key}</th>
+                  <td className="u-truncate">{value}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+      {usedBy.length > 0 && (
+        <>
+          <p className="u-sv-1">Used by</p>
+          <ul className="u-no-margin--bottom">
+            {usedBy.map((entry) => (
+              <li key={entry} className="u-truncate">
+                {entry}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
       <p className="u-sv-1">Cluster members</p>
       <SelectableMainTable
         itemName="member"

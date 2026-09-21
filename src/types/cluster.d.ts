@@ -39,6 +39,7 @@ export interface LxdClusterGroup {
   description: string;
   members: string[];
   name: string;
+  config?: Record<string, string>;
   used_by?: string[];
 }
 

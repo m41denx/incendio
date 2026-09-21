@@ -106,5 +106,11 @@ export const useSupportedFeatures = () => {
     hasServerLoggingWebhook: apiExtensions.has("server_logging_webhook"),
     // ACME certificate provisioning (acme.* server config).
     hasAcme: apiExtensions.has("acme"),
+    // Automatic cluster re-balancing (cluster.rebalance.* server config).
+    hasClusterRebalance: apiExtensions.has("cluster_rebalance"),
+    // instances.placement.scriptlet server config.
+    hasPlacementScriptlet: apiExtensions.has("instances_placement_scriptlet"),
+    // Cluster group used_by list.
+    hasClusterGroupUsedBy: apiExtensions.has("cluster_group_usedby"),
   };
 };

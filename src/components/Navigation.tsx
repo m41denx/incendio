@@ -100,6 +100,8 @@ const Navigation: FC = () => {
     hasNetworkZones,
     hasServerLogging,
     hasAcme,
+    hasClusterRebalance,
+    hasPlacementScriptlet,
   } = useSupportedFeatures();
   const { loggedInUserName, loggedInUserID } = useLoggedInUser();
   const [scroll, setScroll] = useState(false);
@@ -825,6 +827,22 @@ const Navigation: FC = () => {
                           </NavLink>
                         </SideNavigationItem>
                       )}
+                      {isClustered &&
+                        (hasClusterRebalance || hasPlacementScriptlet) && (
+                          <SideNavigationItem>
+                            <NavLink
+                              to={`${ROOT_PATH}/ui/settings/cluster`}
+                              title="Cluster settings"
+                              onClick={softToggleMenu}
+                            >
+                              <Icon
+                                className="is-light p-side-navigation__icon"
+                                name="cluster-host"
+                              />{" "}
+                              Cluster settings
+                            </NavLink>
+                          </SideNavigationItem>
+                        )}
                       <SideNavigationItem>
                         <NavLink
                           to={`${ROOT_PATH}/ui/settings`}
@@ -834,6 +852,7 @@ const Navigation: FC = () => {
                             "settings/certificates",
                             "settings/logging",
                             "settings/acme",
+                            "settings/cluster",
                           ]}
                         >
                           <Icon

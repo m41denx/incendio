@@ -45,6 +45,9 @@ const EditClusterGroupPanel: FC = () => {
         name: values.name,
         description: values.description,
         members: values.members,
+        // Preserve group config (e.g. user.*, CPU baselines) which the form
+        // doesn't edit; the PUT would otherwise drop it.
+        config: values.bareGroup?.config,
       };
 
       updateClusterGroup(payload)
