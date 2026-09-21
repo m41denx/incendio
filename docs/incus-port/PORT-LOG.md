@@ -178,6 +178,19 @@ that forward a listen port to named backends. Commit `8da7f80dc4`. Changes:
   on the edit page from `/load-balancers/IP/state`. New flags `hasNetworkLoadBalancerHealthCheck`,
   `hasNetworkLoadBalancerState`.
 
+## Release automation, versioning & settings polish (done)
+- **Release workflow** (`.github/workflows/release.yaml`, `27a7edf06e`): on push to `incus-port`,
+  builds the UI, zips `build/ui` → `incendio-ui-<version>.zip`, and publishes a GitHub release via
+  `softprops/action-gh-release@v2` (tag/name from the top `## ` heading of `CHANGELOG.md`,
+  `body_path: CHANGELOG.md`). Verified: release `0.22-p5` created with the zip asset.
+- **CHANGELOG.md** added in the requested format (current release `0.22-p5`).
+- **Versioning**: `UI_VERSION` in `util/version.tsx` = `0.22-p5` (UI base `0.22` + `INCENDIO_PATCH`);
+  the StatusBar's `Version` component renders `Version <serverVersion>-ui-0.22-p5` (e.g. `7.4-ui-0.22-p5`),
+  daemon version live. GitHub tag form = `0.22-p5`. Bump `INCENDIO_PATCH` + add a CHANGELOG entry per release.
+- **Settings dropdowns** (`SettingFormSelect`): `acme.challenge` (HTTP-01/DNS-01),
+  `backups.compression_algorithm` + `images.compression_algorithm` (none/bzip2/gzip/lz4/lzma/xz/zstd),
+  `instances.nic.host_name` (random/mac) render as selects instead of free-text.
+
 ## Phase 2 candidates (reassess with user before starting — per decision)
 - Read-only `instance_access`/`project_access` entitlement panels.
 - Gate `/ui/permissions/*` routes behind `hasAccessManagement` (nav already hidden; blocks manual URL entry only).
