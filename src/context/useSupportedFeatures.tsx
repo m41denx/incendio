@@ -16,8 +16,13 @@ export const useSupportedFeatures = () => {
     hasProjectsNetworksZones: apiExtensions.has("projects_networks_zones"),
     hasStorageBuckets: apiExtensions.has("storage_buckets"),
     hasMetadataConfiguration: apiExtensions.has("metadata_configuration"),
-    // Incus exposes "volumes across all projects" under a different name.
-    hasStorageVolumesAll: apiExtensions.has("storage_volumes_all_projects"),
+    // Gates the server-wide GET /1.0/storage-volumes endpoint, which requires
+    // the base `storage_volumes_all` extension. Incus (7.4) ships only
+    // `storage_volumes_all_projects` (the all-projects PARAM on that endpoint)
+    // but not the endpoint itself, so this stays false there and the UI falls
+    // back to collecting volumes per pool. Gating on _all_projects made the UI
+    // call the missing endpoint and 404.
+    hasStorageVolumesAll: apiExtensions.has("storage_volumes_all"),
     hasLocalDocumentation:
       (!!serverVersion && serverMajor >= 5 && serverMinor >= 19) ||
       serverMajor > 5,

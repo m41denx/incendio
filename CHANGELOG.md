@@ -1,3 +1,9 @@
+## 0.22-p7
+## What's Changed
+### 📦 Other changes
+- (fix) Storage: the volumes list no longer 404s on Incus — `hasStorageVolumesAll` gates on the base `storage_volumes_all` endpoint extension (absent on Incus 7.4), so the UI falls back to collecting volumes per pool
+- (chore) CI: releases are now cut by pushing a **tag** (e.g. `0.22-p7`) instead of on every push to `incus-port`; the release body is the matching CHANGELOG section
+
 ## 0.22-p6
 ## What's Changed
 ### ✨ New Features

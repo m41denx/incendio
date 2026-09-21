@@ -1,9 +1,11 @@
 name: Release UI bundle
 
+# Releases are cut by pushing a tag (e.g. `0.22-p6`), not on every branch push,
+# so routine commits/bugfixes don't create releases.
 on:
   push:
-    branches:
-      - incus-port
+    tags:
+      - "*"
 
 permissions:
   contents: write
@@ -29,19 +31,22 @@ jobs:
       - name: Build UI
         run: yarn build
 
-      - name: Prepare release version and notes
+      - name: Prepare release notes
         id: version
         run: |
-          # The first "## " heading is the current version (## 0.22-p6).
-          version="$(grep -m1 '^## ' CHANGELOG.md | sed 's/^##[[:space:]]*//')"
-          if [ -z "$version" ]; then
-            echo "No version heading found in CHANGELOG.md" >&2
-            exit 1
+          version="${GITHUB_REF_NAME}"
+          # Extract this version's section from CHANGELOG.md: from its
+          # `## <version>` heading up to (excluding) the next version heading
+          # (## <digit>...). "## What's Changed" / "### ..." sub-headings stay.
+          awk -v ver="## ${version}" '
+            $0 == ver { f = 1; print; next }
+            f && /^## [0-9]/ { exit }
+            f { print }
+          ' CHANGELOG.md > RELEASE_NOTES.md
+          if [ ! -s RELEASE_NOTES.md ]; then
+            echo "No CHANGELOG.md section for ${version}; using the tag name only." >&2
+            printf '## %s\n' "$version" > RELEASE_NOTES.md
           fi
-          # Extract only this version's section: from the first version heading
-          # (## <digit>...) up to, but excluding, the next version heading.
-          # "## What's Changed" / "### ..." sub-headings are kept.
-          awk '/^## [0-9]/ { c++; if (c == 2) exit } c >= 1' CHANGELOG.md > RELEASE_NOTES.md
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "Release version: $version"
           echo "----- release notes -----"

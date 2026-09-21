@@ -205,6 +205,16 @@ that forward a listen port to named backends. Commit `8da7f80dc4`. Changes:
   isolated/tunnels — the NIC device panel only handles managed-network attach + ACLs, so these stay
   raw-config/YAML for now.
 
+## Fix — storage volumes 404 + tag-based releases (0.22-p7)
+- **Volumes 404 fix**: the earlier re-gate of `hasStorageVolumesAll` onto `storage_volumes_all_projects`
+  was wrong — the flag drives `fetchAllStorageVolumes` (`GET /1.0/storage-volumes`), which needs the
+  base `storage_volumes_all` extension. Incus 7.4 has only `storage_volumes_all_projects` (a param on
+  that endpoint) and 404s the endpoint itself, so the volumes list broke. Reverted to gate on
+  `storage_volumes_all` → false on Incus → `collectAllStorageVolumes` per-pool fallback (works).
+- **Releases are now tag-triggered**: `.github/workflows/release.yaml` fires on `push: tags: ['*']`
+  (not branch pushes). Version = `GITHUB_REF_NAME`; the body is that version's CHANGELOG section
+  (awk split on `## <digit>` headings). `softprops/action-gh-release@v3`. Tag `0.22-pN` to release.
+
 ## Phase 2 candidates (reassess with user before starting — per decision)
 - Read-only `instance_access`/`project_access` entitlement panels.
 - Gate `/ui/permissions/*` routes behind `hasAccessManagement` (nav already hidden; blocks manual URL entry only).

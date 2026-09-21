@@ -89,7 +89,10 @@ non-merge commits touch files that also changed upstream (`9cbb82d9`→`0.22`), 
 - [x] Storage drivers: drop PowerFlex/PowerStore/Pure/Alletra; add **LINSTOR + TrueNAS**. *(D §3, B §1b)*
 - [x] Remove/leave-gated: replicators, cluster-links, LXD load-balancer *pools*, managed SSH keys,
       import/conversion, backup-metadata-version, boot-mode. *(B §1a)*
-- [x] `storage_volumes_all` → re-gated on Incus's `storage_volumes_all_projects`. *(B §1c)*
+- [x] `storage_volumes_all`: kept gated on the base `storage_volumes_all` extension (which serves
+      `GET /1.0/storage-volumes`). Incus 7.4 ships only `storage_volumes_all_projects` (a param on that
+      endpoint) but not the endpoint itself, so the flag is false there and the UI collects volumes
+      per pool. *(B §1c — gating on `_all_projects` 404s the volumes list; reverted.)*
 - [x] **Access area (revised — see `analysis/` + memory `incus-auth-model`):** Incus has **no** permissions-management API (OpenFGA is external/config-driven). So: disable the LXD identity/fine-grained section, and build the Incus-manageable surfaces — a **Trusted Certificates** page (`/1.0/certificates`) + read-only `instance_access`/`project_access` panels. *(B §2d)*
 - [x] Deleted the unused `hasExplicitTrustToken` flag. *(B §1c)*
 
