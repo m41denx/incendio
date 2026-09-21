@@ -8,6 +8,7 @@
 
 ### 📦 Other changes
 - (chore) Networking: many bridge/OVN network config widgets (routes, DHCP, IPv6 stateful) were already present; remaining NIC-device keys (macvlan mode, SR-IOV) stay raw-config/YAML for now
+- (chore) CI: release workflow now publishes only the latest CHANGELOG section as the release body, and uses `softprops/action-gh-release@v3`
 
 ## 0.22-p5
 ## What's Changed

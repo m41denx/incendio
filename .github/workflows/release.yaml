@@ -29,16 +29,23 @@ jobs:
       - name: Build UI
         run: yarn build
 
-      - name: Read release version from CHANGELOG
+      - name: Prepare release version and notes
         id: version
         run: |
+          # The first "## " heading is the current version (## 0.22-p6).
           version="$(grep -m1 '^## ' CHANGELOG.md | sed 's/^##[[:space:]]*//')"
           if [ -z "$version" ]; then
             echo "No version heading found in CHANGELOG.md" >&2
             exit 1
           fi
+          # Extract only this version's section: from the first version heading
+          # (## <digit>...) up to, but excluding, the next version heading.
+          # "## What's Changed" / "### ..." sub-headings are kept.
+          awk '/^## [0-9]/ { c++; if (c == 2) exit } c >= 1' CHANGELOG.md > RELEASE_NOTES.md
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "Release version: $version"
+          echo "----- release notes -----"
+          cat RELEASE_NOTES.md
 
       - name: Package UI bundle
         run: |
@@ -46,9 +53,9 @@ jobs:
           zip -r "../../incendio-ui-${{ steps.version.outputs.version }}.zip" .
 
       - name: Publish release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.version.outputs.version }}
           name: ${{ steps.version.outputs.version }}
-          body_path: CHANGELOG.md
+          body_path: RELEASE_NOTES.md
           files: incendio-ui-${{ steps.version.outputs.version }}.zip
