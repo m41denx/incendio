@@ -166,6 +166,18 @@ that forward a listen port to named backends. Commit `8da7f80dc4`. Changes:
 - Terminology pass ("Cluster member"→"Location", drop VM/container qualifiers) **intentionally dropped**
   from scope per user.
 
+## Phase 2 — network zones + LB health checks (done)
+- **Network zones** (`network_dns`/`network_dns_records`, `02f5736c1f`): project-scoped CRUD
+  (`api/network-zones.tsx`, `context/useNetworkZones.tsx`, List/Create/Edit pages + `NetworkZoneForm`)
+  with `dns.nameservers`, plus a **Records** section on the edit page (add/edit/delete records with
+  type/value/ttl entries via `NetworkZoneRecordModal`). Routes + nav under Networking (after Address
+  sets). Verified zone+record CRUD vs live Incus 7.4.
+- **LB health checks + state** (`network_load_balancer_health_check`, `network_load_balancer_state`):
+  health-check config section (enable + interval/timeout/success/failure) on `LoadBalancerBackendsForm`;
+  `toLoadBalancer` merges `healthcheck.*` onto preserved LB config; live `LoadBalancerHealthPanel`
+  on the edit page from `/load-balancers/IP/state`. New flags `hasNetworkLoadBalancerHealthCheck`,
+  `hasNetworkLoadBalancerState`.
+
 ## Phase 2 candidates (reassess with user before starting — per decision)
 - Read-only `instance_access`/`project_access` entitlement panels.
 - Gate `/ui/permissions/*` routes behind `hasAccessManagement` (nav already hidden; blocks manual URL entry only).

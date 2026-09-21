@@ -135,12 +135,14 @@ non-merge commits touch files that also changed upstream (`9cbb82d9`→`0.22`), 
 - [x] **Network address sets** (`network_address_set`) — project-scoped CRUD of named IP/CIDR/range
       groups (List/Create/Edit), nav under Networking; ACL rule source/destination help notes the
       `$name` reference syntax.
+- [x] **Network zones** (`network_dns` / `network_dns_records`) — project-scoped List/Create/Edit of
+      DNS zones (name, description, `dns.nameservers`) + a Records section (type/value/ttl entries).
+- [x] **Load-balancer health checks + live state** (`network_load_balancer_health_check`, `_state`) —
+      health-check config on the backend LB form + a live "Backend health" panel on the edit page.
 
 **Still missing — Incus functionality with no dedicated UI** (ranked; see [`analysis/A`](analysis/A-incus-opportunities.md))
 
 *Networking*
-- [ ] **Network zones** management page (`network_zones*`) — missing entirely. **Med**.
-- [ ] **Load-balancer health checks + live state** panel (`network_load_balancer_health_check`, `_state`). **Med**.
 - [ ] Forward **SNAT** toggle (`network_forward_snat`). **Low**.
 - [ ] Richer bridge/OVN/NIC widgets (DNS nameservers, DHCP routes, IPv6 RA, macvlan mode, OVN
       isolated/tunnels, SR-IOV) — currently raw config only. **Low/Med**.
