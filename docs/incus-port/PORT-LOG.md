@@ -234,6 +234,23 @@ that forward a listen port to named backends. Commit `8da7f80dc4`. Changes:
   `qemu_raw_conf` (previously always shown).
 - Flags added: `hasInstanceNvram`, `hasQemuScriptlet`, `hasQemuRawQmp`, `hasQemuRawConf`.
 
+## Server logging targets + ACME (0.22-p9, done)
+- **Server logging targets** (`server_logging`): the named `logging.<name>.*` server config keys are
+  wildcards, so the generic Settings table can't manage them. Added `util/serverLogging.tsx`
+  (parse flat keys → `LoggingTarget[]`, and `loggingTargetToConfig` to build the PATCH / clear-all on
+  delete), plus `Settings → Logging` (`ServerLoggingTargets.tsx` list + `ServerLoggingTargetForm.tsx`
+  modal). Supports loki/syslog/webhook (webhook gated on `server_logging_webhook`), address, log level,
+  event types, username/password, CA cert, retry, syslog facility, instance, labels, lifecycle filters.
+  Parser checks `.target.`/`.logging.`/`.lifecycle.` before the bare `.types` suffix, and matches
+  `.target.` before `.logging.` so target names containing "logging" parse correctly.
+- **ACME** (`acme`): `Settings → ACME` (`AcmeSettings.tsx`) — a dedicated form for the `acme.*` keys
+  (the settings table already lists them under the acme group, but the form is friendlier): agree_tos,
+  email, domain, ca_url, challenge (HTTP-01/DNS-01), http.port, provider/environment/resolvers (DNS-01),
+  eab.kid/hmac. Saves via `updateSettings` (empty string unsets).
+- Both routed under `/ui/settings/{logging,acme}` with nav items gated on `hasServerLogging`/`hasAcme`;
+  the "Settings" nav link's `ignoreUrlMatches` extended. Config keys round-trip-validated on the daemon.
+- Also: CPU topology inputs stacked vertically (they overflowed side by side).
+
 ## Instances / VM batch (0.22-p8, done)
 - **Explicit CPU topology** (`CpuLimitSelector`, `parseCpuLimit`, `cpuLimitToPayload`): a third CPU-limit
   mode "topology" (alongside number/fixed), shown for VMs and profiles, with sockets/cores/threads

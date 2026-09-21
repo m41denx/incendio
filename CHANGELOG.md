@@ -1,3 +1,12 @@
+## 0.22-p9
+## What's Changed
+### ✨ New Features
+- (feat) Settings: **server logging targets** panel (Settings → Logging) — create/edit/delete named `logging.*` targets for **Loki / syslog / webhook** (address, level, event types, auth, CA cert, retry, facility, lifecycle filters) (`server_logging`, `server_logging_webhook`)
+- (feat) Settings: dedicated **ACME certificates** section (Settings → ACME) — a form for the `acme.*` keys (ToS, email, domain, CA URL, HTTP-01/DNS-01 challenge, DNS provider/environment/resolvers, EAB) (`acme`)
+
+### 📦 Other changes
+- (fix) Instances: the CPU topology sockets/cores/threads inputs now stack vertically instead of overflowing
+
 ## 0.22-p8
 ## What's Changed
 ### ✨ New Features

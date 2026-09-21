@@ -190,7 +190,9 @@ NIC-device type options). Remaining bits are raw-config-only advanced keys (NIC 
 
 *Cluster / server / auth*
 - [ ] **Access panels** (`instance_access`/`project_access`) + **certificate descriptions**. **Med**.
-- [ ] Server **logging targets** panel (loki/webhook/syslog) + **ACME** settings section. **Med**.
+- [x] Server **logging targets** panel (loki/webhook/syslog) + **ACME** settings section — Settings →
+      Logging (named `logging.*` targets CRUD) and Settings → ACME (dedicated `acme.*` form). Nav gated
+      on `server_logging` / `acme`; config keys daemon-validated.
 - [ ] Cluster **evacuation mode** options, **rebalance** settings, cluster-group config/used-by,
       **placement scriptlet** editor (Incus uses scriptlets, not placement groups). **Med/Low**.
 - [ ] **Placement-group replacement for Incus** (proposed; design agreed, build deferred). Incus has no
