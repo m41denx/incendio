@@ -30,6 +30,17 @@ export interface LxdNicDevice {
   "security.acls"?: string;
   "security.acls.default.egress.action"?: string;
   "security.acls.default.ingress.action"?: string;
+  // macvlan
+  mode?: string;
+  // macvlan / sriov / ovn (nesting)
+  vlan?: string;
+  // sriov
+  "security.trusted"?: string;
+  "security.mac_filtering"?: string;
+  // ovn
+  nested?: string;
+  "ipv4.routes"?: string;
+  "ipv6.routes"?: string;
 }
 
 export interface LxdPhysicalGPUDevice {

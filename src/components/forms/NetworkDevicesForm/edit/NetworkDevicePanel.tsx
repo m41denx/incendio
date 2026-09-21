@@ -34,8 +34,11 @@ import {
   combineAcls,
   bridgeType,
   ovnType,
+  macvlanType,
+  sriovType,
   typesWithAcls,
 } from "util/networks";
+import NetworkDeviceTypeOptions from "components/forms/NetworkDevicesForm/edit/NetworkDeviceTypeOptions";
 import usePanelParams, { panels } from "util/usePanelParams";
 import NetworkDefaultACLSelector, {
   type Direction,
@@ -156,6 +159,18 @@ const NetworkDevicePanel: FC<Props> = ({
     const defaultAcls =
       getNetworkAclsByNetworkName(defaultNetworkName).join(",");
 
+    // nictype-specific device options, seeded from the existing device (empty
+    // when creating). Kept controlled so switching network type is clean.
+    const typeOptionDefaults = {
+      macvlan_mode: device?.mode ?? "",
+      vlan: device?.vlan ?? "",
+      security_trusted: device?.["security.trusted"] ?? "",
+      security_mac_filtering: device?.["security.mac_filtering"] ?? "",
+      nested: device?.nested ?? "",
+      ipv4_routes: device?.["ipv4.routes"] ?? "",
+      ipv6_routes: device?.["ipv6.routes"] ?? "",
+    };
+
     if (isCreatingLocal) {
       const isManaged = networkOptions[0]?.managed ?? false;
 
@@ -176,6 +191,7 @@ const NetworkDevicePanel: FC<Props> = ({
         ipv4: "",
         ipv6: "",
         parent: parent,
+        ...typeOptionDefaults,
       };
     }
 
@@ -197,6 +213,7 @@ const NetworkDevicePanel: FC<Props> = ({
         ipv4: "",
         ipv6: "",
         parent: parent,
+        ...typeOptionDefaults,
       };
     }
 
@@ -225,6 +242,7 @@ const NetworkDevicePanel: FC<Props> = ({
       security_acls_default_ingress_action:
         device?.["security.acls.default.ingress.action"] || "",
       parent: device?.parent,
+      ...typeOptionDefaults,
     };
   };
 
@@ -243,7 +261,16 @@ const NetworkDevicePanel: FC<Props> = ({
         (acl) => !networkAcls.includes(acl),
       );
 
+      const submitNetworkType = networkOptions.find(
+        (n) => n.name === (values.network || values.parent),
+      )?.type;
+      const isMacvlan = submitNetworkType === macvlanType;
+      const isSriov = submitNetworkType === sriovType;
+      const isOvn = submitNetworkType === ovnType;
+
       const deviceData: FormNetworkDevice = {
+        // Preserve keys the panel doesn't manage (hwaddr, mtu, boot.priority, …).
+        ...(device ?? {}),
         name: values.name,
         type: "nic",
         network: values.network,
@@ -257,6 +284,20 @@ const NetworkDevicePanel: FC<Props> = ({
           values.security_acls_default_ingress_action || undefined,
         parent: values.parent,
         nictype: values.parent ? "bridged" : "",
+        // nictype-specific keys. Always set (value or undefined) so switching the
+        // selected network's type clears options that no longer apply.
+        mode: isMacvlan ? values.macvlan_mode || undefined : undefined,
+        vlan:
+          isMacvlan || isSriov || isOvn ? values.vlan || undefined : undefined,
+        "security.trusted": isSriov
+          ? values.security_trusted || undefined
+          : undefined,
+        "security.mac_filtering": isSriov
+          ? values.security_mac_filtering || undefined
+          : undefined,
+        nested: isOvn ? values.nested || undefined : undefined,
+        "ipv4.routes": isOvn ? values.ipv4_routes || undefined : undefined,
+        "ipv6.routes": isOvn ? values.ipv6_routes || undefined : undefined,
       };
 
       const originalDeviceName = deviceName;
@@ -467,6 +508,13 @@ const NetworkDevicePanel: FC<Props> = ({
                   family="IPv6"
                 />
               </>
+            )}
+
+            {selectedNetwork && (
+              <NetworkDeviceTypeOptions
+                formik={formik}
+                networkType={selectedNetwork.type}
+              />
             )}
 
             <NetworkAclSelector

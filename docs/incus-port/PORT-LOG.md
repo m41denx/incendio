@@ -234,6 +234,24 @@ that forward a listen port to named backends. Commit `8da7f80dc4`. Changes:
   `qemu_raw_conf` (previously always shown).
 - Flags added: `hasInstanceNvram`, `hasQemuScriptlet`, `hasQemuRawQmp`, `hasQemuRawConf`.
 
+## NIC-device type options — networking close-off (0.22-p8, done)
+- **Nictype-specific NIC device widgets** in `NetworkDevicePanel.tsx`, rendered by the selected managed
+  network's type via new `NetworkDeviceTypeOptions.tsx`:
+  - **macvlan** → `mode` (bridge/vepa/passthru/private) + `vlan`.
+  - **sriov** → `security.trusted` + `security.mac_filtering` (checkboxes) + `vlan`.
+  - **ovn** → `nested` (parent NIC) + `vlan` (nesting) + `ipv4.routes` / `ipv6.routes`.
+- Form model: added the fields to `NetworkDeviceFormValues` and the keys to `LxdNicDevice`; seeded from
+  the existing device in `getInitialValues` (a shared `typeOptionDefaults` spread into all branches).
+- **Fixes latent data loss**: `onSubmit` previously rebuilt the device from scratch, dropping keys the
+  panel doesn't manage (`hwaddr`, `mtu`, `boot.priority`, …). It now spreads the existing device first,
+  then sets managed keys — and always sets each type-specific key (value or `undefined`) so switching
+  the network's type clears options that no longer apply (`undefined` keys drop out on the PUT).
+- Validated every key against the live daemon (temp profiles): macvlan `mode`/`vlan`, sriov
+  `security.trusted`/`security.mac_filtering`, OVN `nested`/`vlan`/`ipv4.routes`/`ipv6.routes` all
+  round-tripped. Acceleration/`security.promiscuous` remain raw-config (out of scope).
+- Re-scoped from the earlier **High** deferral — the panel didn't need a full nictype-selector refactor
+  because Incus infers nictype from the selected managed network, so the widgets key off `network.type`.
+
 ## Fixes — image architecture aliasing + placement-group gating (0.22-p7)
 - **Image selector split one arch into two** (aarch64 vs arm64): `localLxdToRemoteImage` hand-rolled
   arch normalisation with only `x86_64 → amd64`, leaving `aarch64` as-is while simplestreams reports

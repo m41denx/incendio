@@ -154,14 +154,18 @@ non-merge commits touch files that also changed upstream (`9cbb82d9`→`0.22`), 
       (line numbers/folding) in the Raw-configuration section; the scriptlet + `raw.qemu.qmp.*` +
       `raw.qemu.conf` rows are now gated on their API extensions (`qemu_scriptlet`, `qemu_raw_qmp`,
       `qemu_raw_conf`) so they only show when supported.
+- [x] **NIC-device type options** — the network-device panel now renders nictype-specific fields based
+      on the selected managed network's type: macvlan **mode** (bridge/vepa/passthru/private) + VLAN;
+      SR-IOV **`security.trusted`** + **`security.mac_filtering`** + VLAN; OVN **nesting** (`nested` +
+      VLAN) + **static routes** (`ipv4.routes`/`ipv6.routes`). Also fixes latent data loss: editing a
+      NIC now preserves unmanaged keys (`hwaddr`, `mtu`, `boot.priority`, …). Validated all keys against
+      the live daemon. (Acceleration/promiscuous stay raw-config.)
 
 **Still missing — Incus functionality with no dedicated UI** (ranked; see [`analysis/A`](analysis/A-incus-opportunities.md))
 
-*Networking*
-- [ ] NIC-device widgets: **macvlan mode**, **SR-IOV** (`security.trusted`), OVN **isolated/tunnels** —
-      the NIC device panel only handles managed-network attach + ACLs; these stay raw-config for now.
-      **High** (needs a `nictype` selector + conditional field-set refactor of `NetworkDevicePanel.tsx`,
-      which is currently built around the managed-network/ACL model).
+*Networking* — ✅ nothing outstanding; the networking surface is feature-complete for the port
+(integrations, address sets, zones, load balancers + health, forwards/SNAT, peers, DNS nameservers,
+NIC-device type options). Remaining bits are raw-config-only advanced keys (NIC acceleration/promiscuous).
 
 *Storage*
 - [ ] **Custom-volume file browser** (`file_storage_volume` + `custom_volume_sftp`) — browse/upload/download. **High**.
@@ -194,6 +198,20 @@ non-merge commits touch files that also changed upstream (`9cbb82d9`→`0.22`), 
 - [ ] Project restriction toggles (`restricted.storage-pools`, VM nesting). **Low**.
 - [ ] Config-coverage passes still open: **project** (~53), **server** (~107), **network** (bridge/OVN/…),
       **device** (~290) keys, and per-driver storage **volume** config.
+
+*Integrations*
+- [ ] **Kubernetes on Incus via [cluster-api-provider-incus](https://github.com/lxc/cluster-api-provider-incus)**
+      (CAPN) (proposed; feasibility agreed, build deferred). CAPN is a Cluster API *infrastructure
+      provider*: a Kubernetes management cluster runs CRDs (`IncusCluster`/`IncusMachine`) whose
+      controller drives the Incus API to launch instances (VMs/LXC) as kubeadm-bootstrapped k8s nodes.
+      Orchestration lives in Kubernetes-land, not Incus, so from Incus a cluster is just instances +
+      a project + a profile + a trust cert + the kubeadm image remote. Three scopes to pick from:
+      **1) Observe** — recognise CAPN instances (by project/labels) and show them grouped as a cluster
+      (read-only). **Low**.
+      **2) Prerequisite helpers** — a guided setup that provisions the Incus-side bits (dedicated
+      project, mgmt-cluster trust token, kubeadm image remote, required profile). **Med**.
+      **3) Full CAPI management** — apply/watch CRDs, drive `clusterctl` from the UI. Needs a Kubernetes
+      backend, duplicates Rancher/Headlamp — **out of scope / High**.
 
 Full ranked list with extensions/coverage: [`analysis/A`](analysis/A-incus-opportunities.md).
 
