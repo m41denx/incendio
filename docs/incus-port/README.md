@@ -174,7 +174,8 @@ NIC-device type options). Remaining bits are raw-config-only advanced keys (NIC 
 - [ ] ZFS vdev/raid builder, btrfs compression, initial-owner on volume forms. **Med/Low**.
 
 *Instances / VM*
-- [ ] Explicit **CPU topology** builder (`instance_limits_cpu_topology` sockets/cores/threads) — still raw. **Med**.
+- [x] Explicit **CPU topology** builder (`instance_limits_cpu_topology`) — a "topology" CPU-limit mode
+      (VM/profile only) building `limits.cpu=sockets=N,cores=N,threads=N`. Daemon-validated.
 - [ ] Snapshot **manual expiry** + **disk-only restore** (schedule aliases done). **Med**.
 - [x] Migration **refresh** (incremental) + **live** toggle (enables live project moves) — migrate dialog
       checkboxes wired to the migration POST (`instance_refresh_migration`, `instance_allow_inconsistent_copy`).

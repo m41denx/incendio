@@ -6,6 +6,7 @@
 - (feat) Instances: **richer custom-disk options** — I/O bus (virtio-scsi/virtio-blk/nvme/usb), I/O cache, combined byte/s+IOPS **read/write/max limits** with **burst** + burst length, and **WWN** (virtio-scsi)
 - (feat) Instances: **migration refresh + live toggle** — the migrate dialog gains a "Refresh (incremental transfer)" checkbox and, for running instances, a "Live migration" toggle (enables live project moves) (`instance_refresh_migration`)
 - (feat) Instances: **SMBIOS & credentials** editor — a raw key/value section for `smbios11.*`, `systemd.credential.*` and `systemd.credential-binary.*` (`instance_smbios11`, `instance_systemd_credentials`)
+- (feat) Instances: **explicit VM CPU topology** — a "topology" CPU-limit mode building `limits.cpu=sockets=N,cores=N,threads=N` (`instance_limits_cpu_topology`)
 
 ### 📦 Other changes
 - (fix) Networking: editing a NIC device no longer drops device keys the panel doesn't manage (e.g. `hwaddr`, `mtu`, `boot.priority`) — the existing config is now preserved on save

@@ -235,6 +235,11 @@ that forward a listen port to named backends. Commit `8da7f80dc4`. Changes:
 - Flags added: `hasInstanceNvram`, `hasQemuScriptlet`, `hasQemuRawQmp`, `hasQemuRawConf`.
 
 ## Instances / VM batch (0.22-p8, done)
+- **Explicit CPU topology** (`CpuLimitSelector`, `parseCpuLimit`, `cpuLimitToPayload`): a third CPU-limit
+  mode "topology" (alongside number/fixed), shown for VMs and profiles, with sockets/cores/threads
+  inputs building `limits.cpu=sockets=N,cores=N,threads=N` (`instance_limits_cpu_topology`).
+  `parseCpuLimit` detects the topology string via `=` *before* the comma/range branch (a topology
+  string also has commas). Daemon-validated round-trip.
 - **Uptime/started-at + CPU-time** (`InstanceOverview.tsx`): added Started, Uptime, CPU time and
   Allocated CPU time rows from `instance.state.started_at` and `instance.state.cpu.{usage,allocated_time}`
   (extensions `instance_state_started_at`, `instances_state_total`). New `secondsToDurationString` helper;
