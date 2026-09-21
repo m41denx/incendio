@@ -7,6 +7,7 @@
 - (feat) Cluster: cluster groups now show **config** + **used-by** in the edit panel
 
 ### 📦 Other changes
+- (feat) Nav: settings grouped into an expandable **Settings** menu (Certificates, Logging, ACME, and the original settings table renamed **Advanced**); **Cluster settings** moved under the **Clustering** menu as "Settings"
 - (fix) Instances: the CPU topology sockets/cores/threads inputs now stack vertically instead of overflowing
 - (fix) Cluster: editing a cluster group no longer drops its config (`user.*`, CPU baselines)
 
