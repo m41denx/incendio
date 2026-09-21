@@ -234,6 +234,20 @@ that forward a listen port to named backends. Commit `8da7f80dc4`. Changes:
   `qemu_raw_conf` (previously always shown).
 - Flags added: `hasInstanceNvram`, `hasQemuScriptlet`, `hasQemuRawQmp`, `hasQemuRawConf`.
 
+## Cluster settings + group config/used-by (0.22-p9, done)
+- **Settings → Cluster** (`ClusterSettings.tsx`, clustered-only nav): a rebalance form
+  (`cluster.rebalance.interval/threshold/batch/cooldown` + `cluster.healing_threshold`,
+  `cluster.offline_threshold`) and a CodeMirror `instances.placement.scriptlet` editor — Incus's
+  placement-group alternative. Saved via `updateSettings`. Formats daemon-checked: cooldown is an
+  expiry expression (e.g. `6H`, not `1h`/`60s`); healing/offline thresholds are integer seconds.
+- **Cluster group config/used-by**: added `config` to `LxdClusterGroup`; `ClusterGroupForm` now shows
+  the group's `config` (read-only key/value) and `used_by` (read-only list). Fixed latent data loss:
+  the edit PUT (`EditClusterGroupPanel`) sent only name/description/members, dropping `config` — it now
+  preserves `values.bareGroup.config`.
+- Evacuation **mode** options (Auto/Stop/Migrate/Live-migrate on `EvacuateClusterMemberBtn`) and the
+  per-instance `cluster.evacuate` policy (Migration form) already existed in the base — left as-is.
+- Flags: `hasClusterRebalance`, `hasPlacementScriptlet`, `hasClusterGroupUsedBy`.
+
 ## Server logging targets + ACME (0.22-p9, done)
 - **Server logging targets** (`server_logging`): the named `logging.<name>.*` server config keys are
   wildcards, so the generic Settings table can't manage them. Added `util/serverLogging.tsx`

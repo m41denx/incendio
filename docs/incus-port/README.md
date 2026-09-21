@@ -193,8 +193,11 @@ NIC-device type options). Remaining bits are raw-config-only advanced keys (NIC 
 - [x] Server **logging targets** panel (loki/webhook/syslog) + **ACME** settings section — Settings →
       Logging (named `logging.*` targets CRUD) and Settings → ACME (dedicated `acme.*` form). Nav gated
       on `server_logging` / `acme`; config keys daemon-validated.
-- [ ] Cluster **evacuation mode** options, **rebalance** settings, cluster-group config/used-by,
-      **placement scriptlet** editor (Incus uses scriptlets, not placement groups). **Med/Low**.
+- [x] Cluster **evacuation mode** options, **rebalance** settings, cluster-group config/used-by,
+      **placement scriptlet** editor — Settings → Cluster (rebalance `cluster.rebalance.*` +
+      healing/offline thresholds + Starlark `instances.placement.scriptlet` editor); cluster groups
+      show config + used-by (and edit no longer drops group config). Evacuation mode options + per-
+      instance `cluster.evacuate` were already in the base. Daemon-validated.
 - [ ] **Placement-group replacement for Incus** (proposed; design agreed, build deferred). Incus has no
       placement groups — emulate LXD's policy (compact/spread) + rigor (strict/permissive) via the
       global `instances.placement.scriptlet`. Two tiers:
