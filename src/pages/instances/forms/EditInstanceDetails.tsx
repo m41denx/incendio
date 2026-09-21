@@ -8,6 +8,7 @@ import ScrollableForm from "components/ScrollableForm";
 import { ensureEditMode } from "util/editMode";
 import SshKeyForm from "components/forms/SshKeyForm";
 import { useIsClustered } from "context/useIsClustered";
+import { useSupportedFeatures } from "context/useSupportedFeatures";
 import PlacementGroupSelect from "pages/instances/forms/PlacementGroupSelect";
 
 interface Props {
@@ -17,6 +18,7 @@ interface Props {
 
 const EditInstanceDetails: FC<Props> = ({ formik, project }) => {
   const isClustered = useIsClustered();
+  const { hasPlacementGroups } = useSupportedFeatures();
 
   return (
     <ScrollableForm>
@@ -53,16 +55,18 @@ const EditInstanceDetails: FC<Props> = ({ formik, project }) => {
               value={formik.values.location}
               help="Use the migrate button in the header to move the instance to another cluster member."
             />
-            <PlacementGroupSelect
-              value={formik.values.placement_group}
-              setValue={(value) => {
-                ensureEditMode(formik);
-                formik.setFieldValue("placement_group", value || undefined);
-              }}
-              project={project}
-              profileNames={formik.values.profiles}
-              hasNoneOption
-            />
+            {hasPlacementGroups && (
+              <PlacementGroupSelect
+                value={formik.values.placement_group}
+                setValue={(value) => {
+                  ensureEditMode(formik);
+                  formik.setFieldValue("placement_group", value || undefined);
+                }}
+                project={project}
+                profileNames={formik.values.profiles}
+                hasNoneOption
+              />
+            )}
           </Col>
         </Row>
       )}

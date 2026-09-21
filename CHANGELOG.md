@@ -5,6 +5,8 @@
 - (feat) Instances: **QEMU scriptlet editor** — `raw.qemu.scriptlet` now edits in a code editor with line numbers; the QEMU scriptlet, QMP and `raw.qemu.conf` raw-config rows are gated on their API extensions so they only appear when the server supports them
 
 ### 📦 Other changes
+- (fix) Images: the base-image selector no longer splits one architecture into two — local images (canonical `aarch64`/`x86_64`) are now normalised to the simplestreams alias (`arm64`/`amd64`) so they group with online images
+- (fix) Instances/Profiles: the "Placement group" target option no longer appears on Incus — placement groups are LXD-only (Incus uses placement scriptlets), so the option/select is gated on the `instance_placement_groups` extension
 - (fix) Storage: the volumes list no longer 404s on Incus — `hasStorageVolumesAll` gates on the base `storage_volumes_all` endpoint extension (absent on Incus 7.4), so the UI falls back to collecting volumes per pool
 - (chore) CI: releases are now cut by pushing a **tag** (e.g. `0.22-p7`) instead of on every push to `incus-port`; the release body is the matching CHANGELOG section
 

@@ -234,6 +234,22 @@ that forward a listen port to named backends. Commit `8da7f80dc4`. Changes:
   `qemu_raw_conf` (previously always shown).
 - Flags added: `hasInstanceNvram`, `hasQemuScriptlet`, `hasQemuRawQmp`, `hasQemuRawConf`.
 
+## Fixes — image architecture aliasing + placement-group gating (0.22-p7)
+- **Image selector split one arch into two** (aarch64 vs arm64): `localLxdToRemoteImage` hand-rolled
+  arch normalisation with only `x86_64 → amd64`, leaving `aarch64` as-is while simplestreams reports
+  `arm64`. On ARM hosts the local and online images landed in separate architecture groups. Fixed by
+  routing `image.architecture` through the existing `getArchitectureDisplayName` helper (maps every
+  canonical name to its simplestreams alias). Verified: live cached image has top-level
+  `architecture: aarch64` but `properties.architecture: arm64`; the spec confirms the helper maps
+  aarch64→arm64 / x86_64→amd64.
+- **Placement group offered on Incus** (LXD-only feature): Incus has no placement groups (only
+  `instances_placement_scriptlet`), and this daemon is a single-member cluster, so the clustered-only
+  "Placement group" target option showed on instance creation despite being unsupported. The
+  `usePlacementGroups` hook and the nav item were already gated on `hasPlacementGroups`
+  (`instance_placement_groups`), but three render sites were not: gated the option in
+  `InstanceTargetSelect`, and the `PlacementGroupSelect` in `EditInstanceDetails` and
+  `ProfileDetailsForm`.
+
 ## Phase 2 candidates (reassess with user before starting — per decision)
 - Read-only `instance_access`/`project_access` entitlement panels.
 - Gate `/ui/permissions/*` routes behind `hasAccessManagement` (nav already hidden; blocks manual URL entry only).

@@ -7,6 +7,7 @@ import ScrollableForm from "components/ScrollableForm";
 import { ensureEditMode } from "util/editMode";
 import SshKeyForm from "components/forms/SshKeyForm";
 import { useIsClustered } from "context/useIsClustered";
+import { useSupportedFeatures } from "context/useSupportedFeatures";
 import PlacementGroupSelect from "pages/instances/forms/PlacementGroupSelect";
 
 interface Props {
@@ -18,6 +19,7 @@ interface Props {
 const ProfileDetailsForm: FC<Props> = ({ formik, isEdit, project }) => {
   const isDefaultProfile = formik.values.name === "default";
   const isClustered = useIsClustered();
+  const { hasPlacementGroups } = useSupportedFeatures();
   const helpText = !isDefaultProfile
     ? "Click the name in the header to rename the profile."
     : "Default profile cannot be renamed.";
@@ -63,7 +65,7 @@ const ProfileDetailsForm: FC<Props> = ({ formik, isEdit, project }) => {
             disabled={!!formik.values.editRestriction}
             title={formik.values.editRestriction}
           />
-          {isClustered && (
+          {isClustered && hasPlacementGroups && (
             <PlacementGroupSelect
               value={formik.values.placement_group}
               setValue={(value) => {

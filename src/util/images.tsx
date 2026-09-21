@@ -2,6 +2,7 @@ import type { LxdImage, RemoteImage } from "types/image";
 import type { LxdStorageVolume } from "types/storage";
 import { capitalizeFirstLetter } from "./helpers";
 import { instanceCreationTypes } from "./instanceOptions";
+import { getArchitectureDisplayName } from "./architectures";
 
 export const isVmOnlyImage = (image: RemoteImage): boolean | undefined => {
   if (image.server === LOCAL_ISO || image.type === "virtual-machine") {
@@ -52,7 +53,10 @@ export const localLxdToRemoteImage = (image: LxdImage): RemoteImage => {
   return {
     aliases: image.update_source?.alias ?? image.aliases?.[0]?.name ?? "",
     fingerprint: image.fingerprint,
-    arch: image.architecture === "x86_64" ? "amd64" : image.architecture,
+    // Normalise the canonical architecture (e.g. aarch64, x86_64) to the alias
+    // simplestreams uses (arm64, amd64), so local and remote images group under
+    // the same architecture in the image selector.
+    arch: getArchitectureDisplayName(image.architecture),
     os: capitalizeFirstLetter(image.properties?.os ?? ""),
     created_at: new Date(image.uploaded_at).getTime(),
     release: image.properties?.release ?? "",

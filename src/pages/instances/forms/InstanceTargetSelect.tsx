@@ -10,6 +10,7 @@ import {
 import type { FormikProps } from "formik/dist/types";
 import type { CreateInstanceFormValues } from "types/forms/instanceAndProfile";
 import { useIsClustered } from "context/useIsClustered";
+import { useSupportedFeatures } from "context/useSupportedFeatures";
 import { useCurrentProject } from "context/useCurrentProject";
 import { useServerEntitlements } from "util/entitlements/server";
 import { useClusterGroups } from "context/useClusterGroups";
@@ -66,6 +67,7 @@ const InstanceTargetSelect: FC<Props> = ({ formik }) => {
   }
 
   const { canOverrideClusterTargetRestriction } = useServerEntitlements();
+  const { hasPlacementGroups } = useSupportedFeatures();
   const { project } = useCurrentProject();
   const type = selectedType(formik.values);
   const clusterMemberRef = useRef<SelectRef["current"]>(null);
@@ -208,10 +210,16 @@ const InstanceTargetSelect: FC<Props> = ({ formik }) => {
               clusterMemberOptions.length === 0 ||
               isProjectBlockingClusterMemberTargeting,
           },
-          {
-            label: "Placement group",
-            value: TARGET.PLACEMENT_GROUP,
-          },
+          // Incus has no placement groups (it uses placement scriptlets), so
+          // only offer this on servers that support them.
+          ...(hasPlacementGroups
+            ? [
+                {
+                  label: "Placement group",
+                  value: TARGET.PLACEMENT_GROUP,
+                },
+              ]
+            : []),
         ]}
         onChange={(e) => {
           const type = e.target.value;
@@ -273,7 +281,7 @@ const InstanceTargetSelect: FC<Props> = ({ formik }) => {
           disabled={!formik.values.image}
         />
       )}
-      {type === TARGET.PLACEMENT_GROUP && (
+      {type === TARGET.PLACEMENT_GROUP && hasPlacementGroups && (
         <PlacementGroupSelect
           value={formik.values.placementGroup}
           setValue={setPlacementGroup}
