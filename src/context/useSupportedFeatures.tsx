@@ -15,6 +15,10 @@ export const useSupportedFeatures = () => {
     hasCustomVolumeIso: apiExtensions.has("custom_volume_iso"),
     hasProjectsNetworksZones: apiExtensions.has("projects_networks_zones"),
     hasStorageBuckets: apiExtensions.has("storage_buckets"),
+    // Storage bucket backups (export/import) endpoints.
+    hasStorageBucketBackup: apiExtensions.has("storage_bucket_backup"),
+    // Buckets on local (non-object) storage pools via core.storage_buckets_address.
+    hasStorageBucketsLocal: apiExtensions.has("storage_buckets_local"),
     hasMetadataConfiguration: apiExtensions.has("metadata_configuration"),
     // Gates the server-wide GET /1.0/storage-volumes endpoint, which requires
     // the base `storage_volumes_all` extension. Incus (7.4) ships only

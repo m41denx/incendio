@@ -4,6 +4,7 @@ import { ContextualMenu, List } from "@canonical/react-components";
 import type { LxdStorageBucket } from "types/storage";
 import DeleteStorageBucketBtn from "./DeleteStorageBucketBtn";
 import EditStorageBucketBtn from "./EditStorageBucketBtn";
+import ExportStorageBucketBtn from "./ExportStorageBucketBtn";
 import {
   largeScreenBreakpoint,
   useIsScreenBelow,
@@ -31,6 +32,14 @@ const StorageBucketActions: FC<Props> = ({
   const menuElements = [
     <EditStorageBucketBtn
       key="edit"
+      classname={classnames(classname, "has-icon", {
+        "is-dense": !isDetailPage,
+      })}
+      bucket={bucket}
+      isDetailPage={isDetailPage}
+    />,
+    <ExportStorageBucketBtn
+      key="export"
       classname={classnames(classname, "has-icon", {
         "is-dense": !isDetailPage,
       })}

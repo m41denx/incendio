@@ -32,6 +32,7 @@ import { useBuckets } from "context/useBuckets";
 import type { StorageBucketsFilterType } from "./StorageBucketsFilter";
 import StorageBucketActions from "./actions/StorageBucketActions";
 import CreateStorageBucketBtn from "./actions/CreateStorageBucketBtn";
+import ImportStorageBucketBtn from "./actions/ImportStorageBucketBtn";
 import SelectableMainTable from "components/SelectableMainTable";
 import SelectedTableNotification from "components/SelectedTableNotification";
 import usePanelParams, { panels } from "util/usePanelParams";
@@ -282,6 +283,7 @@ const StorageBuckets: FC = () => {
         </DocLink>
       </p>
       <CreateStorageBucketBtn className="empty-state-button" />
+      <ImportStorageBucketBtn className="empty-state-button" />
     </EmptyState>
   );
 
@@ -333,6 +335,7 @@ const StorageBuckets: FC = () => {
             {hasBuckets && (
               <PageHeader.BaseActions>
                 <CreateStorageBucketBtn className="u-float-right u-no-margin--bottom" />
+                <ImportStorageBucketBtn className="u-float-right u-no-margin--bottom" />
               </PageHeader.BaseActions>
             )}
           </PageHeader>

@@ -170,7 +170,7 @@ NIC-device type options). Remaining bits are raw-config-only advanced keys (NIC 
 *Storage*
 - [ ] **Custom-volume file browser** (`file_storage_volume` + `custom_volume_sftp`) — browse/upload/download. **High**.
 - [ ] Storage **volume** config coverage (`storage_volume_*`, ~120 keys) + volume **rebuild** + `dependent` disk flag. **Med**.
-- [ ] Storage **bucket backups** (export/import) + local buckets on non-object pools. **Med**.
+- [x] Storage **bucket backups** (export/import) + local buckets on non-object pools. **Med**. (0.22-p10)
 - [x] ZFS vdev/raid builder, btrfs compression, initial-owner on volume forms. **Med/Low**. (0.22-p10)
 
 *Instances / VM*

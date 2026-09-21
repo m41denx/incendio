@@ -402,6 +402,32 @@ that forward a listen port to named backends. Commit `8da7f80dc4`. Changes:
   (only a `dir` pool is present); the vdev source format is verified against Incus's `parseSource()` in
   `internal/server/storage/drivers/driver_zfs.go`. `tsc`/`yarn lint-js` clean, `yarn build` succeeds.
 
+## Storage: bucket backups (export/import) + local buckets on non-object pools (0.22-p10, done)
+- **Bucket export** (`storage_bucket_backup`): an **Export** action on every bucket (list-row action list
+  and the detail-page segmented control, via `StorageBucketActions`) opens `ExportStorageBucketModal`
+  (compression gzip/none + expiry hours). It `POST`s `.../buckets/<bucket>/backups`, then on task
+  completion triggers a browser download of `GET .../buckets/<bucket>/backups/<name>/export`
+  — mirroring the volume export flow. Gated on the `storage_bucket_backup` extension, the bucket
+  `can_edit` entitlement, and the project's backup restriction.
+- **Bucket import**: an **Import bucket** button on the Buckets page (header + empty state,
+  `ImportStorageBucketBtn`) opens `UploadStorageBucketFileModal` / `UploadStorageBucketBackupFileForm`,
+  which streams the archive to `POST .../buckets` with `Content-Type: application/octet-stream` and the
+  `X-Incus-name` header (the daemon routes octet-stream POSTs to `createStoragePoolBucketFromBackup`).
+  Mirrors the volume upload form (pool selector + cluster-member target for cluster-local drivers).
+- API: `createStorageBucketBackup()` + `uploadStorageBucket()` in `api/storage-buckets`; UI-only form
+  type `types/forms/uploadStorageBucketBackupFile`.
+- **Local buckets on non-object pools** (`storage_buckets_local`): buckets on `dir`/`btrfs`/`lvm`/`zfs`
+  pools only get a usable S3 URL once the server-wide `core.storage_buckets_address` is set (otherwise
+  the bucket is created with an empty `s3_url`). `StorageBucketForm` now shows a caution notification,
+  with a doc link, when a local (non-`cephobject`) pool is selected and that address is unset. New
+  supported-feature flags `hasStorageBucketBackup` / `hasStorageBucketsLocal`.
+- **Live-validated on Incus 7.4**: with `core.storage_buckets_address` set, created a bucket on the local
+  `dir` pool (`s3_url` populated), created a backup, downloaded its `/export` (HTTP 200, valid gzip),
+  deleted the bucket, and re-imported it from the tarball via octet-stream `POST` + `X-Incus-name`
+  (HTTP 202 → bucket restored). Also confirmed that before setting the address, backup create fails with
+  "lacking a storage buckets listener address" and local buckets get an empty `s3_url` — the case the new
+  caution warns about. `tsc`/`yarn lint-js` clean, `yarn build` succeeds.
+
 ## Phase 2 candidates (reassess with user before starting — per decision)
 - Read-only `instance_access`/`project_access` entitlement panels.
 - Gate `/ui/permissions/*` routes behind `hasAccessManagement` (nav already hidden; blocks manual URL entry only).

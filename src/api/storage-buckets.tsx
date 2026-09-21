@@ -1,6 +1,8 @@
 import { handleResponse } from "util/helpers";
 import type { LxdStorageBucket, LxdStorageBucketKey } from "types/storage";
 import type { LxdApiResponse } from "types/apiResponse";
+import type { UploadState } from "types/upload";
+import axios, { type AxiosResponse } from "axios";
 import { addEntitlements } from "util/entitlements/api";
 import { fetchStoragePools } from "./storage-pools";
 import {
@@ -193,6 +195,66 @@ export const deleteStorageBucketBulk = async (
       continueOrFinish(results, buckets.length, resolve);
     });
   });
+};
+
+export const createStorageBucketBackup = async (
+  bucket: LxdStorageBucket,
+  project: string,
+  payload: string,
+): Promise<LxdOperationResponse> => {
+  const params = new URLSearchParams();
+  params.set("project", project);
+  addTarget(params, bucket.location);
+
+  return fetch(
+    `${ROOT_PATH}/1.0/storage-pools/${encodeURIComponent(bucket.pool)}/buckets/${encodeURIComponent(bucket.name)}/backups?${params.toString()}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: payload,
+    },
+  )
+    .then(handleResponse)
+    .then((data: LxdOperationResponse) => {
+      return data;
+    });
+};
+
+export const uploadStorageBucket = async (
+  file: File | null,
+  name: string,
+  project: string,
+  pool: string,
+  setUploadState: (value: UploadState) => void,
+  uploadController: AbortController,
+  target: string,
+): Promise<LxdOperationResponse> => {
+  const params = new URLSearchParams();
+  params.set("project", project);
+  addTarget(params, target);
+
+  return axios
+    .post(
+      `${ROOT_PATH}/1.0/storage-pools/${encodeURIComponent(pool)}/buckets?${params.toString()}`,
+      file,
+      {
+        headers: {
+          "Content-Type": "application/octet-stream",
+          "X-Incus-name": name,
+        },
+        onUploadProgress: (event) => {
+          setUploadState({
+            percentage: event.progress ? Math.floor(event.progress * 100) : 0,
+            loaded: event.loaded,
+            total: event.total,
+          });
+        },
+        signal: uploadController.signal,
+      },
+    )
+    .then((response: AxiosResponse<LxdOperationResponse>) => response.data);
 };
 
 export const fetchStorageBucketKeys = async (
