@@ -24,6 +24,10 @@ export interface StorageVolumeFormValues {
   zfs_remove_snapshots?: string;
   zfs_use_refquota?: string;
   zfs_reserve_space?: string;
+  btrfs_compression?: string;
+  initial_uid?: string;
+  initial_gid?: string;
+  initial_mode?: string;
   readOnly: boolean;
   isCreating: boolean;
   entityType: "storageVolume";

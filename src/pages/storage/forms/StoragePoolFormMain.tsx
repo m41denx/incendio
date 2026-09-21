@@ -1,11 +1,17 @@
 import type { FC } from "react";
-import { Row, Input, Col, OutputField } from "@canonical/react-components";
+import {
+  Row,
+  Input,
+  Col,
+  OutputField,
+  Select,
+} from "@canonical/react-components";
 import type { FormikProps } from "formik";
-import { dirDriver, cephObject } from "util/storageOptions";
+import { dirDriver, cephObject, zfsDriver } from "util/storageOptions";
 import type { StoragePoolFormValues } from "types/forms/storagePool";
 import DiskSizeSelector from "components/forms/DiskSizeSelector";
 import AutoExpandingTextArea from "components/AutoExpandingTextArea";
-import { hasSource } from "util/storagePool";
+import { composeZfsVdevSource, hasSource } from "util/storagePool";
 import { useSettings } from "context/useSettings";
 import ScrollableForm from "components/ScrollableForm";
 import { ensureEditMode } from "util/editMode";
@@ -25,6 +31,16 @@ const StoragePoolFormMain: FC<Props> = ({ formik }) => {
   const { hasRemoteDropSource } = useSupportedFeatures();
   const isCreating = formik.values.isCreating;
   const isCephObjectDriver = formik.values.driver === cephObject;
+  const showZfsVdevBuilder =
+    isCreating &&
+    formik.values.driver === zfsDriver &&
+    !isClusteredServer(settings);
+
+  const updateZfsVdev = (type: string, devices: string) => {
+    formik.setFieldValue("zfs_vdev_type", type);
+    formik.setFieldValue("zfs_vdev_devices", devices);
+    formik.setFieldValue("source", composeZfsVdevSource(type, devices));
+  };
 
   return (
     <ScrollableForm>
@@ -95,6 +111,46 @@ const StoragePoolFormMain: FC<Props> = ({ formik }) => {
             settings={settings}
             hasSource={hasSource(formik.values.driver, hasRemoteDropSource)}
           />
+          {showZfsVdevBuilder && (
+            <>
+              <Select
+                id="zfs_vdev_type"
+                name="zfs_vdev_type"
+                label="ZFS vdev type"
+                value={formik.values.zfs_vdev_type ?? "stripe"}
+                options={[
+                  { label: "Stripe (no redundancy)", value: "stripe" },
+                  { label: "Mirror", value: "mirror" },
+                  { label: "RAIDZ1", value: "raidz1" },
+                  { label: "RAIDZ2", value: "raidz2" },
+                ]}
+                onChange={(e) => {
+                  updateZfsVdev(
+                    e.target.value,
+                    formik.values.zfs_vdev_devices ?? "",
+                  );
+                }}
+                disabled={!!formik.values.editRestriction}
+                help="Redundancy layout used when creating a new ZFS pool from the block devices below."
+              />
+              <Input
+                id="zfs_vdev_devices"
+                name="zfs_vdev_devices"
+                type="text"
+                label="vdev block devices"
+                placeholder="/dev/sdb,/dev/sdc"
+                value={formik.values.zfs_vdev_devices ?? ""}
+                onChange={(e) => {
+                  updateZfsVdev(
+                    formik.values.zfs_vdev_type ?? "stripe",
+                    e.target.value,
+                  );
+                }}
+                disabled={!!formik.values.editRestriction}
+                help="Comma-separated block devices. This composes the Source field above. Leave blank to enter Source manually (e.g. an existing pool or dataset)."
+              />
+            </>
+          )}
           {isCephObjectDriver && (
             <>
               <Input

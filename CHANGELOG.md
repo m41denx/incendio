@@ -1,14 +1,11 @@
-## 0.22-p11
-## What's Changed
-### ✨ New Features
-- (feat) Projects: new restriction toggles — **VM nesting** (`restricted.virtual-machines.nesting`, allow/block) under Restrictions → Instances, and **Available storage pools** (`restricted.storage-pools.access`, a comma-separated allow-list of pool names) under Restrictions → Device usage
-
 ## 0.22-p10
 ## What's Changed
 ### ✨ New Features
 - (feat) Instances: **Access** tab — a read-only "who can access" list (identifier, role, provider) for the instance, from `GET /1.0/instances/{name}/access` (`instance_access`)
 - (feat) Projects: **Access** page in the project menu — the same read-only access list for the project, from `GET /1.0/projects/{name}/access` (`project_access`)
 - (feat) Settings: trusted certificates now support a **description** — a new Description column, an optional description field in the Add dialog, and an inline edit action to change it (`certificate_description`)
+- (feat) Projects: new restriction toggles — **VM nesting** (`restricted.virtual-machines.nesting`, allow/block) under Restrictions → Instances, and **Available storage pools** (`restricted.storage-pools.access`, a comma-separated allow-list of pool names) under Restrictions → Device usage
+- (feat) Storage: **ZFS vdev/raid builder** when creating a ZFS pool — pick a vdev type (stripe / mirror / raidz1 / raidz2) and list block devices to compose the pool source (`storage_zfs_vdev`); **btrfs volume compression** (`btrfs.compression`: zstd/lzo/zlib/none); and **initial owner** (`initial.uid`/`initial.gid`/`initial.mode`) on custom filesystem volumes (`storage_initial_owner`)
 
 ## 0.22-p9
 ## What's Changed

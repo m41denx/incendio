@@ -360,7 +360,7 @@ that forward a listen port to named backends. Commit `8da7f80dc4`. Changes:
   `description` PATCH round-tripped (set `smoke-test-desc`, read back, restored). `tsc`/`yarn lint-js`
   clean, production `yarn build` succeeds.
 
-## Project restriction toggles (0.22-p11, done)
+## Project restriction toggles (0.22-p10, done)
 - **VM nesting** (`restricted.virtual-machines.nesting`): an allow/block select added to the project
   **Restrictions → Instances** form (`InstanceRestrictionForm`), mirroring the existing
   `restricted.containers.nesting` / low-level toggles (`optionAllowBlock`).
@@ -376,6 +376,31 @@ that forward a listen port to named backends. Commit `8da7f80dc4`. Changes:
   allowed"); a PATCH to a temp project set `restricted.virtual-machines.nesting=block` +
   `restricted.storage-pools.access=<pool>` and both read back correctly. `tsc`/`yarn lint-js` clean,
   `yarn build` succeeds.
+
+## Storage: ZFS vdev builder, btrfs compression, volume initial-owner (0.22-p10, done)
+- **Custom-volume initial owner** (`initial.uid` / `initial.gid` / `initial.mode`, `storage_initial_owner`):
+  three create-time-only rows on the volume form's **Main** section (UID/GID number inputs, mode text
+  input, placeholder `711`), shown only for `filesystem` content type and cleared when the content type
+  switches to `block`. Supported on all storage drivers.
+- **Btrfs volume compression** (`btrfs.compression`): a new **Btrfs** section on the volume form
+  (`StorageVolumeFormBtrfs`) with a compression Select (default / none / zstd / lzo / zlib), shown only
+  when the volume's pool driver is `btrfs`; the field is cleared from the payload for non-btrfs pools.
+- **ZFS vdev/raid builder** (`storage_zfs_vdev`): on the storage-pool **Main** section, for a new ZFS pool
+  on a non-clustered server, a **vdev type** Select (stripe / mirror / raidz1 / raidz2) plus a
+  **block devices** input compose the pool `source`. Composition mirrors Incus's `parseSource()`:
+  `stripe` emits an unprefixed device list, other types emit `<type>=<dev1>,<dev2>`
+  (e.g. `mirror=/dev/sdb,/dev/sdc`). The plain **Source** field stays available for entering an existing
+  pool/dataset. The two builder inputs are **UI-only** form fields (`zfs_vdev_type` / `zfs_vdev_devices`)
+  and are never sent as pool config — only the composed `source` is submitted.
+- Plumbing: volume-key map + `getBtrfsVolumeFormFields()` in `util/storageVolume`, form-value types in
+  `types/forms/storageVolume` and `types/forms/storagePool`, edit-init in `util/storageVolumeEdit`,
+  `composeZfsVdevSource()` in `util/storagePool`, and the Btrfs menu item in `StorageVolumeFormMenu`.
+- **Live-validated on Incus 7.4**: `/1.0/metadata/configuration` lists `initial.uid/gid/mode`,
+  `btrfs.compression` and the ZFS vdev `source` syntax; a custom volume created via
+  `POST /1.0/storage-pools/<pool>/volumes` with `initial.uid/gid/mode` read back correctly and was
+  deleted. btrfs.compression and the ZFS vdev source could not be exercised end-to-end on this host
+  (only a `dir` pool is present); the vdev source format is verified against Incus's `parseSource()` in
+  `internal/server/storage/drivers/driver_zfs.go`. `tsc`/`yarn lint-js` clean, `yarn build` succeeds.
 
 ## Phase 2 candidates (reassess with user before starting — per decision)
 - Read-only `instance_access`/`project_access` entitlement panels.

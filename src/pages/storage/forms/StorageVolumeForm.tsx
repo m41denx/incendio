@@ -10,6 +10,7 @@ import {
 import { useParams } from "react-router-dom";
 import { updateMaxHeight } from "util/updateMaxHeight";
 import StorageVolumeFormMenu, {
+  BTRFS,
   FILESYSTEM,
   MAIN_CONFIGURATION,
   SNAPSHOTS,
@@ -19,8 +20,10 @@ import StorageVolumeFormMain from "pages/storage/forms/StorageVolumeFormMain";
 import StorageVolumeFormSnapshots from "pages/storage/forms/StorageVolumeFormSnapshots";
 import StorageVolumeFormBlock from "pages/storage/forms/StorageVolumeFormBlock";
 import StorageVolumeFormZFS from "pages/storage/forms/StorageVolumeFormZFS";
+import StorageVolumeFormBtrfs from "pages/storage/forms/StorageVolumeFormBtrfs";
 import type { FormikProps } from "formik/dist/types";
 import {
+  getBtrfsVolumeFormFields,
   getFilesystemVolumeFormFields,
   getVolumeConfigKeys,
   getVolumeKey,
@@ -63,6 +66,10 @@ export const volumeFormToPayload = (
       [getVolumeKey("zfs_remove_snapshots")]: values.zfs_remove_snapshots,
       [getVolumeKey("zfs_use_refquota")]: values.zfs_use_refquota,
       [getVolumeKey("zfs_reserve_space")]: values.zfs_reserve_space,
+      [getVolumeKey("btrfs_compression")]: values.btrfs_compression,
+      [getVolumeKey("initial_uid")]: values.initial_uid,
+      [getVolumeKey("initial_gid")]: values.initial_gid,
+      [getVolumeKey("initial_mode")]: values.initial_mode,
       ...unhandledVolumeConfigs,
     },
     project,
@@ -125,6 +132,9 @@ const StorageVolumeForm: FC<Props> = ({ formik, section, setSection }) => {
     if (poolDriver !== "zfs") {
       invalidFields.push(...getZfsVolumeFormFields());
     }
+    if (poolDriver !== "btrfs") {
+      invalidFields.push(...getBtrfsVolumeFormFields());
+    }
     for (const field of invalidFields) {
       if (formik.values[field] !== undefined) {
         formik.setFieldValue(field, undefined);
@@ -161,6 +171,9 @@ const StorageVolumeForm: FC<Props> = ({ formik, section, setSection }) => {
             <StorageVolumeFormBlock formik={formik} />
           )}
           {section === slugify(ZFS) && <StorageVolumeFormZFS formik={formik} />}
+          {section === slugify(BTRFS) && (
+            <StorageVolumeFormBtrfs formik={formik} />
+          )}
         </Col>
       </Row>
     </Form>

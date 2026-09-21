@@ -171,7 +171,7 @@ NIC-device type options). Remaining bits are raw-config-only advanced keys (NIC 
 - [ ] **Custom-volume file browser** (`file_storage_volume` + `custom_volume_sftp`) — browse/upload/download. **High**.
 - [ ] Storage **volume** config coverage (`storage_volume_*`, ~120 keys) + volume **rebuild** + `dependent` disk flag. **Med**.
 - [ ] Storage **bucket backups** (export/import) + local buckets on non-object pools. **Med**.
-- [ ] ZFS vdev/raid builder, btrfs compression, initial-owner on volume forms. **Med/Low**.
+- [x] ZFS vdev/raid builder, btrfs compression, initial-owner on volume forms. **Med/Low**. (0.22-p10)
 
 *Instances / VM*
 - [x] Explicit **CPU topology** builder (`instance_limits_cpu_topology`) — a "topology" CPU-limit mode
@@ -213,7 +213,7 @@ NIC-device type options). Remaining bits are raw-config-only advanced keys (NIC 
       warn/refuse when a custom scriptlet already exists; multi-member cluster only.
       **B (lightweight):** no scriptlet — at create time the UI computes a `target` member from where
       group-mates run (best-effort, create-time only, no evacuation/rebalance/CLI). **Med**.
-- [x] Project restriction toggles (`restricted.storage-pools`, VM nesting) (0.22-p11): **VM nesting**
+- [x] Project restriction toggles (`restricted.storage-pools`, VM nesting) (0.22-p10): **VM nesting**
       (`restricted.virtual-machines.nesting`, allow/block) added to Restrictions → Instances; **Available
       storage pools** (`restricted.storage-pools.access`, comma-separated allow-list) added to
       Restrictions → Device usage. Live-validated on Incus 7.4.

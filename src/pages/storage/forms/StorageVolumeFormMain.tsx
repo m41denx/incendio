@@ -158,6 +158,9 @@ const StorageVolumeFormMain: FC<Props> = ({
                 formik.setFieldValue("block_type", undefined);
                 formik.setFieldValue("security_shifted", undefined);
                 formik.setFieldValue("security_unmapped", undefined);
+                formik.setFieldValue("initial_uid", undefined);
+                formik.setFieldValue("initial_gid", undefined);
+                formik.setFieldValue("initial_mode", undefined);
               }
               formik.setFieldValue("content_type", e.target.value);
             }}
@@ -189,6 +192,36 @@ const StorageVolumeFormMain: FC<Props> = ({
                 disabledReason:
                   "This setting can't be changed while security shifted is set to true",
                 children: <Select options={optionTrueFalse} />,
+              }),
+
+              getConfigurationRow({
+                formik,
+                label: "Initial owner (UID)",
+                name: "initial_uid",
+                defaultValue: "",
+                children: (
+                  <Input type="number" placeholder="Enter UID (e.g. 0)" />
+                ),
+              }),
+
+              getConfigurationRow({
+                formik,
+                label: "Initial owner (GID)",
+                name: "initial_gid",
+                defaultValue: "",
+                children: (
+                  <Input type="number" placeholder="Enter GID (e.g. 0)" />
+                ),
+              }),
+
+              getConfigurationRow({
+                formik,
+                label: "Initial mode",
+                name: "initial_mode",
+                defaultValue: "",
+                children: (
+                  <Input type="text" placeholder="Enter mode (e.g. 711)" />
+                ),
               }),
             ]}
           />

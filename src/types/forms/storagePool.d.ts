@@ -39,6 +39,10 @@ export interface StoragePoolFormValues {
   zfs_clone_copy?: string;
   zfs_export?: string;
   zfs_pool_name?: string;
+  // UI-only helpers for composing the ZFS pool `source` from block devices.
+  // These are never sent as pool config; they only build `source`.
+  zfs_vdev_type?: string;
+  zfs_vdev_devices?: string;
   lvm_vg_name?: string;
   lvm_thinpool_name?: string;
   lvm_use_thinpool?: string;

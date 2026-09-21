@@ -181,6 +181,21 @@ export const hasSource = (
   return driversWithSource.includes(driver);
 };
 
+// Composes the ZFS pool `source` string from a vdev type and a
+// comma-separated list of block devices. The default "stripe" type is emitted
+// without a prefix (Incus treats an unprefixed device list as stripe); other
+// types are prefixed as `<type>=<devices>` (e.g. `mirror=/dev/sdb,/dev/sdc`).
+export const composeZfsVdevSource = (
+  vdevType: string,
+  devices: string,
+): string => {
+  const trimmed = devices.trim();
+  if (!trimmed) {
+    return "";
+  }
+  return vdevType && vdevType !== "stripe" ? `${vdevType}=${trimmed}` : trimmed;
+};
+
 export const isLocalPool = (
   pool: LxdStoragePool | undefined,
   settings: LxdSettings | undefined,

@@ -54,6 +54,10 @@ const storageVolumeFormFieldToPayloadName: Record<string, string> = {
   zfs_remove_snapshots: "zfs.remove_snapshots",
   zfs_use_refquota: "zfs.use_refquota",
   zfs_reserve_space: "zfs.reserve_space",
+  btrfs_compression: "btrfs.compression",
+  initial_uid: "initial.uid",
+  initial_gid: "initial.gid",
+  initial_mode: "initial.mode",
 };
 
 export const getFilesystemVolumeFormFields =
@@ -68,6 +72,13 @@ export const getZfsVolumeFormFields = (): (keyof StorageVolumeFormValues)[] => {
     item.startsWith("zfs_"),
   ) as (keyof StorageVolumeFormValues)[];
 };
+
+export const getBtrfsVolumeFormFields =
+  (): (keyof StorageVolumeFormValues)[] => {
+    return Object.keys(storageVolumeFormFieldToPayloadName).filter((item) =>
+      item.startsWith("btrfs_"),
+    ) as (keyof StorageVolumeFormValues)[];
+  };
 
 export const getVolumeKey = (key: string): string => {
   if (key in storageVolumeFormFieldToPayloadName) {

@@ -5,12 +5,17 @@ import { updateMaxHeight } from "util/updateMaxHeight";
 import type { FormikProps } from "formik/dist/types";
 import type { StorageVolumeFormValues } from "types/forms/storageVolume";
 import type { LxdStorageVolumeContentType } from "types/storage";
-import { driversWithFilesystemSupport, zfsDriver } from "util/storageOptions";
+import {
+  btrfsDriver,
+  driversWithFilesystemSupport,
+  zfsDriver,
+} from "util/storageOptions";
 
 export const MAIN_CONFIGURATION = "Main configuration";
 export const SNAPSHOTS = "Snapshots";
 export const FILESYSTEM = "Filesystem";
 export const ZFS = "ZFS";
+export const BTRFS = "Btrfs";
 
 interface Props {
   active: string;
@@ -64,6 +69,13 @@ const StorageVolumeFormMenu: FC<Props> = ({
           {poolDriver === zfsDriver && (
             <MenuItem
               label={ZFS}
+              {...menuItemProps}
+              disableReason={disableReason}
+            />
+          )}
+          {poolDriver === btrfsDriver && (
+            <MenuItem
+              label={BTRFS}
               {...menuItemProps}
               disableReason={disableReason}
             />
