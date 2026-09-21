@@ -191,6 +191,20 @@ that forward a listen port to named backends. Commit `8da7f80dc4`. Changes:
   `backups.compression_algorithm` + `images.compression_algorithm` (none/bzip2/gzip/lz4/lzma/xz/zstd),
   `instances.nic.host_name` (random/mac) render as selects instead of free-text.
 
+## Phase 2 — networking close-off + easy instance wins (done, release 0.22-p6)
+- **Forward SNAT** (`b44d357c4b`): `snat` toggle on network forwards for bridged networks
+  (`config.snat`); `LxdNetworkForward.config.snat` added; create/edit seed it.
+- **DNS nameservers** for bridged/OVN networks: `NetworkFormDns` renders `dns_nameservers` for
+  non-physical types when `network_dns_nameservers` is present (field/key map already existed).
+  Note: DHCP routes, IPv6 stateful, etc. were already rendered by the network form.
+- **VGA console screenshot**: `fetchInstanceConsoleScreenshot` (`GET .../console?type=vga`) + a
+  Screenshot button on the graphic console, gated on `instance_console_screenshot`.
+- **Snapshot schedule aliases**: added `@midnight` and the instance-only `@startup` option to
+  `SnapshotScheduleInput` (via an `includeStartup` prop from the instance snapshots form).
+- **Deferred (Low)**: NIC-device keys (macvlan `mode`, SR-IOV `security.trusted`) and OVN
+  isolated/tunnels — the NIC device panel only handles managed-network attach + ACLs, so these stay
+  raw-config/YAML for now.
+
 ## Phase 2 candidates (reassess with user before starting — per decision)
 - Read-only `instance_access`/`project_access` entitlement panels.
 - Gate `/ui/permissions/*` routes behind `hasAccessManagement` (nav already hidden; blocks manual URL entry only).

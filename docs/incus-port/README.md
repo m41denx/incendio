@@ -139,13 +139,17 @@ non-merge commits touch files that also changed upstream (`9cbb82d9`→`0.22`), 
       DNS zones (name, description, `dns.nameservers`) + a Records section (type/value/ttl entries).
 - [x] **Load-balancer health checks + live state** (`network_load_balancer_health_check`, `_state`) —
       health-check config on the backend LB form + a live "Backend health" panel on the edit page.
+- [x] **Forward SNAT** toggle (`network_forward_snat`) on bridged-network forwards.
+- [x] **DNS nameservers** (`dns.nameservers`) field for bridged/OVN networks. (DHCP routes / IPv6
+      stateful were already rendered by the network form.)
+- [x] **VGA console screenshot** (`instance_console_screenshot`) — download a PNG of a running VM console.
+- [x] Snapshot schedule **`@midnight` / `@startup`** aliases (`snapshots_schedule_aliases`).
 
 **Still missing — Incus functionality with no dedicated UI** (ranked; see [`analysis/A`](analysis/A-incus-opportunities.md))
 
 *Networking*
-- [ ] Forward **SNAT** toggle (`network_forward_snat`). **Low**.
-- [ ] Richer bridge/OVN/NIC widgets (DNS nameservers, DHCP routes, IPv6 RA, macvlan mode, OVN
-      isolated/tunnels, SR-IOV) — currently raw config only. **Low/Med**.
+- [ ] NIC-device widgets: **macvlan mode**, **SR-IOV** (`security.trusted`), OVN **isolated/tunnels** —
+      the NIC device panel only handles managed-network attach + ACLs; these stay raw-config for now. **Low**.
 
 *Storage*
 - [ ] **Custom-volume file browser** (`file_storage_volume` + `custom_volume_sftp`) — browse/upload/download. **High**.
@@ -155,8 +159,7 @@ non-merge commits touch files that also changed upstream (`9cbb82d9`→`0.22`), 
 
 *Instances / VM*
 - [ ] Explicit **CPU topology** builder (`instance_limits_cpu_topology` sockets/cores/threads) — still raw. **Med**.
-- [ ] **Snapshot** schedule aliases (`@daily`/`@startup`), manual expiry, disk-only restore. **Med**.
-- [ ] **VGA console screenshot** action (`instance_console_screenshot`) — quick win on the graphic console. **Med**.
+- [ ] Snapshot **manual expiry** + **disk-only restore** (schedule aliases done). **Med**.
 - [ ] Migration **refresh** (incremental) + **live project move** options. **Low**.
 - [ ] UEFI/**NVRAM** viewer + **QEMU scriptlet** config (`instance_nvram`, `qemu_scriptlet`). **Low**.
 - [ ] Uptime/started-at + allocated CPU-time columns; richer disk-device widgets (io.bus/cache,
