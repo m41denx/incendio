@@ -665,6 +665,20 @@ const Navigation: FC = () => {
                                     </SideNavigationItem>,
                                   ]
                                 : []),
+                              ...(hasClusterRebalance || hasPlacementScriptlet
+                                ? [
+                                    <SideNavigationItem key="cluster-settings">
+                                      <NavLink
+                                        to={`${ROOT_PATH}/ui/cluster/settings`}
+                                        title="Cluster settings"
+                                        onClick={softToggleMenu}
+                                        className="accordion-nav-secondary"
+                                      >
+                                        Settings
+                                      </NavLink>
+                                    </SideNavigationItem>,
+                                  ]
+                                : []),
                             ]}
                           </NavAccordion>
                         </SideNavigationItem>
@@ -785,82 +799,74 @@ const Navigation: FC = () => {
                         </SideNavigationItem>
                       )}
                       <SideNavigationItem>
-                        <NavLink
-                          to={`${ROOT_PATH}/ui/settings/certificates`}
-                          title="Trusted certificates"
-                          onClick={softToggleMenu}
-                        >
-                          <Icon
-                            className="is-light p-side-navigation__icon"
-                            name="security"
-                          />{" "}
-                          Certificates
-                        </NavLink>
-                      </SideNavigationItem>
-                      {hasServerLogging && (
-                        <SideNavigationItem>
-                          <NavLink
-                            to={`${ROOT_PATH}/ui/settings/logging`}
-                            title="Logging targets"
-                            onClick={softToggleMenu}
-                          >
-                            <Icon
-                              className="is-light p-side-navigation__icon"
-                              name="pods"
-                            />{" "}
-                            Logging
-                          </NavLink>
-                        </SideNavigationItem>
-                      )}
-                      {hasAcme && (
-                        <SideNavigationItem>
-                          <NavLink
-                            to={`${ROOT_PATH}/ui/settings/acme`}
-                            title="ACME certificates"
-                            onClick={softToggleMenu}
-                          >
-                            <Icon
-                              className="is-light p-side-navigation__icon"
-                              name="certificate"
-                            />{" "}
-                            ACME
-                          </NavLink>
-                        </SideNavigationItem>
-                      )}
-                      {isClustered &&
-                        (hasClusterRebalance || hasPlacementScriptlet) && (
-                          <SideNavigationItem>
-                            <NavLink
-                              to={`${ROOT_PATH}/ui/settings/cluster`}
-                              title="Cluster settings"
-                              onClick={softToggleMenu}
-                            >
-                              <Icon
-                                className="is-light p-side-navigation__icon"
-                                name="cluster-host"
-                              />{" "}
-                              Cluster settings
-                            </NavLink>
-                          </SideNavigationItem>
-                        )}
-                      <SideNavigationItem>
-                        <NavLink
-                          to={`${ROOT_PATH}/ui/settings`}
+                        <NavAccordion
+                          baseUrls={[`${ROOT_PATH}/ui/settings`]}
                           title="Settings"
-                          onClick={softToggleMenu}
-                          ignoreUrlMatches={[
-                            "settings/certificates",
-                            "settings/logging",
-                            "settings/acme",
-                            "settings/cluster",
-                          ]}
+                          iconName="settings"
+                          label="Settings"
+                          onOpen={() => {
+                            toggleAccordionNav("settings");
+                          }}
+                          open={
+                            openNavMenus.includes("settings") && !menuCollapsed
+                          }
                         >
-                          <Icon
-                            className="is-light p-side-navigation__icon"
-                            name="settings"
-                          />{" "}
-                          Settings
-                        </NavLink>
+                          {[
+                            <SideNavigationItem key="certificates">
+                              <NavLink
+                                to={`${ROOT_PATH}/ui/settings/certificates`}
+                                title="Trusted certificates"
+                                onClick={softToggleMenu}
+                                className="accordion-nav-secondary"
+                              >
+                                Certificates
+                              </NavLink>
+                            </SideNavigationItem>,
+                            ...(hasServerLogging
+                              ? [
+                                  <SideNavigationItem key="logging">
+                                    <NavLink
+                                      to={`${ROOT_PATH}/ui/settings/logging`}
+                                      title="Logging targets"
+                                      onClick={softToggleMenu}
+                                      className="accordion-nav-secondary"
+                                    >
+                                      Logging
+                                    </NavLink>
+                                  </SideNavigationItem>,
+                                ]
+                              : []),
+                            ...(hasAcme
+                              ? [
+                                  <SideNavigationItem key="acme">
+                                    <NavLink
+                                      to={`${ROOT_PATH}/ui/settings/acme`}
+                                      title="ACME certificates"
+                                      onClick={softToggleMenu}
+                                      className="accordion-nav-secondary"
+                                    >
+                                      ACME
+                                    </NavLink>
+                                  </SideNavigationItem>,
+                                ]
+                              : []),
+                            <SideNavigationItem key="advanced">
+                              <NavLink
+                                to={`${ROOT_PATH}/ui/settings`}
+                                title="Advanced settings"
+                                onClick={softToggleMenu}
+                                className="accordion-nav-secondary"
+                                ignoreUrlMatches={[
+                                  "settings/certificates",
+                                  "settings/logging",
+                                  "settings/acme",
+                                ]}
+                              >
+                                Advanced
+                              </NavLink>
+                            </SideNavigationItem>,
+                          ]}
+                        </NavAccordion>
                       </SideNavigationItem>
                     </>
                   )}

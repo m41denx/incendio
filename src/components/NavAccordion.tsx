@@ -8,6 +8,7 @@ export type AccordionNavMenu =
   | "storage"
   | "networking"
   | "clustering"
+  | "settings"
   | "images";
 
 interface Props {

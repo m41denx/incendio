@@ -750,7 +750,7 @@ const App: FC = () => {
           element={<ProtectedRoute outlet={<AcmeSettings />} />}
         />
         <Route
-          path={`${ROOT_PATH}/ui/settings/cluster`}
+          path={`${ROOT_PATH}/ui/cluster/settings`}
           element={<ProtectedRoute outlet={<ClusterSettings />} />}
         />
         <Route path={`${ROOT_PATH}/ui/login`} element={<Login />} />
