@@ -33,9 +33,33 @@ export const toLoadBalancer = (
   // The presence of `backends` (Incus backend model) switches the payload
   // shape away from the LXD pool model.
   if (values.backends !== undefined) {
+    // Preserve config keys the form doesn't render, then merge health checks
+    // (rebuild rather than delete to satisfy no-dynamic-delete).
+    const config: Record<string, string> = {};
+    for (const [key, value] of Object.entries(values.config ?? {})) {
+      if (key !== "healthcheck" && !key.startsWith("healthcheck.")) {
+        config[key] = value;
+      }
+    }
+    if (values.healthCheck) {
+      config.healthcheck = "true";
+      if (values.healthCheckInterval) {
+        config["healthcheck.interval"] = values.healthCheckInterval;
+      }
+      if (values.healthCheckTimeout) {
+        config["healthcheck.timeout"] = values.healthCheckTimeout;
+      }
+      if (values.healthCheckSuccessCount) {
+        config["healthcheck.success_count"] = values.healthCheckSuccessCount;
+      }
+      if (values.healthCheckFailureCount) {
+        config["healthcheck.failure_count"] = values.healthCheckFailureCount;
+      }
+    }
     return {
       listen_address: values.listenAddress,
       description: values.description,
+      config,
       backends: values.backends.map((backend) => ({
         name: backend.name,
         description: backend.description ?? "",

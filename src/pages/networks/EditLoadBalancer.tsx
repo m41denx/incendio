@@ -29,6 +29,7 @@ import { useLoadBalancer } from "context/useLoadBalancers";
 import { useCurrentProject } from "context/useCurrentProject";
 import { setLoadBalancerCreatedPool } from "util/loadBalancers";
 import { useSupportedFeatures } from "context/useSupportedFeatures";
+import LoadBalancerHealthPanel from "pages/networks/LoadBalancerHealthPanel";
 
 const EditLoadBalancer: FC = () => {
   const navigate = useNavigate();
@@ -63,7 +64,8 @@ const EditLoadBalancer: FC = () => {
     }
   }, [error]);
 
-  const { hasLoadBalancerPools } = useSupportedFeatures();
+  const { hasLoadBalancerPools, hasNetworkLoadBalancerState } =
+    useSupportedFeatures();
   const useBackends = !hasLoadBalancerPools;
 
   const { data: loadBalancer, isLoading: isBalancerLoading } = useLoadBalancer(
@@ -113,6 +115,16 @@ const EditLoadBalancer: FC = () => {
       ? {
           listenAddress: listenAddress ?? "",
           description: loadBalancer?.description ?? "",
+          config: loadBalancer?.config ?? {},
+          healthCheck: loadBalancer?.config?.healthcheck === "true",
+          healthCheckInterval:
+            loadBalancer?.config?.["healthcheck.interval"] ?? "",
+          healthCheckTimeout:
+            loadBalancer?.config?.["healthcheck.timeout"] ?? "",
+          healthCheckSuccessCount:
+            loadBalancer?.config?.["healthcheck.success_count"] ?? "",
+          healthCheckFailureCount:
+            loadBalancer?.config?.["healthcheck.failure_count"] ?? "",
           backends:
             loadBalancer?.backends?.map((backend, index) => ({
               key: `edit-backend-${index}`,
@@ -185,6 +197,16 @@ const EditLoadBalancer: FC = () => {
       contentClassName="edit-load-balancer"
     >
       {network && <LoadBalancerForm formik={formik} isEdit network={network} />}
+      {useBackends &&
+        hasNetworkLoadBalancerState &&
+        loadBalancer?.config?.healthcheck === "true" && (
+          <LoadBalancerHealthPanel
+            network={networkName}
+            project={project}
+            listenAddress={listenAddress}
+            enabled
+          />
+        )}
       <FormFooterLayout>
         <Link
           className="p-button--base"

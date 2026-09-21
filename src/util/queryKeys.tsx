@@ -25,6 +25,8 @@ export const queryKeys = {
   networkAddressSets: "network-address-sets",
   networkAllocations: "network-allocations",
   networkIntegrations: "network-integrations",
+  networkZones: "network-zones",
+  networkZoneRecords: "network-zone-records",
   operations: "operations",
   os: "os",
   osApps: "osApps",

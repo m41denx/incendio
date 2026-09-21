@@ -2,7 +2,27 @@ import { handleResponse } from "util/helpers";
 import type { LxdApiResponse } from "types/apiResponse";
 import type { LxdOperationResponse } from "types/operation";
 import { ROOT_PATH } from "util/rootPath";
-import type { LxdLoadBalancer } from "types/loadBalancers";
+import type {
+  LxdLoadBalancer,
+  LxdLoadBalancerState,
+} from "types/loadBalancers";
+
+export const fetchLoadBalancerState = async (
+  network: string,
+  project: string,
+  listenAddress: string,
+): Promise<LxdLoadBalancerState> => {
+  const params = new URLSearchParams();
+  params.set("project", project);
+
+  return fetch(
+    `${ROOT_PATH}/1.0/networks/${encodeURIComponent(network)}/load-balancers/${encodeURIComponent(listenAddress)}/state?${params.toString()}`,
+  )
+    .then(handleResponse)
+    .then((data: LxdApiResponse<LxdLoadBalancerState>) => {
+      return data.metadata;
+    });
+};
 
 export const fetchLoadBalancers = async (
   network: string,

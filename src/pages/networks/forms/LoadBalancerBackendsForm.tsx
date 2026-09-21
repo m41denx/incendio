@@ -14,6 +14,7 @@ import type {
   LoadBalancerPortFormValues,
 } from "types/forms/loadBalancers";
 import { focusField } from "util/formFields";
+import { useSupportedFeatures } from "context/useSupportedFeatures";
 
 interface Props {
   formik: FormikProps<LoadBalancerFormValues>;
@@ -21,6 +22,7 @@ interface Props {
 }
 
 const LoadBalancerBackendsForm: FC<Props> = ({ formik }) => {
+  const { hasNetworkLoadBalancerHealthCheck } = useSupportedFeatures();
   const backends = formik.values.backends ?? [];
   const ports = formik.values.ports;
 
@@ -300,6 +302,59 @@ const LoadBalancerBackendsForm: FC<Props> = ({ formik }) => {
           <span>Add port</span>
         </Button>
       </div>
+
+      {hasNetworkLoadBalancerHealthCheck && (
+        <>
+          <h2 className="p-heading--5 u-no-margin--bottom">Health checks</h2>
+          <p className="u-text--muted">
+            Periodically probe backends and remove unhealthy ones from rotation.
+          </p>
+          <Input
+            id="healthCheck"
+            name="healthCheck"
+            type="checkbox"
+            label="Enable health checks"
+            checked={formik.values.healthCheck ?? false}
+            onChange={(e) => {
+              formik.setFieldValue("healthCheck", e.target.checked);
+            }}
+          />
+          {formik.values.healthCheck && (
+            <>
+              <Input
+                {...formik.getFieldProps("healthCheckInterval")}
+                id="healthCheckInterval"
+                type="number"
+                label="Interval (seconds)"
+                placeholder="10"
+              />
+              <Input
+                {...formik.getFieldProps("healthCheckTimeout")}
+                id="healthCheckTimeout"
+                type="number"
+                label="Timeout (seconds)"
+                placeholder="30"
+              />
+              <Input
+                {...formik.getFieldProps("healthCheckSuccessCount")}
+                id="healthCheckSuccessCount"
+                type="number"
+                label="Success count"
+                help="Consecutive successful probes before a backend is marked healthy."
+                placeholder="3"
+              />
+              <Input
+                {...formik.getFieldProps("healthCheckFailureCount")}
+                id="healthCheckFailureCount"
+                type="number"
+                label="Failure count"
+                help="Consecutive failed probes before a backend is marked unhealthy."
+                placeholder="3"
+              />
+            </>
+          )}
+        </>
+      )}
     </div>
   );
 };

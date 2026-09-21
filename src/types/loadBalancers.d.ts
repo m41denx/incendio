@@ -1,8 +1,24 @@
 export interface LxdLoadBalancer {
   listen_address: string;
   description: string;
+  config?: Record<string, string>;
   backends?: LxdLoadBalancerLegacyBackend[];
   ports: LxdLoadBalancerPort[];
+}
+
+export interface LxdLoadBalancerStateBackendHealthPort {
+  protocol: string;
+  port: number;
+  status: string;
+}
+
+export interface LxdLoadBalancerStateBackendHealth {
+  address: string;
+  ports: LxdLoadBalancerStateBackendHealthPort[];
+}
+
+export interface LxdLoadBalancerState {
+  backend_health: Record<string, LxdLoadBalancerStateBackendHealth>;
 }
 
 export interface LxdLoadBalancerLegacyBackend {

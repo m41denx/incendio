@@ -5,6 +5,15 @@ export interface LoadBalancerFormValues {
   // Present (even if empty) only in the Incus backend model; its presence is
   // what switches the form/payload from the LXD pool model to backends.
   backends?: LoadBalancerBackendFormValues[];
+  // Original LB config carried through so a PUT doesn't drop keys the form
+  // doesn't render (e.g. user.*); health-check keys are merged over it.
+  config?: Record<string, string>;
+  // Incus backend-model health checks (config keys on the load balancer).
+  healthCheck?: boolean;
+  healthCheckInterval?: string;
+  healthCheckTimeout?: string;
+  healthCheckSuccessCount?: string;
+  healthCheckFailureCount?: string;
 }
 
 export interface LoadBalancerPortFormValues {

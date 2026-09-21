@@ -74,5 +74,14 @@ export const useSupportedFeatures = () => {
     // Incus network load balancers (backend model). LXD's load-balancer
     // *pools* (hasLoadBalancerPools) are a separate, LXD-only feature.
     hasNetworkLoadBalancers: apiExtensions.has("network_load_balancer"),
+    hasNetworkLoadBalancerHealthCheck: apiExtensions.has(
+      "network_load_balancer_health_check",
+    ),
+    hasNetworkLoadBalancerState: apiExtensions.has(
+      "network_load_balancer_state",
+    ),
+    // Network DNS zones (+ records).
+    hasNetworkZones: apiExtensions.has("network_dns"),
+    hasNetworkZoneRecords: apiExtensions.has("network_dns_records"),
   };
 };

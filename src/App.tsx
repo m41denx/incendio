@@ -95,6 +95,15 @@ const EditNetworkAddressSet = lazy(
 const NetworkAddressSetList = lazy(
   async () => import("pages/networks/NetworkAddressSetList"),
 );
+const CreateNetworkZone = lazy(
+  async () => import("pages/networks/CreateNetworkZone"),
+);
+const EditNetworkZone = lazy(
+  async () => import("pages/networks/EditNetworkZone"),
+);
+const NetworkZoneList = lazy(
+  async () => import("pages/networks/NetworkZoneList"),
+);
 const NetworkDetail = lazy(async () => import("pages/networks/NetworkDetail"));
 const NetworkIPAM = lazy(async () => import("pages/networks/NetworkIPAM"));
 const NetworkList = lazy(async () => import("pages/networks/NetworkList"));
@@ -464,6 +473,30 @@ const App: FC = () => {
           element={
             <ProtectedRoute
               outlet={<ProjectLoader outlet={<EditNetworkAddressSet />} />}
+            />
+          }
+        />
+        <Route
+          path={`${ROOT_PATH}/ui/project/:project/network-zones`}
+          element={
+            <ProtectedRoute
+              outlet={<ProjectLoader outlet={<NetworkZoneList />} />}
+            />
+          }
+        />
+        <Route
+          path={`${ROOT_PATH}/ui/project/:project/network-zones/create`}
+          element={
+            <ProtectedRoute
+              outlet={<ProjectLoader outlet={<CreateNetworkZone />} />}
+            />
+          }
+        />
+        <Route
+          path={`${ROOT_PATH}/ui/project/:project/network-zone/:name`}
+          element={
+            <ProtectedRoute
+              outlet={<ProjectLoader outlet={<EditNetworkZone />} />}
             />
           }
         />

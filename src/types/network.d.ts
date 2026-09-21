@@ -167,6 +167,29 @@ export interface LxdNetworkAcl {
   access_entitlements?: string[];
 }
 
+export interface LxdNetworkZone {
+  name: string;
+  description?: string;
+  config?: Record<string, string>;
+  used_by?: string[];
+  project?: string;
+  etag?: string;
+}
+
+export interface LxdNetworkZoneRecordEntry {
+  type: string;
+  value: string;
+  ttl?: number;
+}
+
+export interface LxdNetworkZoneRecord {
+  name: string;
+  description?: string;
+  entries: LxdNetworkZoneRecordEntry[];
+  config?: Record<string, string>;
+  etag?: string;
+}
+
 export interface LxdNetworkAddressSet {
   name: string;
   description?: string;

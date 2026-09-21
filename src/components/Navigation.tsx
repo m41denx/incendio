@@ -97,6 +97,7 @@ const Navigation: FC = () => {
     hasPlacementGroups,
     hasNetworkIntegrations,
     hasNetworkAddressSets,
+    hasNetworkZones,
   } = useSupportedFeatures();
   const { loggedInUserName, loggedInUserID } = useLoggedInUser();
   const [scroll, setScroll] = useState(false);
@@ -353,6 +354,8 @@ const Navigation: FC = () => {
                                   "network-acls",
                                   "network-address-set",
                                   "network-address-sets",
+                                  "network-zone",
+                                  "network-zones",
                                   "network-ipam",
                                 ]}
                               >
@@ -387,6 +390,26 @@ const Navigation: FC = () => {
                                       className="accordion-nav-secondary"
                                     >
                                       Address sets
+                                    </NavLink>
+                                  </SideNavigationItem>,
+                                ]
+                              : []),
+                            ...(hasNetworkZones
+                              ? [
+                                  <SideNavigationItem
+                                    key={`/ui/project/${encodeURIComponent(projectName)}/network-zones`}
+                                  >
+                                    <NavLink
+                                      to={`${ROOT_PATH}/ui/project/${encodeURIComponent(projectName)}/network-zones`}
+                                      title={`Network zones (${projectName})`}
+                                      onClick={softToggleMenu}
+                                      activeUrlMatches={[
+                                        "network-zone",
+                                        "network-zones",
+                                      ]}
+                                      className="accordion-nav-secondary"
+                                    >
+                                      Zones
                                     </NavLink>
                                   </SideNavigationItem>,
                                 ]

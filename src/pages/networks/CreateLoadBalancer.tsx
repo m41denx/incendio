@@ -105,6 +105,12 @@ const CreateLoadBalancer: FC = () => {
       ? {
           listenAddress: getDefaultListenAddress(),
           description: "",
+          config: {},
+          healthCheck: false,
+          healthCheckInterval: "",
+          healthCheckTimeout: "",
+          healthCheckSuccessCount: "",
+          healthCheckFailureCount: "",
           backends: [
             {
               key: "initial",
