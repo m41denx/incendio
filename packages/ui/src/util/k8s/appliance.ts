@@ -231,7 +231,11 @@ const ensureProject = async (name: string): Promise<void> => {
     description: "Incendio-managed Kubernetes management project",
     config: {
       "features.images": "true",
-      "features.profiles": "true",
+      // Inherit the default project's profiles so the single appliance
+      // container gets a root disk + NIC. With features.profiles=true the
+      // project gets its own empty default profile and instance creation
+      // fails with "No root device could be found".
+      "features.profiles": "false",
       [PROJECT_KEYS.managed]: "true",
       [PROJECT_KEYS.role]: "management",
     },
