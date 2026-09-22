@@ -40,6 +40,9 @@ yarn.lock
 
 # [build] Built files
 /build/
+dist/
+# Agent local secrets (packages/k8s/.env.example is committed instead)
+packages/k8s/.env
 /parts/
 /prime/
 /stage/

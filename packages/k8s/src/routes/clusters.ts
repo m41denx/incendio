@@ -1,0 +1,101 @@
+import { Elysia } from "elysia";
+import { bearer } from "@elysiajs/bearer";
+import { z } from "zod";
+import { env } from "../env.ts";
+import { FLAVORS } from "../constants.ts";
+import { clusterStore, type ClusterRecord } from "../lib/store.ts";
+
+const CreateClusterBody = z.object({
+  name: z.string().min(1).max(63),
+  flavor: z.enum(FLAVORS).default("bridge"),
+  kubernetesVersion: z.string().default("v1.31.0"),
+  controlPlaneCount: z.number().int().min(1).max(9).default(1),
+  workerCount: z.number().int().min(0).max(100).default(1),
+  project: z.string().optional(),
+});
+
+/**
+ * Cluster lifecycle API. All routes require the shared agent bearer token.
+ * Provisioning is stubbed: specs are recorded so the UI flow can be built out
+ * before the CAPN hand-off lands.
+ */
+export const clusterRoutes = new Elysia({ prefix: "/v1/clusters" })
+  .use(bearer())
+  .onBeforeHandle(({ bearer, set }) => {
+    if (!bearer || bearer !== env.AGENT_TOKEN) {
+      set.status = 401;
+      set.headers["www-authenticate"] = 'Bearer realm="incendio-k8s"';
+      return { error: "unauthorized" };
+    }
+  })
+  .get("/", () => ({ clusters: clusterStore.list() }), {
+    detail: {
+      summary: "List managed clusters",
+      tags: ["clusters"],
+      security: [{ bearerAuth: [] }],
+    },
+  })
+  .post(
+    "/",
+    ({ body }) => {
+      const record: ClusterRecord = {
+        id: crypto.randomUUID(),
+        name: body.name,
+        flavor: body.flavor,
+        kubernetesVersion: body.kubernetesVersion,
+        controlPlaneCount: body.controlPlaneCount,
+        workerCount: body.workerCount,
+        project: body.project,
+        status: "pending",
+        createdAt: new Date().toISOString(),
+      };
+      clusterStore.create(record);
+      // TODO: hand the desired spec off to CAPN (Cluster API Provider Incus).
+      return record;
+    },
+    {
+      body: CreateClusterBody,
+      detail: {
+        summary: "Create a cluster (records desired spec; CAPN wiring pending)",
+        tags: ["clusters"],
+        security: [{ bearerAuth: [] }],
+      },
+    },
+  )
+  .get(
+    "/:id",
+    ({ params, set }) => {
+      const record = clusterStore.get(params.id);
+      if (!record) {
+        set.status = 404;
+        return { error: "not found" };
+      }
+      return record;
+    },
+    {
+      detail: {
+        summary: "Get a cluster by id",
+        tags: ["clusters"],
+        security: [{ bearerAuth: [] }],
+      },
+    },
+  )
+  .delete(
+    "/:id",
+    ({ params, set }) => {
+      const existed = clusterStore.delete(params.id);
+      if (!existed) {
+        set.status = 404;
+        return { error: "not found" };
+      }
+      set.status = 204;
+      return { deleted: params.id };
+    },
+    {
+      detail: {
+        summary: "Delete a cluster",
+        tags: ["clusters"],
+        security: [{ bearerAuth: [] }],
+      },
+    },
+  );
