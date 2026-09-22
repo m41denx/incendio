@@ -1,6 +1,7 @@
 import { Elysia } from "elysia";
 import { AGENT, FLAVORS, ROLES } from "../constants.ts";
 import { env } from "../env.ts";
+import { serverCertFingerprint } from "../lib/tls.ts";
 
 /**
  * Public, unauthenticated discovery endpoints. The UI calls GET /v1/info during
@@ -30,6 +31,8 @@ export const infoRoutes = new Elysia()
         apiUrl: env.INCUS_API_URL,
         configured: env.INCUS_API_URL.length > 0,
       },
+      // Self-signed cert identity so the UI can pin the appliance on approval.
+      tls: { fingerprint: serverCertFingerprint() },
     }),
     { detail: { summary: "Agent handshake / capability discovery", tags: ["meta"] } },
   );

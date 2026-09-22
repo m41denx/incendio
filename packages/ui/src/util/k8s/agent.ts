@@ -1,6 +1,7 @@
 // Thin client for the @incendio/k8s agent. The agent is a persistent broker
-// over the CAPI/CAPN control plane running in the operator VM; the UI never
-// talks to Incus for Kubernetes lifecycle directly. See docs/k8s/deploy-model.md.
+// over the CAPI/CAPN control plane running in the management appliance
+// container; the UI never talks to Incus for Kubernetes lifecycle directly.
+// See docs/k8s/management-appliance.md.
 
 export interface AgentConfig {
   url: string;
@@ -19,6 +20,9 @@ export interface AgentInfo {
     roles?: string[];
   };
   incus: { apiUrl: string; configured: boolean };
+  // SHA-256 fingerprint ("sha256:<hex>") of the agent's self-signed serving
+  // cert, so the UI can pin the appliance after the user approves it.
+  tls?: { fingerprint: string | null };
 }
 
 const URL_KEY = "incendio.k8s.agentUrl";

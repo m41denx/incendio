@@ -784,17 +784,26 @@ const Kubernetes: FC = () => {
           appearance="positive"
           loading={agent.busy}
           onClick={() => {
-            if (!agent.connected) {
-              setActive(AGENT);
+            if (!serverCrt || !clientCrt || !clientKey) {
+              setActive(CREDENTIALS);
               notify.info(
-                "Connect the Kubernetes agent first, then deploy the operator VM.",
+                "Add Incus infrastructure credentials before deploying the management appliance.",
               );
               return;
             }
-            void agent.deployOperator(config);
+            void agent.deployAppliance({
+              config,
+              credentials: {
+                incusApiUrl: serverUrl.trim(),
+                clientCrt,
+                clientKey,
+                serverCrt,
+              },
+              isFineGrained: null,
+            });
           }}
         >
-          Deploy operator VM
+          Deploy management appliance
         </ActionButton>
       </FormFooterLayout>
     </BaseLayout>

@@ -22,7 +22,7 @@ const K8sAgentPanel: FC<Props> = ({ agent }) => {
         directly. Without an agent, use the generator to produce artifacts you
         run yourself. The URL must be reachable from your browser (HTTPS, with
         CORS allowing this origin). Once connected, use{" "}
-        <strong>Deploy operator VM</strong> at the bottom of the page.
+        <strong>Deploy management appliance</strong> at the bottom of the page.
       </p>
       <Row>
         <Col size={6}>
@@ -68,6 +68,15 @@ const K8sAgentPanel: FC<Props> = ({ agent }) => {
         >
           {agent.status.text}
         </Notification>
+      ) : null}
+      {agent.url.trim().length > 0 ? (
+        <p className="u-text--muted">
+          Self-signed certificate?{" "}
+          <a href={agent.url} target="_blank" rel="noreferrer">
+            Approve K8s manager certificate
+          </a>{" "}
+          in a new tab, then Test connection.
+        </p>
       ) : null}
     </div>
   );
