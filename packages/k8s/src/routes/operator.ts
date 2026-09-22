@@ -8,6 +8,8 @@ import {
   listInstances,
   readAgentCredentials,
 } from "../lib/operator.ts";
+import { incusErrorDetail } from "../lib/incus.ts";
+import { log } from "../lib/log.ts";
 
 const DEFAULT_MGMT_PROJECT = "incendio-mgmt";
 const DEFAULT_OPERATOR_NAME = "operator";
@@ -69,22 +71,41 @@ export const operatorRoutes = new Elysia({ prefix: "/v1/operator" })
   .post(
     "/",
     async ({ body, set }) => {
+      log.info(
+        `deploy operator: name=${body.name} project=${body.project} k8s=${body.kubernetesVersion} cpu=${body.cpu} mem=${body.memoryGiB}GiB`,
+      );
+
       let creds;
       try {
         creds = readAgentCredentials();
       } catch (error) {
+        log.error(`operator deploy: missing credentials: ${(error as Error).message}`);
         set.status = 400;
         return { error: (error as Error).message };
       }
-
-      await createProject(body.project, {
-        role: "management",
-        cluster: "mgmt",
-        k8sVersion: body.kubernetesVersion,
-        operator: body.name,
-      });
+      log.debug("operator deploy: agent credentials loaded");
 
       try {
+        log.info(`operator deploy: ensuring management project '${body.project}'`);
+        await createProject(body.project, {
+          role: "management",
+          cluster: "mgmt",
+          k8sVersion: body.kubernetesVersion,
+          operator: body.name,
+        });
+        log.info(`operator deploy: management project '${body.project}' ready`);
+      } catch (error) {
+        const detail = incusErrorDetail(error);
+        log.error(`operator deploy: failed to create management project: ${detail}`);
+        set.status = 502;
+        return { error: "failed to create management project", detail };
+      }
+
+      try {
+        const alias = body.imageAlias ?? `kubeadm/${body.kubernetesVersion}`;
+        log.info(
+          `operator deploy: launching VM '${body.name}' image='${alias}' server='${body.imageServer ?? "default capi remote"}'`,
+        );
         const operation = await createOperatorVm({
           name: body.name,
           project: body.project,
@@ -103,14 +124,17 @@ export const operatorRoutes = new Elysia({ prefix: "/v1/operator" })
           serverCrt: creds.serverCrt,
           agentDownloadUrl: body.agentDownloadUrl,
         });
+        log.info(`operator deploy: VM launch accepted for '${body.name}'`);
         set.status = 202;
         return { project: body.project, name: body.name, operation };
       } catch (error) {
+        const detail = incusErrorDetail(error);
+        log.error(`operator deploy: failed to launch operator VM: ${detail}`);
         set.status = 502;
         return {
           project: body.project,
           error: "failed to launch operator VM",
-          detail: (error as Error).message,
+          detail,
         };
       }
     },

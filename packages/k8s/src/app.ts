@@ -4,6 +4,7 @@ import { jwt } from "@elysiajs/jwt";
 import { openapi } from "@elysiajs/openapi";
 import { env } from "./env.ts";
 import { AGENT } from "./constants.ts";
+import { log } from "./lib/log.ts";
 import { infoRoutes } from "./routes/info.ts";
 import { operatorRoutes } from "./routes/operator.ts";
 import { clusterRoutes } from "./routes/clusters.ts";
@@ -40,6 +41,16 @@ export const app = new Elysia()
     }),
   )
   .use(jwt({ name: "jwt", secret: env.JWT_SECRET }))
+  .onRequest(({ request }) => {
+    log.info(`${request.method} ${new URL(request.url).pathname}`);
+  })
+  .onError(({ code, error, path }) => {
+    log.error(
+      `unhandled error (${code}) at ${path}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  })
   .use(infoRoutes)
   .use(operatorRoutes)
   .use(clusterRoutes);

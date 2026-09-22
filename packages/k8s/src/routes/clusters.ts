@@ -9,6 +9,8 @@ import {
   deleteProject,
   suggestProjectName,
 } from "../lib/projects.ts";
+import { incusErrorDetail } from "../lib/incus.ts";
+import { log } from "../lib/log.ts";
 
 const CreateClusterBody = z.object({
   name: z.string().min(1).max(63),
@@ -45,6 +47,9 @@ export const clusterRoutes = new Elysia({ prefix: "/v1/clusters" })
     async ({ body, set }) => {
       const project =
         body.project ?? suggestProjectName("workload", body.name);
+      log.info(
+        `create cluster: name=${body.name} project=${project} flavor=${body.flavor} k8s=${body.kubernetesVersion} cp=${body.controlPlaneCount} workers=${body.workerCount}`,
+      );
       try {
         // Project-per-workload-cluster: stamp user.incendio.* metadata so the
         // cluster is detectable and teardown is one delete.
@@ -53,12 +58,12 @@ export const clusterRoutes = new Elysia({ prefix: "/v1/clusters" })
           cluster: body.name,
           k8sVersion: body.kubernetesVersion,
         });
+        log.info(`create cluster: project '${project}' ready`);
       } catch (error) {
+        const detail = incusErrorDetail(error);
+        log.error(`create cluster: failed to create project '${project}': ${detail}`);
         set.status = 502;
-        return {
-          error: "failed to create cluster project",
-          detail: (error as Error).message,
-        };
+        return { error: "failed to create cluster project", detail };
       }
       const record: ClusterRecord = {
         id: crypto.randomUUID(),
