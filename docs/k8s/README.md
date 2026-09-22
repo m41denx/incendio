@@ -1,8 +1,17 @@
 # Incendio Kubernetes support — design & plan
 
-Status: **design / not yet implemented.** This document captures the plan agreed
-with the maintainer before any code is written. It is the source of truth for the
-`k8s` branch (monorepo migration + agent bootstrap).
+Status: **design / partially implemented.** This document captures the original
+plan for the `k8s` branch (monorepo migration + agent bootstrap).
+
+**Docs map (read in this order for current decisions):**
+- [`management-appliance.md`](./management-appliance.md) — **current** source of
+  truth for the management plane (k3s-in-container appliance), transport, agent
+  persistence, and the Clusters-page UI. Start here.
+- [`deploy-model.md`](./deploy-model.md) — deploy/manage model; three-plane
+  mental model + `user.incendio.*` schema still apply, but the operator-VM /
+  kubeadm-management specifics are superseded by `management-appliance.md`.
+- [`capn-reference.md`](./capn-reference.md) — pinned CAPN template variables
+  the generator produces.
 
 ---
 

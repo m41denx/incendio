@@ -1,5 +1,17 @@
 # Kubernetes on Incus — how we actually deploy & manage clusters
 
+> **Partially superseded (2026-09-22 follow-up).** The hosts have no KVM, so the
+> **management plane is now a privileged/nested Incus _container_ running
+> single-node k3s**, not a kubeadm _VM_ — see
+> [`management-appliance.md`](./management-appliance.md), which is the current
+> source of truth for the management plane, transport (self-signed HTTPS +
+> proxy device), agent persistence, and UI information architecture. The parts
+> of this document that still hold: the three-plane mental model, the
+> project-per-cluster design, the `user.incendio.*` schema (§5), kubeadm for
+> **workload** clusters, and the "thin broker, CAPI owns reconciliation"
+> framing. Treat the operator-**VM** / kubeadm-**management-cluster** specifics
+> below as historical.
+
 This is the **source of truth for the deploy/manage model** and supersedes the
 earlier "k3s-in-Incus management cluster" sketch. It captures the decisions
 locked with the maintainer (2026-09-22) after working through the CAPN

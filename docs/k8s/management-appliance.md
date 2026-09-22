@@ -1,0 +1,169 @@
+# Management appliance & "Create cluster" — current architecture
+
+**Status: source of truth for the management plane and the Create-cluster flow.**
+Decisions locked with the maintainer (2026-09-22, follow-up session). This
+**supersedes the operator-VM / kubeadm-management-cluster parts of**
+[`deploy-model.md`](./deploy-model.md). The three-plane mental model and the
+`user.incendio.*` project schema in that doc still hold; what changed is _how_
+the management plane is packaged (a container running k3s, not a kubeadm VM),
+plus transport, persistence, and UI information architecture.
+
+CRD/variable specifics still live in [`capn-reference.md`](./capn-reference.md).
+
+---
+
+## 0. Why this changed: no KVM on the hosts
+
+The hosts have **no KVM/QEMU**, so the management appliance cannot be a VM. It
+becomes a **privileged, nested Incus container**. This is actually consistent
+end-to-end: workload nodes are already `container`-type (privileged + nested),
+so the whole stack is containers. "Nothing on the hypervisor" is preserved —
+the only thing we ever create are ordinary Incus instances via the Incus API.
+
+## 1. Locked decisions
+
+1. **Management cluster = single-node k3s** inside the appliance container,
+   started with **`--disable=traefik`** (and `--disable=servicelb`; CAPN owns
+   load-balancing for workload clusters). k3s is used **only** for the CAPI/CAPN
+   management cluster. Workload clusters are still **kubeadm** via CAPN — the
+   earlier "no k3s" rule applies to workload clusters, not the mgmt host.
+2. **Appliance build = script-route for v1, distrobuilder image for v2.**
+   - v1: deploy a stock `images:ubuntu/24.04` container (26.04 once published;
+     version stays configurable) and bootstrap it from a pinned GitHub Releases
+     script via cloud-init.
+   - v2: bake the stabilized script into a distrobuilder rootfs, publish the
+     tarball to GitHub Releases, import with `incus image import`. The finalized
+     v1 script basically _is_ the distrobuilder `actions`/`packages` list.
+3. **Agent serves a self-signed TLS cert.** The UI shows an **"Approve K8s
+   manager certificate"** link that opens the agent origin so the browser can
+   accept the cert before the SPA talks to it.
+4. **Store URL _and_ token in `user.k8s.api-config`** on the Incus server. Incus
+   lacks fine-grained ACLs today (OpenFGA would gate it if enabled); acceptable
+   for this threat model.
+5. **Agent persistence: `bun:sqlite` + drizzle** for task/status/audit + a
+   cached cluster list. **CAPI/CAPN CRDs in the mgmt cluster stay authoritative**
+   for real cluster state; sqlite is a cache/log, never a second source of truth.
+6. **Status = SWR/React-Query polling** (matches the rest of the UI). WebSocket
+   streaming can come later if polling proves insufficient.
+
+## 2. Who creates the appliance (chicken-and-egg)
+
+The agent lives **inside** the appliance container, so it cannot create itself.
+The **Incendio SPA creates the container directly via the Incus API**, reusing
+the authenticated Incus session it already has for everything else. No
+host-side agent, no extra software on the hypervisor. Once the container is up,
+the browser talks to the agent inside it. (This mirrors the original
+"first instance is created via plain Incus API" note, now done straight from the
+browser.)
+
+## 3. Appliance container spec
+
+- **Project:** `incendio-mgmt` (fixed), `user.incendio.managed="true"`,
+  `user.incendio.role=management`.
+- **Instance:** fixed name (e.g. `k8s-manager`), `type=container`, image
+  `images:ubuntu/24.04`.
+- **Config:** `security.nesting="true"`, `security.privileged="true"` (k3s in
+  LXC needs both), plus the kubeadm/k3s-in-LXC tweaks (see §7 caveat).
+- **Network:** default NAT bridge (`incusbr0` or the managed default) — just
+  needs egress to the internet; no OVN, no custom bridges.
+- **Ingress:** an Incus **`proxy` device** named `k8s-api` forwarding
+  `connect=tcp:127.0.0.1:8843` in the container to a `listen=tcp:<host>:<port>`
+  on the Incus host, so the browser can reach the agent.
+- **cloud-init:** `user.user-data` runs the bootstrap (see §4).
+
+## 4. Bootstrap (v1 script-route)
+
+cloud-init drops the generated secrets and runs a pinned bootstrap script from
+GitHub Releases. The script:
+
+1. Installs **k3s** (`curl -sfL https://get.k3s.io | ... --disable=traefik
+   --disable=servicelb`), waits for the node to be Ready.
+2. Installs **clusterctl**, then `CLUSTER_TOPOLOGY=true clusterctl init -i incus`
+   against the local k3s (`KUBECONFIG=/etc/rancher/k3s/k3s.yaml`).
+3. Downloads the **`k8s-api`** binary from the same release tag.
+4. Generates a **self-signed TLS cert** (SANs = container IP + host address),
+   writes `/opt/incendio/.env` with `AGENT_TOKEN`, `JWT_SECRET`, TLS paths,
+   `PORT=8843`, and the Incus client cert material CAPN needs.
+5. Installs + enables a **systemd unit** (`incendio-k8s.service`) for the agent.
+
+Secrets (`AGENT_TOKEN`, `JWT_SECRET`) are **generated by the SPA** at deploy
+time and injected via cloud-init `write_files`, so the UI already knows them.
+
+> Alternative considered: bake everything with distrobuilder up front. Rejected
+> for v1 (more CI + image hosting) and kept as v2 once the script stabilizes.
+
+## 5. Post-deploy handshake
+
+1. SPA polls the container state for its **IPv4**, and polls
+   `GET /v1/info` through the proxy until the agent answers.
+2. SPA writes **`user.k8s.api-config`** on the Incus server config —
+   `{ url, token, cert-fingerprint }` — so any Incendio session can reconnect.
+3. UI surfaces the **"Approve K8s manager certificate"** link (opens the agent
+   origin) the first time, because the cert is self-signed.
+
+## 6. Agent internals
+
+### Transport / identity
+- HTTPS with a self-signed cert; bearer `AGENT_TOKEN` + JWT (`JWT_SECRET`).
+- CORS allows the Incendio origin.
+- Holds the trusted Incus **client cert** (same material as `lxc-secret`) so
+  CAPN can drive Incus.
+
+### Persistence (`bun:sqlite` + drizzle) — cache/log only
+Sketch (final schema in code under `packages/k8s/src/db`):
+- `clusters` — `id, name, project, k8s_version, cp_count, worker_count, status,
+  spec_json, created_at, updated_at`.
+- `tasks` — `id, cluster_id, kind, state(pending|running|done|error), message,
+  log, started_at, finished_at`.
+- `audit` — `id, ts, actor, action, detail`.
+
+### CAPI interface
+Agent shells out to `clusterctl` + `kubectl` against the local k3s (fastest to
+ship). It **watches CAPI CRDs on demand** and mirrors status into sqlite; it has
+**no reconcile loop** — CAPI/CAPN own reconciliation.
+
+### HTTP surface (target)
+- `GET  /v1/info` — version + capabilities (`capn`, `operator`, `projects`).
+- `GET  /v1/clusters` — list (from sqlite cache, refreshed from CRDs).
+- `POST /v1/clusters` — accept a spec → create per-cluster project →
+  `clusterctl generate | kubectl apply`; returns a task id.
+- `GET  /v1/clusters/:name` / `GET /v1/clusters/:name/status` — status derived
+  from Cluster/Machine CRD conditions.
+- `DELETE /v1/clusters/:name` — delete the project (one-shot teardown).
+- `GET  /v1/tasks/:id` — provisioning task state/log for SWR polling.
+
+## 7. UI information architecture
+
+- **Clusters** becomes the **main page**: list existing clusters + a **Create
+  cluster** flow. Today's `Cluster` / `Machines` / `Infrastructure credentials`
+  sections move into that create flow.
+- **Kubernetes settings** = a separate multi-tab view (like the OVN network /
+  instance detail pages):
+  - **API** tab — agent URL/token, connection status, "Approve certificate"
+    link.
+  - **Management appliance** tab — container status, redeploy, logs hint.
+- Creating a cluster POSTs the spec, then the UI **polls the task/status**
+  (SWR) and shows live provisioning progress. With no agent configured, the
+  Phase-0 copy/paste generator still works as a fallback.
+
+## 8. Build order (each shippable)
+
+1. **Agent foundations (transport-independent):** self-signed TLS serving,
+   `bun:sqlite` + drizzle schema, `GET /v1/clusters` + `/v1/clusters/:name/status`.
+2. **Deploy-management flow:** SPA creates the ubuntu container via the Incus
+   API (nesting + privileged + proxy device + cloud-init bootstrap); poll
+   `/v1/info`, fetch IP, write `user.k8s.api-config`.
+3. **Clusters page:** main list + create (move current sections in), API +
+   appliance settings tabs, "Approve certificate" link, SWR status polling.
+
+## 9. Still open
+
+- **k3s-in-nested-container tweaks:** needs `security.nesting` + privileged, a
+  `/dev/kmsg` shim, and cgroup handling. Well-trodden but the fiddly part; the
+  bootstrap script owns it.
+- **GitHub Releases source:** which repo/tag the bootstrap + `k8s-api` binary
+  are published to (assume `m41denx/incendio` releases unless told otherwise).
+- **Ubuntu base version:** 24.04 now; move to 26.04 when published.
+- **CNI** default for the k3s mgmt cluster (k3s ships flannel) vs workload
+  clusters (`DEPLOY_KUBE_FLANNEL`).
+- **v2 distrobuilder image** hosting + import flow once the v1 script settles.
