@@ -3,6 +3,8 @@ import { bearer } from "@elysiajs/bearer";
 import { z } from "zod";
 import { env } from "../env.ts";
 import { FLAVORS } from "../constants.ts";
+import { TemplateVariables } from "../lib/template-vars.ts";
+import { ScaleBody } from "../lib/scale.ts";
 import {
   createProject,
   deleteProject,
@@ -16,6 +18,8 @@ import {
   applyIdentitySecret,
   capnReady,
   deleteClusterCrd,
+  getKubeconfig,
+  scaleCluster,
   generateCluster,
   getLiveStatuses,
   kubectlApply,
@@ -40,6 +44,8 @@ const CreateClusterBody = z.object({
   controlPlaneCount: z.number().int().min(1).max(9).default(1),
   workerCount: z.number().int().min(0).max(100).default(1),
   project: z.string().optional(),
+  // Every other form option, as CAPN template variables (unknown keys → 400).
+  variables: TemplateVariables.default({}),
 });
 
 /** Map a live CAPI cluster phase/availability to our cache status enum. */
@@ -54,8 +60,24 @@ function statusFromLive(live: LiveStatus): ClusterStatus {
  * are readable the status becomes CRD-sourced (and the cache is refreshed so
  * subsequent reads agree); otherwise the cached value is returned as-is.
  */
-function enrich(record: ClusterView, live: LiveStatus | undefined) {
-  if (!live) return { ...record, source: "cache" as const };
+/** Keep the cache's desired counts in step with the CAPI topology. */
+function syncDesired(record: ClusterView, live: LiveStatus): ClusterView {
+  const cp = live.controlPlaneDesired ?? record.controlPlaneCount;
+  const workers = live.workerDesired ?? record.workerCount;
+  if (cp === record.controlPlaneCount && workers === record.workerCount) {
+    return record;
+  }
+  return (
+    clusterRepo.setCounts(record.name, {
+      controlPlaneCount: cp,
+      workerCount: workers,
+    }) ?? record
+  );
+}
+
+function enrich(cached: ClusterView, live: LiveStatus | undefined) {
+  if (!live) return { ...cached, source: "cache" as const };
+  const record = syncDesired(cached, live);
   const status = statusFromLive(live);
   if (status !== record.status) clusterRepo.setStatus(record.name, status);
   return {
@@ -63,6 +85,8 @@ function enrich(record: ClusterView, live: LiveStatus | undefined) {
     status,
     source: "crd" as const,
     phase: live.phase,
+    message: live.message,
+    endpoint: live.endpoint,
     controlPlaneReady: live.controlPlaneReady,
     workerReady: live.workerReady,
   };
@@ -70,9 +94,10 @@ function enrich(record: ClusterView, live: LiveStatus | undefined) {
 
 /** Build a CRD-sourced status view (counts from Machines, desired from cache). */
 function liveStatusView(
-  record: ClusterView,
+  cached: ClusterView,
   live: LiveStatus,
 ): ClusterStatusView {
+  const record = syncDesired(cached, live);
   const status = statusFromLive(live);
   if (status !== record.status) clusterRepo.setStatus(record.name, status);
   return {
@@ -85,6 +110,10 @@ function liveStatusView(
       ready: live.controlPlaneReady,
     },
     workers: { desired: record.workerCount, ready: live.workerReady },
+    phase: live.phase,
+    message: live.message,
+    endpoint: live.endpoint,
+    machines: live.machines,
     conditions: live.conditions,
     updatedAt: new Date().toISOString(),
   };
@@ -173,6 +202,7 @@ export const clusterRoutes = new Elysia({ prefix: "/v1/clusters" })
           workerCount: body.workerCount,
           secretName,
           loadBalancer: env.LOAD_BALANCER_TYPE,
+          variables: body.variables,
         });
         await kubectlApply(manifest);
         log.info(`create cluster '${body.name}': CAPN manifest applied`);
@@ -251,6 +281,86 @@ export const clusterRoutes = new Elysia({ prefix: "/v1/clusters" })
     {
       detail: {
         summary: "Cluster status for SWR polling (CRD-sourced, cache fallback)",
+        tags: ["clusters"],
+        security: [{ bearerAuth: [] }],
+      },
+    },
+  )
+  .get(
+    "/:name/kubeconfig",
+    async ({ params, set }) => {
+      const record = clusterRepo.getByName(params.name);
+      if (!record) {
+        set.status = 404;
+        return { error: "not found" };
+      }
+      try {
+        const kubeconfig = await getKubeconfig(params.name);
+        if (kubeconfig === null) {
+          set.status = 409;
+          return {
+            error: "kubeconfig not available yet",
+            detail: "the control plane has not finished initializing",
+          };
+        }
+        auditRepo.record("cluster.kubeconfig", `name=${params.name}`);
+        return { name: params.name, kubeconfig };
+      } catch (error) {
+        const detail = incusErrorDetail(error);
+        log.error(`kubeconfig '${params.name}': ${detail}`);
+        set.status = 502;
+        return { error: "failed to read kubeconfig", detail };
+      }
+    },
+    {
+      detail: {
+        summary: "Admin kubeconfig of a workload cluster (CAPI <name>-kubeconfig secret)",
+        tags: ["clusters"],
+        security: [{ bearerAuth: [] }],
+      },
+    },
+  )
+  .patch(
+    "/:name",
+    async ({ params, body, set }) => {
+      const record = clusterRepo.getByName(params.name);
+      if (!record) {
+        set.status = 404;
+        return { error: "not found" };
+      }
+      if (!(await capnReady())) {
+        set.status = 503;
+        return {
+          error: "management cluster not ready",
+          detail: "the CAPN controller is not available; cannot scale now",
+        };
+      }
+      try {
+        await scaleCluster(params.name, body);
+      } catch (error) {
+        const detail = incusErrorDetail(error);
+        log.error(`scale cluster '${params.name}': ${detail}`);
+        set.status = 502;
+        return { error: "failed to scale cluster", detail };
+      }
+      const updated = clusterRepo.setCounts(params.name, body) ?? record;
+      if (updated.status === "ready") {
+        clusterRepo.setStatus(params.name, "provisioning");
+      }
+      auditRepo.record(
+        "cluster.scale",
+        `name=${params.name} cp=${body.controlPlaneCount ?? "-"} workers=${body.workerCount ?? "-"}`,
+      );
+      log.info(
+        `scale cluster '${params.name}': cp=${body.controlPlaneCount ?? "unchanged"} workers=${body.workerCount ?? "unchanged"}`,
+      );
+      return clusterRepo.getByName(params.name) ?? updated;
+    },
+    {
+      body: ScaleBody,
+      detail: {
+        summary:
+          "Scale a cluster: patch control-plane / worker replicas in its CAPI topology",
         tags: ["clusters"],
         security: [{ bearerAuth: [] }],
       },

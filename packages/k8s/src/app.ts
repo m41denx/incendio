@@ -24,7 +24,7 @@ export const app = new Elysia()
         env.CORS_ORIGIN === "*"
           ? true
           : env.CORS_ORIGIN.split(",").map((origin) => origin.trim()),
-      methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+      methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
       credentials: true,
     }),
   )

@@ -1,5 +1,6 @@
 import { desc, eq } from "drizzle-orm";
 import { db } from "./index.ts";
+import type { MachineStatus } from "../lib/capi-status.ts";
 import {
   audit,
   clusters,
@@ -107,6 +108,28 @@ export const clusterRepo = {
     return row ? toView(row) : undefined;
   },
 
+  /** Mirror desired replica counts (CAPI topology stays authoritative). */
+  setCounts(
+    name: string,
+    counts: { controlPlaneCount?: number; workerCount?: number },
+  ): ClusterView | undefined {
+    const row = db
+      .update(clusters)
+      .set({
+        ...(counts.controlPlaneCount !== undefined
+          ? { cpCount: counts.controlPlaneCount }
+          : {}),
+        ...(counts.workerCount !== undefined
+          ? { workerCount: counts.workerCount }
+          : {}),
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(clusters.name, name))
+      .returning()
+      .get();
+    return row ? toView(row) : undefined;
+  },
+
   deleteByName(name: string): boolean {
     const row = db
       .delete(clusters)
@@ -144,6 +167,11 @@ export interface ClusterStatusView {
   source: "cache" | "crd";
   controlPlane: { desired: number; ready: number | null };
   workers: { desired: number; ready: number | null };
+  // Live-only fields (source "crd"); absent when served from the cache.
+  phase?: string;
+  message?: string;
+  endpoint?: string;
+  machines?: MachineStatus[];
   conditions: unknown[];
   updatedAt: string;
 }

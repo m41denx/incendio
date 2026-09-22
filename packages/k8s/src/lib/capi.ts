@@ -1,5 +1,9 @@
 import { readFileSync } from "node:fs";
 import { env } from "../env.ts";
+import { templateEnv } from "./template-vars.ts";
+import { kubeconfigFromSecret } from "./kubeconfig.ts";
+import { buildScalePatch, type ClusterObject, type ScaleRequest } from "./scale.ts";
+import { summarizeLive, type K8sList, type LiveStatus } from "./capi-status.ts";
 import { log } from "./log.ts";
 import { execError, run } from "./exec.ts";
 
@@ -72,7 +76,10 @@ export interface GenerateInput {
   controlPlaneCount: number;
   workerCount: number;
   secretName: string;
+  /** Default load balancer type when the request does not set LOAD_BALANCER. */
   loadBalancer: string;
+  /** CAPN template variables from the create request (validated). */
+  variables: Record<string, string>;
 }
 
 /**
@@ -104,8 +111,10 @@ export async function generateCluster(input: GenerateInput): Promise<string> {
     {
       env: {
         ...kubeEnv(),
-        LOAD_BALANCER: loadBalancerFragment(input.loadBalancer),
-        LXC_SECRET_NAME: input.secretName,
+        ...templateEnv(input.variables, {
+          secretName: input.secretName,
+          defaultLoadBalancer: loadBalancerFragment(input.loadBalancer),
+        }),
       },
       timeoutMs: 30_000,
     },
@@ -163,29 +172,13 @@ export async function applyIdentitySecret(
   await kubectlApply(JSON.stringify(manifest));
 }
 
-export interface LiveStatus {
-  phase: string;
-  available: boolean;
-  controlPlaneReady: number;
-  workerReady: number;
-  conditions: unknown[];
-}
-
-interface K8sList {
-  items?: {
-    metadata?: { name?: string; labels?: Record<string, string> };
-    status?: {
-      phase?: string;
-      conditions?: { type?: string; status?: string }[];
-    };
-  }[];
-}
+export type { LiveStatus, MachineStatus } from "./capi-status.ts";
 
 /**
  * Live status for every workload cluster in one pass: one `kubectl get
  * clusters` plus one `kubectl get machines`, keyed by cluster name. Ready
- * machine counts are split into control-plane vs worker by the standard CAPI
- * label. Desired counts stay in the cache; the CRDs own actual state.
+ * machine counts come from each Machine's Ready condition (see summarizeLive).
+ * Desired counts stay in the cache; the CRDs own actual state.
  */
 export async function getLiveStatuses(): Promise<Map<string, LiveStatus>> {
   const [clustersRes, machinesRes] = await Promise.all([
@@ -205,38 +198,10 @@ export async function getLiveStatuses(): Promise<Map<string, LiveStatus>> {
     throw new Error(`kubectl get machines failed: ${execError(machinesRes)}`);
   }
 
-  const machines = (JSON.parse(machinesRes.stdout) as K8sList).items ?? [];
-  const cpReady = new Map<string, number>();
-  const workerReady = new Map<string, number>();
-  for (const m of machines) {
-    const labels = m.metadata?.labels ?? {};
-    const cluster = labels["cluster.x-k8s.io/cluster-name"];
-    if (!cluster) continue;
-    if (m.status?.phase !== "Running") continue;
-    const isControlPlane =
-      "cluster.x-k8s.io/control-plane" in labels;
-    const bucket = isControlPlane ? cpReady : workerReady;
-    bucket.set(cluster, (bucket.get(cluster) ?? 0) + 1);
-  }
-
-  const clusters = (JSON.parse(clustersRes.stdout) as K8sList).items ?? [];
-  const out = new Map<string, LiveStatus>();
-  for (const c of clusters) {
-    const name = c.metadata?.name;
-    if (!name) continue;
-    const conditions = c.status?.conditions ?? [];
-    const available = conditions.some(
-      (cond) => cond.type === "Available" && cond.status === "True",
-    );
-    out.set(name, {
-      phase: c.status?.phase ?? "Unknown",
-      available,
-      controlPlaneReady: cpReady.get(name) ?? 0,
-      workerReady: workerReady.get(name) ?? 0,
-      conditions,
-    });
-  }
-  return out;
+  return summarizeLive(
+    JSON.parse(clustersRes.stdout) as K8sList,
+    JSON.parse(machinesRes.stdout) as K8sList,
+  );
 }
 
 /**
@@ -280,4 +245,57 @@ export async function deleteClusterCrd(name: string): Promise<void> {
   if (!cleanup.ok) {
     log.warn(`cluster ${name}: addon/secret cleanup reported: ${execError(cleanup)}`);
   }
+}
+
+/**
+ * The workload cluster's admin kubeconfig, or null while CAPI has not written
+ * it yet (control plane still initializing).
+ */
+export async function getKubeconfig(name: string): Promise<string | null> {
+  const r = await run(
+    [
+      "kubectl",
+      "get",
+      "secret",
+      `${name}-kubeconfig`,
+      "-n",
+      WORKLOAD_NAMESPACE,
+      "--ignore-not-found",
+      "-o",
+      "json",
+    ],
+    { env: kubeEnv(), timeoutMs: 15_000 },
+  );
+  if (!r.ok) throw new Error(`kubectl get kubeconfig secret failed: ${execError(r)}`);
+  if (r.stdout.trim().length === 0) return null;
+  return kubeconfigFromSecret(JSON.parse(r.stdout) as { data?: Record<string, string> });
+}
+
+/**
+ * Scale a workload cluster by patching replicas in its Cluster topology; CAPI
+ * rolls the change out (CAPN adds/removes Incus instances, kubeadm joins or
+ * drains nodes). Returns once the patch is accepted, not when nodes are ready.
+ */
+export async function scaleCluster(name: string, request: ScaleRequest): Promise<void> {
+  const get = await run(
+    ["kubectl", "get", "cluster", name, "-n", WORKLOAD_NAMESPACE, "-o", "json"],
+    { env: kubeEnv(), timeoutMs: 15_000 },
+  );
+  if (!get.ok) throw new Error(`kubectl get cluster failed: ${execError(get)}`);
+  const patch = buildScalePatch(JSON.parse(get.stdout) as ClusterObject, request);
+  const r = await run(
+    [
+      "kubectl",
+      "patch",
+      "cluster",
+      name,
+      "-n",
+      WORKLOAD_NAMESPACE,
+      "--type=json",
+      "-p",
+      JSON.stringify(patch),
+    ],
+    { env: kubeEnv(), timeoutMs: 20_000 },
+  );
+  if (!r.ok) throw new Error(`kubectl patch cluster failed: ${execError(r)}`);
 }
