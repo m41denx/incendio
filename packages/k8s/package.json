@@ -8,7 +8,8 @@
     "dev": "bun --watch src/index.ts",
     "start": "bun src/index.ts",
     "build": "bun build src/index.ts --target bun --outdir dist",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test": "bun test"
   },
   "dependencies": {
     "@elysiajs/bearer": "^1.4.4",

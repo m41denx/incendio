@@ -2,6 +2,7 @@ import axios, { type AxiosInstance } from "axios";
 import { Agent } from "node:https";
 import { readFileSync } from "node:fs";
 import { env } from "../env.ts";
+import { PinnedAgent } from "./tls-pin.ts";
 
 let client: AxiosInstance | undefined;
 
@@ -12,17 +13,20 @@ let client: AxiosInstance | undefined;
 export function incusClient(): AxiosInstance {
   if (client) return client;
 
-  const httpsAgent = new Agent({
-    rejectUnauthorized: !env.INCUS_INSECURE_SKIP_VERIFY,
-    // Pin the Incus server certificate (self-signed) as a trust anchor. NOTE:
-    // this is honored under Node, but Bun's TLS stack won't trust a self-signed
-    // *leaf* passed as `ca`. In the operator VM we therefore install the Incus
-    // server cert into the OS trust store (see lib/operator.ts cloud-init),
-    // which both runtimes honor; this `ca` remains correct for Node hosts.
-    ca: env.INCUS_SERVER_CERT ? readFileSync(env.INCUS_SERVER_CERT) : undefined,
-    cert: env.INCUS_CLIENT_CERT ? readFileSync(env.INCUS_CLIENT_CERT) : undefined,
-    key: env.INCUS_CLIENT_KEY ? readFileSync(env.INCUS_CLIENT_KEY) : undefined,
-  });
+  const cert = env.INCUS_CLIENT_CERT ? readFileSync(env.INCUS_CLIENT_CERT) : undefined;
+  const key = env.INCUS_CLIENT_KEY ? readFileSync(env.INCUS_CLIENT_KEY) : undefined;
+  // Pin the Incus server cert by fingerprint (see PinnedAgent for why `ca`
+  // cannot work with Incus's self-signed leaf under Bun). Without a pinned cert
+  // fall back to the OS trust store, or skip verification if explicitly asked.
+  const httpsAgent = env.INCUS_INSECURE_SKIP_VERIFY
+    ? new Agent({ rejectUnauthorized: false, cert, key })
+    : env.INCUS_SERVER_CERT
+      ? new PinnedAgent({
+          pinnedCertPem: readFileSync(env.INCUS_SERVER_CERT, "utf8"),
+          cert,
+          key,
+        })
+      : new Agent({ cert, key });
 
   client = axios.create({
     baseURL: env.INCUS_API_URL,
@@ -34,12 +38,19 @@ export function incusClient(): AxiosInstance {
 }
 
 /**
- * Map raw client/axios errors to actionable messages. The Incus API cert is
- * self-signed, and Bun's TLS won't trust a self-signed leaf via `ca`, so the
- * common failure when running the agent on a host is a TLS verification error.
+ * Map raw client/axios errors to actionable messages. With INCUS_SERVER_CERT
+ * set the agent pins that exact cert, so TLS failures mean either no pin is
+ * configured (OS trust store rejects the self-signed cert) or the Incus server
+ * presented a different cert than the one pinned at deploy time.
  */
 export function describeIncusError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
+  if (message.includes("does not match the pinned")) {
+    return (
+      `${message}. The Incus server certificate changed since the appliance was ` +
+      `deployed; update INCUS_SERVER_CERT (/etc/incendio/server.crt) in the appliance.`
+    );
+  }
   const tlsHints = [
     "unable to verify the first certificate",
     "self-signed certificate",
@@ -50,9 +61,8 @@ export function describeIncusError(error: unknown): string {
   if (tlsHints.some((hint) => message.includes(hint))) {
     return (
       `TLS verification of the Incus server certificate failed (${message}). ` +
-      `The Incus API cert is self-signed. When running the agent on a host, set ` +
-      `INCUS_INSECURE_SKIP_VERIFY=true, or install the Incus server cert into the ` +
-      `OS trust store. In the operator VM this is handled automatically.`
+      `The Incus API cert is self-signed: set INCUS_SERVER_CERT to it so the ` +
+      `agent pins it, or INCUS_INSECURE_SKIP_VERIFY=true.`
     );
   }
   return message;
