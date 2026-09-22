@@ -18,8 +18,10 @@ import BaseLayout from "components/BaseLayout";
 import NotificationRow from "components/NotificationRow";
 import useSortTableData from "util/useSortTableData";
 import { ROOT_PATH } from "util/rootPath";
-import { useSettings } from "context/useSettings";
-import { readApiConfig } from "util/k8s/appliance";
+import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "context/auth";
+import { fetchInstance } from "api/instances";
+import { APPLIANCE_NAME, MGMT_PROJECT } from "util/k8s/appliance";
 import {
   useDeleteK8sCluster,
   useK8sClusters,
@@ -74,8 +76,19 @@ const DeleteClusterBtn: FC<DeleteProps> = ({ name }) => {
 const ClusterList: FC = () => {
   const navigate = useNavigate();
   const notify = useNotify();
-  const { data: settings } = useSettings();
-  const applianceCreated = readApiConfig(settings) !== null;
+  const { isFineGrained } = useAuth();
+  // "Appliance created" means the management container actually exists in
+  // Incus. We deliberately do not key off user.k8s.api-config: that handle is
+  // also written when the user merely tests/saves an agent connection
+  // (finalizeApiConfig), so it is not a reliable deploy signal.
+  const { data: appliance } = useQuery({
+    queryKey: ["k8s", "appliance", MGMT_PROJECT, APPLIANCE_NAME],
+    queryFn: async () =>
+      fetchInstance(APPLIANCE_NAME, MGMT_PROJECT, isFineGrained, false),
+    enabled: isFineGrained !== null,
+    retry: false,
+  });
+  const applianceCreated = appliance !== undefined;
   const { data: clusters = [], error, isLoading } = useK8sClusters();
 
   if (error) {
