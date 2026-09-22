@@ -138,13 +138,25 @@ install_clusterctl() {
 init_capi() {
   export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
   export CLUSTER_TOPOLOGY=true
-  if clusterctl describe cluster >/dev/null 2>&1; then
-    log "CAPI already initialised"
+  # capn-system is the CAPN target namespace; its presence means init already
+  # ran (clusterctl init errors if re-run against an initialised cluster).
+  if kubectl get namespace capn-system >/dev/null 2>&1; then
+    log "CAPI/CAPN already initialised"
     return
   fi
+  # CAPN (cluster-api-provider-incus) is a community infrastructure provider, so
+  # it must be registered in a clusterctl config before init — clusterctl has no
+  # built-in entry for "incus".
+  cfg="${CONF_DIR}/clusterctl.yaml"
+  install -d "${CONF_DIR}"
+  cat >"${cfg}" <<YAML
+providers:
+  - name: incus
+    url: https://github.com/lxc/cluster-api-provider-incus/releases/download/${CAPN_VERSION}/infrastructure-components.yaml
+    type: InfrastructureProvider
+YAML
   log "clusterctl init -i incus:${CAPN_VERSION}"
-  clusterctl init --infrastructure "incus:${CAPN_VERSION}" || \
-    clusterctl init --infrastructure incus
+  clusterctl init --infrastructure "incus:${CAPN_VERSION}" --config "${cfg}"
 }
 
 # --- 5. the agent binary + its TLS + systemd unit --------------------------
