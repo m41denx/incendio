@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FC, type ReactNode } from "react";
+import { useMemo, useState, type FC, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ActionButton,
@@ -14,19 +14,20 @@ import {
   Select,
   Textarea,
   useNotify,
+  useToastNotification,
 } from "@canonical/react-components";
 import BaseLayout from "components/BaseLayout";
 import NotificationRow from "components/NotificationRow";
 import CopyToClipboard from "components/CopyToClipboard";
 import FormMenuItem from "components/forms/FormMenuItem";
 import FormFooterLayout from "components/forms/FormFooterLayout";
-import { useAuth } from "context/auth";
-import { useSettings } from "context/useSettings";
 import { useProfiles } from "context/useProfiles";
 import { useClusterMembers } from "context/useClusterMembers";
 import { useClusterGroups } from "context/useClusterGroups";
-import K8sAgentPanel from "pages/kubernetes/K8sAgentPanel";
-import { useK8sAgent } from "pages/kubernetes/useK8sAgent";
+import { useIncusCredentials } from "pages/kubernetes/useIncusCredentials";
+import { useCreateK8sCluster } from "pages/kubernetes/useK8sClusters";
+import { loadAgentConfig } from "util/k8s/agent";
+import { ROOT_PATH } from "util/rootPath";
 import {
   CUSTOM_VERSION,
   defaultK8sClusterConfig,
@@ -39,7 +40,6 @@ import {
   loadBalancerOptions,
   machineTypeOptions,
   memoryUnitOptions,
-  type IncusClientCredential,
   type K8sClusterConfig,
   type LoadBalancerType,
   type MachineType,
@@ -51,9 +51,8 @@ const CAPN_DOCS = "https://capn.linuxcontainers.org/";
 const CLUSTER = "Cluster";
 const MACHINES = "Machines";
 const CREDENTIALS = "Infrastructure credentials";
-const AGENT = "Kubernetes agent";
 const ARTIFACTS = "Generated artifacts";
-const SECTIONS = [CLUSTER, MACHINES, CREDENTIALS, AGENT, ARTIFACTS];
+const SECTIONS = [CLUSTER, MACHINES, CREDENTIALS, ARTIFACTS];
 
 const splitCsv = (value: string): string[] =>
   value
@@ -102,23 +101,30 @@ const downloadText = (filename: string, content: string) => {
   URL.revokeObjectURL(url);
 };
 
-const Kubernetes: FC = () => {
+const KubernetesCreate: FC = () => {
   const notify = useNotify();
+  const toastNotify = useToastNotification();
   const navigate = useNavigate();
-  const { data: settings } = useSettings();
-  const { isFineGrained } = useAuth();
-  const agent = useK8sAgent();
+  const createCluster = useCreateK8sCluster();
 
   const [active, setActive] = useState<string>(CLUSTER);
   const [config, setConfig] = useState<K8sClusterConfig>(
     defaultK8sClusterConfig,
   );
-  const [serverUrl, setServerUrl] = useState("");
-  const [project, setProject] = useState("default");
-  const [serverCrt, setServerCrt] = useState("");
-  const [clientCrt, setClientCrt] = useState("");
-  const [clientKey, setClientKey] = useState("");
-  const [isGenerating, setIsGenerating] = useState(false);
+  const {
+    serverUrl,
+    setServerUrl,
+    project,
+    setProject,
+    serverCrt,
+    setServerCrt,
+    clientCrt,
+    setClientCrt,
+    clientKey,
+    setClientKey,
+    isGenerating,
+    generateCredential,
+  } = useIncusCredentials();
 
   const { data: profiles = [] } = useProfiles(project);
   const { data: members = [] } = useClusterMembers();
@@ -139,20 +145,6 @@ const Kubernetes: FC = () => {
       value: `@${group.name}`,
     })),
   ];
-
-  useEffect(() => {
-    const environment = settings?.environment;
-    if (!environment) {
-      return;
-    }
-    const address = environment.addresses?.[0];
-    if (address) {
-      setServerUrl((prev) => prev || `https://${address}`);
-    }
-    if (environment.certificate) {
-      setServerCrt((prev) => prev || environment.certificate || "");
-    }
-  }, [settings]);
 
   const update = <K extends keyof K8sClusterConfig>(
     key: K,
@@ -175,32 +167,6 @@ const Kubernetes: FC = () => {
   const envExports = useMemo(() => generateEnvExports(config), [config]);
   const command = useMemo(() => generateClusterctlCommand(config), [config]);
   const prerequisites = useMemo(() => generatePrerequisites(), []);
-
-  const generateCredential = () => {
-    setIsGenerating(true);
-    const worker = new Worker(
-      new URL("../../util/generateK8sCredential?worker", import.meta.url),
-      { type: "module" },
-    );
-    worker.onmessage = (event: MessageEvent<IncusClientCredential>) => {
-      setClientCrt(event.data.crt);
-      setClientKey(event.data.key);
-      setIsGenerating(false);
-      worker.terminate();
-      notify.success(
-        "Client certificate and key generated. Trust the certificate on your Incus server before applying the Secret.",
-      );
-    };
-    worker.onerror = (error) => {
-      setIsGenerating(false);
-      worker.terminate();
-      notify.failure(
-        "Failed to generate client certificate",
-        new Error(error.message),
-      );
-    };
-    worker.postMessage("");
-  };
 
   const renderArtifact = (
     title: string,
@@ -381,7 +347,10 @@ const Kubernetes: FC = () => {
     config.loadBalancer === "lxc" || config.loadBalancer === "oci";
 
   return (
-    <BaseLayout title="Kubernetes" contentClassName="kubernetes-form">
+    <BaseLayout
+      title="Create Kubernetes cluster"
+      contentClassName="kubernetes-form"
+    >
       <div className="form">
         <div className="p-side-navigation--accordion form-navigation">
           <nav aria-label="Kubernetes form navigation">
@@ -758,8 +727,6 @@ const Kubernetes: FC = () => {
               </>
             ) : null}
 
-            {active === AGENT ? <K8sAgentPanel agent={agent} /> : null}
-
             {active === ARTIFACTS ? (
               <>
                 <h2 className="p-heading--4">Generated artifacts</h2>
@@ -779,36 +746,44 @@ const Kubernetes: FC = () => {
       </div>
 
       <FormFooterLayout>
-        <Button appearance="base" onClick={async () => navigate(-1)}>
+        <Button
+          appearance="base"
+          onClick={() => {
+            navigate(`${ROOT_PATH}/ui/kubernetes`);
+          }}
+        >
           Cancel
         </Button>
         <ActionButton
           appearance="positive"
-          loading={agent.busy}
+          loading={createCluster.isPending}
+          disabled={config.clusterName.trim().length === 0}
           onClick={() => {
-            if (!serverCrt || !clientCrt || !clientKey) {
-              setActive(CREDENTIALS);
+            const agent = loadAgentConfig();
+            if (!agent.url || !agent.token) {
               notify.info(
-                "Add Incus infrastructure credentials before deploying the management appliance.",
+                "Connect the Kubernetes agent in settings before creating a cluster.",
               );
               return;
             }
-            void agent.deployAppliance({
-              credentials: {
-                incusApiUrl: serverUrl.trim(),
-                clientCrt,
-                clientKey,
-                serverCrt,
+            createCluster.mutate(config, {
+              onSuccess: (result) => {
+                toastNotify.success(
+                  `Cluster "${result.name}" created in project "${result.project}". Provisioning via CAPN is pending.`,
+                );
+                navigate(`${ROOT_PATH}/ui/kubernetes`);
               },
-              isFineGrained,
+              onError: (error) => {
+                notify.failure("Failed to create cluster", error);
+              },
             });
           }}
         >
-          Deploy management appliance
+          Create cluster
         </ActionButton>
       </FormFooterLayout>
     </BaseLayout>
   );
 };
 
-export default Kubernetes;
+export default KubernetesCreate;

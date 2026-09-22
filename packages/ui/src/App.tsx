@@ -40,7 +40,15 @@ const ClusterLinkList = lazy(
 const ClusterMemberDetail = lazy(
   async () => import("pages/cluster/ClusterMemberDetail"),
 );
-const Kubernetes = lazy(async () => import("pages/kubernetes/Kubernetes"));
+const KubernetesClusters = lazy(
+  async () => import("pages/kubernetes/ClusterList"),
+);
+const KubernetesCreate = lazy(
+  async () => import("pages/kubernetes/KubernetesCreate"),
+);
+const KubernetesSettings = lazy(
+  async () => import("pages/kubernetes/KubernetesSettings"),
+);
 const CreateInstance = lazy(
   async () => import("pages/instances/CreateInstance"),
 );
@@ -765,7 +773,19 @@ const App: FC = () => {
         />
         <Route
           path={`${ROOT_PATH}/ui/kubernetes`}
-          element={<ProtectedRoute outlet={<Kubernetes />} />}
+          element={<ProtectedRoute outlet={<KubernetesClusters />} />}
+        />
+        <Route
+          path={`${ROOT_PATH}/ui/kubernetes/create`}
+          element={<ProtectedRoute outlet={<KubernetesCreate />} />}
+        />
+        <Route
+          path={`${ROOT_PATH}/ui/kubernetes/settings`}
+          element={<ProtectedRoute outlet={<KubernetesSettings />} />}
+        />
+        <Route
+          path={`${ROOT_PATH}/ui/kubernetes/settings/:tab`}
+          element={<ProtectedRoute outlet={<KubernetesSettings />} />}
         />
         <Route path={`${ROOT_PATH}/ui/login`} element={<Login />} />
         <Route

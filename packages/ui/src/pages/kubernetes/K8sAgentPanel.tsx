@@ -22,7 +22,8 @@ const K8sAgentPanel: FC<Props> = ({ agent }) => {
         directly. Without an agent, use the generator to produce artifacts you
         run yourself. The URL must be reachable from your browser (HTTPS, with
         CORS allowing this origin). Once connected, use{" "}
-        <strong>Deploy management appliance</strong> at the bottom of the page.
+        <strong>Deploy management appliance</strong> on the Management appliance
+        tab.
       </p>
       <Row>
         <Col size={6}>
