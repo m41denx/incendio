@@ -125,7 +125,7 @@ const K8sAgentPanel: FC<Props> = ({ config }) => {
             type="text"
             label="Agent URL"
             value={url}
-            placeholder="https://operator.example.com:8443"
+            placeholder="https://operator.example.com:8843"
             onChange={(e) => {
               setUrl(e.target.value);
             }}

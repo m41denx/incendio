@@ -53,7 +53,7 @@ const CONF_DIR = "/etc/incendio";
 function agentEnvFile(spec: OperatorVmSpec): string {
   return [
     "HOST=0.0.0.0",
-    "PORT=8443",
+    "PORT=8843",
     `AGENT_TOKEN=${spec.agentToken}`,
     `JWT_SECRET=${spec.jwtSecret}`,
     `CORS_ORIGIN=${spec.corsOrigin}`,
