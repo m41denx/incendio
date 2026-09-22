@@ -167,3 +167,37 @@ ship). It **watches CAPI CRDs on demand** and mirrors status into sqlite; it has
 - **CNI** default for the k3s mgmt cluster (k3s ships flannel) vs workload
   clusters (`DEPLOY_KUBE_FLANNEL`).
 - **v2 distrobuilder image** hosting + import flow once the v1 script settles.
+
+## 10. As built (0.22-p11)
+
+Deltas from the plan above, learned while bringing the appliance up for real:
+
+- **Image:** `images:ubuntu/24.04/cloud`. The `default` variant has no
+  cloud-init, so `user.user-data` is silently ignored and nothing bootstraps.
+- **Devices:** the container gets its own `root` disk and `eth0` NIC when the
+  inherited `default` profile lacks them (first `Created` pool; managed NAT
+  bridge preferred over OVN).
+- **Trust:** the SPA adds the appliance's client cert to the Incus trust store
+  (`POST /1.0/certificates`, unrestricted — the agent creates projects). The
+  appliance tab checks trust by fingerprint and offers a one-click fix.
+- **Agent → Incus TLS:** pinned by SHA-256 fingerprint of `INCUS_SERVER_CERT`
+  (`lib/tls-pin.ts`). Incus serves a self-signed *leaf* whose SANs omit the
+  dialled IP; Bun rejects a leaf as `ca` and never calls `checkServerIdentity`.
+  CAPN itself (Go client) handles the same cert natively.
+- **Agent handle:** `user.k8s.api-config` wins over the per-browser copy;
+  Test connection verifies the token (authenticated call) before saving it.
+- **Status:** staged — container → cloud-init (`/var/lib/cloud/data/result.json`;
+  `/run/cloud-init/result.json` is a symlink the file API won't follow) →
+  agent `/v1/info` → CAPN → Incus trust.
+- **Create:** the UI sends the form's CAPN template variables (the same map the
+  preview renders); the agent allow-lists them and rejects unknown keys.
+  `DEPLOY_KUBE_FLANNEL` defaults on — without a CNI no node ever gets Ready.
+- **HTTP surface added:** `GET /v1/clusters/:name/kubeconfig` (CAPI
+  `<name>-kubeconfig` secret) and `PATCH /v1/clusters/:name` (scale by
+  patching `spec.topology` replicas; odd control-plane sizes only). Status
+  now includes per-machine readiness (CAPI `Ready` condition), desired counts
+  from the topology, and the API endpoint.
+- **Releases:** `packages/k8s/appliance/build-release.sh` → upload
+  `k8s-api-linux-{amd64,arm64}` to the `appliance-v1` release; running
+  appliances can be updated in place by swapping `/usr/local/bin/incendio-k8s`
+  and restarting `incendio-k8s`.
