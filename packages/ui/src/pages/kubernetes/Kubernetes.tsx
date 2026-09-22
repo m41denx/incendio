@@ -16,6 +16,7 @@ import BaseLayout from "components/BaseLayout";
 import NotificationRow from "components/NotificationRow";
 import CopyToClipboard from "components/CopyToClipboard";
 import { useSettings } from "context/useSettings";
+import K8sAgentPanel from "pages/kubernetes/K8sAgentPanel";
 import {
   defaultK8sClusterConfig,
   generateClusterctlCommand,
@@ -166,10 +167,13 @@ const Kubernetes: FC = () => {
         <a href={CAPN_DOCS} target="_blank" rel="noopener noreferrer">
           Cluster API provider for Incus (CAPN)
         </a>
-        . This runs entirely in your browser &mdash; nothing is applied to
-        Incus. Run the generated artifacts against your management cluster.
-        Automated provisioning arrives with the Incendio Kubernetes agent.
+        . Configure the Kubernetes agent to provision directly, or use the
+        generator below to produce artifacts you run against your own management
+        cluster.
       </Notification>
+
+      <K8sAgentPanel config={config} />
+      <hr />
 
       <Row>
         <Col size={6}>
