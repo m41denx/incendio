@@ -604,6 +604,7 @@ const Navigation: FC = () => {
                           <NavAccordion
                             baseUrls={[
                               `${ROOT_PATH}/ui/cluster`,
+                              `${ROOT_PATH}/ui/kubernetes`,
                               `${ROOT_PATH}/ui/project/${encodeURIComponent(projectName)}/placement-groups`,
                               `${ROOT_PATH}/ui/project/${encodeURIComponent(projectName)}/replicator/`,
                             ]}
@@ -637,6 +638,16 @@ const Navigation: FC = () => {
                                   className="accordion-nav-secondary"
                                 >
                                   Groups
+                                </NavLink>
+                              </SideNavigationItem>,
+                              <SideNavigationItem key="kubernetes">
+                                <NavLink
+                                  to={`${ROOT_PATH}/ui/kubernetes`}
+                                  title="Kubernetes"
+                                  onClick={softToggleMenu}
+                                  className="accordion-nav-secondary"
+                                >
+                                  Kubernetes
                                 </NavLink>
                               </SideNavigationItem>,
                               ...(hasClusterLinks
@@ -745,19 +756,6 @@ const Navigation: FC = () => {
                             name="status"
                           />{" "}
                           Operations
-                        </NavLink>
-                      </SideNavigationItem>
-                      <SideNavigationItem>
-                        <NavLink
-                          to={`${ROOT_PATH}/ui/kubernetes`}
-                          title="Kubernetes"
-                          onClick={softToggleMenu}
-                        >
-                          <Icon
-                            className="is-light p-side-navigation__icon"
-                            name="kubernetes"
-                          />{" "}
-                          Kubernetes
                         </NavLink>
                       </SideNavigationItem>
                       {!isRestricted && (
