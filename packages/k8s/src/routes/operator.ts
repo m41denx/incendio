@@ -13,7 +13,7 @@ import { log } from "../lib/log.ts";
 
 const DEFAULT_MGMT_PROJECT = "incendio-mgmt";
 const DEFAULT_OPERATOR_NAME = "operator";
-const DEFAULT_K8S_VERSION = "v1.31.0";
+const DEFAULT_K8S_VERSION = "v1.37.0";
 
 const DeployOperatorBody = z.object({
   name: z.string().min(1).max(63).default(DEFAULT_OPERATOR_NAME),

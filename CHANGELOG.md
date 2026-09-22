@@ -1,6 +1,8 @@
 ## 0.22-p11
 ## What's Changed
 ### ✨ New Features
+- (feat) Kubernetes: the cluster generator is a **multi-section form** (Cluster, Machines, Infrastructure credentials, Kubernetes agent, Generated artifacts) with side-navigation, matching the rest of Incendio's create/edit panels
+- (feat) Kubernetes: **Kubernetes version** is a picker of valid kubeadm images (v1.37.0 … v1.33.0, Ubuntu 24.04) instead of a free-text field; the generator, operator-VM deploy, and agent cluster create default to `v1.37.0`
 - (feat) Kubernetes: **agent integration** on the Kubernetes page — configure the self-hosted `@incendio/k8s` agent (URL + bearer token, stored per-browser) and **Test connection** to handshake `GET /v1/info` (version + capabilities). When connected, **Deploy operator VM** provisions the vCenter-style operator appliance (its own `incendio-mgmt` project + a kubeadm VM image) and **Create cluster with agent** stamps a per-cluster Incus project. Without an agent, the pure-browser artifact generator still works.
 - (feat) Kubernetes agent (`@incendio/k8s`): wired to the Incus API — project-per-cluster with `user.incendio.*` metadata as the detection source of truth, operator-VM cloud-init (trusted client cert + agent systemd unit, server cert into the OS trust store), and one-shot teardown by deleting the project. The agent is a thin broker over CAPI/CAPN and does not reconcile.
 

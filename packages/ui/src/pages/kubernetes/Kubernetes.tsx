@@ -15,6 +15,7 @@ import {
 import BaseLayout from "components/BaseLayout";
 import NotificationRow from "components/NotificationRow";
 import CopyToClipboard from "components/CopyToClipboard";
+import FormMenuItem from "components/forms/FormMenuItem";
 import { useSettings } from "context/useSettings";
 import K8sAgentPanel from "pages/kubernetes/K8sAgentPanel";
 import {
@@ -23,6 +24,7 @@ import {
   generateEnvExports,
   generatePrerequisites,
   generateSecretYaml,
+  kubeadmVersionOptions,
   loadBalancerOptions,
   machineTypeOptions,
   type IncusClientCredential,
@@ -30,6 +32,13 @@ import {
 } from "util/k8s/capn";
 
 const CAPN_DOCS = "https://capn.linuxcontainers.org/";
+
+const CLUSTER = "Cluster";
+const MACHINES = "Machines";
+const CREDENTIALS = "Infrastructure credentials";
+const AGENT = "Kubernetes agent";
+const ARTIFACTS = "Generated artifacts";
+const SECTIONS = [CLUSTER, MACHINES, CREDENTIALS, AGENT, ARTIFACTS];
 
 const downloadText = (filename: string, content: string) => {
   const blob = new Blob([content], { type: "text/plain" });
@@ -45,6 +54,7 @@ const Kubernetes: FC = () => {
   const notify = useNotify();
   const { data: settings } = useSettings();
 
+  const [active, setActive] = useState<string>(CLUSTER);
   const [config, setConfig] = useState<K8sClusterConfig>(
     defaultK8sClusterConfig,
   );
@@ -168,314 +178,346 @@ const Kubernetes: FC = () => {
           Cluster API provider for Incus (CAPN)
         </a>
         . Configure the Kubernetes agent to provision directly, or use the
-        generator below to produce artifacts you run against your own management
+        generator to produce artifacts you run against your own management
         cluster.
       </Notification>
 
-      <K8sAgentPanel config={config} />
-      <hr />
-
       <Row>
-        <Col size={6}>
-          <h2 className="p-heading--4">Cluster</h2>
-          <Input
-            type="text"
-            label="Cluster name"
-            value={config.clusterName}
-            onChange={(e) => {
-              update("clusterName", e.target.value);
-            }}
-          />
-          <Input
-            type="text"
-            label="Kubernetes version"
-            value={config.kubernetesVersion}
-            help="For example v1.31.0. A matching kubeadm image must be available."
-            onChange={(e) => {
-              update("kubernetesVersion", e.target.value);
-            }}
-          />
-          <Select
-            label="Flavor"
-            value={config.flavor}
-            options={[
-              {
-                label: "default (configurable load balancer)",
-                value: "default",
-              },
-              { label: "ovn (OVN network load balancer)", value: "ovn" },
-            ]}
-            onChange={(e) => {
-              update("flavor", e.target.value as K8sClusterConfig["flavor"]);
-            }}
-          />
-          {isOvn ? (
-            <>
-              <Input
-                type="text"
-                label="OVN network"
-                value={config.ovnNetwork}
-                help="Name of the OVN network the instances use."
-                onChange={(e) => {
-                  update("ovnNetwork", e.target.value);
-                }}
-              />
-              <Input
-                type="text"
-                label="Load balancer address"
-                value={config.ovnLoadBalancerAddress}
-                help="A free IP address in the OVN uplink network."
-                onChange={(e) => {
-                  update("ovnLoadBalancerAddress", e.target.value);
-                }}
-              />
-            </>
-          ) : (
-            <Select
-              label="Load balancer"
-              value={config.loadBalancer}
-              options={loadBalancerOptions}
-              onChange={(e) => {
-                update(
-                  "loadBalancer",
-                  e.target.value as K8sClusterConfig["loadBalancer"],
-                );
-              }}
-            />
-          )}
+        <Col size={3}>
+          <div className="p-side-navigation--accordion form-navigation">
+            <nav aria-label="Kubernetes form navigation">
+              <ul className="p-side-navigation__list">
+                {SECTIONS.map((section) => (
+                  <FormMenuItem
+                    key={section}
+                    label={section}
+                    active={active}
+                    setActive={setActive}
+                  />
+                ))}
+              </ul>
+            </nav>
+          </div>
+        </Col>
 
-          <h2 className="p-heading--4">Machines</h2>
-          <Row>
-            <Col size={3}>
-              <Input
-                type="number"
-                min={1}
-                label="Control plane count"
-                value={config.controlPlaneCount}
-                onChange={(e) => {
-                  update("controlPlaneCount", Number(e.target.value));
-                }}
-              />
-            </Col>
-            <Col size={3}>
-              <Input
-                type="number"
-                min={0}
-                label="Worker count"
-                value={config.workerCount}
-                onChange={(e) => {
-                  update("workerCount", Number(e.target.value));
-                }}
-              />
-            </Col>
-          </Row>
-          <Row>
-            <Col size={3}>
-              <Select
-                label="Control plane type"
-                value={config.controlPlaneType}
-                options={machineTypeOptions}
-                onChange={(e) => {
-                  update(
-                    "controlPlaneType",
-                    e.target.value as K8sClusterConfig["controlPlaneType"],
-                  );
-                }}
-              />
-            </Col>
-            <Col size={3}>
-              <Select
-                label="Worker type"
-                value={config.workerType}
-                options={machineTypeOptions}
-                onChange={(e) => {
-                  update(
-                    "workerType",
-                    e.target.value as K8sClusterConfig["workerType"],
-                  );
-                }}
-              />
-            </Col>
-          </Row>
-          <Row>
-            <Col size={3}>
-              <Input
-                type="text"
-                label="Control plane flavor"
-                value={config.controlPlaneFlavor}
-                help="Instance size, e.g. c2-m4."
-                onChange={(e) => {
-                  update("controlPlaneFlavor", e.target.value);
-                }}
-              />
-            </Col>
-            <Col size={3}>
-              <Input
-                type="text"
-                label="Worker flavor"
-                value={config.workerFlavor}
-                help="Instance size, e.g. c2-m4."
-                onChange={(e) => {
-                  update("workerFlavor", e.target.value);
-                }}
-              />
-            </Col>
-          </Row>
-          <Input
-            type="text"
-            label="Image name (optional)"
-            value={config.imageName}
-            help="Override the kubeadm image, e.g. kubeadm/v1.31.4/ubuntu/24.04."
-            onChange={(e) => {
-              update("imageName", e.target.value);
-            }}
-          />
-          <Row>
-            <Col size={3}>
-              <Input
-                type="text"
-                label="Pod CIDR"
-                value={config.podCidr}
-                onChange={(e) => {
-                  update("podCidr", e.target.value);
-                }}
-              />
-            </Col>
-            <Col size={3}>
-              <Input
-                type="text"
-                label="Service CIDR"
-                value={config.serviceCidr}
-                onChange={(e) => {
-                  update("serviceCidr", e.target.value);
-                }}
-              />
-            </Col>
-          </Row>
-          {!isOvn ? (
+        <Col size={9}>
+          {active === CLUSTER ? (
             <>
+              <h2 className="p-heading--4">Cluster</h2>
               <Input
-                type="checkbox"
-                label="Privileged containers"
-                checked={config.privileged}
+                type="text"
+                label="Cluster name"
+                value={config.clusterName}
                 onChange={(e) => {
-                  update("privileged", e.target.checked);
+                  update("clusterName", e.target.value);
                 }}
               />
+              <Select
+                label="Kubernetes version"
+                value={config.kubernetesVersion}
+                options={kubeadmVersionOptions}
+                help="Available kubeadm images (Ubuntu 24.04, amd64/arm64)."
+                onChange={(e) => {
+                  update("kubernetesVersion", e.target.value);
+                }}
+              />
+              <Select
+                label="Flavor"
+                value={config.flavor}
+                options={[
+                  {
+                    label: "default (configurable load balancer)",
+                    value: "default",
+                  },
+                  { label: "ovn (OVN network load balancer)", value: "ovn" },
+                ]}
+                onChange={(e) => {
+                  update(
+                    "flavor",
+                    e.target.value as K8sClusterConfig["flavor"],
+                  );
+                }}
+              />
+              {isOvn ? (
+                <>
+                  <Input
+                    type="text"
+                    label="OVN network"
+                    value={config.ovnNetwork}
+                    help="Name of the OVN network the instances use."
+                    onChange={(e) => {
+                      update("ovnNetwork", e.target.value);
+                    }}
+                  />
+                  <Input
+                    type="text"
+                    label="Load balancer address"
+                    value={config.ovnLoadBalancerAddress}
+                    help="A free IP address in the OVN uplink network."
+                    onChange={(e) => {
+                      update("ovnLoadBalancerAddress", e.target.value);
+                    }}
+                  />
+                </>
+              ) : (
+                <Select
+                  label="Load balancer"
+                  value={config.loadBalancer}
+                  options={loadBalancerOptions}
+                  onChange={(e) => {
+                    update(
+                      "loadBalancer",
+                      e.target.value as K8sClusterConfig["loadBalancer"],
+                    );
+                  }}
+                />
+              )}
+            </>
+          ) : null}
+
+          {active === MACHINES ? (
+            <>
+              <h2 className="p-heading--4">Machines</h2>
+              <Row>
+                <Col size={4}>
+                  <Input
+                    type="number"
+                    min={1}
+                    label="Control plane count"
+                    value={config.controlPlaneCount}
+                    onChange={(e) => {
+                      update("controlPlaneCount", Number(e.target.value));
+                    }}
+                  />
+                </Col>
+                <Col size={4}>
+                  <Input
+                    type="number"
+                    min={0}
+                    label="Worker count"
+                    value={config.workerCount}
+                    onChange={(e) => {
+                      update("workerCount", Number(e.target.value));
+                    }}
+                  />
+                </Col>
+              </Row>
+              <Row>
+                <Col size={4}>
+                  <Select
+                    label="Control plane type"
+                    value={config.controlPlaneType}
+                    options={machineTypeOptions}
+                    onChange={(e) => {
+                      update(
+                        "controlPlaneType",
+                        e.target.value as K8sClusterConfig["controlPlaneType"],
+                      );
+                    }}
+                  />
+                </Col>
+                <Col size={4}>
+                  <Select
+                    label="Worker type"
+                    value={config.workerType}
+                    options={machineTypeOptions}
+                    onChange={(e) => {
+                      update(
+                        "workerType",
+                        e.target.value as K8sClusterConfig["workerType"],
+                      );
+                    }}
+                  />
+                </Col>
+              </Row>
+              <Row>
+                <Col size={4}>
+                  <Input
+                    type="text"
+                    label="Control plane flavor"
+                    value={config.controlPlaneFlavor}
+                    help="Instance size, e.g. c2-m4."
+                    onChange={(e) => {
+                      update("controlPlaneFlavor", e.target.value);
+                    }}
+                  />
+                </Col>
+                <Col size={4}>
+                  <Input
+                    type="text"
+                    label="Worker flavor"
+                    value={config.workerFlavor}
+                    help="Instance size, e.g. c2-m4."
+                    onChange={(e) => {
+                      update("workerFlavor", e.target.value);
+                    }}
+                  />
+                </Col>
+              </Row>
+              <Input
+                type="text"
+                label="Image name (optional)"
+                value={config.imageName}
+                help="Override the kubeadm image, e.g. kubeadm/v1.37.0/ubuntu/24.04."
+                onChange={(e) => {
+                  update("imageName", e.target.value);
+                }}
+              />
+              <Row>
+                <Col size={4}>
+                  <Input
+                    type="text"
+                    label="Pod CIDR"
+                    value={config.podCidr}
+                    onChange={(e) => {
+                      update("podCidr", e.target.value);
+                    }}
+                  />
+                </Col>
+                <Col size={4}>
+                  <Input
+                    type="text"
+                    label="Service CIDR"
+                    value={config.serviceCidr}
+                    onChange={(e) => {
+                      update("serviceCidr", e.target.value);
+                    }}
+                  />
+                </Col>
+              </Row>
+              {!isOvn ? (
+                <>
+                  <Input
+                    type="checkbox"
+                    label="Privileged containers"
+                    checked={config.privileged}
+                    onChange={(e) => {
+                      update("privileged", e.target.checked);
+                    }}
+                  />
+                  <Input
+                    type="checkbox"
+                    label="Deploy kube-flannel CNI"
+                    checked={config.deployKubeFlannel}
+                    onChange={(e) => {
+                      update("deployKubeFlannel", e.target.checked);
+                    }}
+                  />
+                </>
+              ) : null}
               <Input
                 type="checkbox"
-                label="Deploy kube-flannel CNI"
-                checked={config.deployKubeFlannel}
+                label="Install kubeadm (dev images without kubeadm)"
+                checked={config.installKubeadm}
                 onChange={(e) => {
-                  update("deployKubeFlannel", e.target.checked);
+                  update("installKubeadm", e.target.checked);
                 }}
               />
             </>
           ) : null}
-          <Input
-            type="checkbox"
-            label="Install kubeadm (dev images without kubeadm)"
-            checked={config.installKubeadm}
-            onChange={(e) => {
-              update("installKubeadm", e.target.checked);
-            }}
-          />
-        </Col>
 
-        <Col size={6}>
-          <h2 className="p-heading--4">Infrastructure credentials</h2>
-          <p className="u-text--muted">
-            CAPN reads these from a Kubernetes Secret named{" "}
-            <code>{config.secretName}</code>. The client certificate must be
-            trusted on the Incus server.
-          </p>
-          <Input
-            type="text"
-            label="Secret name"
-            value={config.secretName}
-            onChange={(e) => {
-              update("secretName", e.target.value);
-            }}
-          />
-          <Input
-            type="text"
-            label="Incus server URL"
-            value={serverUrl}
-            placeholder="https://incus.example.com:8443"
-            onChange={(e) => {
-              setServerUrl(e.target.value);
-            }}
-          />
-          <Input
-            type="text"
-            label="Incus project"
-            value={project}
-            onChange={(e) => {
-              setProject(e.target.value);
-            }}
-          />
-          <Textarea
-            label="Server certificate (PEM)"
-            rows={4}
-            value={serverCrt}
-            placeholder="-----BEGIN CERTIFICATE-----"
-            onChange={(e) => {
-              setServerCrt(e.target.value);
-            }}
-          />
-          <Button
-            hasIcon
-            onClick={generateCredential}
-            disabled={isGenerating}
-            aria-label={
-              isGenerating
-                ? "Generating client certificate"
-                : "Generate client certificate"
-            }
-          >
-            {isGenerating ? (
-              <Icon className="u-animation--spin" name="spinner" />
-            ) : (
-              <Icon name="security" />
-            )}
-            <span>
-              {isGenerating
-                ? "Generating…"
-                : "Generate client certificate & key"}
-            </span>
-          </Button>
-          <Textarea
-            label="Client certificate (PEM)"
-            rows={4}
-            value={clientCrt}
-            placeholder="-----BEGIN CERTIFICATE-----"
-            onChange={(e) => {
-              setClientCrt(e.target.value);
-            }}
-          />
-          <Textarea
-            label="Client key (PEM)"
-            rows={4}
-            value={clientKey}
-            placeholder="-----BEGIN RSA PRIVATE KEY-----"
-            onChange={(e) => {
-              setClientKey(e.target.value);
-            }}
-          />
+          {active === CREDENTIALS ? (
+            <>
+              <h2 className="p-heading--4">Infrastructure credentials</h2>
+              <p className="u-text--muted">
+                CAPN reads these from a Kubernetes Secret named{" "}
+                <code>{config.secretName}</code>. The client certificate must be
+                trusted on the Incus server.
+              </p>
+              <Input
+                type="text"
+                label="Secret name"
+                value={config.secretName}
+                onChange={(e) => {
+                  update("secretName", e.target.value);
+                }}
+              />
+              <Input
+                type="text"
+                label="Incus server URL"
+                value={serverUrl}
+                placeholder="https://incus.example.com:8443"
+                onChange={(e) => {
+                  setServerUrl(e.target.value);
+                }}
+              />
+              <Input
+                type="text"
+                label="Incus project"
+                value={project}
+                onChange={(e) => {
+                  setProject(e.target.value);
+                }}
+              />
+              <Textarea
+                label="Server certificate (PEM)"
+                rows={4}
+                value={serverCrt}
+                placeholder="-----BEGIN CERTIFICATE-----"
+                onChange={(e) => {
+                  setServerCrt(e.target.value);
+                }}
+              />
+              <Button
+                hasIcon
+                onClick={generateCredential}
+                disabled={isGenerating}
+                aria-label={
+                  isGenerating
+                    ? "Generating client certificate"
+                    : "Generate client certificate"
+                }
+              >
+                {isGenerating ? (
+                  <Icon className="u-animation--spin" name="spinner" />
+                ) : (
+                  <Icon name="security" />
+                )}
+                <span>
+                  {isGenerating
+                    ? "Generating…"
+                    : "Generate client certificate & key"}
+                </span>
+              </Button>
+              <Textarea
+                label="Client certificate (PEM)"
+                rows={4}
+                value={clientCrt}
+                placeholder="-----BEGIN CERTIFICATE-----"
+                onChange={(e) => {
+                  setClientCrt(e.target.value);
+                }}
+              />
+              <Textarea
+                label="Client key (PEM)"
+                rows={4}
+                value={clientKey}
+                placeholder="-----BEGIN RSA PRIVATE KEY-----"
+                onChange={(e) => {
+                  setClientKey(e.target.value);
+                }}
+              />
+            </>
+          ) : null}
+
+          {active === AGENT ? <K8sAgentPanel config={config} /> : null}
+
+          {active === ARTIFACTS ? (
+            <>
+              <h2 className="p-heading--4">Generated artifacts</h2>
+              {renderArtifact(
+                "Infrastructure credentials Secret",
+                secretYaml,
+                "secret.yaml",
+                true,
+              )}
+              {renderArtifact("Cluster variables", envExports, "cluster.env")}
+              {renderArtifact("clusterctl command", command)}
+              {renderArtifact("Prerequisites", prerequisites)}
+            </>
+          ) : null}
         </Col>
       </Row>
-
-      <hr />
-      <h2 className="p-heading--4">Generated artifacts</h2>
-      {renderArtifact(
-        "Infrastructure credentials Secret",
-        secretYaml,
-        "secret.yaml",
-        true,
-      )}
-      {renderArtifact("Cluster variables", envExports, "cluster.env")}
-      {renderArtifact("clusterctl command", command)}
-      {renderArtifact("Prerequisites", prerequisites)}
     </BaseLayout>
   );
 };

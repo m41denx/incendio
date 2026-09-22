@@ -3,6 +3,25 @@ import { dump } from "js-yaml";
 // Pure, client-side generators for CAPN (cluster-api-provider-incus) artifacts.
 // See docs/k8s/capn-reference.md for the pinned contract these produce.
 
+// Available kubeadm images on the default capn simplestreams remote
+// (images.linuxcontainers.org/capn), Ubuntu 24.04, amd64 + arm64. Refresh this
+// list when new kubeadm images ship upstream. Newest first.
+export const KUBEADM_VERSIONS = [
+  "v1.37.0",
+  "v1.36.4",
+  "v1.36.1",
+  "v1.35.5",
+  "v1.35.0",
+  "v1.34.0",
+  "v1.33.5",
+  "v1.33.0",
+] as const;
+
+export const DEFAULT_KUBEADM_VERSION = KUBEADM_VERSIONS[0];
+
+export const kubeadmVersionOptions: { label: string; value: string }[] =
+  KUBEADM_VERSIONS.map((version) => ({ label: version, value: version }));
+
 export type K8sFlavor = "default" | "ovn";
 export type LoadBalancerType = "lxc" | "oci" | "kube-vip" | "ovn";
 export type MachineType = "container" | "virtual-machine" | "kind";
@@ -44,7 +63,7 @@ export interface K8sClusterConfig {
 
 export const defaultK8sClusterConfig: K8sClusterConfig = {
   clusterName: "c1",
-  kubernetesVersion: "v1.31.0",
+  kubernetesVersion: DEFAULT_KUBEADM_VERSION,
   flavor: "default",
   secretName: "lxc-secret",
   loadBalancer: "lxc",
