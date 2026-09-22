@@ -25,7 +25,7 @@ In a clustered LXD environment the LXD-UI is available on all nodes, so you can 
 
 For development, workshop is launching the `start` script from [package.json](package.json) inside a lxd container. The lxd container is running Vite and HaProxy, while the LXD API is outside.
 
-HaProxy is configured and launched from the [entrypoint](entrypoint) script. HaProxy is forwarding requests to LXD API or to npx serve depending on the [haproxy-dev.cfg](haproxy-dev.cfg) base config. HaProxy is used to serve both the UI and API requests under the same domain/ip and port, this avoids cross domain requests, just like in production.
+HaProxy is configured and launched from the [entrypoint](entrypoint) script. HaProxy is forwarding requests to LXD API or to bunx serve depending on the [haproxy-dev.cfg](haproxy-dev.cfg) base config. HaProxy is used to serve both the UI and API requests under the same domain/ip and port, this avoids cross domain requests, just like in production.
 
 Vite is building static html and javascript on the fly from the repository. Vite is launched directly from the `start` script and configured in [vite.config.ts](vite.config.ts).
 
@@ -39,7 +39,7 @@ The LXD API, which HaProxy forwards to can be overriden with an `.env.local` fil
     D --> H[HaProxy]
     H -- API with secret --> L[LXD API]
     H -- API error without secret --> H
-    H -- HTML & JS--> S[npx serve]
+    H -- HTML & JS--> S[bunx serve]
 ```
 
 A webhook triggers a [demo](https://github.com/canonical/demos.haus) build for any opened or updated pull request created by a collaborator of the repository. The build is configured in [Dockerfile](Dockerfile) and produces an image, which is run in the demo k8s cluster. The cluster provides several secrets, which are read from the [site.yaml](konf/site.yaml) file and used in the [entrypoint](entrypoint) script to configure and authenticate HaProxy to use the LXD-API backend running on another host. The base config for HaProy is in [haproxy-demo.cfg](haproxy-demo.cfg).

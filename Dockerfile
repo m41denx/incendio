@@ -1,9 +1,9 @@
 # Build js / css
-FROM node:24 AS yarn-dependencies
+FROM oven/bun:1 AS bun-dependencies
 WORKDIR /srv
 COPY . .
-RUN yarn --network-concurrency 2
-RUN yarn run build
+RUN bun install --frozen-lockfile
+RUN bun run build
 RUN mkdir /srv/deploy
 RUN mv build /srv/deploy/
 RUN mv entrypoint /srv/deploy/
@@ -23,18 +23,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         curl \
         git \
         libssl-dev \
+        unzip \
         wget
 
-# Install serve
-ENV NVM_DIR /usr/local/nvm
-RUN mkdir /usr/local/nvm \
-    && wget --no-check-certificate https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh \
-    && bash install.sh \
-    && . $NVM_DIR/nvm.sh \
-    && nvm install v16 \
-    && npm install --global serve
+# Install bun (provides `bunx serve` used by entrypoint)
+ENV BUN_INSTALL=/usr/local
+RUN curl -fsSL https://bun.sh/install | bash
 
 # Import code
-COPY --from=yarn-dependencies /srv/deploy /srv
+COPY --from=bun-dependencies /srv/deploy /srv
 
 ENTRYPOINT ["./entrypoint"]

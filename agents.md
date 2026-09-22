@@ -153,7 +153,7 @@ import usePanelParams from "util/usePanelParams"; // src/util/usePanelParams.tsx
 workshop run dev install
 
 # Or without workshop:
-yarn install
+bun install
 
 # 2. Optional: create local overrides file
 cp .env .env.local
@@ -172,7 +172,7 @@ workshop run dev serve
 sudo lxc auth identity create tls/workshop-cert keys/lxd-ui.crt --group admins
 
 # Or without workshop
-yarn start
+bun run start
 
 
 # Access at: https://localhost:8407/
@@ -189,36 +189,36 @@ yarn start
 
 ```bash
 workshop run dev serve        # Start dev server (recommended)
-yarn start                    # Alternative: start dev server without workshop
+bun run start                    # Alternative: start dev server without workshop
 ```
 
 ### Building
 
 ```bash
-yarn build                   # Full build: vite build + asset fixes + HTML
-yarn build-html              # Copy built index.html
+bun run build                   # Full build: vite build + asset fixes + HTML
+bun run build-html              # Copy built index.html
 ```
 
 ### Linting and Formatting
 
 ```bash
-yarn lint-js                 # TypeScript type check + ESLint + Prettier check
-yarn lint-scss               # SCSS linting
-yarn format-js               # Fix ESLint + Prettier issues
-yarn format-js-eslint        # Fix ESLint issues only
-yarn format-js-prettier      # Fix Prettier issues only
+bun run lint-js                 # TypeScript type check + ESLint + Prettier check
+bun run lint-scss               # SCSS linting
+bun run format-js               # Fix ESLint + Prettier issues
+bun run format-js-eslint        # Fix ESLint issues only
+bun run format-js-prettier      # Fix Prettier issues only
 ```
 
 ### Code Quality
 
 ```bash
-yarn check-circular-deps     # Check for circular dependency issues
+bun run check-circular-deps     # Check for circular dependency issues
 ```
 
 ### Command Selection Rules
 
 - Prefer `workshop run dev ...` commands when Workshop is available.
-- If Workshop is unavailable, use the equivalent `yarn ...` command.
+- If Workshop is unavailable, use the equivalent `bun run ...` command.
 - In setup and run instructions, show Workshop first and Yarn fallback second.
 
 ## Testing
@@ -226,8 +226,8 @@ yarn check-circular-deps     # Check for circular dependency issues
 ### Unit and Integration Tests
 
 ```bash
-yarn test-js                 # Run unit tests once with Vitest
-yarn test-js-coverage        # Generate coverage report
+bun run test-js                 # Run unit tests once with Vitest
+bun run test-js-coverage        # Generate coverage report
 ```
 
 **Location**: Tests are colocated with source code as `.spec.ts` files
@@ -237,12 +237,12 @@ yarn test-js-coverage        # Generate coverage report
 ### E2E Tests
 
 ```bash
-yarn test-e2e-edge           # Test against latest LXD
-yarn test-e2e-5.21-edge      # Test against LXD 5.21
-yarn test-e2e-5.0-edge       # Test against LXD 5.0
+bun run test-e2e-edge           # Test against latest LXD
+bun run test-e2e-5.21-edge      # Test against LXD 5.21
+bun run test-e2e-5.0-edge       # Test against LXD 5.0
 
-yarn test-e2e-coverage       # Collect E2E coverage
-yarn test-e2e-cluster-coverage # Clustered setup coverage
+bun run test-e2e-coverage       # Collect E2E coverage
+bun run test-e2e-cluster-coverage # Clustered setup coverage
 ```
 
 **Location**: `/tests/*.spec.ts`
@@ -268,13 +268,13 @@ Examples:
 Run a specific project:
 
 ```bash
-npx playwright test --project "chromium:lxd-latest-edge:unclustered"
+bunx playwright test --project "chromium:lxd-latest-edge:unclustered"
 ```
 
 Run one test file against a specific project:
 
 ```bash
-npx playwright test tests/instances.spec.ts --project "firefox:lxd-5.21-edge:unclustered"
+bunx playwright test tests/instances.spec.ts --project "firefox:lxd-5.21-edge:unclustered"
 ```
 
 Special projects used in this repo:
@@ -309,7 +309,7 @@ Special projects used in this repo:
 ### File Organization
 
 - **Colocation**: Keep related files together (page + local components and utility functions + tests)
-- **No Circular Imports**: Check with `yarn check-circular-deps`
+- **No Circular Imports**: Check with `bun run check-circular-deps`
 
 ### Naming Conventions
 
@@ -576,19 +576,19 @@ const MyComponent: FC = () => {
 2. **React DevTools**: Check component props and state
 3. **Network Tab**: Inspect LXD API calls
 4. **Console Logs**: Add temporary logging (remove before committing)
-5. **E2E Test Debugging**: Use Playwright Inspector: `npx playwright test --debug`
+5. **E2E Test Debugging**: Use Playwright Inspector: `bunx playwright test --debug`
 
 ### Running Specific Tests
 
 ```bash
 # Unit test for specific file
-yarn test-js -- src/util/seconds.spec.ts
+bun run test-js -- src/util/seconds.spec.ts
 
 # E2E test for specific feature
-npx playwright test tests/instances.spec.ts
+bunx playwright test tests/instances.spec.ts
 
 # E2E test with specific browser and deployment
-npx playwright test tests/instances.spec.ts --project chromium:lxd-latest-edge:unclustered
+bunx playwright test tests/instances.spec.ts --project chromium:lxd-latest-edge:unclustered
 ```
 
 ## Important Files to Know
@@ -637,7 +637,7 @@ Tests run against:
 1. **Environment Variables**: Use `.env.local` to override defaults without affecting repository
 2. **Certificate Trust**: First-time setup requires trusting the workshop certificate with LXD
 3. **Backend Switching**: Change `LXD_UI_BACKEND_IP` to test against different LXD instances
-4. **Circular Dependencies**: Monitor with `yarn check-circular-deps` during refactoring
+4. **Circular Dependencies**: Monitor with `bun run check-circular-deps` during refactoring
 5. **React Query DevTools**: Consider enabling React Query DevTools in development for debugging
 6. **Component Library**: Leverage `@canonical/react-components` before creating custom components
 7. **Types Checking**: Run `tsc --noEmit` before committing to catch type errors
@@ -656,7 +656,7 @@ Tests run against:
 1. Use real feature/resource names in paths and symbols (do not leave placeholder `resource` values in generated code).
 2. Run relevant validation before finalizing changes:
 
-- `yarn lint-js` for type/lint/format checks.
+- `bun run lint-js` for type/lint/format checks.
 - Targeted tests for touched areas (unit and/or E2E as appropriate).
 
 3. Confirm commands in guidance are runnable for this repository (including full Playwright project names when `--project` is used).
@@ -667,21 +667,21 @@ Tests run against:
 ```bash
 # Development
 workshop run dev serve        # Start dev server (recommended)
-yarn start                    # Alternative: start dev server without workshop
+bun run start                    # Alternative: start dev server without workshop
 
-yarn build                    # Production build
+bun run build                    # Production build
 
 # Code Quality
-yarn lint-js                  # Full linting check
-yarn format-js                # Format all code
+bun run lint-js                  # Full linting check
+bun run format-js                # Format all code
 
 # Testing
-yarn test-js                  # Unit tests
-yarn test-e2e-edge            # E2E tests (latest LXD)
+bun run test-js                  # Unit tests
+bun run test-e2e-edge            # E2E tests (latest LXD)
 
 # Utilities
-yarn check-circular-deps      # Detect circular imports
-yarn clean                    # Clean build artifacts
+bun run check-circular-deps      # Detect circular imports
+bun run clean                    # Clean build artifacts
 ```
 
 ## Additional Resources

@@ -100,7 +100,7 @@
     Now you can open https://localhost:8407/ to reach lxd-ui.
 
 
-5. To enable pre-commit checks, after the first successful run of `workshop`, execute `yarn hooks-add`. To remove them, run `yarn hooks-remove`.
+5. To enable pre-commit checks, after the first successful run of `workshop`, execute `bun run hooks-add`. To remove them, run `bun run hooks-remove`.
 
 
 6. Create a new topic branch:
@@ -133,15 +133,15 @@ The principles mentioned are guardrails, not a law to abide to. Their applicatio
 ## Formatting
 We use [Prettier](https://prettier.io/) and [ESLint](https://eslint.org/) to maintain a consistent code style. You can check your code formatting with
 
-    yarn lint-js
+    bun run lint-js
 
 For CSS formatting, we use [Stylelint](https://stylelint.io/). You can check your CSS formatting with
 
-    yarn lint-scss
+    bun run lint-scss
 
 For circular dependency checks, we use [dependency-cruiser](https://www.npmjs.com/package/dependency-cruiser). You can run it with
 
-    yarn check-circular-deps
+    bun run check-circular-deps
 
 ## Naming
 When struggling to find a good name, call it "foo" and rename at a later stage. You will gain a better understanding after finishing the implementation. A good name will be much easier to choose with that knowledge.
@@ -230,7 +230,7 @@ When making a contribution to this project, please take note that the UI should 
 
 Install playwright and its browsers
 
-    npx playwright install
+    bunx playwright install
 
 The e2e tests can be run against LXD 5.0, or the edge version of LXD. If you want to run the tests against the edge version, first make sure your lxd is up to date with
 
@@ -250,22 +250,22 @@ The login e2e tests will require oidc setup for your lxd server. You may refer t
 
 The tests expect the environment on localhost to be accessible. Execute `workshop run dev serve` first then run the tests against the latest LXD version with
 
-    yarn test-e2e-edge
+    bun run test-e2e-edge
 
 or against the LTS LXD versions with
     
-    yarn test-e2e-5.21-edge
-    yarn test-e2e-5.0-edge
+    bun run test-e2e-5.21-edge
+    bun run test-e2e-5.0-edge
 
 ### Nice utilities from Playwright
 
 Generate new tests with helper [Doc](https://playwright.dev/docs/codegen)
 
-    npx playwright codegen --ignore-https-errors https://localhost:8407/
+    bunx playwright codegen --ignore-https-errors https://localhost:8407/
 
 Explore and debug tests in UI mode [Doc](https://playwright.dev/docs/test-ui-mode)
 
-    npx playwright test --ui
+    bunx playwright test --ui
 
 Learn more about the [test architecture](ARCHITECTURE.MD#e2e-test-setup-for-multiple-lxd-versions) in our architecture documentation.
 

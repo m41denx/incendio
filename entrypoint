@@ -21,10 +21,8 @@ if [[ ! -z "$LXD_UI_BACKEND_KEY_PEM" ]]; then
   sed -i "s#LXD_UI_BACKEND_IP#$LXD_UI_BACKEND_IP#" /tmp/haproxy-local.cfg
   sed -i "s#LXD_UI_BACKEND_SECRET#$LXD_UI_BACKEND_SECRET#" /tmp/haproxy-local.cfg
   sed -i "s#VITE_PORT#$VITE_PORT#" /tmp/haproxy-local.cfg
-  . /usr/local/nvm/nvm.sh
-
   haproxy -f /tmp/haproxy-local.cfg
-  npx serve --single --no-clipboard -l $VITE_PORT build
+  bunx serve --single --no-clipboard -l $VITE_PORT build
 
 # dev config
 else
