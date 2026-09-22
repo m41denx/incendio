@@ -18,7 +18,8 @@ import BaseLayout from "components/BaseLayout";
 import NotificationRow from "components/NotificationRow";
 import useSortTableData from "util/useSortTableData";
 import { ROOT_PATH } from "util/rootPath";
-import { loadAgentConfig } from "util/k8s/agent";
+import { useSettings } from "context/useSettings";
+import { readApiConfig } from "util/k8s/appliance";
 import {
   useDeleteK8sCluster,
   useK8sClusters,
@@ -73,8 +74,8 @@ const DeleteClusterBtn: FC<DeleteProps> = ({ name }) => {
 const ClusterList: FC = () => {
   const navigate = useNavigate();
   const notify = useNotify();
-  const agentConfig = loadAgentConfig();
-  const configured = agentConfig.url.length > 0 && agentConfig.token.length > 0;
+  const { data: settings } = useSettings();
+  const applianceCreated = readApiConfig(settings) !== null;
   const { data: clusters = [], error, isLoading } = useK8sClusters();
 
   if (error) {
@@ -140,6 +141,12 @@ const ClusterList: FC = () => {
           </Button>
           <Button
             appearance="positive"
+            disabled={!applianceCreated}
+            title={
+              applianceCreated
+                ? undefined
+                : "Create a management appliance in Kubernetes settings first"
+            }
             onClick={() => {
               navigate(`${ROOT_PATH}/ui/kubernetes/create`);
             }}
@@ -150,10 +157,22 @@ const ClusterList: FC = () => {
       }
     >
       <NotificationRow />
-      {!configured ? (
-        <Notification severity="caution" title="Kubernetes agent not connected">
-          Connect the Kubernetes management agent in Kubernetes settings to list
-          and provision clusters.
+      {!applianceCreated ? (
+        <Notification severity="caution" title="No management appliance">
+          You need to create a Kubernetes management appliance before you can
+          create clusters. Deploy it from{" "}
+          <Button
+            appearance="link"
+            dense
+            onClick={() => {
+              navigate(
+                `${ROOT_PATH}/ui/kubernetes/settings/management-appliance`,
+              );
+            }}
+          >
+            Kubernetes settings
+          </Button>
+          .
         </Notification>
       ) : null}
       <Row>
