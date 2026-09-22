@@ -95,3 +95,6 @@ haproxy-local.cfg
 
 # Claude Code worktrees / local state
 .claude/
+
+# Kubernetes appliance release build output
+packages/k8s/appliance/dist/
