@@ -755,7 +755,7 @@ const Navigation: FC = () => {
                         >
                           <Icon
                             className="is-light p-side-navigation__icon"
-                            name="pods"
+                            name="kubernetes"
                           />{" "}
                           Kubernetes
                         </NavLink>
