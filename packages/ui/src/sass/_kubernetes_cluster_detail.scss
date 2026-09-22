@@ -1,0 +1,23 @@
+.k8s-cluster-detail {
+  // CAPI's aggregated condition message is an indented bullet list.
+  .k8s-condition-message {
+    background: none;
+    padding: 0;
+    white-space: pre-wrap;
+  }
+}
+
+.k8s-cluster-detail .k8s-artifact-header {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+
+  .k8s-artifact-actions {
+    align-items: center;
+    display: flex;
+    gap: 0.5rem;
+  }
+}

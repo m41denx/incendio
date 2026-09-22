@@ -49,6 +49,9 @@ const KubernetesCreate = lazy(
 const KubernetesSettings = lazy(
   async () => import("pages/kubernetes/KubernetesSettings"),
 );
+const KubernetesClusterDetail = lazy(
+  async () => import("pages/kubernetes/ClusterDetail"),
+);
 const CreateInstance = lazy(
   async () => import("pages/instances/CreateInstance"),
 );
@@ -778,6 +781,10 @@ const App: FC = () => {
         <Route
           path={`${ROOT_PATH}/ui/kubernetes/create`}
           element={<ProtectedRoute outlet={<KubernetesCreate />} />}
+        />
+        <Route
+          path={`${ROOT_PATH}/ui/kubernetes/cluster/:name`}
+          element={<ProtectedRoute outlet={<KubernetesClusterDetail />} />}
         />
         <Route
           path={`${ROOT_PATH}/ui/kubernetes/settings`}

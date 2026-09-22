@@ -208,72 +208,94 @@ const buildLoadBalancer = (config: K8sClusterConfig): string => {
   return `${config.loadBalancer}: {profiles: ${profiles}, flavor: ${config.lbFlavor}}`;
 };
 
-/** The `export VAR=...` block consumed by `clusterctl generate cluster`. */
-export const generateEnvExports = (config: K8sClusterConfig): string => {
-  const controlPlaneFlavor = resolveFlavor(
-    config.controlPlaneCustomFlavor,
-    config.controlPlaneFlavor,
-    config.controlPlaneCpu,
-    config.controlPlaneMemory,
-    config.controlPlaneMemoryUnit,
-  );
-  const workerFlavor = resolveFlavor(
-    config.workerCustomFlavor,
-    config.workerFlavor,
-    config.workerCpu,
-    config.workerMemory,
-    config.workerMemoryUnit,
-  );
-
-  const lines: string[] = [
-    `export CLUSTER_NAME=${config.clusterName}`,
-    `export KUBERNETES_VERSION=${config.kubernetesVersion}`,
-    `export LXC_SECRET_NAME=${config.secretName}`,
-    `export LOAD_BALANCER='${buildLoadBalancer(config)}'`,
-    `export CONTROL_PLANE_MACHINE_COUNT=${config.controlPlaneCount}`,
-    `export WORKER_MACHINE_COUNT=${config.workerCount}`,
-    `export CONTROL_PLANE_MACHINE_TYPE=${config.controlPlaneType}`,
-    `export WORKER_MACHINE_TYPE=${config.workerType}`,
-    `export CONTROL_PLANE_MACHINE_FLAVOR=${controlPlaneFlavor}`,
-    `export WORKER_MACHINE_FLAVOR=${workerFlavor}`,
-  ];
+/**
+ * CAPN template variables for a cluster, as raw (unquoted) values. Shared by
+ * the copy/paste preview and the agent's create call so what the form shows is
+ * exactly what gets applied. LXC_SECRET_NAME is left out: the agent owns the
+ * identity secret it creates, and the preview adds the user's own name.
+ */
+export const buildTemplateVariables = (
+  config: K8sClusterConfig,
+): Record<string, string> => {
+  const vars: Record<string, string> = {
+    CLUSTER_NAME: config.clusterName,
+    KUBERNETES_VERSION: config.kubernetesVersion,
+    LOAD_BALANCER: buildLoadBalancer(config),
+    CONTROL_PLANE_MACHINE_COUNT: String(config.controlPlaneCount),
+    WORKER_MACHINE_COUNT: String(config.workerCount),
+    CONTROL_PLANE_MACHINE_TYPE: config.controlPlaneType,
+    WORKER_MACHINE_TYPE: config.workerType,
+    CONTROL_PLANE_MACHINE_FLAVOR: resolveFlavor(
+      config.controlPlaneCustomFlavor,
+      config.controlPlaneFlavor,
+      config.controlPlaneCpu,
+      config.controlPlaneMemory,
+      config.controlPlaneMemoryUnit,
+    ),
+    WORKER_MACHINE_FLAVOR: resolveFlavor(
+      config.workerCustomFlavor,
+      config.workerFlavor,
+      config.workerCpu,
+      config.workerMemory,
+      config.workerMemoryUnit,
+    ),
+  };
 
   const controlPlaneProfiles = parseList(config.controlPlaneProfiles);
   if (
     controlPlaneProfiles.length > 0 &&
     controlPlaneProfiles.join(",") !== "default"
   ) {
-    lines.push(
-      `export CONTROL_PLANE_MACHINE_PROFILES=[${controlPlaneProfiles.join(", ")}]`,
-    );
+    vars.CONTROL_PLANE_MACHINE_PROFILES = `[${controlPlaneProfiles.join(", ")}]`;
   }
   const workerProfiles = parseList(config.workerProfiles);
   if (workerProfiles.length > 0 && workerProfiles.join(",") !== "default") {
-    lines.push(`export WORKER_MACHINE_PROFILES=[${workerProfiles.join(", ")}]`);
+    vars.WORKER_MACHINE_PROFILES = `[${workerProfiles.join(", ")}]`;
   }
   if (config.controlPlaneTarget.trim().length > 0) {
-    lines.push(
-      `export CONTROL_PLANE_MACHINE_TARGET="${config.controlPlaneTarget.trim()}"`,
-    );
+    vars.CONTROL_PLANE_MACHINE_TARGET = config.controlPlaneTarget.trim();
   }
   if (config.workerTarget.trim().length > 0) {
-    lines.push(`export WORKER_MACHINE_TARGET="${config.workerTarget.trim()}"`);
+    vars.WORKER_MACHINE_TARGET = config.workerTarget.trim();
   }
 
-  lines.push(`export PRIVILEGED=${String(config.privileged)}`);
-  lines.push(`export DEPLOY_KUBE_FLANNEL=${String(config.deployKubeFlannel)}`);
+  vars.PRIVILEGED = String(config.privileged);
+  vars.DEPLOY_KUBE_FLANNEL = String(config.deployKubeFlannel);
   if (config.installKubeadm) {
-    lines.push(`export INSTALL_KUBEADM=true`);
+    vars.INSTALL_KUBEADM = "true";
   }
   if (config.imageName.trim().length > 0) {
-    lines.push(`export LXC_IMAGE_NAME=${config.imageName.trim()}`);
+    vars.LXC_IMAGE_NAME = config.imageName.trim();
   }
-  lines.push(
-    `export POD_CIDR=[${config.podCidr}]`,
-    `export SERVICE_CIDR=[${config.serviceCidr}]`,
-  );
+  vars.POD_CIDR = `[${config.podCidr}]`;
+  vars.SERVICE_CIDR = `[${config.serviceCidr}]`;
+  return vars;
+};
 
-  return lines.join("\n");
+// Shell quoting for the preview only: single quotes around YAML maps, double
+// quotes around free-text targets.
+const QUOTED: Partial<Record<string, "'" | '"'>> = {
+  LOAD_BALANCER: "'",
+  CONTROL_PLANE_MACHINE_TARGET: '"',
+  WORKER_MACHINE_TARGET: '"',
+};
+
+/** The `export VAR=...` block consumed by `clusterctl generate cluster`. */
+export const generateEnvExports = (config: K8sClusterConfig): string => {
+  const { CLUSTER_NAME, KUBERNETES_VERSION, ...rest } =
+    buildTemplateVariables(config);
+  const ordered: [string, string][] = [
+    ["CLUSTER_NAME", CLUSTER_NAME],
+    ["KUBERNETES_VERSION", KUBERNETES_VERSION],
+    ["LXC_SECRET_NAME", config.secretName],
+    ...Object.entries(rest),
+  ];
+  return ordered
+    .map(([key, value]) => {
+      const quote = QUOTED[key] ?? "";
+      return `export ${key}=${quote}${value}${quote}`;
+    })
+    .join("\n");
 };
 
 /** The prefilled `clusterctl generate cluster` command. */

@@ -1,9 +1,7 @@
 import type { FC } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   Button,
-  ConfirmationButton,
-  Icon,
   List,
   MainTable,
   Notification,
@@ -12,84 +10,46 @@ import {
   Spinner,
   TablePagination,
   useNotify,
-  useToastNotification,
 } from "@canonical/react-components";
 import BaseLayout from "components/BaseLayout";
+import ResourceLink from "components/ResourceLink";
+import ClusterStatusLabel from "pages/kubernetes/ClusterStatusLabel";
+import DeleteClusterBtn from "pages/kubernetes/DeleteClusterBtn";
 import NotificationRow from "components/NotificationRow";
 import useSortTableData from "util/useSortTableData";
 import { ROOT_PATH } from "util/rootPath";
-import { useQuery } from "@tanstack/react-query";
-import { useAuth } from "context/auth";
-import { fetchInstance } from "api/instances";
-import { APPLIANCE_NAME, MGMT_PROJECT } from "util/k8s/appliance";
+import { useK8sManagement } from "pages/kubernetes/useK8sManagement";
+import type { ManagementStage } from "util/k8s/management";
 import {
-  useDeleteK8sCluster,
   useK8sClusters,
   type K8sClusterRecord,
 } from "pages/kubernetes/useK8sClusters";
 
-const capitalize = (value: string): string =>
-  value.length > 0 ? value.charAt(0).toUpperCase() + value.slice(1) : value;
+// Show "ready/desired" once the agent has a live count from the CRDs, otherwise
+// just the desired count from the cache.
+const formatReady = (ready: number | undefined, desired: number): string =>
+  ready === undefined ? String(desired) : `${String(ready)}/${String(desired)}`;
 
-interface DeleteProps {
-  name: string;
-}
+// Stages that are transient or fine on their own get no notice on this page.
+const QUIET_STAGES: ManagementStage[] = ["loading", "connecting", "ready"];
 
-const DeleteClusterBtn: FC<DeleteProps> = ({ name }) => {
-  const toastNotify = useToastNotification();
-  const deleteCluster = useDeleteK8sCluster();
-  return (
-    <ConfirmationButton
-      appearance="base"
-      loading={deleteCluster.isPending}
-      confirmationModalProps={{
-        title: "Confirm delete",
-        children: (
-          <p>
-            This will permanently delete cluster <strong>{name}</strong> and
-            tear down its Incus project.
-          </p>
-        ),
-        confirmButtonLabel: "Delete",
-        onConfirm: () => {
-          deleteCluster.mutate(name, {
-            onSuccess: () => {
-              toastNotify.success(`Cluster "${name}" deleted.`);
-            },
-            onError: (error) => {
-              toastNotify.failure("Cluster deletion failed", error);
-            },
-          });
-        },
-      }}
-      disabled={deleteCluster.isPending}
-      shiftClickEnabled
-      showShiftClickHint
-      title="Delete cluster"
-      className="has-icon"
-    >
-      <Icon name="delete" />
-    </ConfirmationButton>
-  );
-};
+// CAPI's Available message is a bullet list; the first line names the blocker.
+const firstLine = (message: string): string =>
+  message.split("\n")[0].replace(/^\*\s*/, "");
+
+const clusterUrl = (name: string): string =>
+  `${ROOT_PATH}/ui/kubernetes/cluster/${encodeURIComponent(name)}`;
 
 const ClusterList: FC = () => {
   const navigate = useNavigate();
   const notify = useNotify();
-  const { isFineGrained } = useAuth();
-  // "Appliance created" means the management container actually exists in
-  // Incus. We deliberately do not key off user.k8s.api-config: that handle is
-  // also written when the user merely tests/saves an agent connection
-  // (finalizeApiConfig), so it is not a reliable deploy signal.
-  const { data: appliance } = useQuery({
-    queryKey: ["k8s", "appliance", MGMT_PROJECT, APPLIANCE_NAME],
-    queryFn: async () =>
-      fetchInstance(APPLIANCE_NAME, MGMT_PROJECT, isFineGrained, false),
-    enabled: isFineGrained !== null,
-    retry: false,
-  });
-  const applianceCreated = appliance !== undefined;
-  const { data: clusters = [], error, isLoading } = useK8sClusters();
+  const { state: management, config, info } = useK8sManagement();
+  const managementReady = management.stage === "ready";
+  const {
+    data: clusters = [],
+    error,
+    isLoading,
+  } = useK8sClusters(info !== undefined);
 
   if (error) {
     notify.failure("Loading Kubernetes clusters failed", error);
@@ -101,6 +61,7 @@ const ClusterList: FC = () => {
     { content: "Kubernetes version", sortKey: "version" },
     { content: "Control plane", className: "u-align--right", sortKey: "cp" },
     { content: "Workers", className: "u-align--right", sortKey: "workers" },
+    { content: "API endpoint" },
     { content: "Project", sortKey: "project" },
     { "aria-label": "Actions", className: "u-align--right actions" },
   ];
@@ -109,12 +70,61 @@ const ClusterList: FC = () => {
     key: cluster.id,
     name: cluster.name,
     columns: [
-      { content: cluster.name },
-      { content: capitalize(cluster.status) },
+      {
+        content: <Link to={clusterUrl(cluster.name)}>{cluster.name}</Link>,
+      },
+      {
+        content: (
+          <>
+            <ClusterStatusLabel status={cluster.status} />
+            {cluster.phase ? (
+              <div className="u-text--muted p-text--small u-no-margin--bottom">
+                {cluster.phase}
+              </div>
+            ) : null}
+            {cluster.message ? (
+              <div
+                className="u-text--muted p-text--small u-no-margin--bottom u-truncate"
+                title={cluster.message}
+              >
+                {firstLine(cluster.message)}
+              </div>
+            ) : null}
+          </>
+        ),
+      },
       { content: cluster.kubernetesVersion },
-      { content: cluster.controlPlaneCount, className: "u-align--right" },
-      { content: cluster.workerCount, className: "u-align--right" },
-      { content: cluster.project ?? "-" },
+      {
+        content: formatReady(
+          cluster.controlPlaneReady,
+          cluster.controlPlaneCount,
+        ),
+        className: "u-align--right",
+      },
+      {
+        content: formatReady(cluster.workerReady, cluster.workerCount),
+        className: "u-align--right",
+      },
+      {
+        content: cluster.endpoint ? (
+          <code className="u-truncate" title={cluster.endpoint}>
+            {cluster.endpoint.replace(/^https:\/\//, "")}
+          </code>
+        ) : (
+          "-"
+        ),
+      },
+      {
+        content: cluster.project ? (
+          <ResourceLink
+            type="project"
+            value={cluster.project}
+            to={`${ROOT_PATH}/ui/project/${encodeURIComponent(cluster.project)}/instances`}
+          />
+        ) : (
+          "-"
+        ),
+      },
       {
         content: (
           <List
@@ -154,12 +164,8 @@ const ClusterList: FC = () => {
           </Button>
           <Button
             appearance="positive"
-            disabled={!applianceCreated}
-            title={
-              applianceCreated
-                ? undefined
-                : "Create a management appliance in Kubernetes settings first"
-            }
+            disabled={!managementReady}
+            title={managementReady ? undefined : management.title}
             onClick={() => {
               navigate(`${ROOT_PATH}/ui/kubernetes/create`);
             }}
@@ -170,10 +176,17 @@ const ClusterList: FC = () => {
       }
     >
       <NotificationRow />
-      {!applianceCreated ? (
-        <Notification severity="caution" title="No management appliance">
-          You need to create a Kubernetes management appliance before you can
-          create clusters. Deploy it from{" "}
+      {!QUIET_STAGES.includes(management.stage) ? (
+        <Notification severity={management.severity} title={management.title}>
+          {management.message}{" "}
+          {management.stage === "agent-unreachable" && config.url ? (
+            <>
+              <a href={config.url} target="_blank" rel="noreferrer">
+                Approve K8s manager certificate
+              </a>{" "}
+              ·{" "}
+            </>
+          ) : null}
           <Button
             appearance="link"
             dense
@@ -183,9 +196,8 @@ const ClusterList: FC = () => {
               );
             }}
           >
-            Kubernetes settings
+            Management appliance
           </Button>
-          .
         </Notification>
       ) : null}
       <Row>

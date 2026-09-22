@@ -26,8 +26,9 @@ import { useClusterMembers } from "context/useClusterMembers";
 import { useClusterGroups } from "context/useClusterGroups";
 import { useIncusCredentials } from "pages/kubernetes/useIncusCredentials";
 import { useCreateK8sCluster } from "pages/kubernetes/useK8sClusters";
-import { loadAgentConfig } from "util/k8s/agent";
+import { useK8sManagement } from "pages/kubernetes/useK8sManagement";
 import { ROOT_PATH } from "util/rootPath";
+import { downloadText } from "util/k8s/download";
 import {
   CUSTOM_VERSION,
   defaultK8sClusterConfig,
@@ -91,21 +92,13 @@ interface NodeGroupProps {
   onTarget: (value: string) => void;
 }
 
-const downloadText = (filename: string, content: string) => {
-  const blob = new Blob([content], { type: "text/plain" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(url);
-};
-
 const KubernetesCreate: FC = () => {
   const notify = useNotify();
   const toastNotify = useToastNotification();
   const navigate = useNavigate();
   const createCluster = useCreateK8sCluster();
+  const { state: management } = useK8sManagement();
+  const managementReady = management.stage === "ready";
 
   const [active, setActive] = useState<string>(CLUSTER);
   const [config, setConfig] = useState<K8sClusterConfig>(
@@ -757,19 +750,13 @@ const KubernetesCreate: FC = () => {
         <ActionButton
           appearance="positive"
           loading={createCluster.isPending}
-          disabled={config.clusterName.trim().length === 0}
+          disabled={config.clusterName.trim().length === 0 || !managementReady}
+          title={managementReady ? undefined : management.title}
           onClick={() => {
-            const agent = loadAgentConfig();
-            if (!agent.url || !agent.token) {
-              notify.info(
-                "Connect the Kubernetes agent in settings before creating a cluster.",
-              );
-              return;
-            }
             createCluster.mutate(config, {
               onSuccess: (result) => {
                 toastNotify.success(
-                  `Cluster "${result.name}" created in project "${result.project}". Provisioning via CAPN is pending.`,
+                  `Cluster "${result.name}" submitted in project "${result.project}". Cluster API is provisioning its nodes.`,
                 );
                 navigate(`${ROOT_PATH}/ui/kubernetes`);
               },
