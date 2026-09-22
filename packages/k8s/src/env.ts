@@ -19,6 +19,10 @@ export const env = createEnv({
     INCUS_API_URL: z.string().default("https://127.0.0.1:8443"),
     INCUS_CLIENT_CERT: z.string().optional(),
     INCUS_CLIENT_KEY: z.string().optional(),
+    // Incus server certificate PEM path used to pin/verify TLS (the same
+    // material as `server-crt` in the CAPN lxc-secret). Preferred over
+    // INCUS_INSECURE_SKIP_VERIFY.
+    INCUS_SERVER_CERT: z.string().optional(),
     INCUS_INSECURE_SKIP_VERIFY: z
       .enum(["true", "false"])
       .default("false")

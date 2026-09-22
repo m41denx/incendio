@@ -97,6 +97,10 @@ export function buildCloudInit(spec: OperatorVmSpec): string {
       },
     ],
     runcmd: [
+      // Trust the Incus server cert via the OS store so TLS verification works
+      // under both Bun and Node (Bun won't trust a self-signed leaf via `ca`).
+      `install -m 0644 ${CONF_DIR}/server.crt /usr/local/share/ca-certificates/incus-server.crt`,
+      "update-ca-certificates",
       ...(spec.agentDownloadUrl
         ? [
             `curl -fsSL -o ${AGENT_BIN} ${spec.agentDownloadUrl}`,
