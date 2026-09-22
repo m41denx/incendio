@@ -1,5 +1,8 @@
 #!/usr/bin/env sh
-. "$(dirname -- "$0")/_/husky.sh"
-
-bunx lint-staged
-bun run check-circular-deps
+# Run lint-staged inside each workspace package so per-package eslint/prettier/
+# stylelint configs resolve correctly, then check the UI for circular deps.
+for pkg in packages/*/; do
+  [ -f "${pkg}package.json" ] || continue
+  (cd "$pkg" && bunx lint-staged) || exit 1
+done
+(cd packages/ui && bun run check-circular-deps) || exit 1

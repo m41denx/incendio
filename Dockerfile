@@ -5,9 +5,9 @@ COPY . .
 RUN bun install --frozen-lockfile
 RUN bun run build
 RUN mkdir /srv/deploy
-RUN mv build /srv/deploy/
-RUN mv entrypoint /srv/deploy/
-RUN mv haproxy-demo.cfg /srv/deploy/
+RUN mv packages/ui/build /srv/deploy/
+RUN mv packages/ui/entrypoint /srv/deploy/
+RUN mv packages/ui/haproxy-demo.cfg /srv/deploy/
 
 # Build the demo image
 FROM ubuntu:noble
