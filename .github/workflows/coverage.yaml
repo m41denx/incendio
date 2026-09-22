@@ -1,9 +1,7 @@
 name: Test coverage
+# Disabled for the incendio fork: manual dispatch only (upstream CI kept for reference).
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
 
 permissions:
   contents: read

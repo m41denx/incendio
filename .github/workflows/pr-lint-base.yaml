@@ -1,0 +1,48 @@
+name: PR lint (base UI)
+
+# Lints and test-builds the @incendio/ui package on pull requests that touch it.
+on:
+  pull_request:
+    paths:
+      - "packages/ui/**"
+      - "package.json"
+      - "bun.lock"
+      - ".github/workflows/pr-lint-base.yaml"
+
+permissions:
+  contents: read
+
+jobs:
+  lint-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Full history so the build can stamp the short git hash.
+          fetch-depth: 0
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.2"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Lint (tsc + eslint + prettier)
+        run: bun run --filter '@incendio/ui' lint-js
+
+      - name: Lint SCSS
+        run: bun run --filter '@incendio/ui' lint-scss
+
+      - name: Check circular dependencies
+        run: bun run --filter '@incendio/ui' check-circular-deps
+
+      - name: Test build
+        run: bun run --filter '@incendio/ui' build

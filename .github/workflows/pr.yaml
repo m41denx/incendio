@@ -1,5 +1,7 @@
 name: PR checks
-on: pull_request
+# Disabled for the incendio fork: PR checks handled by pr-lint-base / pr-lint-k8s.
+on:
+  workflow_dispatch:
 
 permissions:
   contents: read

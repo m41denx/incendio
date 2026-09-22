@@ -1,4 +1,5 @@
 name: Generate SBOM
+# Disabled for the incendio fork: manual dispatch only.
 on: [workflow_dispatch]
 
 permissions:

@@ -20,16 +20,21 @@ jobs:
           # Full history so the build can stamp the short git hash.
           fetch-depth: 0
 
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.2"
+
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
           node-version: "22"
 
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        run: bun install --frozen-lockfile
 
       - name: Build UI
-        run: yarn build
+        run: bun run build
 
       - name: Prepare release notes
         id: version
@@ -54,8 +59,8 @@ jobs:
 
       - name: Package UI bundle
         run: |
-          cd build/ui
-          zip -r "../../incendio-ui-${{ steps.version.outputs.version }}.zip" .
+          cd packages/ui/build/ui
+          zip -r "${GITHUB_WORKSPACE}/incendio-ui-${{ steps.version.outputs.version }}.zip" .
 
       - name: Publish release
         uses: softprops/action-gh-release@v3
