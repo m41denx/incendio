@@ -1,7 +1,9 @@
 import { dump } from "js-yaml";
 
 // Pure, client-side generators for CAPN (cluster-api-provider-incus) artifacts.
-// See docs/k8s/capn-reference.md for the pinned contract these produce.
+// Targets CAPI 0.9.x+ and the current Incus provider using the default
+// (ClusterClass) template only. See docs/k8s/capn-reference.md for the pinned
+// contract these produce.
 
 // Available kubeadm images on the default capn simplestreams remote
 // (images.linuxcontainers.org/capn), Ubuntu 24.04, amd64 + arm64. Refresh this
@@ -34,9 +36,9 @@ export const kubeadmVersionSelectOptions: { label: string; value: string }[] = [
 export const isPresetKubeadmVersion = (version: string): boolean =>
   (KUBEADM_VERSIONS as readonly string[]).includes(version);
 
-export type K8sFlavor = "default" | "ovn";
 export type LoadBalancerType = "lxc" | "oci" | "kube-vip" | "ovn";
-export type MachineType = "container" | "virtual-machine" | "kind";
+export type MachineType = "container" | "virtual-machine";
+export type MemoryUnit = "GB" | "MB";
 
 export interface IncusClientCredential {
   crt: string;
@@ -54,18 +56,34 @@ export interface IncusCredentials {
 export interface K8sClusterConfig {
   clusterName: string;
   kubernetesVersion: string;
-  flavor: K8sFlavor;
+  imageName: string;
   secretName: string;
+  // Load balancer (control-plane endpoint strategy).
   loadBalancer: LoadBalancerType;
-  ovnNetwork: string;
-  ovnLoadBalancerAddress: string;
+  lbProfiles: string;
+  lbFlavor: string;
+  lbHost: string;
+  lbNetworkName: string;
+  // Machines.
   controlPlaneCount: number;
   workerCount: number;
   controlPlaneType: MachineType;
   workerType: MachineType;
+  controlPlaneCpu: number;
+  controlPlaneMemory: number;
+  controlPlaneMemoryUnit: MemoryUnit;
+  controlPlaneCustomFlavor: boolean;
   controlPlaneFlavor: string;
+  workerCpu: number;
+  workerMemory: number;
+  workerMemoryUnit: MemoryUnit;
+  workerCustomFlavor: boolean;
   workerFlavor: string;
-  imageName: string;
+  controlPlaneProfiles: string;
+  workerProfiles: string;
+  controlPlaneTarget: string;
+  workerTarget: string;
+  // Cluster networking / bootstrap.
   privileged: boolean;
   deployKubeFlannel: boolean;
   installKubeadm: boolean;
@@ -76,18 +94,31 @@ export interface K8sClusterConfig {
 export const defaultK8sClusterConfig: K8sClusterConfig = {
   clusterName: "c1",
   kubernetesVersion: DEFAULT_KUBEADM_VERSION,
-  flavor: "default",
+  imageName: "",
   secretName: "lxc-secret",
   loadBalancer: "lxc",
-  ovnNetwork: "ovn0",
-  ovnLoadBalancerAddress: "10.100.42.1",
+  lbProfiles: "default",
+  lbFlavor: "c1-m1",
+  lbHost: "",
+  lbNetworkName: "default",
   controlPlaneCount: 1,
   workerCount: 1,
   controlPlaneType: "container",
   workerType: "container",
+  controlPlaneCpu: 2,
+  controlPlaneMemory: 4,
+  controlPlaneMemoryUnit: "GB",
+  controlPlaneCustomFlavor: false,
   controlPlaneFlavor: "c2-m4",
+  workerCpu: 2,
+  workerMemory: 4,
+  workerMemoryUnit: "GB",
+  workerCustomFlavor: false,
   workerFlavor: "c2-m4",
-  imageName: "",
+  controlPlaneProfiles: "default",
+  workerProfiles: "default",
+  controlPlaneTarget: "",
+  workerTarget: "",
   privileged: true,
   deployKubeFlannel: true,
   installKubeadm: false,
@@ -99,15 +130,47 @@ export const loadBalancerOptions: { label: string; value: LoadBalancerType }[] =
   [
     { label: "LXC container (haproxy) — good for dev", value: "lxc" },
     { label: "OCI container (haproxy)", value: "oci" },
-    { label: "kube-vip (VIP 10.0.42.1)", value: "kube-vip" },
+    { label: "kube-vip (static pods on control plane)", value: "kube-vip" },
     { label: "OVN network load balancer", value: "ovn" },
   ];
 
 export const machineTypeOptions: { label: string; value: MachineType }[] = [
   { label: "Container", value: "container" },
   { label: "Virtual machine", value: "virtual-machine" },
-  { label: "kind", value: "kind" },
 ];
+
+export const memoryUnitOptions: { label: string; value: MemoryUnit }[] = [
+  { label: "GB", value: "GB" },
+  { label: "MB", value: "MB" },
+];
+
+const parseList = (value: string): string[] =>
+  value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+// Convert CPU + memory into CAPN's `c<cores>-m<GiB>` flavor shorthand.
+export const flavorFromResources = (
+  cpu: number,
+  memory: number,
+  unit: MemoryUnit,
+): string => {
+  const gib = unit === "GB" ? memory : memory / 1024;
+  const rounded = Number.isInteger(gib) ? gib : Number(gib.toFixed(2));
+  return `c${cpu}-m${rounded}`;
+};
+
+// The flavor string that ends up in the manifest: either the free-text custom
+// value (which also allows AWS-style names like `t3.medium`) or the computed
+// `cX-mY` shorthand.
+export const resolveFlavor = (
+  custom: boolean,
+  flavor: string,
+  cpu: number,
+  memory: number,
+  unit: MemoryUnit,
+): string => (custom ? flavor.trim() : flavorFromResources(cpu, memory, unit));
 
 /** Render the infrastructure-credentials Secret CAPN reads (LXC_SECRET_NAME). */
 export const generateSecretYaml = (
@@ -131,42 +194,74 @@ export const generateSecretYaml = (
     { lineWidth: -1, noRefs: true },
   );
 
-const loadBalancerValue = (lb: LoadBalancerType): string => `${lb}: {}`;
+// Build the single-key YAML map for LOAD_BALANCER with the fields each strategy
+// actually needs (see capn-reference.md §3.1).
+const buildLoadBalancer = (config: K8sClusterConfig): string => {
+  if (config.loadBalancer === "kube-vip") {
+    return `kube-vip: {host: ${config.lbHost}}`;
+  }
+  if (config.loadBalancer === "ovn") {
+    return `ovn: {host: ${config.lbHost}, networkName: ${config.lbNetworkName}}`;
+  }
+  // lxc | oci
+  const profiles = `[${parseList(config.lbProfiles).join(", ")}]`;
+  return `${config.loadBalancer}: {profiles: ${profiles}, flavor: ${config.lbFlavor}}`;
+};
 
 /** The `export VAR=...` block consumed by `clusterctl generate cluster`. */
 export const generateEnvExports = (config: K8sClusterConfig): string => {
+  const controlPlaneFlavor = resolveFlavor(
+    config.controlPlaneCustomFlavor,
+    config.controlPlaneFlavor,
+    config.controlPlaneCpu,
+    config.controlPlaneMemory,
+    config.controlPlaneMemoryUnit,
+  );
+  const workerFlavor = resolveFlavor(
+    config.workerCustomFlavor,
+    config.workerFlavor,
+    config.workerCpu,
+    config.workerMemory,
+    config.workerMemoryUnit,
+  );
+
   const lines: string[] = [
     `export CLUSTER_NAME=${config.clusterName}`,
     `export KUBERNETES_VERSION=${config.kubernetesVersion}`,
     `export LXC_SECRET_NAME=${config.secretName}`,
-  ];
-
-  if (config.flavor === "default") {
-    lines.push(
-      `export LOAD_BALANCER='${loadBalancerValue(config.loadBalancer)}'`,
-    );
-  } else {
-    lines.push(
-      `export LXC_LOAD_BALANCER_ADDRESS=${config.ovnLoadBalancerAddress}`,
-    );
-    lines.push(`export LXC_LOAD_BALANCER_NETWORK=${config.ovnNetwork}`);
-  }
-
-  lines.push(
+    `export LOAD_BALANCER='${buildLoadBalancer(config)}'`,
     `export CONTROL_PLANE_MACHINE_COUNT=${config.controlPlaneCount}`,
     `export WORKER_MACHINE_COUNT=${config.workerCount}`,
     `export CONTROL_PLANE_MACHINE_TYPE=${config.controlPlaneType}`,
     `export WORKER_MACHINE_TYPE=${config.workerType}`,
-    `export CONTROL_PLANE_MACHINE_FLAVOR=${config.controlPlaneFlavor}`,
-    `export WORKER_MACHINE_FLAVOR=${config.workerFlavor}`,
-  );
+    `export CONTROL_PLANE_MACHINE_FLAVOR=${controlPlaneFlavor}`,
+    `export WORKER_MACHINE_FLAVOR=${workerFlavor}`,
+  ];
 
-  if (config.flavor === "default") {
-    lines.push(`export PRIVILEGED=${String(config.privileged)}`);
+  const controlPlaneProfiles = parseList(config.controlPlaneProfiles);
+  if (
+    controlPlaneProfiles.length > 0 &&
+    controlPlaneProfiles.join(",") !== "default"
+  ) {
     lines.push(
-      `export DEPLOY_KUBE_FLANNEL=${String(config.deployKubeFlannel)}`,
+      `export CONTROL_PLANE_MACHINE_PROFILES=[${controlPlaneProfiles.join(", ")}]`,
     );
   }
+  const workerProfiles = parseList(config.workerProfiles);
+  if (workerProfiles.length > 0 && workerProfiles.join(",") !== "default") {
+    lines.push(`export WORKER_MACHINE_PROFILES=[${workerProfiles.join(", ")}]`);
+  }
+  if (config.controlPlaneTarget.trim().length > 0) {
+    lines.push(
+      `export CONTROL_PLANE_MACHINE_TARGET="${config.controlPlaneTarget.trim()}"`,
+    );
+  }
+  if (config.workerTarget.trim().length > 0) {
+    lines.push(`export WORKER_MACHINE_TARGET="${config.workerTarget.trim()}"`);
+  }
+
+  lines.push(`export PRIVILEGED=${String(config.privileged)}`);
+  lines.push(`export DEPLOY_KUBE_FLANNEL=${String(config.deployKubeFlannel)}`);
   if (config.installKubeadm) {
     lines.push(`export INSTALL_KUBEADM=true`);
   }
@@ -185,27 +280,24 @@ export const generateEnvExports = (config: K8sClusterConfig): string => {
 export const generateClusterctlCommand = (config: K8sClusterConfig): string => {
   const parts = [
     `clusterctl generate cluster ${config.clusterName} -i incus`,
-    config.flavor === "ovn" ? "--flavor ovn" : "",
     `--kubernetes-version ${config.kubernetesVersion}`,
     `--control-plane-machine-count ${config.controlPlaneCount}`,
     `--worker-machine-count ${config.workerCount}`,
-  ].filter((part) => part.length > 0);
+  ];
   return parts.join(" \\\n  ") + " \\\n  > cluster.yaml";
 };
 
 /** Management-cluster prerequisites (run on the user's clusterctl host). */
-export const generatePrerequisites = (config: K8sClusterConfig): string =>
+export const generatePrerequisites = (): string =>
   [
     "# 1. Register the CAPN provider with clusterctl",
     "mkdir -p ~/.cluster-api",
     "curl -o ~/.cluster-api/clusterctl.yaml \\",
     "  https://capn.linuxcontainers.org/static/v0.1/clusterctl.yaml",
     "",
-    "# 2. Initialize the provider on your management cluster",
-    config.flavor === "default"
-      ? "#    (the default flavor uses a ClusterClass, so enable the topology gate)"
-      : "#    (the ovn flavor renders plain manifests)",
-    `${config.flavor === "default" ? "CLUSTER_TOPOLOGY=true " : ""}clusterctl init -i incus`,
+    "# 2. Initialize the provider (the default template uses a ClusterClass,",
+    "#    so the ClusterTopology feature gate must be enabled)",
+    "CLUSTER_TOPOLOGY=true clusterctl init -i incus",
     "",
     "# 3. Apply the infrastructure credentials Secret",
     "kubectl apply -f secret.yaml",

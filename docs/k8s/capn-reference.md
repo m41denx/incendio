@@ -10,6 +10,11 @@ cluster-api-provider-incus book on 2026-09-22:
 This is the source of truth for the Phase 0 generator (menu + pure-UI artifact
 generator). Everything here is rendered client-side; no agent required.
 
+> Incendio targets CAPI 0.9.x+ and the current Incus provider, and generates the
+> **default (ClusterClass) template only**. OVN is offered as one of the four
+> `LOAD_BALANCER` strategies rather than as a separate `--flavor ovn` template,
+> and machine type is limited to `container` / `virtual-machine` (no `kind`).
+
 ---
 
 ## 1. Credentials Secret (`LXC_SECRET_NAME`)
@@ -138,18 +143,18 @@ and `loadBalancer.ovn.networkName` to the OVN network.
 ## 4. Generate command
 
 ```sh
-# default flavor
+# default flavor (the only flavor Incendio generates)
 clusterctl generate cluster <name> -i incus \
-  --kubernetes-version v1.31.0 \
-  --control-plane-machine-count 1 \
-  --worker-machine-count 1 > cluster.yaml
-
-# ovn flavor
-clusterctl generate cluster <name> -i incus --flavor ovn \
-  --kubernetes-version v1.31.0 \
+  --kubernetes-version v1.37.0 \
   --control-plane-machine-count 1 \
   --worker-machine-count 1 > cluster.yaml
 ```
+
+The `LOAD_BALANCER` map carries the fields each strategy needs, e.g.
+`lxc: {profiles: [default], flavor: c1-m1}`, `oci: {...}`,
+`kube-vip: {host: 10.0.42.1}`, or `ovn: {host: 10.100.42.1, networkName: default}`.
+`*_MACHINE_FLAVOR` is CAPN's `c<cores>-m<GiB>` shorthand (or an AWS-style name);
+the provider expands it into instance limits at reconcile time.
 
 Variables not passed as flags are read from the environment (see §3).
 

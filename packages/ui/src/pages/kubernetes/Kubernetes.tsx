@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState, type FC, type ReactNode } from "react";
+import { useNavigate } from "react-router-dom";
 import {
+  ActionButton,
   Button,
   CodeSnippet,
   CodeSnippetBlockAppearance,
   Col,
   Icon,
   Input,
+  MultiSelect,
   Notification,
   Row,
   Select,
@@ -16,9 +19,15 @@ import BaseLayout from "components/BaseLayout";
 import NotificationRow from "components/NotificationRow";
 import CopyToClipboard from "components/CopyToClipboard";
 import FormMenuItem from "components/forms/FormMenuItem";
+import FormFooterLayout from "components/forms/FormFooterLayout";
 import { useSettings } from "context/useSettings";
+import { useProfiles } from "context/useProfiles";
+import { useClusterMembers } from "context/useClusterMembers";
+import { useClusterGroups } from "context/useClusterGroups";
 import K8sAgentPanel from "pages/kubernetes/K8sAgentPanel";
+import { useK8sAgent } from "pages/kubernetes/useK8sAgent";
 import {
+  CUSTOM_VERSION,
   defaultK8sClusterConfig,
   generateClusterctlCommand,
   generateEnvExports,
@@ -27,10 +36,13 @@ import {
   isPresetKubeadmVersion,
   kubeadmVersionSelectOptions,
   loadBalancerOptions,
-  CUSTOM_VERSION,
   machineTypeOptions,
+  memoryUnitOptions,
   type IncusClientCredential,
   type K8sClusterConfig,
+  type LoadBalancerType,
+  type MachineType,
+  type MemoryUnit,
 } from "util/k8s/capn";
 
 const CAPN_DOCS = "https://capn.linuxcontainers.org/";
@@ -41,6 +53,43 @@ const CREDENTIALS = "Infrastructure credentials";
 const AGENT = "Kubernetes agent";
 const ARTIFACTS = "Generated artifacts";
 const SECTIONS = [CLUSTER, MACHINES, CREDENTIALS, AGENT, ARTIFACTS];
+
+const splitCsv = (value: string): string[] =>
+  value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+const addCsv = (csv: string, value: string): string =>
+  [...splitCsv(csv), value].join(",");
+
+const removeCsv = (csv: string, value: string): string =>
+  splitCsv(csv)
+    .filter((item) => item !== value)
+    .join(",");
+
+interface NodeGroupProps {
+  title: string;
+  minCount: number;
+  count: number;
+  onCount: (value: number) => void;
+  type: MachineType;
+  onType: (value: MachineType) => void;
+  custom: boolean;
+  onCustom: (value: boolean) => void;
+  flavor: string;
+  onFlavor: (value: string) => void;
+  cpu: number;
+  onCpu: (value: number) => void;
+  memory: number;
+  onMemory: (value: number) => void;
+  memoryUnit: MemoryUnit;
+  onMemoryUnit: (value: MemoryUnit) => void;
+  profiles: string;
+  onProfiles: (value: string) => void;
+  target: string;
+  onTarget: (value: string) => void;
+}
 
 const downloadText = (filename: string, content: string) => {
   const blob = new Blob([content], { type: "text/plain" });
@@ -54,7 +103,9 @@ const downloadText = (filename: string, content: string) => {
 
 const Kubernetes: FC = () => {
   const notify = useNotify();
+  const navigate = useNavigate();
   const { data: settings } = useSettings();
+  const agent = useK8sAgent();
 
   const [active, setActive] = useState<string>(CLUSTER);
   const [config, setConfig] = useState<K8sClusterConfig>(
@@ -66,6 +117,26 @@ const Kubernetes: FC = () => {
   const [clientCrt, setClientCrt] = useState("");
   const [clientKey, setClientKey] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+
+  const { data: profiles = [] } = useProfiles(project);
+  const { data: members = [] } = useClusterMembers();
+  const { data: groups = [] } = useClusterGroups();
+
+  const profileItems = profiles.map((profile) => ({
+    label: profile.name,
+    value: profile.name,
+  }));
+  const targetOptions = [
+    { label: "(no override)", value: "" },
+    ...members.map((member) => ({
+      label: member.server_name,
+      value: member.server_name,
+    })),
+    ...groups.map((group) => ({
+      label: `@${group.name}`,
+      value: `@${group.name}`,
+    })),
+  ];
 
   useEffect(() => {
     const environment = settings?.environment;
@@ -101,7 +172,7 @@ const Kubernetes: FC = () => {
   );
   const envExports = useMemo(() => generateEnvExports(config), [config]);
   const command = useMemo(() => generateClusterctlCommand(config), [config]);
-  const prerequisites = useMemo(() => generatePrerequisites(config), [config]);
+  const prerequisites = useMemo(() => generatePrerequisites(), []);
 
   const generateCredential = () => {
     setIsGenerating(true);
@@ -168,7 +239,143 @@ const Kubernetes: FC = () => {
     </div>
   );
 
-  const isOvn = config.flavor === "ovn";
+  const renderNodeGroup = ({
+    title,
+    minCount,
+    count,
+    onCount,
+    type,
+    onType,
+    custom,
+    onCustom,
+    flavor,
+    onFlavor,
+    cpu,
+    onCpu,
+    memory,
+    onMemory,
+    memoryUnit,
+    onMemoryUnit,
+    profiles: nodeProfiles,
+    onProfiles,
+    target,
+    onTarget,
+  }: NodeGroupProps): ReactNode => (
+    <div className="u-sv3">
+      <h3 className="p-heading--5">{title}</h3>
+      <Row>
+        <Col size={4}>
+          <Input
+            type="number"
+            min={minCount}
+            label="Count"
+            value={count}
+            onChange={(e) => {
+              onCount(Number(e.target.value));
+            }}
+          />
+        </Col>
+        <Col size={4}>
+          <Select
+            label="Type"
+            value={type}
+            options={machineTypeOptions}
+            onChange={(e) => {
+              onType(e.target.value as MachineType);
+            }}
+          />
+        </Col>
+      </Row>
+      <Input
+        type="checkbox"
+        label="Custom flavor"
+        checked={custom}
+        onChange={(e) => {
+          onCustom(e.target.checked);
+        }}
+      />
+      {custom ? (
+        <Input
+          type="text"
+          label="Flavor"
+          value={flavor}
+          placeholder="c2-m4 or t3.medium"
+          help="CAPN flavor: c<cores>-m<GiB>, or an AWS-style instance name."
+          onChange={(e) => {
+            onFlavor(e.target.value);
+          }}
+        />
+      ) : (
+        <Row>
+          <Col size={4}>
+            <Input
+              type="number"
+              min={1}
+              label="CPU cores"
+              value={cpu}
+              onChange={(e) => {
+                onCpu(Number(e.target.value));
+              }}
+            />
+          </Col>
+          <Col size={4}>
+            <Input
+              type="number"
+              min={1}
+              label="Memory"
+              value={memory}
+              onChange={(e) => {
+                onMemory(Number(e.target.value));
+              }}
+            />
+          </Col>
+          <Col size={4}>
+            <Select
+              label="Unit"
+              value={memoryUnit}
+              options={memoryUnitOptions}
+              onChange={(e) => {
+                onMemoryUnit(e.target.value as MemoryUnit);
+              }}
+            />
+          </Col>
+        </Row>
+      )}
+      <div className="p-form__group">
+        <label className="p-form__label">Profiles</label>
+        <MultiSelect
+          items={profileItems}
+          selectedItems={splitCsv(nodeProfiles).map((value) => ({
+            label: value,
+            value,
+          }))}
+          onSelectItem={(item) => {
+            onProfiles(addCsv(nodeProfiles, item.value as string));
+          }}
+          onDeselectItem={(item) => {
+            onProfiles(removeCsv(nodeProfiles, item.value as string));
+          }}
+          onItemsUpdate={(items) => {
+            onProfiles(items.map((i) => i.value as string).join(","));
+          }}
+          variant="condensed"
+        />
+      </div>
+      <Select
+        label="Target"
+        value={target}
+        options={targetOptions}
+        help="Pin nodes to a specific cluster member or @group."
+        onChange={(e) => {
+          onTarget(e.target.value);
+        }}
+      />
+    </div>
+  );
+
+  const isCustomVersion = !isPresetKubeadmVersion(config.kubernetesVersion);
+  const isLxcLoadBalancer =
+    config.loadBalancer === "lxc" || config.loadBalancer === "oci";
 
   return (
     <BaseLayout title="Kubernetes">
@@ -232,7 +439,7 @@ const Kubernetes: FC = () => {
                   }
                 }}
               />
-              {!isPresetKubeadmVersion(config.kubernetesVersion) ? (
+              {isCustomVersion ? (
                 <>
                   <Input
                     type="text"
@@ -257,138 +464,166 @@ const Kubernetes: FC = () => {
                 </>
               ) : null}
               <Select
-                label="Flavor"
-                value={config.flavor}
-                options={[
-                  {
-                    label: "default (configurable load balancer)",
-                    value: "default",
-                  },
-                  { label: "ovn (OVN network load balancer)", value: "ovn" },
-                ]}
+                label="Load balancer"
+                value={config.loadBalancer}
+                options={loadBalancerOptions}
+                help="Control-plane endpoint strategy."
                 onChange={(e) => {
-                  update(
-                    "flavor",
-                    e.target.value as K8sClusterConfig["flavor"],
-                  );
+                  update("loadBalancer", e.target.value as LoadBalancerType);
                 }}
               />
-              {isOvn ? (
-                <>
-                  <Input
-                    type="text"
-                    label="OVN network"
-                    value={config.ovnNetwork}
-                    help="Name of the OVN network the instances use."
-                    onChange={(e) => {
-                      update("ovnNetwork", e.target.value);
-                    }}
-                  />
-                  <Input
-                    type="text"
-                    label="Load balancer address"
-                    value={config.ovnLoadBalancerAddress}
-                    help="A free IP address in the OVN uplink network."
-                    onChange={(e) => {
-                      update("ovnLoadBalancerAddress", e.target.value);
-                    }}
-                  />
-                </>
-              ) : (
-                <Select
-                  label="Load balancer"
-                  value={config.loadBalancer}
-                  options={loadBalancerOptions}
+              {isLxcLoadBalancer ? (
+                <Row>
+                  <Col size={6}>
+                    <Input
+                      type="text"
+                      label="Load balancer profiles"
+                      value={config.lbProfiles}
+                      help="Comma-separated Incus profiles for the LB instance."
+                      onChange={(e) => {
+                        update("lbProfiles", e.target.value);
+                      }}
+                    />
+                  </Col>
+                  <Col size={6}>
+                    <Input
+                      type="text"
+                      label="Load balancer flavor"
+                      value={config.lbFlavor}
+                      help="Instance size, e.g. c1-m1."
+                      onChange={(e) => {
+                        update("lbFlavor", e.target.value);
+                      }}
+                    />
+                  </Col>
+                </Row>
+              ) : null}
+              {config.loadBalancer === "kube-vip" ? (
+                <Input
+                  type="text"
+                  label="Virtual IP address"
+                  value={config.lbHost}
+                  placeholder="10.0.42.1"
+                  help="VIP announced by kube-vip on the control-plane nodes."
                   onChange={(e) => {
-                    update(
-                      "loadBalancer",
-                      e.target.value as K8sClusterConfig["loadBalancer"],
-                    );
+                    update("lbHost", e.target.value);
                   }}
                 />
-              )}
+              ) : null}
+              {config.loadBalancer === "ovn" ? (
+                <Row>
+                  <Col size={6}>
+                    <Input
+                      type="text"
+                      label="Load balancer address"
+                      value={config.lbHost}
+                      placeholder="10.100.42.1"
+                      help="A free IP address in the OVN uplink network."
+                      onChange={(e) => {
+                        update("lbHost", e.target.value);
+                      }}
+                    />
+                  </Col>
+                  <Col size={6}>
+                    <Input
+                      type="text"
+                      label="OVN network"
+                      value={config.lbNetworkName}
+                      placeholder="default"
+                      help="Name of the OVN network the instances use."
+                      onChange={(e) => {
+                        update("lbNetworkName", e.target.value);
+                      }}
+                    />
+                  </Col>
+                </Row>
+              ) : null}
             </>
           ) : null}
 
           {active === MACHINES ? (
             <>
               <h2 className="p-heading--4">Machines</h2>
-              <Row>
-                <Col size={4}>
-                  <Input
-                    type="number"
-                    min={1}
-                    label="Control plane count"
-                    value={config.controlPlaneCount}
-                    onChange={(e) => {
-                      update("controlPlaneCount", Number(e.target.value));
-                    }}
-                  />
-                </Col>
-                <Col size={4}>
-                  <Input
-                    type="number"
-                    min={0}
-                    label="Worker count"
-                    value={config.workerCount}
-                    onChange={(e) => {
-                      update("workerCount", Number(e.target.value));
-                    }}
-                  />
-                </Col>
-              </Row>
-              <Row>
-                <Col size={4}>
-                  <Select
-                    label="Control plane type"
-                    value={config.controlPlaneType}
-                    options={machineTypeOptions}
-                    onChange={(e) => {
-                      update(
-                        "controlPlaneType",
-                        e.target.value as K8sClusterConfig["controlPlaneType"],
-                      );
-                    }}
-                  />
-                </Col>
-                <Col size={4}>
-                  <Select
-                    label="Worker type"
-                    value={config.workerType}
-                    options={machineTypeOptions}
-                    onChange={(e) => {
-                      update(
-                        "workerType",
-                        e.target.value as K8sClusterConfig["workerType"],
-                      );
-                    }}
-                  />
-                </Col>
-              </Row>
-              <Row>
-                <Col size={4}>
-                  <Input
-                    type="text"
-                    label="Control plane flavor"
-                    value={config.controlPlaneFlavor}
-                    help="Instance size, e.g. c2-m4."
-                    onChange={(e) => {
-                      update("controlPlaneFlavor", e.target.value);
-                    }}
-                  />
-                </Col>
-                <Col size={4}>
-                  <Input
-                    type="text"
-                    label="Worker flavor"
-                    value={config.workerFlavor}
-                    help="Instance size, e.g. c2-m4."
-                    onChange={(e) => {
-                      update("workerFlavor", e.target.value);
-                    }}
-                  />
-                </Col>
-              </Row>
+              {renderNodeGroup({
+                title: "Control plane",
+                minCount: 1,
+                count: config.controlPlaneCount,
+                onCount: (value) => {
+                  update("controlPlaneCount", value);
+                },
+                type: config.controlPlaneType,
+                onType: (value) => {
+                  update("controlPlaneType", value);
+                },
+                custom: config.controlPlaneCustomFlavor,
+                onCustom: (value) => {
+                  update("controlPlaneCustomFlavor", value);
+                },
+                flavor: config.controlPlaneFlavor,
+                onFlavor: (value) => {
+                  update("controlPlaneFlavor", value);
+                },
+                cpu: config.controlPlaneCpu,
+                onCpu: (value) => {
+                  update("controlPlaneCpu", value);
+                },
+                memory: config.controlPlaneMemory,
+                onMemory: (value) => {
+                  update("controlPlaneMemory", value);
+                },
+                memoryUnit: config.controlPlaneMemoryUnit,
+                onMemoryUnit: (value) => {
+                  update("controlPlaneMemoryUnit", value);
+                },
+                profiles: config.controlPlaneProfiles,
+                onProfiles: (value) => {
+                  update("controlPlaneProfiles", value);
+                },
+                target: config.controlPlaneTarget,
+                onTarget: (value) => {
+                  update("controlPlaneTarget", value);
+                },
+              })}
+              {renderNodeGroup({
+                title: "Workers",
+                minCount: 0,
+                count: config.workerCount,
+                onCount: (value) => {
+                  update("workerCount", value);
+                },
+                type: config.workerType,
+                onType: (value) => {
+                  update("workerType", value);
+                },
+                custom: config.workerCustomFlavor,
+                onCustom: (value) => {
+                  update("workerCustomFlavor", value);
+                },
+                flavor: config.workerFlavor,
+                onFlavor: (value) => {
+                  update("workerFlavor", value);
+                },
+                cpu: config.workerCpu,
+                onCpu: (value) => {
+                  update("workerCpu", value);
+                },
+                memory: config.workerMemory,
+                onMemory: (value) => {
+                  update("workerMemory", value);
+                },
+                memoryUnit: config.workerMemoryUnit,
+                onMemoryUnit: (value) => {
+                  update("workerMemoryUnit", value);
+                },
+                profiles: config.workerProfiles,
+                onProfiles: (value) => {
+                  update("workerProfiles", value);
+                },
+                target: config.workerTarget,
+                onTarget: (value) => {
+                  update("workerTarget", value);
+                },
+              })}
               <Row>
                 <Col size={4}>
                   <Input
@@ -411,26 +646,22 @@ const Kubernetes: FC = () => {
                   />
                 </Col>
               </Row>
-              {!isOvn ? (
-                <>
-                  <Input
-                    type="checkbox"
-                    label="Privileged containers"
-                    checked={config.privileged}
-                    onChange={(e) => {
-                      update("privileged", e.target.checked);
-                    }}
-                  />
-                  <Input
-                    type="checkbox"
-                    label="Deploy kube-flannel CNI"
-                    checked={config.deployKubeFlannel}
-                    onChange={(e) => {
-                      update("deployKubeFlannel", e.target.checked);
-                    }}
-                  />
-                </>
-              ) : null}
+              <Input
+                type="checkbox"
+                label="Privileged containers"
+                checked={config.privileged}
+                onChange={(e) => {
+                  update("privileged", e.target.checked);
+                }}
+              />
+              <Input
+                type="checkbox"
+                label="Deploy kube-flannel CNI"
+                checked={config.deployKubeFlannel}
+                onChange={(e) => {
+                  update("deployKubeFlannel", e.target.checked);
+                }}
+              />
               <Input
                 type="checkbox"
                 label="Install kubeadm on boot (for custom images without kubeadm)"
@@ -526,7 +757,7 @@ const Kubernetes: FC = () => {
             </>
           ) : null}
 
-          {active === AGENT ? <K8sAgentPanel config={config} /> : null}
+          {active === AGENT ? <K8sAgentPanel agent={agent} /> : null}
 
           {active === ARTIFACTS ? (
             <>
@@ -544,6 +775,28 @@ const Kubernetes: FC = () => {
           ) : null}
         </Col>
       </Row>
+
+      <FormFooterLayout>
+        <Button appearance="base" onClick={async () => navigate(-1)}>
+          Cancel
+        </Button>
+        <ActionButton
+          appearance="positive"
+          loading={agent.busy}
+          onClick={() => {
+            if (!agent.connected) {
+              setActive(AGENT);
+              notify.info(
+                "Connect the Kubernetes agent first, then deploy the operator VM.",
+              );
+              return;
+            }
+            void agent.deployOperator(config);
+          }}
+        >
+          Deploy operator VM
+        </ActionButton>
+      </FormFooterLayout>
     </BaseLayout>
   );
 };
