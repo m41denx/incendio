@@ -1,4 +1,6 @@
 import { incusClient } from "./incus.ts";
+import { env } from "../env.ts";
+import { log } from "./log.ts";
 import type { Role } from "../constants.ts";
 
 // Incus project metadata is the source of truth for "is this ours?" — never the
@@ -119,8 +121,144 @@ export async function createProject(
   });
 }
 
-/** Delete a project (one-shot teardown). No-op if it does not exist. */
+/**
+ * CAPN launches every instance (load balancer, control-plane and worker
+ * machines) with `profiles: [default]` in the workload project named by the
+ * identity secret. A freshly-created Incus project gets an *empty* `default`
+ * profile, so instances fail to start with "No root device could be found"
+ * (validated on a live appliance). We therefore stamp the project's default
+ * profile with a root disk + NIC before handing the project to CAPN.
+ */
+export async function ensureWorkloadProfile(
+  project: string,
+  pool: string,
+  network: string,
+): Promise<void> {
+  const client = incusClient();
+  await client.put(
+    `/1.0/profiles/default?project=${encodeURIComponent(project)}`,
+    {
+      description: "Incendio workload default profile (root disk + NIC for CAPN)",
+      config: {},
+      devices: {
+        root: { type: "disk", path: "/", pool },
+        eth0: { type: "nic", network },
+      },
+    },
+  );
+  log.info(
+    `workload project '${project}': default profile set (pool=${pool} network=${network})`,
+  );
+}
+
+interface IncusStoragePool {
+  name: string;
+  status?: string;
+}
+
+interface IncusNetwork {
+  name: string;
+  type?: string;
+  managed?: boolean;
+  config?: Record<string, string>;
+}
+
+/**
+ * Resolve the storage pool + network to back a workload project's default
+ * profile. Honors WORKLOAD_STORAGE_POOL / WORKLOAD_NETWORK when set, otherwise
+ * auto-detects: the first created storage pool, and the first managed
+ * bridge/OVN network that hands out an IPv4 (so CAPN instances get an address
+ * the mgmt cluster can reach).
+ */
+export async function resolveWorkloadResources(): Promise<{
+  pool: string;
+  network: string;
+}> {
+  const client = incusClient();
+  let pool = env.WORKLOAD_STORAGE_POOL;
+  if (!pool) {
+    const { data } = await client.get("/1.0/storage-pools?recursion=1");
+    const pools: IncusStoragePool[] = data?.metadata ?? [];
+    const created = pools.find((p) => p.status === "Created") ?? pools[0];
+    if (!created) throw new Error("no Incus storage pool available for workload instances");
+    pool = created.name;
+  }
+  let network = env.WORKLOAD_NETWORK;
+  if (!network) {
+    const { data } = await client.get("/1.0/networks?recursion=1");
+    const networks: IncusNetwork[] = data?.metadata ?? [];
+    const usable = networks.find(
+      (n) =>
+        n.managed === true &&
+        (n.type === "bridge" || n.type === "ovn") &&
+        !!n.config?.["ipv4.address"] &&
+        n.config["ipv4.address"] !== "none",
+    );
+    if (!usable) throw new Error("no managed Incus network available for workload instances");
+    network = usable.name;
+  }
+  return { pool, network };
+}
+
+/** If `data` is an async Incus operation, wait for it to finish. */
+async function waitForOp(data: unknown): Promise<void> {
+  const op = data as { type?: string; operation?: string } | null;
+  if (op?.type === "async" && typeof op.operation === "string") {
+    await incusClient().get(`${op.operation}/wait?timeout=60`);
+  }
+}
+
+function lastPathSegment(url: string): string {
+  return url.split("/").filter(Boolean).pop() ?? "";
+}
+
+/**
+ * Force-empty a project so it can be deleted. Incus refuses to delete a
+ * non-empty project, and CAPN leaves two things behind: any instances (only
+ * when the CAPI cascade did not run, e.g. the mgmt cluster was unreachable) and
+ * the per-project *cached images* it pulled to launch them (haproxy + the
+ * kubeadm node image). We force-stop and delete instances, then delete images.
+ */
+async function emptyProject(name: string): Promise<void> {
+  const client = incusClient();
+  const project = encodeURIComponent(name);
+
+  const { data: instData } = await client.get(`/1.0/instances?project=${project}`);
+  const instances: string[] = instData?.metadata ?? [];
+  for (const url of instances) {
+    const inst = lastPathSegment(url);
+    try {
+      const stop = await client.put(`/1.0/instances/${inst}/state?project=${project}`, {
+        action: "stop",
+        timeout: 30,
+        force: true,
+      });
+      await waitForOp(stop.data);
+    } catch (error: unknown) {
+      // Already stopped is fine; anything else surfaces on the delete below.
+      if (!isBadRequest(error)) log.warn(`stop instance ${inst}: ${String(error)}`);
+    }
+    const del = await client.delete(`/1.0/instances/${inst}?project=${project}`);
+    await waitForOp(del.data);
+  }
+
+  const { data: imgData } = await client.get(`/1.0/images?project=${project}`);
+  const images: string[] = imgData?.metadata ?? [];
+  for (const url of images) {
+    const fingerprint = lastPathSegment(url);
+    const del = await client.delete(`/1.0/images/${fingerprint}?project=${project}`);
+    await waitForOp(del.data);
+  }
+}
+
+/**
+ * Delete a project (one-shot teardown). Empties it first (force-removing any
+ * leftover instances and CAPN's cached images), then removes the project —
+ * which takes its profiles/networks with it. No-op if it does not exist.
+ */
 export async function deleteProject(name: string): Promise<void> {
+  if (!(await getProject(name))) return;
+  await emptyProject(name);
   const client = incusClient();
   try {
     await client.delete(`/1.0/projects/${encodeURIComponent(name)}`);
@@ -131,10 +269,16 @@ export async function deleteProject(name: string): Promise<void> {
 }
 
 function isNotFound(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "response" in error &&
-    (error as { response?: { status?: number } }).response?.status === 404
-  );
+  return httpStatus(error) === 404;
+}
+
+function isBadRequest(error: unknown): boolean {
+  return httpStatus(error) === 400;
+}
+
+function httpStatus(error: unknown): number | undefined {
+  if (typeof error === "object" && error !== null && "response" in error) {
+    return (error as { response?: { status?: number } }).response?.status;
+  }
+  return undefined;
 }

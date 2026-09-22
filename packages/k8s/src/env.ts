@@ -30,6 +30,22 @@ export const env = createEnv({
       .default("false")
       .transform((v) => v === "true"),
     LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
+    // Kubeconfig for the local mgmt k3s cluster the agent brokers CAPI/CAPN
+    // against. Matches the k3s default the bootstrap script installs.
+    KUBECONFIG: z.string().default("/etc/rancher/k3s/k3s.yaml"),
+    // clusterctl config carrying the `incus` InfrastructureProvider
+    // registration (written by bootstrap.sh before `clusterctl init`).
+    CLUSTERCTL_CONFIG: z.string().default("/etc/incendio/clusterctl.yaml"),
+    // CAPN provider version, used for `--infrastructure incus:<version>`.
+    CAPN_VERSION: z.string().default("v0.9.1"),
+    // Control-plane endpoint load balancer type CAPN provisions for new
+    // clusters. `lxc`/`oci` are zero-config haproxy instances.
+    LOAD_BALANCER_TYPE: z.enum(["lxc", "oci"]).default("lxc"),
+    // Storage pool / network for a workload project's `default` profile (CAPN
+    // launches instances with `profiles: [default]`). Auto-detected from the
+    // Incus API when unset.
+    WORKLOAD_STORAGE_POOL: z.string().optional(),
+    WORKLOAD_NETWORK: z.string().optional(),
     // Path to the agent's sqlite cache/log DB. In the appliance the bootstrap
     // script points this at /opt/incendio; ":memory:" is handy for tests.
     DB_PATH: z.string().default("incendio-k8s.sqlite"),

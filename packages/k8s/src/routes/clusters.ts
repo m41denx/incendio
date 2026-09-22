@@ -6,11 +6,30 @@ import { FLAVORS } from "../constants.ts";
 import {
   createProject,
   deleteProject,
+  ensureWorkloadProfile,
+  resolveWorkloadResources,
   suggestProjectName,
 } from "../lib/projects.ts";
 import { incusErrorDetail } from "../lib/incus.ts";
 import { log } from "../lib/log.ts";
-import { auditRepo, clusterRepo, deriveStatus } from "../db/repo.ts";
+import {
+  applyIdentitySecret,
+  capnReady,
+  deleteClusterCrd,
+  generateCluster,
+  getLiveStatuses,
+  kubectlApply,
+  secretNameFor,
+  type LiveStatus,
+} from "../lib/capi.ts";
+import {
+  auditRepo,
+  clusterRepo,
+  deriveStatus,
+  type ClusterStatusView,
+  type ClusterView,
+} from "../db/repo.ts";
+import type { ClusterStatus } from "../db/schema.ts";
 
 const CreateClusterBody = z.object({
   name: z.string().min(1).max(63),
@@ -23,13 +42,62 @@ const CreateClusterBody = z.object({
   project: z.string().optional(),
 });
 
+/** Map a live CAPI cluster phase/availability to our cache status enum. */
+function statusFromLive(live: LiveStatus): ClusterStatus {
+  if (live.available) return "ready";
+  if (live.phase === "Failed") return "error";
+  return "provisioning";
+}
+
+/**
+ * Overlay live CRD status onto a cached record for list responses. When CRDs
+ * are readable the status becomes CRD-sourced (and the cache is refreshed so
+ * subsequent reads agree); otherwise the cached value is returned as-is.
+ */
+function enrich(record: ClusterView, live: LiveStatus | undefined) {
+  if (!live) return { ...record, source: "cache" as const };
+  const status = statusFromLive(live);
+  if (status !== record.status) clusterRepo.setStatus(record.name, status);
+  return {
+    ...record,
+    status,
+    source: "crd" as const,
+    phase: live.phase,
+    controlPlaneReady: live.controlPlaneReady,
+    workerReady: live.workerReady,
+  };
+}
+
+/** Build a CRD-sourced status view (counts from Machines, desired from cache). */
+function liveStatusView(
+  record: ClusterView,
+  live: LiveStatus,
+): ClusterStatusView {
+  const status = statusFromLive(live);
+  if (status !== record.status) clusterRepo.setStatus(record.name, status);
+  return {
+    name: record.name,
+    status,
+    ready: status === "ready",
+    source: "crd",
+    controlPlane: {
+      desired: record.controlPlaneCount,
+      ready: live.controlPlaneReady,
+    },
+    workers: { desired: record.workerCount, ready: live.workerReady },
+    conditions: live.conditions,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 /**
  * Cluster lifecycle API. All routes require the shared agent bearer token.
  *
- * Reads come from the sqlite cache (docs/k8s/management-appliance.md §6); the
- * CAPI/CAPN CRDs stay authoritative and will refresh the cache once wired
- * (/v1/info reports capn:false today). Clusters are addressed by name to match
- * CAPI Cluster identity.
+ * The CAPI/CAPN CRDs in the mgmt k3s cluster are authoritative; the sqlite
+ * cache mirrors desired spec + last-seen status for fast reads and audit
+ * (docs/k8s/management-appliance.md §6). Reads overlay live CRD status when the
+ * CAPN controller is reachable and fall back to the cache when it is not.
+ * Clusters are addressed by name to match CAPI Cluster identity.
  */
 export const clusterRoutes = new Elysia({ prefix: "/v1/clusters" })
   .use(bearer())
@@ -40,13 +108,28 @@ export const clusterRoutes = new Elysia({ prefix: "/v1/clusters" })
       return { error: "unauthorized" };
     }
   })
-  .get("/", () => ({ clusters: clusterRepo.list() }), {
-    detail: {
-      summary: "List managed clusters (from the sqlite cache)",
-      tags: ["clusters"],
-      security: [{ bearerAuth: [] }],
+  .get(
+    "/",
+    async () => {
+      const records = clusterRepo.list();
+      let live: Map<string, LiveStatus> | undefined;
+      try {
+        if (await capnReady()) live = await getLiveStatuses();
+      } catch (error) {
+        log.warn(
+          `list clusters: live status unavailable: ${incusErrorDetail(error)}`,
+        );
+      }
+      return { clusters: records.map((r) => enrich(r, live?.get(r.name))) };
     },
-  })
+    {
+      detail: {
+        summary: "List managed clusters (live CRD status overlaid on the cache)",
+        tags: ["clusters"],
+        security: [{ bearerAuth: [] }],
+      },
+    },
+  )
   .post(
     "/",
     async ({ body, set }) => {
@@ -55,41 +138,64 @@ export const clusterRoutes = new Elysia({ prefix: "/v1/clusters" })
         return { error: "cluster already exists", name: body.name };
       }
       const project = body.project ?? suggestProjectName("workload", body.name);
+      const secretName = secretNameFor(body.name);
       log.info(
-        `create cluster: name=${body.name} project=${project} flavor=${body.flavor} k8s=${body.kubernetesVersion} cp=${body.controlPlaneCount} workers=${body.workerCount}`,
+        `create cluster: name=${body.name} project=${project} k8s=${body.kubernetesVersion} cp=${body.controlPlaneCount} workers=${body.workerCount} lb=${env.LOAD_BALANCER_TYPE}`,
       );
+
+      if (!(await capnReady())) {
+        set.status = 503;
+        return {
+          error: "management cluster not ready",
+          detail:
+            "the CAPN controller is not available; deploy or repair the management appliance first",
+        };
+      }
+
       try {
         // Project-per-workload-cluster: stamp user.incendio.* metadata so the
-        // cluster is detectable and teardown is one delete.
+        // cluster is detectable and teardown is one delete. Then make its
+        // default profile bootable (CAPN launches with profiles: [default]).
         await createProject(project, {
           role: "workload",
           cluster: body.name,
           k8sVersion: body.kubernetesVersion,
         });
-        log.info(`create cluster: project '${project}' ready`);
+        const { pool, network } = await resolveWorkloadResources();
+        await ensureWorkloadProfile(project, pool, network);
+        // CAPN identity secret pointing at this project, then render + apply the
+        // default cluster template against the mgmt k3s cluster.
+        await applyIdentitySecret(secretName, project);
+        const manifest = await generateCluster({
+          name: body.name,
+          kubernetesVersion: body.kubernetesVersion,
+          controlPlaneCount: body.controlPlaneCount,
+          workerCount: body.workerCount,
+          secretName,
+          loadBalancer: env.LOAD_BALANCER_TYPE,
+        });
+        await kubectlApply(manifest);
+        log.info(`create cluster '${body.name}': CAPN manifest applied`);
       } catch (error) {
         const detail = incusErrorDetail(error);
-        log.error(
-          `create cluster: failed to create project '${project}': ${detail}`,
-        );
+        log.error(`create cluster '${body.name}': ${detail}`);
+        // Best-effort rollback so a failed create can be retried cleanly.
+        await deleteClusterCrd(body.name).catch(() => undefined);
+        await deleteProject(project).catch(() => undefined);
         set.status = 502;
-        return { error: "failed to create cluster project", detail };
+        return { error: "failed to create cluster", detail };
       }
+
       const record = clusterRepo.create({
         name: body.name,
         project,
         kubernetesVersion: body.kubernetesVersion,
         controlPlaneCount: body.controlPlaneCount,
         workerCount: body.workerCount,
-        status: "pending",
+        status: "provisioning",
         spec: body,
       });
-      auditRepo.record(
-        "cluster.create",
-        `name=${body.name} project=${project}`,
-      );
-      // TODO: hand the desired spec off to CAPN (clusterctl generate | apply)
-      // once the mgmt k3s cluster is reachable; return a task id then.
+      auditRepo.record("cluster.create", `name=${body.name} project=${project}`);
       set.status = 201;
       return record;
     },
@@ -97,7 +203,7 @@ export const clusterRoutes = new Elysia({ prefix: "/v1/clusters" })
       body: CreateClusterBody,
       detail: {
         summary:
-          "Create a cluster: stamps the per-cluster Incus project (CAPN apply pending)",
+          "Create a cluster: stamp the Incus project, then clusterctl generate | kubectl apply the CAPN manifest",
         tags: ["clusters"],
         security: [{ bearerAuth: [] }],
       },
@@ -123,18 +229,28 @@ export const clusterRoutes = new Elysia({ prefix: "/v1/clusters" })
   )
   .get(
     "/:name/status",
-    ({ params, set }) => {
+    async ({ params, set }) => {
       const record = clusterRepo.getByName(params.name);
       if (!record) {
         set.status = 404;
         return { error: "not found" };
       }
-      // Derived from the cache today; becomes CRD-sourced once CAPN is wired.
+      try {
+        if (await capnReady()) {
+          const live = (await getLiveStatuses()).get(params.name);
+          if (live) return liveStatusView(record, live);
+        }
+      } catch (error) {
+        log.warn(
+          `status ${params.name}: live status unavailable: ${incusErrorDetail(error)}`,
+        );
+      }
+      // Fall back to the cache when the CRDs are unreachable.
       return deriveStatus(record);
     },
     {
       detail: {
-        summary: "Cluster status for SWR polling (cache-derived until CAPN)",
+        summary: "Cluster status for SWR polling (CRD-sourced, cache fallback)",
         tags: ["clusters"],
         security: [{ bearerAuth: [] }],
       },
@@ -148,9 +264,25 @@ export const clusterRoutes = new Elysia({ prefix: "/v1/clusters" })
         set.status = 404;
         return { error: "not found" };
       }
-      // One-shot teardown: deleting the project takes its instances/networks
-      // /profiles with it. TODO: delete the CAPI Cluster first once wired.
-      if (record.project) await deleteProject(record.project);
+      try {
+        // Delete the CAPI Cluster first: CAPN cascades the load balancer,
+        // machines and their Incus instances, leaving the project empty so the
+        // one-shot project teardown below can remove it.
+        if (await capnReady()) {
+          await deleteClusterCrd(params.name);
+        } else {
+          log.warn(
+            `delete cluster '${params.name}': CAPN unavailable, deleting Incus project only`,
+          );
+        }
+        if (record.project) await deleteProject(record.project);
+      } catch (error) {
+        const detail = incusErrorDetail(error);
+        log.error(`delete cluster '${params.name}': ${detail}`);
+        clusterRepo.setStatus(params.name, "error");
+        set.status = 502;
+        return { error: "failed to delete cluster", detail };
+      }
       clusterRepo.deleteByName(params.name);
       auditRepo.record(
         "cluster.delete",
@@ -161,7 +293,7 @@ export const clusterRoutes = new Elysia({ prefix: "/v1/clusters" })
     },
     {
       detail: {
-        summary: "Delete a cluster (one-shot project teardown)",
+        summary: "Delete a cluster (CAPN teardown + one-shot project teardown)",
         tags: ["clusters"],
         security: [{ bearerAuth: [] }],
       },
