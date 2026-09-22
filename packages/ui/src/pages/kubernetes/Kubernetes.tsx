@@ -24,8 +24,10 @@ import {
   generateEnvExports,
   generatePrerequisites,
   generateSecretYaml,
-  kubeadmVersionOptions,
+  isPresetKubeadmVersion,
+  kubeadmVersionSelectOptions,
   loadBalancerOptions,
+  CUSTOM_VERSION,
   machineTypeOptions,
   type IncusClientCredential,
   type K8sClusterConfig,
@@ -214,13 +216,46 @@ const Kubernetes: FC = () => {
               />
               <Select
                 label="Kubernetes version"
-                value={config.kubernetesVersion}
-                options={kubeadmVersionOptions}
-                help="Available kubeadm images (Ubuntu 24.04, amd64/arm64)."
+                value={
+                  isPresetKubeadmVersion(config.kubernetesVersion)
+                    ? config.kubernetesVersion
+                    : CUSTOM_VERSION
+                }
+                options={kubeadmVersionSelectOptions}
+                help="Prebuilt kubeadm images (Ubuntu 24.04, amd64/arm64), or Custom to point at your own image."
                 onChange={(e) => {
-                  update("kubernetesVersion", e.target.value);
+                  if (e.target.value === CUSTOM_VERSION) {
+                    update("kubernetesVersion", "");
+                  } else {
+                    update("kubernetesVersion", e.target.value);
+                    update("imageName", "");
+                  }
                 }}
               />
+              {!isPresetKubeadmVersion(config.kubernetesVersion) ? (
+                <>
+                  <Input
+                    type="text"
+                    label="Kubernetes version"
+                    value={config.kubernetesVersion}
+                    placeholder="v1.37.0"
+                    help="Must match the kubeadm version baked into your custom image."
+                    onChange={(e) => {
+                      update("kubernetesVersion", e.target.value);
+                    }}
+                  />
+                  <Input
+                    type="text"
+                    label="Image name"
+                    value={config.imageName}
+                    placeholder="kubeadm/v1.37.0/ubuntu/24.04"
+                    help="Custom image alias, or <remote>:<image>, for the node image."
+                    onChange={(e) => {
+                      update("imageName", e.target.value);
+                    }}
+                  />
+                </>
+              ) : null}
               <Select
                 label="Flavor"
                 value={config.flavor}
@@ -354,15 +389,6 @@ const Kubernetes: FC = () => {
                   />
                 </Col>
               </Row>
-              <Input
-                type="text"
-                label="Image name (optional)"
-                value={config.imageName}
-                help="Override the kubeadm image, e.g. kubeadm/v1.37.0/ubuntu/24.04."
-                onChange={(e) => {
-                  update("imageName", e.target.value);
-                }}
-              />
               <Row>
                 <Col size={4}>
                   <Input
@@ -407,7 +433,7 @@ const Kubernetes: FC = () => {
               ) : null}
               <Input
                 type="checkbox"
-                label="Install kubeadm (dev images without kubeadm)"
+                label="Install kubeadm on boot (for custom images without kubeadm)"
                 checked={config.installKubeadm}
                 onChange={(e) => {
                   update("installKubeadm", e.target.checked);

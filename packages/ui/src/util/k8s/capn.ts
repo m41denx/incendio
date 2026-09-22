@@ -22,6 +22,18 @@ export const DEFAULT_KUBEADM_VERSION = KUBEADM_VERSIONS[0];
 export const kubeadmVersionOptions: { label: string; value: string }[] =
   KUBEADM_VERSIONS.map((version) => ({ label: version, value: version }));
 
+// Sentinel select value that unlocks a free-text version + image-name field so
+// users can point at a custom node image instead of a prebuilt kubeadm image.
+export const CUSTOM_VERSION = "custom";
+
+export const kubeadmVersionSelectOptions: { label: string; value: string }[] = [
+  ...kubeadmVersionOptions,
+  { label: "Custom image…", value: CUSTOM_VERSION },
+];
+
+export const isPresetKubeadmVersion = (version: string): boolean =>
+  (KUBEADM_VERSIONS as readonly string[]).includes(version);
+
 export type K8sFlavor = "default" | "ovn";
 export type LoadBalancerType = "lxc" | "oci" | "kube-vip" | "ovn";
 export type MachineType = "container" | "virtual-machine" | "kind";
