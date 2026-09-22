@@ -31,6 +31,28 @@ export const addCertificate = async (
   }).then(handleResponse);
 };
 
+// Trust a client certificate directly (no token): `certificate` is the base64
+// DER body of the PEM. Used to trust the Kubernetes appliance's Incus identity.
+export const trustClientCertificate = async (
+  certificate: string,
+  name: string,
+  description?: string,
+): Promise<void> => {
+  await fetch(`${ROOT_PATH}/1.0/certificates`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      type: "client",
+      certificate,
+      name,
+      restricted: false,
+      ...(description ? { description } : {}),
+    }),
+  }).then(handleResponse);
+};
+
 // PATCH only the description (certificate_description extension); other fields
 // are left untouched.
 export const updateCertificateDescription = async (

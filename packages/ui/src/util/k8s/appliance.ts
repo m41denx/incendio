@@ -10,10 +10,18 @@
 
 import { createInstance, fetchInstance, startInstance } from "api/instances";
 import { createProject } from "api/projects";
+import { fetchProfile } from "api/profiles";
+import { fetchStoragePools } from "api/storage-pools";
+import { fetchNetworks } from "api/networks";
 import { waitForOperation } from "api/operations";
 import { updateSettings } from "api/server";
 import { saveAgentConfig } from "util/k8s/agent";
+import { trustApplianceCertificate } from "util/k8s/trust";
 import type { LxdInstance } from "types/instance";
+import type { LxdDevices } from "types/device";
+import type { LxdNetwork } from "types/network";
+import type { LxdProfile } from "types/profile";
+import type { LxdStoragePool } from "types/storage";
 import type { LxdSettings } from "types/server";
 
 export const MGMT_PROJECT = "incendio-mgmt";
@@ -33,7 +41,9 @@ const PROJECT_KEYS = {
 const APPLIANCE_IMAGE = {
   protocol: "simplestreams",
   server: "https://images.linuxcontainers.org",
-  alias: "ubuntu/24.04",
+  // The "cloud" variant: the default images: variant has no cloud-init, so the
+  // bootstrap user-data would be silently ignored.
+  alias: "ubuntu/24.04/cloud",
 } as const;
 
 const CONF_DIR = "/etc/incendio";
@@ -102,6 +112,8 @@ interface InstanceInput {
   cloudInit: string;
   cpu: number;
   memory: string;
+  /** Root disk / NIC the inherited default profile does not provide. */
+  devices?: LxdDevices;
 }
 
 const hexSecret = (bytes = 24): string => {
@@ -199,6 +211,7 @@ export const buildApplianceInstance = (
     [PROJECT_KEYS.role]: "management",
   },
   devices: {
+    ...input.devices,
     // Publish the agent's HTTPS port on the host so the browser can reach it.
     "k8s-api": {
       type: "proxy",
@@ -208,6 +221,78 @@ export const buildApplianceInstance = (
     },
   },
 });
+
+const hasDevice = (
+  devices: LxdDevices,
+  match: (device: Partial<Record<string, unknown>>) => boolean,
+): boolean =>
+  Object.values(devices).some((device) =>
+    match(device as unknown as Partial<Record<string, unknown>>),
+  );
+
+// NAT bridges first (docs §3: the appliance only needs egress), then OVN.
+const NETWORK_PREFERENCE = ["bridge", "ovn"];
+
+/**
+ * The appliance body only defines its proxy device and relies on the inherited
+ * default profile for a root disk + NIC. That profile can be empty (Incus
+ * initialised without a default pool/network; the UI's own instance form adds
+ * the root disk per instance instead), which fails creation with "No root
+ * device could be found". Fill in whatever the profile lacks.
+ */
+export const resolveApplianceDevices = (
+  profile: LxdProfile,
+  pools: LxdStoragePool[],
+  networks: LxdNetwork[],
+): LxdDevices => {
+  const devices: LxdDevices = {};
+  const inherited = profile.devices ?? {};
+
+  if (!hasDevice(inherited, (d) => d.type === "disk" && d.path === "/")) {
+    const pool = pools.find((p) => p.status === "Created") ?? pools[0];
+    if (!pool) {
+      throw new Error(
+        "No storage pool available for the management appliance's root disk",
+      );
+    }
+    devices.root = { type: "disk", path: "/", pool: pool.name };
+  }
+
+  if (!hasDevice(inherited, (d) => d.type === "nic")) {
+    const usable = networks.filter(
+      (n) =>
+        n.managed === true &&
+        NETWORK_PREFERENCE.includes(n.type) &&
+        !!n.config?.["ipv4.address"] &&
+        n.config["ipv4.address"] !== "none",
+    );
+    usable.sort(
+      (a, b) =>
+        NETWORK_PREFERENCE.indexOf(a.type) - NETWORK_PREFERENCE.indexOf(b.type),
+    );
+    const network = usable[0];
+    if (!network) {
+      throw new Error(
+        "No managed NAT network available for the management appliance (needs internet egress)",
+      );
+    }
+    devices.eth0 = { type: "nic", name: "eth0", network: network.name };
+  }
+
+  return devices;
+};
+
+const fetchApplianceDevices = async (
+  project: string,
+  isFineGrained: boolean | null,
+): Promise<LxdDevices> => {
+  const [profile, pools, networks] = await Promise.all([
+    fetchProfile("default", project, isFineGrained),
+    fetchStoragePools(isFineGrained, project),
+    fetchNetworks(project, isFineGrained),
+  ]);
+  return resolveApplianceDevices(profile, pools, networks);
+};
 
 const firstGlobalIPv4 = (instance: LxdInstance): string | null => {
   const network = instance.state?.network;
@@ -289,7 +374,11 @@ export const deployManagementAppliance = async (
   const repo = input.bootstrapRepo ?? BOOTSTRAP_REPO;
   const tag = input.bootstrapTag ?? DEFAULT_BOOTSTRAP_TAG;
 
+  // The agent reaches Incus with this cert; trust it up front so the appliance
+  // can create cluster projects as soon as it is up.
+  await trustApplianceCertificate(input.credentials.clientCrt);
   await ensureProject(project);
+  const devices = await fetchApplianceDevices(project, input.isFineGrained);
 
   const cloudInit = buildApplianceCloudInit({
     token,
@@ -308,6 +397,7 @@ export const deployManagementAppliance = async (
           ? input.resources.cpu
           : APPLIANCE_DEFAULT_CPU,
       memory: input.resources?.memory?.trim() || APPLIANCE_DEFAULT_MEMORY,
+      devices,
     }),
   );
 
