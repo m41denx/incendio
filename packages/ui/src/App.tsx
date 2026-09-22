@@ -40,6 +40,7 @@ const ClusterLinkList = lazy(
 const ClusterMemberDetail = lazy(
   async () => import("pages/cluster/ClusterMemberDetail"),
 );
+const Kubernetes = lazy(async () => import("pages/kubernetes/Kubernetes"));
 const CreateInstance = lazy(
   async () => import("pages/instances/CreateInstance"),
 );
@@ -761,6 +762,10 @@ const App: FC = () => {
         <Route
           path={`${ROOT_PATH}/ui/cluster/settings`}
           element={<ProtectedRoute outlet={<ClusterSettings />} />}
+        />
+        <Route
+          path={`${ROOT_PATH}/ui/kubernetes`}
+          element={<ProtectedRoute outlet={<Kubernetes />} />}
         />
         <Route path={`${ROOT_PATH}/ui/login`} element={<Login />} />
         <Route

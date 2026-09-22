@@ -747,6 +747,19 @@ const Navigation: FC = () => {
                           Operations
                         </NavLink>
                       </SideNavigationItem>
+                      <SideNavigationItem>
+                        <NavLink
+                          to={`${ROOT_PATH}/ui/kubernetes`}
+                          title="Kubernetes"
+                          onClick={softToggleMenu}
+                        >
+                          <Icon
+                            className="is-light p-side-navigation__icon"
+                            name="pods"
+                          />{" "}
+                          Kubernetes
+                        </NavLink>
+                      </SideNavigationItem>
                       {!isRestricted && (
                         <SideNavigationItem>
                           <NavLink
