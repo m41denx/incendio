@@ -1,5 +1,5 @@
 import { Elysia } from "elysia";
-import { AGENT, FLAVORS } from "../constants.ts";
+import { AGENT, FLAVORS, ROLES } from "../constants.ts";
 import { env } from "../env.ts";
 
 /**
@@ -17,9 +17,11 @@ export const infoRoutes = new Elysia()
       version: AGENT.version,
       apiVersion: AGENT.apiVersion,
       capabilities: {
-        // CAPN orchestration is not wired yet (see docs/k8s/README.md).
+        // CAPN orchestration is not wired yet (see docs/k8s/README.md). The
+        // agent is a thin broker over CAPI; it does not reconcile.
         capn: false,
         flavors: FLAVORS,
+        roles: ROLES,
       },
       incus: {
         apiUrl: env.INCUS_API_URL,

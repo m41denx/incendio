@@ -1,7 +1,6 @@
 import { Elysia } from "elysia";
 import { cors } from "@elysiajs/cors";
 import { jwt } from "@elysiajs/jwt";
-import { cron } from "@elysiajs/cron";
 import { openapi } from "@elysiajs/openapi";
 import { env } from "./env.ts";
 import { AGENT } from "./constants.ts";
@@ -10,7 +9,11 @@ import { clusterRoutes } from "./routes/clusters.ts";
 
 /**
  * Assembles the agent HTTP app: CORS for the browser UI, OpenAPI docs, JWT
- * signing, a reconcile cron placeholder, and the versioned route groups.
+ * signing, and the versioned route groups.
+ *
+ * There is deliberately no reconcile loop here: the agent is a thin broker over
+ * the CAPI/CAPN control plane, and CAPI's controllers own all reconciliation
+ * (see docs/k8s/deploy-model.md §4). The agent only reads status on demand.
  */
 export const app = new Elysia()
   .use(
@@ -35,15 +38,6 @@ export const app = new Elysia()
     }),
   )
   .use(jwt({ name: "jwt", secret: env.JWT_SECRET }))
-  .use(
-    cron({
-      name: "reconcile",
-      pattern: "*/30 * * * * *",
-      run() {
-        // Placeholder reconcile loop; will poll CAPN/Incus for cluster status.
-      },
-    }),
-  )
   .use(infoRoutes)
   .use(clusterRoutes);
 

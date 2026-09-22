@@ -137,6 +137,33 @@ Operator VM ── agent ──> (2) kubeadm init mgmt cluster → CNI
 4. After bootstrap, **Incus hosts stay pure** and all lifecycle logic lives in
    the operator VM.
 
+### The agent is a thin persistent broker, never an orchestrator
+
+The vCenter analogy cuts both ways: VCSA is not a day-0 tool that disappears —
+it is a **persistent, thin management endpoint** the client talks to forever.
+Our agent plays the same role:
+
+- **Day-0:** bootstrap the management cluster and create the `lxc-secret`.
+- **Day-2 (persistent but dumb):** stay alive as the appliance's stable,
+  browser-friendly endpoint — submit specs, read status, fetch kubeconfig,
+  scale/delete. It brokers UI ↔ CAPI; it does not reconcile anything.
+
+**CAPI/CAPN controllers inside the mgmt cluster own all reconciliation.** The
+agent therefore has **no reconcile loop of its own** — it reads CAPI status on
+demand. We keep it thin precisely because CAPI does the hard part. (Concretely:
+the `reconcile` cron placeholder was removed from the agent app.)
+
+Why not let the browser talk to the Kubernetes API directly and drop the agent?
+Because a browser can't cleanly hit the raw k8s API (kubeconfig/token in the
+browser, CORS, cert trust). The thin agent is what makes the appliance
+vCenter-like.
+
+**Failure domain:** a single operator VM is a single point of *management*
+failure — it holds etcd/CAPI state for the mgmt cluster. If it dies, **workload
+clusters keep running** (their control planes are independent); you lose
+management/console until restore. Same tradeoff as a single VCSA — mitigated by
+backups / `clusterctl move` and HA-mode (3 control VMs) later.
+
 ## 5. Project metadata schema (`user.incendio.*`)
 
 Incus projects carry a free-form config map; `user.*` keys are untouched by

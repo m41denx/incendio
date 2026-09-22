@@ -7,7 +7,7 @@ import { clusterStore, type ClusterRecord } from "../lib/store.ts";
 
 const CreateClusterBody = z.object({
   name: z.string().min(1).max(63),
-  flavor: z.enum(FLAVORS).default("bridge"),
+  flavor: z.enum(FLAVORS).default("default"),
   kubernetesVersion: z.string().default("v1.31.0"),
   controlPlaneCount: z.number().int().min(1).max(9).default(1),
   workerCount: z.number().int().min(0).max(100).default(1),
