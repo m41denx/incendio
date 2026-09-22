@@ -16,6 +16,8 @@ import TabLinks from "components/TabLinks";
 import { useAuth } from "context/auth";
 import K8sAgentPanel from "pages/kubernetes/K8sAgentPanel";
 import { useK8sAgent } from "pages/kubernetes/useK8sAgent";
+import { useK8sManagement } from "pages/kubernetes/useK8sManagement";
+import ManagementStatus from "pages/kubernetes/ManagementStatus";
 import { useIncusCredentials } from "pages/kubernetes/useIncusCredentials";
 import { ROOT_PATH } from "util/rootPath";
 
@@ -31,6 +33,14 @@ const KubernetesSettings: FC = () => {
   const notify = useNotify();
   const { isFineGrained } = useAuth();
   const agent = useK8sAgent();
+  const management = useK8sManagement({
+    withLog: tab === "management-appliance",
+  });
+  // Only offer a deploy when there is no appliance container yet; redeploying
+  // over an existing one would just fail with "already exists".
+  const deployed =
+    management.state.stage !== "not-deployed" &&
+    management.state.stage !== "loading";
   const {
     serverUrl,
     setServerUrl,
@@ -81,84 +91,89 @@ const KubernetesSettings: FC = () => {
         {tab === "management-appliance" ? (
           <div role="tabpanel" aria-labelledby="management-appliance">
             <h2 className="p-heading--4">Management appliance</h2>
-            <p className="u-text--muted">
-              Deploy a privileged, nested Incus container running single-node
-              k3s + Cluster API (CAPN) + the Incendio agent. The agent inside
-              the container uses these Incus credentials to manage workload
-              clusters. The client certificate must be trusted on your Incus
-              server.
-            </p>
-            <Input
-              type="text"
-              label="Incus server URL"
-              value={serverUrl}
-              placeholder="https://incus.example.com:8443"
-              onChange={(e) => {
-                setServerUrl(e.target.value);
-              }}
-            />
-            <Textarea
-              label="Server certificate (PEM)"
-              rows={4}
-              value={serverCrt}
-              placeholder="-----BEGIN CERTIFICATE-----"
-              onChange={(e) => {
-                setServerCrt(e.target.value);
-              }}
-            />
-            <Button
-              hasIcon
-              onClick={generateCredential}
-              disabled={isGenerating}
-              aria-label={
-                isGenerating
-                  ? "Generating client certificate"
-                  : "Generate client certificate"
-              }
-            >
-              {isGenerating ? (
-                <Icon className="u-animation--spin" name="spinner" />
-              ) : (
-                <Icon name="security" />
-              )}
-              <span>
-                {isGenerating
-                  ? "Generating\u2026"
-                  : "Generate client certificate & key"}
-              </span>
-            </Button>
-            <Textarea
-              label="Client certificate (PEM)"
-              rows={4}
-              value={clientCrt}
-              placeholder="-----BEGIN CERTIFICATE-----"
-              onChange={(e) => {
-                setClientCrt(e.target.value);
-              }}
-            />
-            <Textarea
-              label="Client key (PEM)"
-              rows={4}
-              value={clientKey}
-              placeholder="-----BEGIN RSA PRIVATE KEY-----"
-              onChange={(e) => {
-                setClientKey(e.target.value);
-              }}
-            />
-            <ActionButton
-              appearance="positive"
-              loading={agent.busy}
-              onClick={deploy}
-            >
-              Deploy management appliance
-            </ActionButton>
-            {agent.status ? (
-              <Notification
-                severity={agent.status.severity}
-                onDismiss={agent.clearStatus}
-              >
-                {agent.status.text}
-              </Notification>
+            {deployed ? <ManagementStatus management={management} /> : null}
+            {!deployed ? (
+              <>
+                <p className="u-text--muted">
+                  Deploy a privileged, nested Incus container running
+                  single-node k3s + Cluster API (CAPN) + the Incendio agent. The
+                  agent inside the container uses these Incus credentials to
+                  manage workload clusters. The client certificate is added to
+                  the Incus trust store automatically on deploy.
+                </p>
+                <Input
+                  type="text"
+                  label="Incus server URL"
+                  value={serverUrl}
+                  placeholder="https://incus.example.com:8443"
+                  onChange={(e) => {
+                    setServerUrl(e.target.value);
+                  }}
+                />
+                <Textarea
+                  label="Server certificate (PEM)"
+                  rows={4}
+                  value={serverCrt}
+                  placeholder="-----BEGIN CERTIFICATE-----"
+                  onChange={(e) => {
+                    setServerCrt(e.target.value);
+                  }}
+                />
+                <Button
+                  hasIcon
+                  onClick={generateCredential}
+                  disabled={isGenerating}
+                  aria-label={
+                    isGenerating
+                      ? "Generating client certificate"
+                      : "Generate client certificate"
+                  }
+                >
+                  {isGenerating ? (
+                    <Icon className="u-animation--spin" name="spinner" />
+                  ) : (
+                    <Icon name="security" />
+                  )}
+                  <span>
+                    {isGenerating
+                      ? "Generating\u2026"
+                      : "Generate client certificate & key"}
+                  </span>
+                </Button>
+                <Textarea
+                  label="Client certificate (PEM)"
+                  rows={4}
+                  value={clientCrt}
+                  placeholder="-----BEGIN CERTIFICATE-----"
+                  onChange={(e) => {
+                    setClientCrt(e.target.value);
+                  }}
+                />
+                <Textarea
+                  label="Client key (PEM)"
+                  rows={4}
+                  value={clientKey}
+                  placeholder="-----BEGIN RSA PRIVATE KEY-----"
+                  onChange={(e) => {
+                    setClientKey(e.target.value);
+                  }}
+                />
+                <ActionButton
+                  appearance="positive"
+                  loading={agent.busy}
+                  onClick={deploy}
+                >
+                  Deploy management appliance
+                </ActionButton>
+                {agent.status ? (
+                  <Notification
+                    severity={agent.status.severity}
+                    onDismiss={agent.clearStatus}
+                  >
+                    {agent.status.text}
+                  </Notification>
+                ) : null}
+              </>
             ) : null}
           </div>
         ) : null}

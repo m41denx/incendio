@@ -40,13 +40,20 @@ export const saveAgentConfig = (config: AgentConfig): void => {
   localStorage.setItem(TOKEN_KEY, config.token.trim());
 };
 
+const TOKEN_REJECTED =
+  "The agent rejected the token. Reconnect in Kubernetes settings with the token from the latest appliance deploy (AGENT_TOKEN in /etc/incendio/agent.env inside the appliance).";
+
 const trimSlash = (url: string): string => url.trim().replace(/\/+$/, "");
 
+// The agent returns `{ error, detail }`: `error` is a generic summary and
+// `detail` carries the real cause (Incus/TLS/CAPN), so show both.
 const extractError = (raw: unknown, status: number): string => {
   if (raw && typeof raw === "object") {
     const record = raw as Record<string, unknown>;
-    const message = record.error ?? record.detail;
-    if (typeof message === "string" && message.length > 0) return message;
+    const parts = [record.error, record.detail].filter(
+      (part): part is string => typeof part === "string" && part.length > 0,
+    );
+    if (parts.length > 0) return parts.join(": ");
   }
   return `agent responded ${status}`;
 };
@@ -77,6 +84,25 @@ export const agentRequest = async <T>(
   });
   const text = await res.text();
   const raw: unknown = text ? JSON.parse(text) : {};
+  if (res.status === 401) throw new Error(TOKEN_REJECTED);
   if (!res.ok) throw new Error(extractError(raw, res.status));
   return raw as T;
+};
+
+/**
+ * Prove the token works before persisting it: /v1/info is unauthenticated, so
+ * a successful handshake says nothing about the token. Saving an unverified
+ * one would overwrite the good handle in user.k8s.api-config for everyone.
+ */
+export const verifyAgentToken = async (config: AgentConfig): Promise<void> => {
+  const res = await fetch(`${trimSlash(config.url)}/v1/clusters`, {
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${config.token}`,
+    },
+  });
+  if (res.status === 401) {
+    throw new Error(TOKEN_REJECTED);
+  }
+  if (!res.ok) throw new Error(`agent responded ${res.status}`);
 };
