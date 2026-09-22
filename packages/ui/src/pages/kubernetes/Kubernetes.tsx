@@ -20,6 +20,7 @@ import NotificationRow from "components/NotificationRow";
 import CopyToClipboard from "components/CopyToClipboard";
 import FormMenuItem from "components/forms/FormMenuItem";
 import FormFooterLayout from "components/forms/FormFooterLayout";
+import { useAuth } from "context/auth";
 import { useSettings } from "context/useSettings";
 import { useProfiles } from "context/useProfiles";
 import { useClusterMembers } from "context/useClusterMembers";
@@ -105,6 +106,7 @@ const Kubernetes: FC = () => {
   const notify = useNotify();
   const navigate = useNavigate();
   const { data: settings } = useSettings();
+  const { isFineGrained } = useAuth();
   const agent = useK8sAgent();
 
   const [active, setActive] = useState<string>(CLUSTER);
@@ -792,14 +794,13 @@ const Kubernetes: FC = () => {
               return;
             }
             void agent.deployAppliance({
-              config,
               credentials: {
                 incusApiUrl: serverUrl.trim(),
                 clientCrt,
                 clientKey,
                 serverCrt,
               },
-              isFineGrained: null,
+              isFineGrained,
             });
           }}
         >

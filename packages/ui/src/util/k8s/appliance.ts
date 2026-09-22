@@ -13,7 +13,6 @@ import { createProject } from "api/projects";
 import { waitForOperation } from "api/operations";
 import { updateSettings } from "api/server";
 import { saveAgentConfig } from "util/k8s/agent";
-import type { K8sClusterConfig } from "util/k8s/capn";
 import type { LxdInstance } from "types/instance";
 import type { LxdSettings } from "types/server";
 
@@ -29,8 +28,6 @@ export const DEFAULT_BOOTSTRAP_TAG = "appliance-v1";
 const PROJECT_KEYS = {
   managed: "user.incendio.managed",
   role: "user.incendio.role",
-  cluster: "user.incendio.cluster",
-  k8sVersion: "user.incendio.k8s-version",
 } as const;
 
 const APPLIANCE_IMAGE = {
@@ -41,6 +38,11 @@ const APPLIANCE_IMAGE = {
 
 const CONF_DIR = "/etc/incendio";
 
+// The appliance runs single-node k3s + CAPI/CAPN + the agent, so size it on its
+// own defaults rather than any workload cluster the user happens to configure.
+const APPLIANCE_DEFAULT_CPU = 2;
+const APPLIANCE_DEFAULT_MEMORY = "4GiB";
+
 /** How the agent (inside the container) authenticates to the Incus API. */
 export interface IncusCredentials {
   /** Incus HTTPS API URL reachable from inside the container. */
@@ -50,8 +52,13 @@ export interface IncusCredentials {
   serverCrt: string;
 }
 
+/** Optional overrides for the appliance container sizing. */
+export interface ApplianceResources {
+  cpu?: number;
+  memory?: string;
+}
+
 export interface ApplianceDeployInput {
-  config: K8sClusterConfig;
   credentials: IncusCredentials;
   /** Incus project to create the appliance in (ensured; usually MGMT_PROJECT). */
   project?: string;
@@ -62,6 +69,8 @@ export interface ApplianceDeployInput {
   agentHost?: string;
   bootstrapRepo?: string;
   bootstrapTag?: string;
+  /** Optional overrides for the appliance container sizing. */
+  resources?: ApplianceResources;
 }
 
 export interface DeployedAppliance {
@@ -91,8 +100,6 @@ interface CloudInitInput {
 
 interface InstanceInput {
   cloudInit: string;
-  clusterName: string;
-  kubernetesVersion: string;
   cpu: number;
   memory: string;
 }
@@ -106,12 +113,6 @@ const hexSecret = (bytes = 24): string => {
 /** Agent URL the browser uses to reach the appliance through the proxy device. */
 export const managementAgentUrl = (host: string): string =>
   `https://${host}:${AGENT_PORT}`;
-
-const memoryLimit = (config: K8sClusterConfig): string => {
-  const unit = config.controlPlaneMemoryUnit === "MB" ? "MiB" : "GiB";
-  const amount = config.controlPlaneMemory > 0 ? config.controlPlaneMemory : 4;
-  return `${amount}${unit}`;
-};
 
 const incusApiUrlFor = (input: CloudInitInput): string =>
   input.credentials.incusApiUrl.trim().length > 0
@@ -196,8 +197,6 @@ export const buildApplianceInstance = (
     "cloud-init.user-data": input.cloudInit,
     [PROJECT_KEYS.managed]: "true",
     [PROJECT_KEYS.role]: "management",
-    [PROJECT_KEYS.cluster]: input.clusterName,
-    [PROJECT_KEYS.k8sVersion]: input.kubernetesVersion,
   },
   devices: {
     // Publish the agent's HTTPS port on the host so the browser can reach it.
@@ -226,11 +225,7 @@ const firstGlobalIPv4 = (instance: LxdInstance): string | null => {
 const delay = async (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
-const ensureProject = async (
-  name: string,
-  clusterName: string,
-  kubernetesVersion: string,
-): Promise<void> => {
+const ensureProject = async (name: string): Promise<void> => {
   const body = JSON.stringify({
     name,
     description: "Incendio-managed Kubernetes management project",
@@ -239,8 +234,6 @@ const ensureProject = async (
       "features.profiles": "true",
       [PROJECT_KEYS.managed]: "true",
       [PROJECT_KEYS.role]: "management",
-      [PROJECT_KEYS.cluster]: clusterName,
-      [PROJECT_KEYS.k8sVersion]: kubernetesVersion,
     },
   });
   try {
@@ -286,15 +279,13 @@ export const deployManagementAppliance = async (
   input: ApplianceDeployInput,
 ): Promise<DeployedAppliance> => {
   const project = input.project ?? MGMT_PROJECT;
-  const clusterName = input.config.clusterName || "mgmt";
-  const kubernetesVersion = input.config.kubernetesVersion;
   const agentHost = input.agentHost ?? globalThis.location.hostname;
   const token = hexSecret();
   const jwtSecret = hexSecret();
   const repo = input.bootstrapRepo ?? BOOTSTRAP_REPO;
   const tag = input.bootstrapTag ?? DEFAULT_BOOTSTRAP_TAG;
 
-  await ensureProject(project, clusterName, kubernetesVersion);
+  await ensureProject(project);
 
   const cloudInit = buildApplianceCloudInit({
     token,
@@ -308,10 +299,11 @@ export const deployManagementAppliance = async (
   const body = JSON.stringify(
     buildApplianceInstance({
       cloudInit,
-      clusterName,
-      kubernetesVersion,
-      cpu: input.config.controlPlaneCpu > 0 ? input.config.controlPlaneCpu : 2,
-      memory: memoryLimit(input.config),
+      cpu:
+        input.resources?.cpu && input.resources.cpu > 0
+          ? input.resources.cpu
+          : APPLIANCE_DEFAULT_CPU,
+      memory: input.resources?.memory?.trim() || APPLIANCE_DEFAULT_MEMORY,
     }),
   );
 
