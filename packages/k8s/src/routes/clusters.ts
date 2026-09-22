@@ -4,6 +4,11 @@ import { z } from "zod";
 import { env } from "../env.ts";
 import { FLAVORS } from "../constants.ts";
 import { clusterStore, type ClusterRecord } from "../lib/store.ts";
+import {
+  createProject,
+  deleteProject,
+  suggestProjectName,
+} from "../lib/projects.ts";
 
 const CreateClusterBody = z.object({
   name: z.string().min(1).max(63),
@@ -37,7 +42,24 @@ export const clusterRoutes = new Elysia({ prefix: "/v1/clusters" })
   })
   .post(
     "/",
-    ({ body }) => {
+    async ({ body, set }) => {
+      const project =
+        body.project ?? suggestProjectName("workload", body.name);
+      try {
+        // Project-per-workload-cluster: stamp user.incendio.* metadata so the
+        // cluster is detectable and teardown is one delete.
+        await createProject(project, {
+          role: "workload",
+          cluster: body.name,
+          k8sVersion: body.kubernetesVersion,
+        });
+      } catch (error) {
+        set.status = 502;
+        return {
+          error: "failed to create cluster project",
+          detail: (error as Error).message,
+        };
+      }
       const record: ClusterRecord = {
         id: crypto.randomUUID(),
         name: body.name,
@@ -45,18 +67,21 @@ export const clusterRoutes = new Elysia({ prefix: "/v1/clusters" })
         kubernetesVersion: body.kubernetesVersion,
         controlPlaneCount: body.controlPlaneCount,
         workerCount: body.workerCount,
-        project: body.project,
+        project,
         status: "pending",
         createdAt: new Date().toISOString(),
       };
       clusterStore.create(record);
-      // TODO: hand the desired spec off to CAPN (Cluster API Provider Incus).
+      // TODO: hand the desired spec off to CAPN (clusterctl generate | apply)
+      // once the operator VM's management cluster is reachable.
+      set.status = 201;
       return record;
     },
     {
       body: CreateClusterBody,
       detail: {
-        summary: "Create a cluster (records desired spec; CAPN wiring pending)",
+        summary:
+          "Create a cluster: stamps the per-cluster Incus project (CAPN apply pending)",
         tags: ["clusters"],
         security: [{ bearerAuth: [] }],
       },
@@ -82,14 +107,18 @@ export const clusterRoutes = new Elysia({ prefix: "/v1/clusters" })
   )
   .delete(
     "/:id",
-    ({ params, set }) => {
-      const existed = clusterStore.delete(params.id);
-      if (!existed) {
+    async ({ params, set }) => {
+      const record = clusterStore.get(params.id);
+      if (!record) {
         set.status = 404;
         return { error: "not found" };
       }
-      set.status = 204;
-      return { deleted: params.id };
+      // One-shot teardown: deleting the project takes its instances/networks
+      // /profiles with it. TODO: delete the CAPI Cluster first once wired.
+      if (record.project) await deleteProject(record.project);
+      clusterStore.delete(params.id);
+      set.status = 200;
+      return { deleted: params.id, project: record.project };
     },
     {
       detail: {

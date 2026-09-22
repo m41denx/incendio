@@ -5,6 +5,7 @@ import { openapi } from "@elysiajs/openapi";
 import { env } from "./env.ts";
 import { AGENT } from "./constants.ts";
 import { infoRoutes } from "./routes/info.ts";
+import { operatorRoutes } from "./routes/operator.ts";
 import { clusterRoutes } from "./routes/clusters.ts";
 
 /**
@@ -32,6 +33,7 @@ export const app = new Elysia()
         info: { title: "Incendio Kubernetes agent", version: AGENT.version },
         tags: [
           { name: "meta", description: "Handshake and health" },
+          { name: "operator", description: "Operator appliance lifecycle" },
           { name: "clusters", description: "Kubernetes cluster lifecycle" },
         ],
       },
@@ -39,6 +41,7 @@ export const app = new Elysia()
   )
   .use(jwt({ name: "jwt", secret: env.JWT_SECRET }))
   .use(infoRoutes)
+  .use(operatorRoutes)
   .use(clusterRoutes);
 
 export type App = typeof app;

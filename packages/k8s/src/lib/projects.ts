@@ -84,20 +84,57 @@ export async function listManagedProjects(
   });
 }
 
+/** Fetch a single project by name, or null if it does not exist. */
+export async function getProject(name: string): Promise<IncusProject | null> {
+  const client = incusClient();
+  try {
+    const { data } = await client.get(
+      `/1.0/projects/${encodeURIComponent(name)}`,
+    );
+    return (data?.metadata ?? null) as IncusProject | null;
+  } catch (error: unknown) {
+    if (isNotFound(error)) return null;
+    throw error;
+  }
+}
+
 /**
  * Create an incendio-managed project (one per workload cluster, plus one for
  * the management plane). Deleting the project is our one-shot teardown: its
- * instances/networks/profiles go with it.
+ * instances/networks/profiles go with it. Idempotent: returns silently if a
+ * project with the same name already exists.
  */
 export async function createProject(
   name: string,
   meta: ProjectMetadata,
 ): Promise<void> {
+  if (await getProject(name)) return;
   const client = incusClient();
   await client.post("/1.0/projects", {
     name,
-    description: `Incendio-managed ${meta.role} project` +
+    description:
+      `Incendio-managed ${meta.role} project` +
       (meta.cluster ? ` for cluster ${meta.cluster}` : ""),
     config: buildProjectConfig(meta),
   });
+}
+
+/** Delete a project (one-shot teardown). No-op if it does not exist. */
+export async function deleteProject(name: string): Promise<void> {
+  const client = incusClient();
+  try {
+    await client.delete(`/1.0/projects/${encodeURIComponent(name)}`);
+  } catch (error: unknown) {
+    if (isNotFound(error)) return;
+    throw error;
+  }
+}
+
+function isNotFound(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "response" in error &&
+    (error as { response?: { status?: number } }).response?.status === 404
+  );
 }

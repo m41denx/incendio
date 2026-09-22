@@ -17,9 +17,12 @@ export const infoRoutes = new Elysia()
       version: AGENT.version,
       apiVersion: AGENT.apiVersion,
       capabilities: {
-        // CAPN orchestration is not wired yet (see docs/k8s/README.md). The
-        // agent is a thin broker over CAPI; it does not reconcile.
+        // The agent is a thin broker over CAPI; it does not reconcile.
+        // `operator`/`projects` are wired to the Incus API; `capn` (clusterctl
+        // generate|apply inside the mgmt cluster) is not wired yet.
         capn: false,
+        operator: true,
+        projects: true,
         flavors: FLAVORS,
         roles: ROLES,
       },

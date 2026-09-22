@@ -1,4 +1,6 @@
+import { readFileSync } from "node:fs";
 import { incusClient } from "./incus.ts";
+import { env } from "../env.ts";
 import { PROJECT_KEYS } from "./projects.ts";
 
 // Builds the day-0 artifacts for the operator appliance VM: the vCenter/VCSA of
@@ -149,4 +151,45 @@ export async function createOperatorVm(spec: OperatorVmSpec): Promise<unknown> {
     buildOperatorInstance(spec),
   );
   return data;
+}
+
+export interface OperatorCredentials {
+  clientCrt: string;
+  clientKey: string;
+  serverCrt: string;
+}
+
+/**
+ * Read the agent's own Incus credentials to bake into the operator VM. We reuse
+ * the same material the agent authenticates with (the decision in
+ * docs/k8s/deploy-model.md §6).
+ */
+export function readAgentCredentials(): OperatorCredentials {
+  if (!env.INCUS_CLIENT_CERT || !env.INCUS_CLIENT_KEY || !env.INCUS_SERVER_CERT) {
+    throw new Error(
+      "operator VM bootstrap needs INCUS_CLIENT_CERT, INCUS_CLIENT_KEY and INCUS_SERVER_CERT configured",
+    );
+  }
+  return {
+    clientCrt: readFileSync(env.INCUS_CLIENT_CERT, "utf8"),
+    clientKey: readFileSync(env.INCUS_CLIENT_KEY, "utf8"),
+    serverCrt: readFileSync(env.INCUS_SERVER_CERT, "utf8"),
+  };
+}
+
+export interface IncusInstanceSummary {
+  name: string;
+  status?: string;
+  type?: string;
+  config?: Record<string, string>;
+}
+
+/** List instances in a project (recursion=1 includes status + config). */
+export async function listInstances(
+  project: string,
+): Promise<IncusInstanceSummary[]> {
+  const client = incusClient();
+  const params = new URLSearchParams({ project, recursion: "1" });
+  const { data } = await client.get(`/1.0/instances?${params.toString()}`);
+  return (data?.metadata ?? []) as IncusInstanceSummary[];
 }
