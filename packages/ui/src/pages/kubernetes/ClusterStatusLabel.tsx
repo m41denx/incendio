@@ -6,6 +6,7 @@ const STATUS_ICON: Record<string, string> = {
   provisioning: "status-in-progress-small",
   pending: "status-waiting-small",
   error: "status-failed-small",
+  deleting: "status-in-progress-small",
 };
 
 const capitalize = (value: string): string =>

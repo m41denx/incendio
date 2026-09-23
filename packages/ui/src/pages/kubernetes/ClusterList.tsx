@@ -21,6 +21,7 @@ import { ROOT_PATH } from "util/rootPath";
 import { useK8sManagement } from "pages/kubernetes/useK8sManagement";
 import type { ManagementStage } from "util/k8s/management";
 import {
+  useDeletingClusters,
   useK8sClusters,
   type K8sClusterRecord,
 } from "pages/kubernetes/useK8sClusters";
@@ -66,85 +67,91 @@ const ClusterList: FC = () => {
     { "aria-label": "Actions", className: "u-align--right actions" },
   ];
 
-  const rows = clusters.map((cluster: K8sClusterRecord) => ({
-    key: cluster.id,
-    name: cluster.name,
-    columns: [
-      {
-        content: <Link to={clusterUrl(cluster.name)}>{cluster.name}</Link>,
+  const deleting = useDeletingClusters();
+
+  const rows = clusters.map((cluster: K8sClusterRecord) => {
+    const isDeleting = deleting.has(cluster.name);
+    const status = isDeleting ? "deleting" : cluster.status;
+    return {
+      key: cluster.id,
+      name: cluster.name,
+      columns: [
+        {
+          content: <Link to={clusterUrl(cluster.name)}>{cluster.name}</Link>,
+        },
+        {
+          content: (
+            <>
+              <ClusterStatusLabel status={status} />
+              {cluster.phase && !isDeleting ? (
+                <div className="u-text--muted p-text--small u-no-margin--bottom">
+                  {cluster.phase}
+                </div>
+              ) : null}
+              {cluster.message && !isDeleting ? (
+                <div
+                  className="u-text--muted p-text--small u-no-margin--bottom u-truncate"
+                  title={cluster.message}
+                >
+                  {firstLine(cluster.message)}
+                </div>
+              ) : null}
+            </>
+          ),
+        },
+        { content: cluster.kubernetesVersion },
+        {
+          content: formatReady(
+            cluster.controlPlaneReady,
+            cluster.controlPlaneCount,
+          ),
+          className: "u-align--right",
+        },
+        {
+          content: formatReady(cluster.workerReady, cluster.workerCount),
+          className: "u-align--right",
+        },
+        {
+          content: cluster.endpoint ? (
+            <code className="u-truncate" title={cluster.endpoint}>
+              {cluster.endpoint.replace(/^https:\/\//, "")}
+            </code>
+          ) : (
+            "-"
+          ),
+        },
+        {
+          content: cluster.project ? (
+            <ResourceLink
+              type="project"
+              value={cluster.project}
+              to={`${ROOT_PATH}/ui/project/${encodeURIComponent(cluster.project)}/instances`}
+            />
+          ) : (
+            "-"
+          ),
+        },
+        {
+          content: (
+            <List
+              inline
+              className="actions-list u-no-margin--bottom"
+              items={[<DeleteClusterBtn name={cluster.name} key="delete" />]}
+            />
+          ),
+          className: "u-align--right actions",
+        },
+      ],
+      sortData: {
+        name: cluster.name.toLowerCase(),
+        status,
+        version: cluster.kubernetesVersion.toLowerCase(),
+        cp: cluster.controlPlaneCount,
+        workers: cluster.workerCount,
+        project: (cluster.project ?? "").toLowerCase(),
       },
-      {
-        content: (
-          <>
-            <ClusterStatusLabel status={cluster.status} />
-            {cluster.phase ? (
-              <div className="u-text--muted p-text--small u-no-margin--bottom">
-                {cluster.phase}
-              </div>
-            ) : null}
-            {cluster.message ? (
-              <div
-                className="u-text--muted p-text--small u-no-margin--bottom u-truncate"
-                title={cluster.message}
-              >
-                {firstLine(cluster.message)}
-              </div>
-            ) : null}
-          </>
-        ),
-      },
-      { content: cluster.kubernetesVersion },
-      {
-        content: formatReady(
-          cluster.controlPlaneReady,
-          cluster.controlPlaneCount,
-        ),
-        className: "u-align--right",
-      },
-      {
-        content: formatReady(cluster.workerReady, cluster.workerCount),
-        className: "u-align--right",
-      },
-      {
-        content: cluster.endpoint ? (
-          <code className="u-truncate" title={cluster.endpoint}>
-            {cluster.endpoint.replace(/^https:\/\//, "")}
-          </code>
-        ) : (
-          "-"
-        ),
-      },
-      {
-        content: cluster.project ? (
-          <ResourceLink
-            type="project"
-            value={cluster.project}
-            to={`${ROOT_PATH}/ui/project/${encodeURIComponent(cluster.project)}/instances`}
-          />
-        ) : (
-          "-"
-        ),
-      },
-      {
-        content: (
-          <List
-            inline
-            className="actions-list u-no-margin--bottom"
-            items={[<DeleteClusterBtn name={cluster.name} key="delete" />]}
-          />
-        ),
-        className: "u-align--right actions",
-      },
-    ],
-    sortData: {
-      name: cluster.name.toLowerCase(),
-      status: cluster.status.toLowerCase(),
-      version: cluster.kubernetesVersion.toLowerCase(),
-      cp: cluster.controlPlaneCount,
-      workers: cluster.workerCount,
-      project: (cluster.project ?? "").toLowerCase(),
-    },
-  }));
+    };
+  });
 
   const { rows: sortedRows, updateSort } = useSortTableData({ rows });
 

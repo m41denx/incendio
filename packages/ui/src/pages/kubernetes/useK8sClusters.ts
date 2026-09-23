@@ -1,10 +1,12 @@
 import {
   useMutation,
+  useMutationState,
   useQuery,
   useQueryClient,
   type UseMutationResult,
   type UseQueryResult,
 } from "@tanstack/react-query";
+import { useToastNotification } from "@canonical/react-components";
 import { agentRequest } from "util/k8s/agent";
 import type { K8sMachine } from "util/k8s/clusterNodes";
 import { useAgentConfig } from "pages/kubernetes/useK8sManagement";
@@ -172,6 +174,8 @@ export const useScaleK8sCluster = (
   });
 };
 
+const DELETE_CLUSTER_KEY = ["k8s", "delete-cluster"];
+
 export const useDeleteK8sCluster = (): UseMutationResult<
   { deleted: string; project: string | null },
   Error,
@@ -179,15 +183,33 @@ export const useDeleteK8sCluster = (): UseMutationResult<
 > => {
   const queryClient = useQueryClient();
   const config = useAgentConfig();
+  const toastNotify = useToastNotification();
   return useMutation({
+    mutationKey: DELETE_CLUSTER_KEY,
     mutationFn: async (name: string) =>
       agentRequest<{ deleted: string; project: string | null }>(
         config,
         `/v1/clusters/${encodeURIComponent(name)}`,
         { method: "DELETE" },
       ),
-    onSuccess: async () => {
+    // Hook-level callbacks still run after the page that started the delete
+    // has navigated away (the detail page leaves as soon as it is confirmed;
+    // the CAPI teardown behind this request takes minutes).
+    onSuccess: async (_result, name) => {
+      toastNotify.success(`Cluster "${name}" deleted.`);
       await queryClient.invalidateQueries({ queryKey: CLUSTERS_KEY });
+    },
+    onError: (error, name) => {
+      toastNotify.failure(`Deleting cluster "${name}" failed`, error);
     },
   });
 };
+
+/** Names of clusters with a delete request still in flight. */
+export const useDeletingClusters = (): Set<string> =>
+  new Set(
+    useMutationState({
+      filters: { mutationKey: DELETE_CLUSTER_KEY, status: "pending" },
+      select: (mutation) => mutation.state.variables as string,
+    }),
+  );

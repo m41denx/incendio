@@ -51,7 +51,11 @@ export const groupClusterNodes = (
   };
 
   for (const instance of instances) {
-    const config = instance.config as Record<string, string | undefined>;
+    // An instance being deleted can be listed with `config: null`.
+    const config = (instance.config ?? {}) as Record<
+      string,
+      string | undefined
+    >;
     if (config[CLUSTER_KEY] !== cluster) continue;
     const role = config[ROLE_KEY];
     const machine = machineByName.get(config[MACHINE_KEY] ?? instance.name);

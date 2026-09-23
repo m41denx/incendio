@@ -15,6 +15,7 @@
 - (fix) Kubernetes agent: talks to Incus by **pinning the server certificate's fingerprint** (Incus serves a self-signed leaf without the dialled IP in its SANs, which Bun cannot trust via `ca`)
 - (fix) Kubernetes: appliance deploy works when the `default` profile has no root disk or NIC (a pool and a NAT network are picked automatically), and uses the `cloud` image variant so the cloud-init bootstrap actually runs; a missing cloud-init is reported instead of hanging on "bootstrapping"
 - (fix) Kubernetes: **Test connection** verifies the token before saving it (it used to overwrite a good handle with a stale token), rejected tokens get an actionable message, and agent errors show their detail, not just the generic summary
+- (fix) Kubernetes: deleting a cluster from its detail page no longer crashes the page (instances being torn down can be listed without config); you are taken back to the cluster list right away, where the cluster shows as **Deleting** until the teardown finishes, and the result is reported by a toast
 
 ## 0.22-p10
 ## What's Changed

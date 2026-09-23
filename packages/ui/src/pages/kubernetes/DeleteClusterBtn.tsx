@@ -1,25 +1,28 @@
 import type { FC } from "react";
+import { ConfirmationButton, Icon } from "@canonical/react-components";
 import {
-  ConfirmationButton,
-  Icon,
-  useToastNotification,
-} from "@canonical/react-components";
-import { useDeleteK8sCluster } from "pages/kubernetes/useK8sClusters";
+  useDeleteK8sCluster,
+  useDeletingClusters,
+} from "pages/kubernetes/useK8sClusters";
 
 interface Props {
   name: string;
   /** Show "Delete" next to the icon (detail page header). */
   withLabel?: boolean;
-  onDeleted?: () => void;
+  /**
+   * Called as soon as the delete is confirmed — the teardown itself takes
+   * minutes; completion is reported by a toast from the delete hook.
+   */
+  onConfirmed?: () => void;
 }
 
-const DeleteClusterBtn: FC<Props> = ({ name, withLabel, onDeleted }) => {
-  const toastNotify = useToastNotification();
+const DeleteClusterBtn: FC<Props> = ({ name, withLabel, onConfirmed }) => {
   const deleteCluster = useDeleteK8sCluster();
+  const deleting = useDeletingClusters().has(name);
   return (
     <ConfirmationButton
       appearance={withLabel ? "" : "base"}
-      loading={deleteCluster.isPending}
+      loading={deleting}
       confirmationModalProps={{
         title: "Confirm delete",
         children: (
@@ -30,21 +33,14 @@ const DeleteClusterBtn: FC<Props> = ({ name, withLabel, onDeleted }) => {
         ),
         confirmButtonLabel: "Delete",
         onConfirm: () => {
-          deleteCluster.mutate(name, {
-            onSuccess: () => {
-              toastNotify.success(`Cluster "${name}" deleted.`);
-              onDeleted?.();
-            },
-            onError: (error) => {
-              toastNotify.failure("Cluster deletion failed", error);
-            },
-          });
+          deleteCluster.mutate(name);
+          onConfirmed?.();
         },
       }}
-      disabled={deleteCluster.isPending}
+      disabled={deleting}
       shiftClickEnabled
       showShiftClickHint
-      title="Delete cluster"
+      title={deleting ? "Deleting cluster" : "Delete cluster"}
       className="has-icon"
     >
       <Icon name="delete" />

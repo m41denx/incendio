@@ -117,7 +117,11 @@ const ClusterDetail: FC = () => {
                 controlPlaneCount={record.controlPlaneCount}
                 workerCount={record.workerCount}
               />
-              <DeleteClusterBtn name={name} withLabel onDeleted={backToList} />
+              <DeleteClusterBtn
+                name={name}
+                withLabel
+                onConfirmed={backToList}
+              />
             </>
           }
         />

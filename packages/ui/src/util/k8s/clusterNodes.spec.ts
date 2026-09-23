@@ -80,4 +80,23 @@ describe("groupClusterNodes", () => {
     expect(nodes.controlPlane).toHaveLength(1);
     expect(nodes.controlPlane[0].machine?.name).toBe("c1-cp-x");
   });
+
+  it("tolerates instances listed without config (mid-deletion)", () => {
+    // Incus can list an instance that is being deleted with `config: null`;
+    // this crashed the detail page while a cluster was torn down.
+    const deleting = {
+      name: "c1-md-0-gone",
+      status: "Stopped",
+      project: "k8s-c1",
+      config: null,
+    } as unknown as LxdInstance;
+    const nodes = groupClusterNodes("c1", [deleting, ...instances], machines);
+    const all = [
+      ...nodes.controlPlane,
+      ...nodes.workers,
+      ...nodes.loadBalancers,
+    ];
+    expect(all.map((n) => n.name)).not.toContain("c1-md-0-gone");
+    expect(nodes.controlPlane).toHaveLength(1);
+  });
 });
