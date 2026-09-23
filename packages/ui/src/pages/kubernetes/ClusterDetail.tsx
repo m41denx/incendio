@@ -24,6 +24,7 @@ import ClusterStatusLabel from "pages/kubernetes/ClusterStatusLabel";
 import ClusterNodeTable from "pages/kubernetes/ClusterNodeTable";
 import DeleteClusterBtn from "pages/kubernetes/DeleteClusterBtn";
 import ScaleClusterBtn from "pages/kubernetes/ScaleClusterBtn";
+import { useNodeBootstrap } from "pages/kubernetes/useNodeBootstrap";
 import ClusterKubeconfig from "pages/kubernetes/ClusterKubeconfig";
 import { useK8sManagement } from "pages/kubernetes/useK8sManagement";
 import {
@@ -74,6 +75,13 @@ const ClusterDetail: FC = () => {
   }
 
   const nodes = groupClusterNodes(name, instances, status?.machines ?? []);
+  const bootstrap = useNodeBootstrap(
+    [...nodes.controlPlane, ...nodes.workers],
+    project,
+  );
+  const failedNodes = [...bootstrap.entries()].filter(
+    ([, diagnosis]) => diagnosis.state === "failed",
+  );
   const backToList = () => {
     navigate(`${ROOT_PATH}/ui/kubernetes`);
   };
@@ -129,6 +137,33 @@ const ClusterDetail: FC = () => {
       contentClassName="detail-page k8s-cluster-detail"
     >
       <NotificationRow />
+      {failedNodes.length > 0 ? (
+        <Notification
+          severity="negative"
+          title={
+            failedNodes.length === 1
+              ? "A node failed to bootstrap"
+              : `${failedNodes.length} nodes failed to bootstrap`
+          }
+        >
+          <p className="u-no-margin--bottom">
+            kubeadm stopped with an error and will not retry. Fix the cause and
+            recreate the cluster (or scale the affected node group).
+          </p>
+          {failedNodes.map(([nodeName, diagnosis]) => (
+            <details key={nodeName} className="k8s-bootstrap-failure">
+              <summary>
+                <strong>{nodeName}</strong>: {diagnosis.reason}
+              </summary>
+              {diagnosis.logTail ? (
+                <pre className="u-no-margin--bottom k8s-condition-message">
+                  {diagnosis.logTail}
+                </pre>
+              ) : null}
+            </details>
+          ))}
+        </Notification>
+      ) : null}
       {status?.message ? (
         <Notification severity="caution" title="Not available yet">
           <pre className="u-no-margin--bottom k8s-condition-message">
@@ -231,6 +266,7 @@ const ClusterDetail: FC = () => {
           <ClusterNodeTable
             nodes={nodes.controlPlane}
             project={project}
+            bootstrap={bootstrap}
             emptyMessage="No control plane nodes yet."
           />
         </Col>
@@ -244,6 +280,7 @@ const ClusterDetail: FC = () => {
           <ClusterNodeTable
             nodes={nodes.workers}
             project={project}
+            bootstrap={bootstrap}
             emptyMessage="No worker nodes."
           />
         </Col>

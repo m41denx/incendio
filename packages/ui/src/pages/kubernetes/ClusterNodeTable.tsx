@@ -5,6 +5,7 @@ import InstanceStatusIcon from "pages/instances/InstanceStatusIcon";
 import InstanceIps from "pages/instances/InstanceIps";
 import { ROOT_PATH } from "util/rootPath";
 import type { ClusterNode } from "util/k8s/clusterNodes";
+import type { BootstrapDiagnosis } from "util/k8s/bootstrap";
 
 interface Props {
   nodes: ClusterNode[];
@@ -12,14 +13,40 @@ interface Props {
   emptyMessage: string;
   /** Load balancers have no Kubernetes node. */
   showNode?: boolean;
+  /** Bootstrap diagnosis for nodes that have not joined yet. */
+  bootstrap?: Map<string, BootstrapDiagnosis>;
 }
 
 // First line of CAPI's bullet-list condition message.
 const firstLine = (message: string): string =>
   message.split("\n")[0].replace(/^\s*\*\s*/, "");
 
-const NodeReadiness: FC<{ node: ClusterNode }> = ({ node }) => {
+const NodeReadiness: FC<{
+  node: ClusterNode;
+  diagnosis?: BootstrapDiagnosis;
+}> = ({ node, diagnosis }) => {
   if (!node.machine) return <span className="u-text--muted">-</span>;
+  if (diagnosis?.state === "failed") {
+    return (
+      <span title={diagnosis.reason}>
+        <Icon name="status-failed-small" className="status-icon" />
+        Bootstrap failed
+        {diagnosis.reason ? (
+          <div className="u-text--muted p-text--small u-no-margin--bottom u-truncate">
+            {diagnosis.reason}
+          </div>
+        ) : null}
+      </span>
+    );
+  }
+  if (diagnosis?.state === "running") {
+    return (
+      <span>
+        <Icon name="status-in-progress-small" className="status-icon" />
+        Bootstrapping
+      </span>
+    );
+  }
   const { ready, message, phase } = node.machine;
   return (
     <span title={message}>
@@ -48,6 +75,7 @@ const ClusterNodeTable: FC<Props> = ({
   project,
   emptyMessage,
   showNode = true,
+  bootstrap,
 }) => {
   const headers = [
     { content: "Instance" },
@@ -85,7 +113,18 @@ const ClusterNodeTable: FC<Props> = ({
             <span className="u-text--muted">Provisioning</span>
           ),
         },
-        ...(showNode ? [{ content: <NodeReadiness node={node} /> }] : []),
+        ...(showNode
+          ? [
+              {
+                content: (
+                  <NodeReadiness
+                    node={node}
+                    diagnosis={bootstrap?.get(node.name)}
+                  />
+                ),
+              },
+            ]
+          : []),
         {
           content: node.instance ? (
             <InstanceIps instance={node.instance} family="inet" />

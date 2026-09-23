@@ -3,7 +3,7 @@ import { useAuth } from "context/auth";
 import { useSettings } from "context/useSettings";
 import { fetchInstance } from "api/instances";
 import { LxdApiError } from "util/helpers";
-import { ROOT_PATH } from "util/rootPath";
+import { instanceFileExists, readInstanceFile } from "util/k8s/instanceFiles";
 import {
   fetchAgentInfo,
   loadAgentConfig,
@@ -48,30 +48,11 @@ export const MANAGEMENT_KEY = ["k8s", "management"];
 const isNotFound = (error: unknown): boolean =>
   error instanceof LxdApiError && error.status === 404;
 
-/** Read a file from the appliance via the Incus file API (null if absent). */
-const readApplianceFile = async (path: string): Promise<string | null> => {
-  const params = new URLSearchParams({ project: MGMT_PROJECT, path });
-  const res = await fetch(
-    `${ROOT_PATH}/1.0/instances/${encodeURIComponent(APPLIANCE_NAME)}/files?${params.toString()}`,
-  );
-  if (res.status === 404) return null;
-  if (!res.ok) throw new Error(`reading ${path}: HTTP ${res.status}`);
-  const type =
-    res.headers.get("x-incus-type") ?? res.headers.get("x-lxd-type") ?? "file";
-  if (type !== "file") throw new Error(`reading ${path}: not a file (${type})`);
-  return res.text();
-};
+const readApplianceFile = async (path: string): Promise<string | null> =>
+  readInstanceFile(MGMT_PROJECT, APPLIANCE_NAME, path);
 
-const applianceFileExists = async (path: string): Promise<boolean> => {
-  const params = new URLSearchParams({ project: MGMT_PROJECT, path });
-  const res = await fetch(
-    `${ROOT_PATH}/1.0/instances/${encodeURIComponent(APPLIANCE_NAME)}/files?${params.toString()}`,
-    { method: "HEAD" },
-  );
-  if (res.status === 404) return false;
-  if (!res.ok) throw new Error(`checking ${path}: HTTP ${res.status}`);
-  return true;
-};
+const applianceFileExists = async (path: string): Promise<boolean> =>
+  instanceFileExists(MGMT_PROJECT, APPLIANCE_NAME, path);
 
 export interface K8sManagement {
   state: ManagementState;
