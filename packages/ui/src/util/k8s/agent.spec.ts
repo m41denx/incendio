@@ -58,4 +58,19 @@ describe("agentRequest errors", () => {
       agentRequest({ url: "https://a:8843", token: "t" }, "/v1/clusters/x"),
     ).rejects.toThrow(/^not found$/);
   });
+
+  it("shows the agent's validation message (Elysia 422 body)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      respond(422, {
+        type: "validation",
+        on: "body",
+        message:
+          "control plane needs at least 2 CPUs (kubeadm refuses to initialize with fewer); got 'c1-m2'",
+      }),
+    );
+    await expect(
+      agentRequest({ url: "https://a:8843", token: "t" }, "/v1/clusters"),
+    ).rejects.toThrow(/at least 2 CPUs/);
+  });
 });

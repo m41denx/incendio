@@ -46,7 +46,8 @@ const TOKEN_REJECTED =
 const trimSlash = (url: string): string => url.trim().replace(/\/+$/, "");
 
 // The agent returns `{ error, detail }`: `error` is a generic summary and
-// `detail` carries the real cause (Incus/TLS/CAPN), so show both.
+// `detail` carries the real cause (Incus/TLS/CAPN), so show both. Request
+// validation failures (422) come from Elysia as `{ type, message, ... }`.
 const extractError = (raw: unknown, status: number): string => {
   if (raw && typeof raw === "object") {
     const record = raw as Record<string, unknown>;
@@ -54,6 +55,9 @@ const extractError = (raw: unknown, status: number): string => {
       (part): part is string => typeof part === "string" && part.length > 0,
     );
     if (parts.length > 0) return parts.join(": ");
+    if (typeof record.message === "string" && record.message.length > 0) {
+      return record.message;
+    }
   }
   return `agent responded ${status}`;
 };

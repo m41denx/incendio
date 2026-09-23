@@ -172,6 +172,63 @@ export const resolveFlavor = (
   unit: MemoryUnit,
 ): string => (custom ? flavor.trim() : flavorFromResources(cpu, memory, unit));
 
+// kubeadm's preflight refuses a control-plane node below these (NumCPU / Mem
+// checks). The failure happens inside the node's cloud-init, which never
+// retries, so the cluster would sit at "control plane not initialized".
+export const CONTROL_PLANE_MIN_CPU = 2;
+export const CONTROL_PLANE_MIN_MEMORY_MIB = 1700;
+
+/** CPU + memory of a CAPN `c<cores>-m<GiB>` flavor, or null if not in that form. */
+export const parseFlavor = (
+  flavor: string,
+): { cpu: number; memoryMiB: number } | null => {
+  const match = /^c(\d+)-m(\d+(?:\.\d+)?)$/.exec(flavor.trim());
+  if (!match) return null;
+  return {
+    cpu: Number(match[1]),
+    memoryMiB: Math.round(Number(match[2]) * 1024),
+  };
+};
+
+export interface SizeIssue {
+  field: "cpu" | "memory";
+  message: string;
+}
+
+/** Which control-plane size field cannot bootstrap, or null if fine (or unknown). */
+export const controlPlaneSizeIssue = (
+  config: K8sClusterConfig,
+): SizeIssue | null => {
+  const size = parseFlavor(
+    resolveFlavor(
+      config.controlPlaneCustomFlavor,
+      config.controlPlaneFlavor,
+      config.controlPlaneCpu,
+      config.controlPlaneMemory,
+      config.controlPlaneMemoryUnit,
+    ),
+  );
+  if (!size) return null;
+  if (size.cpu < CONTROL_PLANE_MIN_CPU) {
+    return {
+      field: "cpu",
+      message: `Control plane nodes need at least ${CONTROL_PLANE_MIN_CPU} CPUs — kubeadm refuses to initialize with fewer.`,
+    };
+  }
+  if (size.memoryMiB < CONTROL_PLANE_MIN_MEMORY_MIB) {
+    return {
+      field: "memory",
+      message: `Control plane nodes need at least ${CONTROL_PLANE_MIN_MEMORY_MIB} MiB of memory — kubeadm refuses to initialize with less.`,
+    };
+  }
+  return null;
+};
+
+/** Why the control-plane size cannot bootstrap, or null if it can (or is unknown). */
+export const controlPlaneSizeError = (
+  config: K8sClusterConfig,
+): string | null => controlPlaneSizeIssue(config)?.message ?? null;
+
 /** Render the infrastructure-credentials Secret CAPN reads (LXC_SECRET_NAME). */
 export const generateSecretYaml = (
   secretName: string,

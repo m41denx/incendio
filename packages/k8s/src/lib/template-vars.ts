@@ -38,6 +38,33 @@ const FLAG_OWNED = [
 ] as const;
 
 const ALLOWED = new Set<string>([...TEMPLATE_VARIABLES, ...FLAG_OWNED]);
+
+// kubeadm's preflight refuses a control-plane node below these (NumCPU / Mem).
+// It fails inside the node's cloud-init, which never retries, so the cluster
+// would hang at "control plane not initialized" — reject it up front instead.
+const CONTROL_PLANE_MIN_CPU = 2;
+const CONTROL_PLANE_MIN_MEMORY_MIB = 1700;
+
+/** CPU + memory of a CAPN `c<cores>-m<GiB>` flavor, or null if not in that form. */
+export function parseFlavor(
+  flavor: string,
+): { cpu: number; memoryMiB: number } | null {
+  const match = /^c(\d+)-m(\d+(?:\.\d+)?)$/.exec(flavor.trim());
+  if (!match) return null;
+  return { cpu: Number(match[1]), memoryMiB: Math.round(Number(match[2]) * 1024) };
+}
+
+function controlPlaneSizeError(flavor: string | undefined): string | null {
+  const size = flavor ? parseFlavor(flavor) : null;
+  if (!size) return null;
+  if (size.cpu < CONTROL_PLANE_MIN_CPU) {
+    return `control plane needs at least ${CONTROL_PLANE_MIN_CPU} CPUs (kubeadm refuses to initialize with fewer); got '${flavor}'`;
+  }
+  if (size.memoryMiB < CONTROL_PLANE_MIN_MEMORY_MIB) {
+    return `control plane needs at least ${CONTROL_PLANE_MIN_MEMORY_MIB} MiB of memory (kubeadm refuses to initialize with less); got '${flavor}'`;
+  }
+  return null;
+}
 const FLAG_OWNED_SET = new Set<string>(FLAG_OWNED);
 
 /**
@@ -56,6 +83,14 @@ export const TemplateVariables = z
           message: `unsupported template variable '${key}'`,
         });
       }
+    }
+    const sizeError = controlPlaneSizeError(vars.CONTROL_PLANE_MACHINE_FLAVOR);
+    if (sizeError) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["CONTROL_PLANE_MACHINE_FLAVOR"],
+        message: sizeError,
+      });
     }
   });
 

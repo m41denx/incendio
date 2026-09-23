@@ -1,5 +1,7 @@
 import {
   buildTemplateVariables,
+  controlPlaneSizeError,
+  parseFlavor,
   defaultK8sClusterConfig,
   generateEnvExports,
   type K8sClusterConfig,
@@ -85,5 +87,64 @@ describe("buildTemplateVariables", () => {
   it("leaves agent-owned identity out of the map", () => {
     const vars = buildTemplateVariables(defaultK8sClusterConfig);
     expect(vars).not.toHaveProperty("LXC_SECRET_NAME");
+  });
+});
+
+describe("parseFlavor", () => {
+  it("reads CAPN c<cores>-m<GiB> shorthand", () => {
+    expect(parseFlavor("c2-m4")).toEqual({ cpu: 2, memoryMiB: 4096 });
+    expect(parseFlavor("c1-m0.5")).toEqual({ cpu: 1, memoryMiB: 512 });
+  });
+
+  it("returns null for AWS-style names it cannot size", () => {
+    expect(parseFlavor("t3.medium")).toBeNull();
+  });
+});
+
+describe("controlPlaneSizeError", () => {
+  it("accepts the default size", () => {
+    expect(controlPlaneSizeError(defaultK8sClusterConfig)).toBeNull();
+  });
+
+  it("rejects fewer than 2 CPUs (kubeadm NumCPU preflight)", () => {
+    expect(
+      controlPlaneSizeError({ ...defaultK8sClusterConfig, controlPlaneCpu: 1 }),
+    ).toMatch(/2 CPUs/);
+  });
+
+  it("rejects less than 1700 MiB of memory (kubeadm Mem preflight)", () => {
+    expect(
+      controlPlaneSizeError({
+        ...defaultK8sClusterConfig,
+        controlPlaneMemory: 1536,
+        controlPlaneMemoryUnit: "MB",
+      }),
+    ).toMatch(/1700 MiB/);
+    expect(
+      controlPlaneSizeError({
+        ...defaultK8sClusterConfig,
+        controlPlaneMemory: 2,
+        controlPlaneMemoryUnit: "GB",
+      }),
+    ).toBeNull();
+  });
+
+  it("checks custom cX-mY flavors and lets unknown names through", () => {
+    const custom = {
+      ...defaultK8sClusterConfig,
+      controlPlaneCustomFlavor: true,
+    };
+    expect(
+      controlPlaneSizeError({ ...custom, controlPlaneFlavor: "c1-m2" }),
+    ).toMatch(/2 CPUs/);
+    expect(
+      controlPlaneSizeError({ ...custom, controlPlaneFlavor: "t3.medium" }),
+    ).toBeNull();
+  });
+
+  it("does not constrain workers", () => {
+    expect(
+      controlPlaneSizeError({ ...defaultK8sClusterConfig, workerCpu: 1 }),
+    ).toBeNull();
   });
 });

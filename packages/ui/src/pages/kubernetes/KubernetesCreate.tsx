@@ -41,7 +41,9 @@ import {
   loadBalancerOptions,
   machineTypeOptions,
   memoryUnitOptions,
+  controlPlaneSizeIssue,
   type K8sClusterConfig,
+  type SizeIssue,
   type LoadBalancerType,
   type MachineType,
   type MemoryUnit,
@@ -90,6 +92,8 @@ interface NodeGroupProps {
   onProfiles: (value: string) => void;
   target: string;
   onTarget: (value: string) => void;
+  /** Size validation for this group (control plane only). */
+  sizeIssue?: SizeIssue | null;
 }
 
 const KubernetesCreate: FC = () => {
@@ -104,6 +108,7 @@ const KubernetesCreate: FC = () => {
   const [config, setConfig] = useState<K8sClusterConfig>(
     defaultK8sClusterConfig,
   );
+  const controlPlaneIssue = controlPlaneSizeIssue(config);
   const {
     serverUrl,
     setServerUrl,
@@ -221,6 +226,7 @@ const KubernetesCreate: FC = () => {
     onProfiles,
     target,
     onTarget,
+    sizeIssue,
   }: NodeGroupProps): ReactNode => (
     <div className="u-sv3">
       <h3 className="p-heading--5">{title}</h3>
@@ -262,6 +268,7 @@ const KubernetesCreate: FC = () => {
           value={flavor}
           placeholder="c2-m4 or t3.medium"
           help="CAPN flavor: c<cores>-m<GiB>, or an AWS-style instance name."
+          error={sizeIssue?.message}
           onChange={(e) => {
             onFlavor(e.target.value);
           }}
@@ -274,6 +281,7 @@ const KubernetesCreate: FC = () => {
               min={1}
               label="CPU cores"
               value={cpu}
+              error={sizeIssue?.field === "cpu" ? sizeIssue.message : undefined}
               onChange={(e) => {
                 onCpu(Number(e.target.value));
               }}
@@ -286,6 +294,9 @@ const KubernetesCreate: FC = () => {
                 type="number"
                 min={1}
                 value={memory}
+                error={
+                  sizeIssue?.field === "memory" ? sizeIssue.message : undefined
+                }
                 onChange={(e) => {
                   onMemory(Number(e.target.value));
                 }}
@@ -546,6 +557,7 @@ const KubernetesCreate: FC = () => {
                   onTarget: (value) => {
                     update("controlPlaneTarget", value);
                   },
+                  sizeIssue: controlPlaneIssue,
                 })}
                 {renderNodeGroup({
                   title: "Workers",
@@ -750,8 +762,16 @@ const KubernetesCreate: FC = () => {
         <ActionButton
           appearance="positive"
           loading={createCluster.isPending}
-          disabled={config.clusterName.trim().length === 0 || !managementReady}
-          title={managementReady ? undefined : management.title}
+          disabled={
+            config.clusterName.trim().length === 0 ||
+            !managementReady ||
+            controlPlaneIssue !== null
+          }
+          title={
+            !managementReady
+              ? management.title
+              : (controlPlaneIssue?.message ?? undefined)
+          }
           onClick={() => {
             createCluster.mutate(config, {
               onSuccess: (result) => {

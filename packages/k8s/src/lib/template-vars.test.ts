@@ -23,6 +23,31 @@ describe("TemplateVariables", () => {
   });
 });
 
+describe("control-plane size", () => {
+  const issues = (vars: Record<string, string>) => {
+    const r = TemplateVariables.safeParse(vars);
+    return r.success ? [] : r.error.issues.map((i) => i.message);
+  };
+
+  it("rejects a control plane kubeadm cannot initialize", () => {
+    expect(issues({ CONTROL_PLANE_MACHINE_FLAVOR: "c1-m2" })[0]).toMatch(/2 CPUs/);
+    expect(issues({ CONTROL_PLANE_MACHINE_FLAVOR: "c2-m1.5" })[0]).toMatch(/1700 MiB/);
+  });
+
+  it("accepts the minimum and anything larger", () => {
+    expect(issues({ CONTROL_PLANE_MACHINE_FLAVOR: "c2-m2" })).toEqual([]);
+    expect(issues({ CONTROL_PLANE_MACHINE_FLAVOR: "c4-m8" })).toEqual([]);
+  });
+
+  it("lets AWS-style names through (size unknown)", () => {
+    expect(issues({ CONTROL_PLANE_MACHINE_FLAVOR: "t3.medium" })).toEqual([]);
+  });
+
+  it("does not constrain workers", () => {
+    expect(issues({ WORKER_MACHINE_FLAVOR: "c1-m1" })).toEqual([]);
+  });
+});
+
 describe("templateEnv", () => {
   it("passes the form's choices through to clusterctl", () => {
     const env = templateEnv(
