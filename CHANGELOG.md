@@ -10,6 +10,7 @@
 - (feat) Kubernetes agent (`@incendio/k8s`): a thin broker over CAPI/CAPN (no reconcile loop) — project-per-cluster with `user.incendio.*` metadata, `clusterctl generate | kubectl apply` create, live status from the Cluster/Machine CRDs (cache fallback in `bun:sqlite` + drizzle), one-shot teardown, `GET /v1/clusters/:name/kubeconfig`, `PATCH /v1/clusters/:name` scaling, and a pinned appliance **bootstrap script** (k3s + clusterctl + CAPN, self-signed agent TLS, systemd unit) driven by cloud-init.
 
 ### 📦 Other changes
+- (chore) Branding: new Incendio logo and favicon
 - (fix) Kubernetes: **Create cluster now applies every form option** — only name, version and counts used to reach the agent, so CNI (flannel), machine types/flavors/profiles/targets, load balancer, image and pod/service CIDRs were silently ignored and clusters came up without a CNI (nodes never Ready). The form's template variables are now sent as-is (the same ones the preview shows) and the agent rejects unknown variables instead of dropping them
 - (fix) Kubernetes: node ready counts use CAPI's `Ready` condition — a joined node without a working CNI no longer shows as ready
 - (fix) Kubernetes agent: talks to Incus by **pinning the server certificate's fingerprint** (Incus serves a self-signed leaf without the dialled IP in its SANs, which Bun cannot trust via `ca`)
