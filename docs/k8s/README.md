@@ -1,7 +1,10 @@
 # Incendio Kubernetes support — design & plan
 
-Status: **design / partially implemented.** This document captures the original
-plan for the `k8s` branch (monorepo migration + agent bootstrap).
+Status: **implemented** (0.22-p11: create, list, detail, scale, kubeconfig,
+delete; 0.22-p12: upgrades, activity log, day-2 statuses, agent updates). This
+document is the original design and plan, kept for its rationale; where it
+disagrees with the code, `management-appliance.md` §10–11 describe what was
+actually built.
 
 **Docs map (read in this order for current decisions):**
 - [`management-appliance.md`](./management-appliance.md) — **current** source of
@@ -242,7 +245,7 @@ parsers and an OpenAPI generator. Whether to use workers is an open question.
 
 ---
 
-## 13. Immediate next steps (tracked on the `k8s` branch)
+## 13. First steps (done; the `k8s` branch was merged into `incus-port`)
 
 1. Migrate the repo off yarn to **bun**.
 2. Convert to a **bun-workspace monorepo** (`packages/ui`, `packages/k8s`).

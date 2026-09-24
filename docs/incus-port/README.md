@@ -221,18 +221,12 @@ NIC-device type options). Remaining bits are raw-config-only advanced keys (NIC 
       **device** (~290) keys, and per-driver storage **volume** config.
 
 *Integrations*
-- [ ] **Kubernetes on Incus via [cluster-api-provider-incus](https://github.com/lxc/cluster-api-provider-incus)**
-      (CAPN) (proposed; feasibility agreed, build deferred). CAPN is a Cluster API *infrastructure
-      provider*: a Kubernetes management cluster runs CRDs (`IncusCluster`/`IncusMachine`) whose
-      controller drives the Incus API to launch instances (VMs/LXC) as kubeadm-bootstrapped k8s nodes.
-      Orchestration lives in Kubernetes-land, not Incus, so from Incus a cluster is just instances +
-      a project + a profile + a trust cert + the kubeadm image remote. Three scopes to pick from:
-      **1) Observe** — recognise CAPN instances (by project/labels) and show them grouped as a cluster
-      (read-only). **Low**.
-      **2) Prerequisite helpers** — a guided setup that provisions the Incus-side bits (dedicated
-      project, mgmt-cluster trust token, kubeadm image remote, required profile). **Med**.
-      **3) Full CAPI management** — apply/watch CRDs, drive `clusterctl` from the UI. Needs a Kubernetes
-      backend, duplicates Rancher/Headlamp — **out of scope / High**.
+- [x] **Kubernetes on Incus via [cluster-api-provider-incus](https://github.com/lxc/cluster-api-provider-incus)**
+      (CAPN) — built as scope 3 after all, without duplicating Rancher/Headlamp: a management
+      appliance (k3s + CAPI + CAPN in one Incus container) runs the `@incendio/k8s` agent, a thin
+      broker the UI drives. Create / list / detail / scale / kubeconfig / delete (0.22-p11);
+      version upgrades, a live activity log, scaling/upgrading statuses and in-UI agent updates
+      (0.22-p12). See [`docs/k8s/`](../k8s/management-appliance.md).
 
 Full ranked list with extensions/coverage: [`analysis/A`](analysis/A-incus-opportunities.md).
 

@@ -1,3 +1,17 @@
+## 0.22-p12
+## What's Changed
+### ✨ New Features
+- (feat) Kubernetes: **upgrade clusters** — an Upgrade action on the cluster page moves a cluster to a newer Kubernetes version (the next versions with a kubeadm image, one minor at a time). Cluster API replaces control-plane nodes first, then workers, one at a time; the page shows the nodes' version against the target while it rolls out
+- (feat) Kubernetes: **Scaling** and **Upgrading** statuses — clusters no longer show as Ready while Cluster API adds, replaces or removes nodes; the status follows the rollout until every node has joined
+- (feat) Kubernetes: **live activity log** on the cluster page — Kubernetes events and the Cluster API / CAPN controllers' log lines about the cluster, oldest first, refreshed every few seconds while it changes (repeats folded, warnings/errors filter), plus a **bootstrap log** button on every node that tails its kubeadm/cloud-init output
+- (feat) Kubernetes: **update the agent from the UI** — the Management appliance tab shows when a newer Kubernetes agent is released and installs it in one click (downloaded inside the appliance, checksum-verified, previous binary kept); features that need a newer agent say so instead of failing
+- (feat) Kubernetes: explain **why a node failed to bootstrap** — a node whose kubeadm run failed (for example `[ERROR NumCPU]`) is flagged on the cluster page with the reason and its log tail, instead of looking like it is still coming up
+
+### 📦 Other changes
+- (fix) Kubernetes: control planes smaller than kubeadm's minimum (2 CPUs, 1700 MiB) are rejected on the create form and by the agent — they used to hang forever at "control plane not initialized"
+- (fix) Kubernetes: agent validation errors are shown with their message instead of a bare "agent responded 422"
+- (docs) README rewritten for end users around Incendio's features
+
 ## 0.22-p11
 ## What's Changed
 ### ✨ New Features

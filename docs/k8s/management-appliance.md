@@ -201,3 +201,37 @@ Deltas from the plan above, learned while bringing the appliance up for real:
   `k8s-api-linux-{amd64,arm64}` to the `appliance-v1` release; running
   appliances can be updated in place by swapping `/usr/local/bin/incendio-k8s`
   and restarting `incendio-k8s`.
+
+## 11. Day-2 operations (0.22-p12, agent 0.2.1)
+
+- **Upgrades:** `PATCH /v1/clusters/:name {kubernetesVersion}` replaces
+  `spec.topology.version` (guarded by a JSON-patch `test` on the version it was
+  validated against). The agent allows only newer versions within one minor
+  (kubeadm's rule) and refuses clusters pinned to a custom `LXC_IMAGE_NAME`
+  without `INSTALL_KUBEADM`; CAPN otherwise boots `kubeadm/<version>` for the
+  new machines. The UI offers the next versions that have a kubeadm image.
+- **Statuses:** `scaling` / `upgrading` join `provisioning` / `ready` / `error`.
+  A rollout is detected from the CRDs — a machine on another version than the
+  topology (upgrading); machine counts off the desired replicas, CAPI
+  `ScalingUp`/`ScalingDown`, or a machine in Pending/Provisioning/Provisioned/
+  Deleting (scaling). The sqlite status is the memory that tells a first
+  bring-up (always `provisioning`) from a day-2 rollout on a cluster that was
+  ready before (`lib/lifecycle.ts`).
+- **Activity:** `GET /v1/clusters/:name/activity` merges Kubernetes Events on
+  the cluster's CAPI objects (kept 1 h) with the CAPN / CAPI / KCP / CABPK
+  controller log lines tagged `Cluster="default/<name>"` since the cluster was
+  created (so an older cluster of the same name does not bleed in). Resync
+  chatter is filtered, repeats are folded into their first occurrence with a
+  count. Polled (5 s while changing, 30 s when ready) rather than streamed:
+  `EventSource` cannot send the bearer token. Node-side, each node row opens
+  its `/var/log/cloud-init-output.log` (kubeadm output) via the Incus file API.
+- **Agent updates:** the `appliance-v1` release carries `manifest.json`
+  (`version` + sha256 per binary, written by `build-release.sh` from
+  `package.json`). The UI runs `curl manifest.json` *inside* the appliance
+  through the Incus exec API (no browser → GitHub traffic, no dependency on the
+  agent's own API, so 0.0.1 agents can be updated), offers newer versions, and
+  installs them with a script that verifies the checksum before swapping
+  `/usr/local/bin/incendio-k8s` (old binary kept as `.prev`) and restarting the
+  service. The UI then waits for `/v1/info` to report the new version.
+- **Capabilities:** `/v1/info` advertises `upgrade` and `activity`; the UI
+  disables those features (with a hint to update the agent) on older agents.
