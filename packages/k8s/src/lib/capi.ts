@@ -2,8 +2,16 @@ import { readFileSync } from "node:fs";
 import { env } from "../env.ts";
 import { templateEnv } from "./template-vars.ts";
 import { kubeconfigFromSecret } from "./kubeconfig.ts";
-import { buildScalePatch, type ClusterObject, type ScaleRequest } from "./scale.ts";
+import type { ClusterObject } from "./scale.ts";
+import { buildClusterPatch, type ClusterPatchRequest } from "./cluster-patch.ts";
 import { summarizeLive, type K8sList, type LiveStatus } from "./capi-status.ts";
+import {
+  eventActivity,
+  logActivity,
+  mergeActivity,
+  type ActivityEntry,
+  type K8sEventList,
+} from "./activity.ts";
 import { log } from "./log.ts";
 import { execError, run } from "./exec.ts";
 
@@ -272,17 +280,22 @@ export async function getKubeconfig(name: string): Promise<string | null> {
 }
 
 /**
- * Scale a workload cluster by patching replicas in its Cluster topology; CAPI
- * rolls the change out (CAPN adds/removes Incus instances, kubeadm joins or
- * drains nodes). Returns once the patch is accepted, not when nodes are ready.
+ * Apply a day-2 edit (replicas and/or Kubernetes version) to a workload
+ * cluster's topology; CAPI rolls it out (CAPN adds, replaces or removes Incus
+ * instances, kubeadm joins or drains nodes). Returns once the patch is
+ * accepted, not when the rollout finishes. Throws PatchRejected when the
+ * cluster's current state rules the request out.
  */
-export async function scaleCluster(name: string, request: ScaleRequest): Promise<void> {
+export async function patchCluster(
+  name: string,
+  request: ClusterPatchRequest,
+): Promise<void> {
   const get = await run(
     ["kubectl", "get", "cluster", name, "-n", WORKLOAD_NAMESPACE, "-o", "json"],
     { env: kubeEnv(), timeoutMs: 15_000 },
   );
   if (!get.ok) throw new Error(`kubectl get cluster failed: ${execError(get)}`);
-  const patch = buildScalePatch(JSON.parse(get.stdout) as ClusterObject, request);
+  const patch = buildClusterPatch(JSON.parse(get.stdout) as ClusterObject, request);
   const r = await run(
     [
       "kubectl",
@@ -298,4 +311,112 @@ export async function scaleCluster(name: string, request: ScaleRequest): Promise
     { env: kubeEnv(), timeoutMs: 20_000 },
   );
   if (!r.ok) throw new Error(`kubectl patch cluster failed: ${execError(r)}`);
+}
+
+// Provider controllers whose logs narrate a cluster's bring-up, by label.
+const CONTROLLERS: { source: string; namespace: string; deployment: string }[] = [
+  { source: "capn", namespace: "capn-system", deployment: "capn-controller-manager" },
+  { source: "capi", namespace: "capi-system", deployment: "capi-controller-manager" },
+  {
+    source: "control-plane",
+    namespace: "capi-kubeadm-control-plane-system",
+    deployment: "capi-kubeadm-control-plane-controller-manager",
+  },
+  {
+    source: "bootstrap",
+    namespace: "capi-kubeadm-bootstrap-system",
+    deployment: "capi-kubeadm-bootstrap-controller-manager",
+  },
+];
+
+// CAPI objects a cluster owns, i.e. whose Events belong to its activity.
+const CLUSTER_OBJECT_KINDS =
+  "kubeadmcontrolplanes,machinedeployments,machinesets,machines,lxcmachines,lxcclusters,kubeadmconfigs,machinehealthchecks";
+const LOG_TAIL_LINES = 4000;
+const ACTIVITY_TTL_MS = 3_000;
+const activityCache = new Map<string, { at: number; entries: ActivityEntry[] }>();
+
+/**
+ * The cluster's activity since `since` (its creation, so an older cluster of
+ * the same name does not bleed in): Events on its objects plus the provider
+ * controllers' log lines about it. Several browsers polling the same cluster
+ * share one read for a few seconds.
+ */
+export async function getClusterActivity(
+  name: string,
+  since: Date,
+  limit: number,
+): Promise<ActivityEntry[]> {
+  const key = `${name}@${since.toISOString()}`;
+  const cached = activityCache.get(key);
+  if (cached && Date.now() - cached.at < ACTIVITY_TTL_MS) {
+    return cached.entries.slice(-limit);
+  }
+
+  const opts = { env: kubeEnv(), timeoutMs: 15_000 };
+  const [objects, events, ...logs] = await Promise.all([
+    run(
+      [
+        "kubectl",
+        "get",
+        CLUSTER_OBJECT_KINDS,
+        "-n",
+        WORKLOAD_NAMESPACE,
+        "-l",
+        `cluster.x-k8s.io/cluster-name=${name}`,
+        "-o",
+        "name",
+      ],
+      opts,
+    ),
+    run(["kubectl", "get", "events", "-n", WORKLOAD_NAMESPACE, "-o", "json"], opts),
+    ...CONTROLLERS.map((c) =>
+      run(
+        [
+          "kubectl",
+          "logs",
+          "-n",
+          c.namespace,
+          `deployment/${c.deployment}`,
+          `--since-time=${since.toISOString()}`,
+          `--tail=${String(LOG_TAIL_LINES)}`,
+        ],
+        opts,
+      ),
+    ),
+  ]);
+
+  const names = new Set([name]);
+  if (objects.ok) {
+    for (const line of objects.stdout.split("\n")) {
+      const slash = line.indexOf("/");
+      if (slash > 0) names.add(line.slice(slash + 1).trim());
+    }
+  } else {
+    log.warn(`activity ${name}: listing cluster objects: ${execError(objects)}`);
+  }
+
+  const sets: ActivityEntry[][] = [];
+  if (events.ok) {
+    sets.push(eventActivity(JSON.parse(events.stdout) as K8sEventList, names, since));
+  } else {
+    log.warn(`activity ${name}: kubectl get events: ${execError(events)}`);
+  }
+  const clusterRef = `${WORKLOAD_NAMESPACE}/${name}`;
+  const now = new Date();
+  CONTROLLERS.forEach((c, i) => {
+    const r = logs[i];
+    if (!r?.ok) {
+      if (r) log.warn(`activity ${name}: ${c.deployment} logs: ${execError(r)}`);
+      return;
+    }
+    sets.push(logActivity(r.stdout.split("\n"), c.source, clusterRef, since, now));
+  });
+
+  const entries = mergeActivity(sets, 500);
+  activityCache.set(key, { at: Date.now(), entries });
+  for (const [k, v] of activityCache) {
+    if (Date.now() - v.at > 60_000) activityCache.delete(k);
+  }
+  return entries.slice(-limit);
 }

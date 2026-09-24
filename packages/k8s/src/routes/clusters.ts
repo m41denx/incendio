@@ -4,7 +4,9 @@ import { z } from "zod";
 import { env } from "../env.ts";
 import { FLAVORS } from "../constants.ts";
 import { TemplateVariables } from "../lib/template-vars.ts";
-import { ScaleBody } from "../lib/scale.ts";
+import { ClusterPatchBody, PatchRejected } from "../lib/cluster-patch.ts";
+import { customImageError } from "../lib/upgrade.ts";
+import { nextStatus } from "../lib/lifecycle.ts";
 import {
   createProject,
   deleteProject,
@@ -18,8 +20,9 @@ import {
   applyIdentitySecret,
   capnReady,
   deleteClusterCrd,
+  getClusterActivity,
   getKubeconfig,
-  scaleCluster,
+  patchCluster,
   generateCluster,
   getLiveStatuses,
   kubectlApply,
@@ -48,11 +51,32 @@ const CreateClusterBody = z.object({
   variables: TemplateVariables.default({}),
 });
 
-/** Map a live CAPI cluster phase/availability to our cache status enum. */
-function statusFromLive(live: LiveStatus): ClusterStatus {
-  if (live.available) return "ready";
-  if (live.phase === "Failed") return "error";
-  return "provisioning";
+/** Keep the cache's desired counts and version in step with the CAPI topology. */
+function syncDesired(record: ClusterView, live: LiveStatus): ClusterView {
+  const cp = live.controlPlaneDesired ?? record.controlPlaneCount;
+  const workers = live.workerDesired ?? record.workerCount;
+  const version = live.version ?? record.kubernetesVersion;
+  if (
+    cp === record.controlPlaneCount &&
+    workers === record.workerCount &&
+    version === record.kubernetesVersion
+  ) {
+    return record;
+  }
+  return (
+    clusterRepo.setDesired(record.name, {
+      controlPlaneCount: cp,
+      workerCount: workers,
+      kubernetesVersion: version,
+    }) ?? record
+  );
+}
+
+/** Status from the live CRDs, persisted so the next read knows the history. */
+function syncStatus(record: ClusterView, live: LiveStatus): ClusterStatus {
+  const status = nextStatus(record.status, live);
+  if (status !== record.status) clusterRepo.setStatus(record.name, status);
+  return status;
 }
 
 /**
@@ -60,26 +84,10 @@ function statusFromLive(live: LiveStatus): ClusterStatus {
  * are readable the status becomes CRD-sourced (and the cache is refreshed so
  * subsequent reads agree); otherwise the cached value is returned as-is.
  */
-/** Keep the cache's desired counts in step with the CAPI topology. */
-function syncDesired(record: ClusterView, live: LiveStatus): ClusterView {
-  const cp = live.controlPlaneDesired ?? record.controlPlaneCount;
-  const workers = live.workerDesired ?? record.workerCount;
-  if (cp === record.controlPlaneCount && workers === record.workerCount) {
-    return record;
-  }
-  return (
-    clusterRepo.setCounts(record.name, {
-      controlPlaneCount: cp,
-      workerCount: workers,
-    }) ?? record
-  );
-}
-
 function enrich(cached: ClusterView, live: LiveStatus | undefined) {
   if (!live) return { ...cached, source: "cache" as const };
   const record = syncDesired(cached, live);
-  const status = statusFromLive(live);
-  if (status !== record.status) clusterRepo.setStatus(record.name, status);
+  const status = syncStatus(record, live);
   return {
     ...record,
     status,
@@ -87,6 +95,7 @@ function enrich(cached: ClusterView, live: LiveStatus | undefined) {
     phase: live.phase,
     message: live.message,
     endpoint: live.endpoint,
+    rollout: live.rollout,
     controlPlaneReady: live.controlPlaneReady,
     workerReady: live.workerReady,
   };
@@ -98,8 +107,7 @@ function liveStatusView(
   live: LiveStatus,
 ): ClusterStatusView {
   const record = syncDesired(cached, live);
-  const status = statusFromLive(live);
-  if (status !== record.status) clusterRepo.setStatus(record.name, status);
+  const status = syncStatus(record, live);
   return {
     name: record.name,
     status,
@@ -111,6 +119,8 @@ function liveStatusView(
     },
     workers: { desired: record.workerCount, ready: live.workerReady },
     phase: live.phase,
+    version: live.version,
+    rollout: live.rollout,
     message: live.message,
     endpoint: live.endpoint,
     machines: live.machines,
@@ -320,9 +330,9 @@ export const clusterRoutes = new Elysia({ prefix: "/v1/clusters" })
       },
     },
   )
-  .patch(
-    "/:name",
-    async ({ params, body, set }) => {
+  .get(
+    "/:name/activity",
+    async ({ params, query, set }) => {
       const record = clusterRepo.getByName(params.name);
       if (!record) {
         set.status = 404;
@@ -332,35 +342,90 @@ export const clusterRoutes = new Elysia({ prefix: "/v1/clusters" })
         set.status = 503;
         return {
           error: "management cluster not ready",
-          detail: "the CAPN controller is not available; cannot scale now",
+          detail: "the CAPN controller is not available; activity cannot be read now",
         };
       }
       try {
-        await scaleCluster(params.name, body);
+        // A little before creation: the first controller lines can precede
+        // the cache row, which is written once the manifest is applied.
+        const since = new Date(new Date(record.createdAt).getTime() - 120_000);
+        const entries = await getClusterActivity(params.name, since, query.limit);
+        return { name: params.name, entries };
       } catch (error) {
         const detail = incusErrorDetail(error);
-        log.error(`scale cluster '${params.name}': ${detail}`);
+        log.error(`activity '${params.name}': ${detail}`);
         set.status = 502;
-        return { error: "failed to scale cluster", detail };
+        return { error: "failed to read cluster activity", detail };
       }
-      const updated = clusterRepo.setCounts(params.name, body) ?? record;
-      if (updated.status === "ready") {
-        clusterRepo.setStatus(params.name, "provisioning");
+    },
+    {
+      query: z.object({
+        limit: z.coerce.number().int().min(1).max(500).default(200),
+      }),
+      detail: {
+        summary:
+          "Provisioning activity: Events on the cluster's CAPI objects and the provider controllers' log lines about it, oldest first",
+        tags: ["clusters"],
+        security: [{ bearerAuth: [] }],
+      },
+    },
+  )
+  .patch(
+    "/:name",
+    async ({ params, body, set }) => {
+      const record = clusterRepo.getByName(params.name);
+      if (!record) {
+        set.status = 404;
+        return { error: "not found" };
       }
-      auditRepo.record(
-        "cluster.scale",
-        `name=${params.name} cp=${body.controlPlaneCount ?? "-"} workers=${body.workerCount ?? "-"}`,
-      );
-      log.info(
-        `scale cluster '${params.name}': cp=${body.controlPlaneCount ?? "unchanged"} workers=${body.workerCount ?? "unchanged"}`,
-      );
+      if (body.kubernetesVersion !== undefined) {
+        const spec = record.spec as { variables?: Record<string, string> } | null;
+        const blocked = customImageError(spec?.variables);
+        if (blocked) {
+          set.status = 400;
+          return { error: "cannot upgrade cluster", detail: blocked };
+        }
+      }
+      if (!(await capnReady())) {
+        set.status = 503;
+        return {
+          error: "management cluster not ready",
+          detail: "the CAPN controller is not available; cannot change the cluster now",
+        };
+      }
+      try {
+        await patchCluster(params.name, body);
+      } catch (error) {
+        const detail = error instanceof PatchRejected ? error.message : incusErrorDetail(error);
+        log.error(`update cluster '${params.name}': ${detail}`);
+        set.status = error instanceof PatchRejected ? 400 : 502;
+        return { error: "failed to update cluster", detail };
+      }
+      const updated = clusterRepo.setDesired(params.name, body) ?? record;
+      // Show the rollout right away; the next status read confirms it from
+      // the CRDs. A cluster still coming up stays "provisioning".
+      if (updated.status === "ready" || updated.status === "scaling" || updated.status === "upgrading") {
+        clusterRepo.setStatus(
+          params.name,
+          body.kubernetesVersion !== undefined ? "upgrading" : "scaling",
+        );
+      }
+      const changes = [
+        body.kubernetesVersion ? `version=${body.kubernetesVersion}` : null,
+        body.controlPlaneCount !== undefined ? `cp=${String(body.controlPlaneCount)}` : null,
+        body.workerCount !== undefined ? `workers=${String(body.workerCount)}` : null,
+      ]
+        .filter(Boolean)
+        .join(" ");
+      auditRepo.record("cluster.update", `name=${params.name} ${changes}`);
+      log.info(`update cluster '${params.name}': ${changes}`);
       return clusterRepo.getByName(params.name) ?? updated;
     },
     {
-      body: ScaleBody,
+      body: ClusterPatchBody,
       detail: {
         summary:
-          "Scale a cluster: patch control-plane / worker replicas in its CAPI topology",
+          "Update a cluster: patch control-plane / worker replicas and/or the Kubernetes version in its CAPI topology",
         tags: ["clusters"],
         security: [{ bearerAuth: [] }],
       },

@@ -108,19 +108,26 @@ export const clusterRepo = {
     return row ? toView(row) : undefined;
   },
 
-  /** Mirror desired replica counts (CAPI topology stays authoritative). */
-  setCounts(
+  /** Mirror desired replicas/version (CAPI topology stays authoritative). */
+  setDesired(
     name: string,
-    counts: { controlPlaneCount?: number; workerCount?: number },
+    desired: {
+      controlPlaneCount?: number;
+      workerCount?: number;
+      kubernetesVersion?: string;
+    },
   ): ClusterView | undefined {
     const row = db
       .update(clusters)
       .set({
-        ...(counts.controlPlaneCount !== undefined
-          ? { cpCount: counts.controlPlaneCount }
+        ...(desired.controlPlaneCount !== undefined
+          ? { cpCount: desired.controlPlaneCount }
           : {}),
-        ...(counts.workerCount !== undefined
-          ? { workerCount: counts.workerCount }
+        ...(desired.workerCount !== undefined
+          ? { workerCount: desired.workerCount }
+          : {}),
+        ...(desired.kubernetesVersion !== undefined
+          ? { k8sVersion: desired.kubernetesVersion }
           : {}),
         updatedAt: new Date().toISOString(),
       })
@@ -169,6 +176,9 @@ export interface ClusterStatusView {
   workers: { desired: number; ready: number | null };
   // Live-only fields (source "crd"); absent when served from the cache.
   phase?: string;
+  /** Target Kubernetes version (spec.topology.version). */
+  version?: string;
+  rollout?: "upgrading" | "scaling";
   message?: string;
   endpoint?: string;
   machines?: MachineStatus[];

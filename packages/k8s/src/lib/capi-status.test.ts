@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { summarizeLive } from "./capi-status.ts";
+import { detectRollout, summarizeLive, type MachineStatus } from "./capi-status.ts";
 
 const CP_LABEL = { "cluster.x-k8s.io/cluster-name": "c1", "cluster.x-k8s.io/control-plane": "" };
 const MD_LABEL = { "cluster.x-k8s.io/cluster-name": "c1", "cluster.x-k8s.io/deployment-name": "c1-md-0" };
@@ -105,5 +105,68 @@ describe("summarizeLive", () => {
     const live = summarizeLive(clusters, { items: [] }).get("c1");
     expect(live?.controlPlaneDesired).toBe(3);
     expect(live?.workerDesired).toBe(2);
+  });
+});
+
+describe("detectRollout", () => {
+  const cluster = (conditions: { type: string; status: string }[] = []) => ({
+    spec: {
+      topology: {
+        version: "v1.37.0",
+        controlPlane: { replicas: 1 },
+        workers: { machineDeployments: [{ name: "md-0", replicas: 1 }] },
+      },
+    },
+    status: { conditions },
+  });
+  const m = (
+    role: MachineStatus["role"],
+    over: Partial<MachineStatus> = {},
+  ): MachineStatus => ({
+    name: `${role}-x`,
+    role,
+    phase: "Running",
+    ready: true,
+    version: "v1.37.0",
+    ...over,
+  });
+
+  it("is quiet when machines match the topology", () => {
+    expect(detectRollout(cluster(), [m("control-plane"), m("worker")])).toBeUndefined();
+  });
+
+  it("is upgrading while a machine runs another version", () => {
+    expect(
+      detectRollout(cluster(), [m("control-plane"), m("worker", { version: "v1.36.4" })]),
+    ).toBe("upgrading");
+  });
+
+  it("is scaling while machine counts differ from the desired replicas", () => {
+    expect(detectRollout(cluster(), [m("control-plane")])).toBe("scaling");
+  });
+
+  it("is scaling while a new machine is still joining", () => {
+    // CAPI's ScalingUp is already False here: the machine exists.
+    expect(
+      detectRollout(cluster([{ type: "ScalingUp", status: "False" }]), [
+        m("control-plane"),
+        m("worker", { phase: "Provisioned", ready: false }),
+      ]),
+    ).toBe("scaling");
+  });
+
+  it("follows CAPI's ScalingDown condition", () => {
+    expect(
+      detectRollout(cluster([{ type: "ScalingDown", status: "True" }]), [
+        m("control-plane"),
+        m("worker"),
+      ]),
+    ).toBe("scaling");
+  });
+
+  it("does not call a joined but NotReady node a rollout", () => {
+    expect(
+      detectRollout(cluster(), [m("control-plane"), m("worker", { ready: false })]),
+    ).toBeUndefined();
   });
 });

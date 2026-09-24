@@ -7,19 +7,22 @@ import { z } from "zod";
  * instances. Pure helpers so the patch is unit-tested.
  */
 
+/** Replica fields, shared with the combined PATCH body (cluster-patch.ts). */
+export const scaleFields = {
+  // Odd only: etcd needs a majority, so 2 or 4 members tolerate no more
+  // failures than 1 or 3 while adding a way to lose quorum.
+  controlPlaneCount: z
+    .number()
+    .int()
+    .min(1)
+    .max(9)
+    .refine((n) => n % 2 === 1, "control plane count must be odd (1, 3, 5...)")
+    .optional(),
+  workerCount: z.number().int().min(0).max(100).optional(),
+};
+
 export const ScaleBody = z
-  .object({
-    // Odd only: etcd needs a majority, so 2 or 4 members tolerate no more
-    // failures than 1 or 3 while adding a way to lose quorum.
-    controlPlaneCount: z
-      .number()
-      .int()
-      .min(1)
-      .max(9)
-      .refine((n) => n % 2 === 1, "control plane count must be odd (1, 3, 5...)")
-      .optional(),
-    workerCount: z.number().int().min(0).max(100).optional(),
-  })
+  .object(scaleFields)
   .refine(
     (b) => b.controlPlaneCount !== undefined || b.workerCount !== undefined,
     "set controlPlaneCount and/or workerCount",
@@ -28,6 +31,7 @@ export const ScaleBody = z
 export type ScaleRequest = z.infer<typeof ScaleBody>;
 
 export interface Topology {
+  version?: string;
   controlPlane?: { replicas?: number };
   workers?: { machineDeployments?: { name?: string; replicas?: number }[] };
 }
@@ -37,7 +41,7 @@ export interface ClusterObject {
 }
 
 export type JsonPatchOp =
-  | { op: "add"; path: string; value: number }
+  | { op: "add" | "replace"; path: string; value: number | string }
   | { op: "test"; path: string; value: string };
 
 /**

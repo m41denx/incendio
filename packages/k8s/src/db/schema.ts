@@ -9,13 +9,15 @@ import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
  * sqlite as a second source of truth.
  */
 
-// Cluster provisioning lifecycle as reflected in the local cache. Real state is
-// derived from CRD conditions once CAPN is wired; until then it tracks the
-// project-stamp step the agent performs.
+// Cluster lifecycle as reflected in the local cache, derived from the CRDs on
+// every read (lib/lifecycle.ts). "scaling"/"upgrading" are day-2 rollouts of a
+// cluster that has been ready before; the first bring-up is "provisioning".
 export const CLUSTER_STATUSES = [
   "pending",
   "provisioning",
   "ready",
+  "scaling",
+  "upgrading",
   "error",
 ] as const;
 export type ClusterStatus = (typeof CLUSTER_STATUSES)[number];

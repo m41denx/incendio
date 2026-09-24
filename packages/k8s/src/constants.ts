@@ -1,6 +1,10 @@
+import pkg from "../package.json" with { type: "json" };
+
+// package.json is the single source of the agent version: build-release.sh
+// stamps it into the release manifest the UI compares against.
 export const AGENT = {
   name: "incendio-k8s-agent",
-  version: "0.0.1",
+  version: pkg.version,
   apiVersion: "v1",
 } as const;
 

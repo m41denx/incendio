@@ -24,6 +24,9 @@ export const infoRoutes = new Elysia()
         // live probe of the CAPN controller in the mgmt k3s cluster — true
         // only when the agent can actually generate|apply workload clusters.
         capn: await capnReady(),
+        // Day-2 features the UI gates on (absent on older agents).
+        upgrade: true,
+        activity: true,
         operator: true,
         projects: true,
         flavors: FLAVORS,

@@ -28,6 +28,9 @@ export interface MachineStatus {
   message?: string;
 }
 
+/** A day-2 change CAPI is rolling out on an established cluster. */
+export type Rollout = "upgrading" | "scaling";
+
 export interface LiveStatus {
   phase: string;
   available: boolean;
@@ -40,6 +43,10 @@ export interface LiveStatus {
   message?: string;
   /** Workload cluster API server, from spec.controlPlaneEndpoint. */
   endpoint?: string;
+  /** Target Kubernetes version (spec.topology.version). */
+  version?: string;
+  /** What CAPI is changing right now, if anything. */
+  rollout?: Rollout;
   conditions: CapiCondition[];
   machines: MachineStatus[];
 }
@@ -91,6 +98,48 @@ function toMachine(m: K8sObject): MachineStatus {
   };
 }
 
+// Machine phases between "asked for" and "joined" (or on the way out).
+const TRANSITIONAL_PHASES = new Set([
+  "Pending",
+  "Provisioning",
+  "Provisioned",
+  "Deleting",
+]);
+
+const isTrue = (obj: K8sObject, type: string): boolean =>
+  condition(obj, type)?.status === "True";
+
+/**
+ * Upgrading while any machine still runs a version other than the topology's
+ * (CAPI replaces control-plane machines first, then workers). Scaling while
+ * CAPI says so, machine counts differ from the desired replicas, or a machine
+ * is still joining or leaving. Machine phases cover the tail CAPI's ScalingUp
+ * misses: it turns False once the machine exists, long before kubeadm joins it.
+ */
+export function detectRollout(
+  cluster: K8sObject,
+  machines: MachineStatus[],
+): Rollout | undefined {
+  const target = cluster.spec?.topology?.version;
+  if (target && machines.some((m) => m.version && m.version !== target)) {
+    return "upgrading";
+  }
+  if (isTrue(cluster, "ScalingUp") || isTrue(cluster, "ScalingDown")) {
+    return "scaling";
+  }
+  const desired = desiredCounts(cluster);
+  const controlPlane = machines.filter((m) => m.role === "control-plane").length;
+  const workers = machines.length - controlPlane;
+  if (desired.controlPlane !== undefined && controlPlane !== desired.controlPlane) {
+    return "scaling";
+  }
+  if (desired.workers !== undefined && workers !== desired.workers) {
+    return "scaling";
+  }
+  if (machines.some((m) => TRANSITIONAL_PHASES.has(m.phase))) return "scaling";
+  return undefined;
+}
+
 /**
  * Live status for every workload cluster, keyed by name. A machine counts as
  * ready on CAPI's Ready condition — phase "Running" only means its instance is
@@ -133,6 +182,8 @@ export function summarizeLive(
       endpoint: endpoint?.host
         ? `https://${endpoint.host}:${endpoint.port ?? 6443}`
         : undefined,
+      version: c.spec?.topology?.version,
+      rollout: detectRollout(c, list),
       conditions: c.status?.conditions ?? [],
       machines: list,
     });
