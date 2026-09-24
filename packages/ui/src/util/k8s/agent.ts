@@ -18,6 +18,9 @@ export interface AgentInfo {
     projects?: boolean;
     flavors: string[];
     roles?: string[];
+    // Day-2 features; absent on agents older than 0.2.0.
+    upgrade?: boolean;
+    activity?: boolean;
   };
   incus: { apiUrl: string; configured: boolean };
   // SHA-256 fingerprint ("sha256:<hex>") of the agent's self-signed serving

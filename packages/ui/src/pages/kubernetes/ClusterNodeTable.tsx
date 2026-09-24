@@ -3,6 +3,7 @@ import { Icon, MainTable } from "@canonical/react-components";
 import ResourceLink from "components/ResourceLink";
 import InstanceStatusIcon from "pages/instances/InstanceStatusIcon";
 import InstanceIps from "pages/instances/InstanceIps";
+import NodeLogBtn from "pages/kubernetes/NodeLogBtn";
 import { ROOT_PATH } from "util/rootPath";
 import type { ClusterNode } from "util/k8s/clusterNodes";
 import type { BootstrapDiagnosis } from "util/k8s/bootstrap";
@@ -83,6 +84,9 @@ const ClusterNodeTable: FC<Props> = ({
     ...(showNode ? [{ content: "Kubernetes node" }] : []),
     { content: "IPv4" },
     ...(showNode ? [{ content: "Version" }] : []),
+    ...(showNode
+      ? [{ content: "", "aria-label": "Actions", className: "u-align--right" }]
+      : []),
   ];
 
   const rows = nodes.map((node) => {
@@ -133,6 +137,20 @@ const ClusterNodeTable: FC<Props> = ({
           ),
         },
         ...(showNode ? [{ content: node.machine?.version ?? "-" }] : []),
+        ...(showNode
+          ? [
+              {
+                content:
+                  node.instance?.status === "Running" && instanceProject ? (
+                    <NodeLogBtn
+                      project={instanceProject}
+                      instance={node.name}
+                    />
+                  ) : null,
+                className: "u-align--right",
+              },
+            ]
+          : []),
       ],
     };
   });

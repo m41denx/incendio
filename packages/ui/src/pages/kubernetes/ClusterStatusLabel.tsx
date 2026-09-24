@@ -4,6 +4,8 @@ import { Icon } from "@canonical/react-components";
 const STATUS_ICON: Record<string, string> = {
   ready: "status-succeeded-small",
   provisioning: "status-in-progress-small",
+  scaling: "status-in-progress-small",
+  upgrading: "status-in-progress-small",
   pending: "status-waiting-small",
   error: "status-failed-small",
   deleting: "status-in-progress-small",

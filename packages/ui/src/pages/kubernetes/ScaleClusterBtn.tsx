@@ -10,7 +10,7 @@ import {
   usePortal,
   useToastNotification,
 } from "@canonical/react-components";
-import { useScaleK8sCluster } from "pages/kubernetes/useK8sClusters";
+import { usePatchK8sCluster } from "pages/kubernetes/useK8sClusters";
 
 // Odd sizes only: etcd needs a majority, so an even member count adds a way to
 // lose quorum without tolerating any extra failure.
@@ -31,7 +31,7 @@ const ScaleClusterModal: FC<ModalProps> = ({
   onClose,
 }) => {
   const toastNotify = useToastNotification();
-  const scale = useScaleK8sCluster(name);
+  const scale = usePatchK8sCluster(name);
   const [controlPlane, setControlPlane] = useState(controlPlaneCount);
   const [workers, setWorkers] = useState(String(workerCount));
 

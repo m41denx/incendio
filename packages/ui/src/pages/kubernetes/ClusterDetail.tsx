@@ -24,6 +24,9 @@ import ClusterStatusLabel from "pages/kubernetes/ClusterStatusLabel";
 import ClusterNodeTable from "pages/kubernetes/ClusterNodeTable";
 import DeleteClusterBtn from "pages/kubernetes/DeleteClusterBtn";
 import ScaleClusterBtn from "pages/kubernetes/ScaleClusterBtn";
+import UpgradeClusterBtn from "pages/kubernetes/UpgradeClusterBtn";
+import ClusterActivity from "pages/kubernetes/ClusterActivity";
+import { runningVersion } from "util/k8s/upgrade";
 import { useNodeBootstrap } from "pages/kubernetes/useNodeBootstrap";
 import ClusterKubeconfig from "pages/kubernetes/ClusterKubeconfig";
 import { useK8sManagement } from "pages/kubernetes/useK8sManagement";
@@ -105,6 +108,9 @@ const ClusterDetail: FC = () => {
   }
 
   const clusterStatus = status?.status ?? record.status;
+  const targetVersion = status?.version ?? record.kubernetesVersion;
+  const nodeVersion = runningVersion(status?.machines ?? []);
+  const capabilities = info?.capabilities;
 
   return (
     <CustomLayout
@@ -124,6 +130,12 @@ const ClusterDetail: FC = () => {
                 name={name}
                 controlPlaneCount={record.controlPlaneCount}
                 workerCount={record.workerCount}
+              />
+              <UpgradeClusterBtn
+                name={name}
+                version={targetVersion}
+                status={clusterStatus}
+                supported={capabilities?.upgrade === true}
               />
               <DeleteClusterBtn
                 name={name}
@@ -190,7 +202,19 @@ const ClusterDetail: FC = () => {
               </tr>
               <tr>
                 <th className="u-text--muted">Kubernetes version</th>
-                <td>{record.kubernetesVersion}</td>
+                <td>
+                  {nodeVersion && nodeVersion !== targetVersion ? (
+                    <>
+                      {nodeVersion} → {targetVersion}
+                      <span className="u-text--muted">
+                        {" "}
+                        · nodes are being replaced
+                      </span>
+                    </>
+                  ) : (
+                    targetVersion
+                  )}
+                </td>
               </tr>
               <tr>
                 <th className="u-text--muted">API endpoint</th>
@@ -301,6 +325,19 @@ const ClusterDetail: FC = () => {
           </Col>
         </Row>
       ) : null}
+
+      <Row>
+        <Col size={3}>
+          <h2 className="p-heading--5">Activity</h2>
+        </Col>
+        <Col size={9}>
+          <ClusterActivity
+            name={name}
+            status={clusterStatus}
+            supported={capabilities?.activity === true}
+          />
+        </Col>
+      </Row>
 
       {status && status.conditions.length > 0 ? (
         <Row>

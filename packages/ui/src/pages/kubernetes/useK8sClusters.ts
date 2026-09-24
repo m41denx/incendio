@@ -32,6 +32,8 @@ export interface K8sClusterRecord {
   message?: string;
   // Workload cluster API server (https://host:port).
   endpoint?: string;
+  // A day-2 change CAPI is rolling out (status is then scaling/upgrading).
+  rollout?: "upgrading" | "scaling";
   controlPlaneReady?: number;
   workerReady?: number;
   createdAt: string;
@@ -78,6 +80,9 @@ export interface K8sClusterStatus {
   controlPlane: { desired: number; ready: number | null };
   workers: { desired: number; ready: number | null };
   phase?: string;
+  /** Target Kubernetes version (the CAPI topology's). */
+  version?: string;
+  rollout?: "upgrading" | "scaling";
   message?: string;
   endpoint?: string;
   machines?: K8sMachine[];
@@ -150,19 +155,20 @@ export const useCreateK8sCluster = (): UseMutationResult<
   });
 };
 
-export interface K8sScaleRequest {
+export interface K8sClusterPatch {
   controlPlaneCount?: number;
   workerCount?: number;
+  kubernetesVersion?: string;
 }
 
-/** PATCH /v1/clusters/:name — edits replicas in the CAPI topology. */
-export const useScaleK8sCluster = (
+/** PATCH /v1/clusters/:name — edits replicas/version in the CAPI topology. */
+export const usePatchK8sCluster = (
   name: string,
-): UseMutationResult<K8sClusterRecord, Error, K8sScaleRequest> => {
+): UseMutationResult<K8sClusterRecord, Error, K8sClusterPatch> => {
   const queryClient = useQueryClient();
   const config = useAgentConfig();
   return useMutation({
-    mutationFn: async (request: K8sScaleRequest) =>
+    mutationFn: async (request: K8sClusterPatch) =>
       agentRequest<K8sClusterRecord>(
         config,
         `/v1/clusters/${encodeURIComponent(name)}`,
@@ -171,6 +177,40 @@ export const useScaleK8sCluster = (
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: CLUSTERS_KEY });
     },
+  });
+};
+
+export interface K8sActivityEntry {
+  /** First occurrence. */
+  time: string;
+  /** Latest repeat, when count > 1. */
+  lastTime?: string;
+  level: "info" | "warning" | "error";
+  /** "event" or the controller that logged it (capn, capi, control-plane, bootstrap). */
+  source: string;
+  object?: string;
+  message: string;
+  count: number;
+}
+
+/** GET /v1/clusters/:name/activity — Events + controller log lines, oldest first. */
+export const useK8sClusterActivity = (
+  name: string,
+  enabled: boolean,
+  refetchInterval: number,
+): UseQueryResult<K8sActivityEntry[]> => {
+  const config = useAgentConfig();
+  return useQuery({
+    queryKey: [...CLUSTERS_KEY, config.url, name, "activity"],
+    queryFn: async () => {
+      const result = await agentRequest<{ entries: K8sActivityEntry[] }>(
+        config,
+        `/v1/clusters/${encodeURIComponent(name)}/activity?limit=300`,
+      );
+      return result.entries;
+    },
+    enabled: enabled && config.url.length > 0 && name.length > 0,
+    refetchInterval,
   });
 };
 
