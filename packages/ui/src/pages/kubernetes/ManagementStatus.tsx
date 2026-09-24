@@ -6,6 +6,7 @@ import {
   useToastNotification,
 } from "@canonical/react-components";
 import type { K8sManagement } from "pages/kubernetes/useK8sManagement";
+import { useAgentUpdate } from "pages/kubernetes/useAgentUpdate";
 import { managementSteps, type StepStatus } from "util/k8s/management";
 
 const STEP_ICON: Record<StepStatus, string> = {
@@ -24,6 +25,11 @@ const ManagementStatus: FC<Props> = ({ management }) => {
   const { state, config, info, container, log, trustAppliance } = management;
   const toastNotify = useToastNotification();
   const [trusting, setTrusting] = useState(false);
+  const agentUpdate = useAgentUpdate(
+    container?.status === "Running",
+    info,
+    config.url,
+  );
 
   const trust = () => {
     setTrusting(true);
@@ -39,6 +45,17 @@ const ManagementStatus: FC<Props> = ({ management }) => {
       .finally(() => {
         setTrusting(false);
       });
+  };
+  const installUpdate = () => {
+    const version = agentUpdate.latest?.version ?? "";
+    agentUpdate.update.mutate(undefined, {
+      onSuccess: () => {
+        toastNotify.success(`Kubernetes agent updated to ${version}.`);
+      },
+      onError: (error) => {
+        toastNotify.failure("Updating the Kubernetes agent failed", error);
+      },
+    });
   };
   const address = container?.state?.network
     ? Object.entries(container.state.network)
@@ -94,6 +111,24 @@ const ManagementStatus: FC<Props> = ({ management }) => {
           </>
         ) : null}
       </p>
+      {info && agentUpdate.available && agentUpdate.latest ? (
+        <Notification severity="information" title="Agent update available">
+          <p>
+            Version <strong>{agentUpdate.latest.version}</strong> of the
+            Kubernetes agent is available (this appliance runs {info.version}).
+            The appliance downloads it, checks its checksum and restarts the
+            agent; clusters keep running meanwhile.
+          </p>
+          <ActionButton
+            appearance="positive"
+            loading={agentUpdate.update.isPending}
+            disabled={agentUpdate.update.isPending}
+            onClick={installUpdate}
+          >
+            Update agent
+          </ActionButton>
+        </Notification>
+      ) : null}
       {log && state.stage !== "ready" ? (
         <>
           <h3 className="p-heading--5">Bootstrap log</h3>
