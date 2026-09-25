@@ -1,6 +1,7 @@
 import { useState, type FC } from "react";
 import {
   ActionButton,
+  ConfirmationButton,
   Icon,
   Notification,
   useToastNotification,
@@ -54,6 +55,16 @@ const ManagementStatus: FC<Props> = ({ management }) => {
       },
       onError: (error) => {
         toastNotify.failure("Updating the Kubernetes agent failed", error);
+      },
+    });
+  };
+  const rollBack = () => {
+    agentUpdate.rollback.mutate(undefined, {
+      onSuccess: () => {
+        toastNotify.success("Kubernetes agent rolled back.");
+      },
+      onError: (error) => {
+        toastNotify.failure("Rolling back the Kubernetes agent failed", error);
       },
     });
   };
@@ -111,6 +122,31 @@ const ManagementStatus: FC<Props> = ({ management }) => {
           </>
         ) : null}
       </p>
+      {info && agentUpdate.canRollback ? (
+        <ConfirmationButton
+          appearance="base"
+          className="u-no-margin--bottom"
+          loading={agentUpdate.rollback.isPending}
+          disabled={
+            agentUpdate.rollback.isPending || agentUpdate.update.isPending
+          }
+          onHoverText="Go back to the agent binary the last update replaced"
+          confirmationModalProps={{
+            title: "Roll back the Kubernetes agent",
+            children: (
+              <p>
+                The appliance swaps the running agent ({info.version}) with the
+                binary the last update replaced and restarts it. Clusters keep
+                running. Rolling back again returns to {info.version}.
+              </p>
+            ),
+            confirmButtonLabel: "Roll back",
+            onConfirm: rollBack,
+          }}
+        >
+          Roll back agent
+        </ConfirmationButton>
+      ) : null}
       {info && agentUpdate.available && agentUpdate.latest ? (
         <Notification severity="information" title="Agent update available">
           <p>

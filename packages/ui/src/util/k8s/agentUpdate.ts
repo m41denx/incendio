@@ -103,3 +103,17 @@ systemctl restart ${AGENT_SERVICE}
 echo "updated to ${manifest.version}"
 `;
 };
+
+/**
+ * Swap the running binary with the one the last update kept (.prev) and
+ * restart. A swap, so rolling back twice returns to where you started.
+ */
+export const buildAgentRollbackScript = (): string => `set -eu
+test -x ${AGENT_BIN}.prev || { echo "no previous agent binary to roll back to" >&2; exit 1; }
+cp -f ${AGENT_BIN}.prev ${AGENT_BIN}.rollback
+chmod 0755 ${AGENT_BIN}.rollback
+mv -f ${AGENT_BIN} ${AGENT_BIN}.prev
+mv -f ${AGENT_BIN}.rollback ${AGENT_BIN}
+systemctl restart ${AGENT_SERVICE}
+echo "rolled back"
+`;

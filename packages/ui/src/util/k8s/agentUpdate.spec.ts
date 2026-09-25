@@ -1,4 +1,5 @@
 import {
+  buildAgentRollbackScript,
   buildAgentUpdateScript,
   compareAgentVersions,
   isAgentUpdateAvailable,
@@ -74,6 +75,26 @@ describe("buildAgentUpdateScript", () => {
     expect(script).toContain(
       "cp -f /usr/local/bin/incendio-k8s /usr/local/bin/incendio-k8s.prev",
     );
+    expect(script).toMatch(/systemctl restart incendio-k8s\n/);
+  });
+});
+
+describe("buildAgentRollbackScript", () => {
+  const script = buildAgentRollbackScript();
+
+  it("refuses without a previous binary", () => {
+    expect(script).toContain("test -x /usr/local/bin/incendio-k8s.prev ||");
+  });
+
+  it("swaps the binaries, so a second rollback undoes the first", () => {
+    const current = script.indexOf(
+      "mv -f /usr/local/bin/incendio-k8s /usr/local/bin/incendio-k8s.prev",
+    );
+    const previous = script.indexOf(
+      "mv -f /usr/local/bin/incendio-k8s.rollback /usr/local/bin/incendio-k8s",
+    );
+    expect(current).toBeGreaterThan(-1);
+    expect(previous).toBeGreaterThan(current);
     expect(script).toMatch(/systemctl restart incendio-k8s\n/);
   });
 });

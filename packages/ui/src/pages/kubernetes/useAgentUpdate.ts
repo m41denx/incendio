@@ -7,6 +7,8 @@ import {
 import { fetchAgentInfo, type AgentInfo } from "util/k8s/agent";
 import { APPLIANCE_NAME, MGMT_PROJECT } from "util/k8s/appliance";
 import {
+  AGENT_BIN,
+  buildAgentRollbackScript,
   buildAgentUpdateScript,
   isAgentUpdateAvailable,
   manifestCheckCommand,
@@ -14,6 +16,7 @@ import {
   type AgentManifest,
 } from "util/k8s/agentUpdate";
 import { execInInstance, type ExecResult } from "util/k8s/instanceExec";
+import { instanceFileExists } from "util/k8s/instanceFiles";
 import { MANAGEMENT_KEY } from "pages/kubernetes/useK8sManagement";
 
 const RESTART_TIMEOUT_MS = 60_000;
@@ -31,19 +34,23 @@ const runInAppliance = async (command: string[]): Promise<string> => {
   return result.stdout;
 };
 
-/** Wait for the restarted agent to answer with the new version. */
-const waitForVersion = async (url: string, version: string): Promise<void> => {
+/**
+ * Wait for the restarted agent to answer, as `version` when given. Throws
+ * with where to look if it does not come back.
+ */
+const waitForAgent = async (url: string, version?: string): Promise<void> => {
   const deadline = Date.now() + RESTART_TIMEOUT_MS;
   while (Date.now() < deadline) {
     try {
-      if ((await fetchAgentInfo(url)).version === version) return;
+      const info = await fetchAgentInfo(url);
+      if (version === undefined || info.version === version) return;
     } catch {
       // Restarting: not listening yet.
     }
     await new Promise((resolve) => setTimeout(resolve, 2_000));
   }
   throw new Error(
-    `the agent did not come back as ${version} within ${String(RESTART_TIMEOUT_MS / 1000)}s; check \`journalctl -u incendio-k8s\` in the appliance (the previous binary is kept as /usr/local/bin/incendio-k8s.prev)`,
+    `the agent did not come back${version ? ` as ${version}` : ""} within ${String(RESTART_TIMEOUT_MS / 1000)}s; check \`journalctl -u incendio-k8s\` in the appliance (the other binary is kept as ${AGENT_BIN}.prev)`,
   );
 };
 
@@ -53,6 +60,9 @@ export interface AgentUpdate {
   checkError: Error | null;
   available: boolean;
   update: UseMutationResult<void, Error, void>;
+  /** The last update kept the binary it replaced, so it can be restored. */
+  canRollback: boolean;
+  rollback: UseMutationResult<void, Error, void>;
 }
 
 export const useAgentUpdate = (
@@ -75,7 +85,25 @@ export const useAgentUpdate = (
     mutationFn: async () => {
       if (!latest) throw new Error("no agent release to install");
       await runInAppliance(["sh", "-c", buildAgentUpdateScript(latest)]);
-      await waitForVersion(agentUrl, latest.version);
+      await waitForAgent(agentUrl, latest.version);
+    },
+    onSettled: async () => {
+      await queryClient.invalidateQueries({ queryKey: MANAGEMENT_KEY });
+    },
+  });
+
+  const { data: canRollback = false } = useQuery({
+    queryKey: [...MANAGEMENT_KEY, "agent-previous"],
+    queryFn: async () =>
+      instanceFileExists(MGMT_PROJECT, APPLIANCE_NAME, `${AGENT_BIN}.prev`),
+    enabled: running,
+    retry: false,
+  });
+
+  const rollback = useMutation({
+    mutationFn: async () => {
+      await runInAppliance(["sh", "-c", buildAgentRollbackScript()]);
+      await waitForAgent(agentUrl);
     },
     onSettled: async () => {
       await queryClient.invalidateQueries({ queryKey: MANAGEMENT_KEY });
@@ -84,6 +112,8 @@ export const useAgentUpdate = (
 
   return {
     latest,
+    canRollback,
+    rollback,
     checkError,
     available: isAgentUpdateAvailable(info?.version, latest?.version),
     update,
