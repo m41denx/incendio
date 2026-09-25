@@ -10,7 +10,8 @@ Works in the browser (same-origin, like the Incendio UI) and in Node/Bun (mTLS o
 | `@incendio/api` | **Humane client** — objects with methods; actions wait for their operations |
 | `@incendio/api/api` | **API client** — stateless 1:1 wrapper over the REST endpoints |
 | `@incendio/api/types` | Every API type, generated from Incus's Go structs |
-| `@incendio/api/node` | Node/Bun transport: mTLS agent, unix socket, `ws` websockets |
+| `@incendio/api/k8s` | **Kubernetes** — management appliance + clusters through the Incendio agent |
+| `@incendio/api/node` | Node/Bun transport: mTLS, certificate pinning, unix socket, `ws` websockets |
 
 ### 🤗 Humane client `@incendio/api`
 
@@ -146,6 +147,58 @@ here: it flattens embedding and doesn't record which fields are optional.
 INCUS_SRC=~/refs/incus bun run generate-types
 ```
 
+### ☸️ Kubernetes `@incendio/api/k8s`
+
+Provisions Kubernetes clusters on Incus the way the UI's Kubernetes pages do: through the Incendio
+agent running in the management appliance (single-node k3s + Cluster API + CAPN).
+
+```ts
+import { createIncusClient } from "@incendio/api";
+import { createK8sClient } from "@incendio/api/k8s";
+import { nodeK8sOptions, nodeTransport } from "@incendio/api/node";
+
+const k8s = createK8sClient(createIncusClient(nodeTransport()), nodeK8sOptions);
+
+// Deploys the appliance if there is none, then waits until clusters can be created
+// (first boot takes several minutes: k3s, Cluster API and CAPN are installed).
+await k8s.ensureManagement({ onStage: (s) => console.log(s.title) });
+
+const cluster = await k8s.createCluster(
+  {
+    name: "demo",
+    kubernetesVersion: "v1.37.0",            // default: newest prebuilt kubeadm image
+    controlPlane: { count: 1, flavor: { cpu: 2, memoryGiB: 4 } },
+    workers: { count: 2, flavor: "c2-m4", type: "vm" },
+    loadBalancer: { type: "lxc" },           // or kube-vip / ovn / oci
+  },
+  { onProgress: (s) => console.log(s.status, s.phase, s.message) },
+);                                            // resolves when the cluster is ready
+
+writeFileSync("demo.kubeconfig", await cluster.kubeconfig());
+
+await cluster.scale({ workers: 3 });
+await cluster.upgrade();                      // next allowed version (one minor at a time)
+for (const node of await cluster.nodes()) console.log(node.role, node.name, node.machine?.phase);
+await cluster.delete();                       // machines, load balancer and the Incus project
+```
+
+- `ClusterSpec` produces the same CAPN template variables as the UI's create form, with the same
+  defaults: 1 control plane and 1 worker (`c2-m4` containers), flannel, and an LXC haproxy load
+  balancer. A unit test compares the two builders. Control planes too small for kubeadm are rejected
+  before anything is created.
+- `waitUntilReady()` watches nodes that never join and fails fast with kubeadm's error (for example
+  `[ERROR NumCPU]`) as a `K8sBootstrapError`, instead of waiting for the timeout.
+- `k8s.appliance` covers the management appliance: `deploy()`, `state()` (the UI's staged
+  checklist), `waitUntilReady()`, `trust()`, `bootstrapLog()`, and `handle()`/`agent()`. The agent
+  URL and token live in Incus server config (`user.k8s.api-config`), shared with the UI.
+- **TLS:** the agent serves a self-signed certificate. In Node, `nodeK8sOptions` pins it by
+  fingerprint. The fingerprint is read from inside the appliance over the authenticated Incus API,
+  so the first connection doesn't have to be taken on trust. Browsers verify the certificate
+  themselves: approve it once, as in the UI.
+- Deploying without `credentials` generates the agent's Incus client certificate. That needs the
+  optional `node-forge` peer dependency.
+- `K8sAgentClient` is the raw `/v1` client, if you want the agent API without the helpers.
+
 ## 🔌 Connecting
 
 **Browser (Incendio UI):** `createIncusClient()` talks to the page origin. The browser handles the
@@ -161,13 +214,13 @@ import { readFileSync } from "node:fs";
 // Local daemon over the unix socket ($INCUS_SOCKET, $INCUS_DIR, /var/lib/incus/unix.socket)
 const local = createIncusClient(nodeTransport());
 
-// Remote daemon with a trusted client certificate
+// Remote daemon with a trusted client certificate, pinning its self-signed server certificate
 const remote = createIncusClient({
   ...nodeTransport({
     url: "https://incus.example.com:8443",
     cert: readFileSync("client.crt"),
     key: readFileSync("client.key"),
-    ca: readFileSync("server.crt"), // or insecure: true
+    serverCert: readFileSync("server.crt", "utf8"), // PEM or "sha256:<hex>" fingerprint
   }),
   project: "default",
 });
@@ -175,6 +228,10 @@ const remote = createIncusClient({
 // OIDC bearer token
 const oidc = createIncusClient({ url: "https://incus.example.com:8443", token: accessToken });
 ```
+
+Incus serves a self-signed certificate whose names usually don't include the address you dial, so
+use `serverCert`, which pins the certificate by fingerprint, as `incus remote add` does. `ca` is only
+for daemons with a CA-issued certificate.
 
 `IncusClientOptions` also accepts `requester` (your own axios instance), `axios` (extra axios
 defaults), `websocket` (a custom connector) and `timeout`.
@@ -188,6 +245,9 @@ bun run build             # tsup → dist (esm + cjs + d.ts)
 
 # Integration tests against a real daemon. They create and delete a throwaway project and container.
 sudo -E bun test test/integration   # INCUS_IMAGE=<fingerprint> INCUS_POOL=<pool> optional
+# k8s.test.ts checks an existing management appliance read-only (skipped without one).
+# INCENDIO_K8S_E2E=1 also creates, waits for and deletes a 1-node cluster (~10 min).
+# https.test.ts runs with INCUS_TEST_URL + INCUS_TEST_CLIENT_CERT/KEY (CI sets them up).
 ```
 
 Layout follows [Pelican.ts](https://github.com/m41denx/Pelican.ts):
@@ -199,6 +259,7 @@ src/
     base/           transport, envelope handling, shared collection classes
     types/          generated API types
   humane/           object-oriented wrappers
+  k8s/              Kubernetes: agent client, appliance, clusters, spec builder
   node.ts           Node transport
   types.ts          types entry
 scripts/generate-types.ts

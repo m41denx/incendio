@@ -5,6 +5,7 @@ export default defineConfig({
     index: "src/index.ts",
     api: "src/api/index.ts",
     node: "src/node.ts",
+    k8s: "src/k8s/index.ts",
     types: "src/types.ts",
   },
   format: ["esm", "cjs"],
@@ -12,5 +13,5 @@ export default defineConfig({
   clean: true,
   sourcemap: true,
   target: "es2022",
-  external: ["axios", "ws"],
+  external: ["axios", "ws", "node-forge"],
 });
