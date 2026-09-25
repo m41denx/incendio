@@ -236,11 +236,42 @@ Deltas from the plan above, learned while bringing the appliance up for real:
 - **Capabilities:** `/v1/info` advertises `upgrade` and `activity`; the UI
   disables those features (with a hint to update the agent) on older agents.
 
+## 11a. Service load balancer — MetalLB (0.22-p15, agent 0.3.0)
+
+- **Why not a ClusterResourceSet** (how flannel ships): MetalLB's
+  `IPAddressPool` can only be created once its CRDs and validating webhook are
+  up, and a CRS cannot wait for that. The agent applies MetalLB itself with the
+  workload cluster's admin kubeconfig (a temp file, removed afterwards):
+  `kubectl apply -f metallb-native.yaml` (pinned `METALLB_VERSION`, default
+  v0.16.0; `METALLB_MANIFEST_URL` for a mirror) → wait for the controller and
+  speaker rollouts → apply the `incendio` IPAddressPool + L2Advertisement,
+  retrying until the webhook answers. Installs/removals run as in-memory jobs.
+- **API:** `GET|PUT|DELETE /v1/clusters/:name/metallb` (state absent / waiting /
+  installing / installed / removing / failed, pool, LoadBalancer services with
+  their external IPs) and `GET /v1/clusters/metallb-hint[?cluster=]` (the
+  network the nodes use and a free block on it). `POST /v1/clusters` takes
+  `metallb: {addresses}`; it is kept in the cluster's spec and installed when
+  the cluster first becomes ready — or on the next status read if the agent
+  restarted in between. `/v1/info` advertises `metallb`.
+- **Addresses:** L2 mode, so the pool must be on the nodes' Incus network (the
+  agent rejects addresses outside its subnet, and overlaps with another
+  cluster's pool). The hint picks the highest free block of 20, avoiding the
+  gateway, `ipv4.dhcp.ranges`, `ipv4.ovn.ranges`, every lease (asked per
+  project — the leases API ignores `all-projects`) and other clusters' pools,
+  and warns when the network has no DHCP range (dnsmasq could then lease
+  them). Services are reachable from the Incus host and other instances on
+  that network; exposing them beyond a NAT bridge needs an Incus network
+  forward.
+- Live-checked: MetalLB v0.16.0 installed on an existing cluster in ~45 s, an
+  nginx `LoadBalancer` service got the first pool address and answered from
+  the host; a cluster created with the option got MetalLB once it was ready.
+
 ## 12. Ideas (not built yet)
 
 Ranked by how soon a user runs into the gap.
 
-1. **LoadBalancer services (MetalLB add-on).** CAPN's haproxy only fronts the
+1. ~~**LoadBalancer services (MetalLB add-on).**~~ Built in 0.22-p15 (§11a).
+   CAPN's haproxy only fronts the
    workload cluster's kube-apiserver; there is no service load-balancer
    controller, so `type: LoadBalancer` services stay `<pending>` forever
    (`NodePort` works). Add a create-form option + an IP range (free addresses

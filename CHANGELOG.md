@@ -1,3 +1,8 @@
+## 0.22-p15
+## What's Changed
+### ✨ New Features
+- (feat) Kubernetes: **LoadBalancer services** — install MetalLB when creating a cluster or later from its page, and Services of type LoadBalancer get an external IP instead of staying pending. Incendio suggests a free address range on the cluster's Incus network (away from DHCP, leases and other clusters' ranges) and the cluster page lists every LoadBalancer service with its address; the range can be changed and MetalLB removed again. Needs Kubernetes agent 0.3.0 (update it from the Management appliance tab)
+
 ## 0.22-p14
 ## What's Changed
 ### ✨ New Features
