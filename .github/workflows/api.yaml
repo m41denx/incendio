@@ -35,7 +35,9 @@ permissions:
   contents: read
 
 concurrency:
-  group: api-${{ github.ref }}
+  # github.workflow is the caller's name when reused, so a publish run's test
+  # suite doesn't cancel (or get cancelled by) a regular run on the same ref.
+  group: api-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
