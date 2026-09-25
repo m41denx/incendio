@@ -240,6 +240,18 @@ the websocket opens. Node checks every socket. REST calls are pinned per connect
 `IncusClientOptions` also accepts `requester` (your own axios instance), `axios` (extra axios
 defaults), `websocket` (a custom connector) and `timeout`.
 
+## 🚀 Releasing
+
+Publishing to npm is automated by `.github/workflows/api-publish.yaml`, using npm trusted publishing
+(OIDC, with provenance and no token secret):
+
+1. Bump `version` in `packages/api/package.json`.
+2. Push an annotated tag `api-v<version>` (e.g. `api-v0.2.0`).
+
+The workflow runs the full test suite (including live Incus), builds, checks the tarball contents and
+publishes. Pre-release versions (`0.2.0-rc.1`) go to the `next` dist-tag. Pushes that change the
+workflow itself, and manual runs, are dry runs.
+
 ## 🧪 Development
 
 ```sh

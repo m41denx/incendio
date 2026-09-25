@@ -1,0 +1,131 @@
+name: Publish API SDK
+
+# Publishes @incendio/api to npm when an `api-v<version>` tag is pushed, e.g.
+#   git tag -a api-v0.1.0 -m "@incendio/api 0.1.0" && git push origin api-v0.1.0
+# The tag must match packages/api/package.json. Pre-releases (0.2.0-rc.1) go
+# to the `next` dist-tag, everything else to `latest`.
+#
+# Auth is npm trusted publishing (OIDC): no token secret. On npmjs.com, the
+# package's trusted publisher must be repo m41denx/incendio, workflow
+# `api-publish.yaml`. Provenance is attached automatically.
+#
+# Anything other than an api-v* tag is a dry run (test, build, pack — no
+# publish), including pushes that change this workflow.
+on:
+  push:
+    tags:
+      - "api-v*"
+    branches:
+      - "**"
+    paths:
+      - ".github/workflows/api-publish.yaml"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Build and pack only (no publish)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: api-publish
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Test
+    uses: ./.github/workflows/api.yaml
+
+  publish:
+    name: Publish to npm
+    needs: test
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write # npm trusted publishing + provenance
+    defaults:
+      run:
+        working-directory: packages/api
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.2"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Update npm (trusted publishing needs >= 11.5.1)
+        run: npm install -g npm@latest && npm --version
+
+      - name: Resolve version and dist-tag
+        id: version
+        env:
+          DISPATCH_DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          pkg_version=$(node -p "require('./package.json').version")
+          # Only an api-v* tag publishes (a dispatch on a tag can still ask for a dry run).
+          DRY_RUN=true
+          if [ "${GITHUB_REF_TYPE}" = "tag" ] && [ "${DISPATCH_DRY_RUN}" != "true" ]; then
+            DRY_RUN=false
+          fi
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            tag_version="${GITHUB_REF_NAME#api-v}"
+            if [ "$tag_version" != "$pkg_version" ]; then
+              echo "::error::Tag ${GITHUB_REF_NAME} does not match packages/api/package.json version ${pkg_version}"
+              exit 1
+            fi
+          fi
+          case "$pkg_version" in
+            *-*) dist_tag=next ;;
+            *) dist_tag=latest ;;
+          esac
+          if npm view "@incendio/api@${pkg_version}" version >/dev/null 2>&1; then
+            echo "::error::@incendio/api@${pkg_version} is already published; bump the version"
+            exit 1
+          fi
+          {
+            echo "version=$pkg_version"
+            echo "dist_tag=$dist_tag"
+            echo "dry_run=$DRY_RUN"
+          } >> "$GITHUB_OUTPUT"
+          echo "Publishing @incendio/api@${pkg_version} as '${dist_tag}' (dry run: $DRY_RUN)"
+
+      - name: Install dependencies
+        working-directory: .
+        run: bun install --frozen-lockfile
+
+      - name: Build
+        run: bun run build
+
+      - name: Check package contents
+        run: |
+          npm pack --dry-run 2>&1 | tee pack.txt
+          # Ship only the build, README and package.json.
+          if grep -E "npm notice [0-9.]+[kMG]?B +(src|test|scripts)/" pack.txt; then
+            echo "::error::Sources leaked into the package"
+            exit 1
+          fi
+          grep -q "dist/index.js" pack.txt
+          grep -q "dist/k8s.js" pack.txt
+
+      - name: Publish
+        if: steps.version.outputs.dry_run != 'true'
+        run: npm publish --access public --tag "${{ steps.version.outputs.dist_tag }}"
+
+      - name: Summary
+        run: |
+          if [ "${{ steps.version.outputs.dry_run }}" = "true" ]; then
+            echo "Dry run: @incendio/api@${{ steps.version.outputs.version }} built and packed, not published." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Published [@incendio/api@${{ steps.version.outputs.version }}](https://www.npmjs.com/package/@incendio/api/v/${{ steps.version.outputs.version }}) as \`${{ steps.version.outputs.dist_tag }}\`." >> "$GITHUB_STEP_SUMMARY"
+          fi

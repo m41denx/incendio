@@ -3,6 +3,25 @@
   "version": "0.1.0",
   "description": "TypeScript SDK for the Incus REST API",
   "license": "LGPL-3.0-only",
+  "keywords": [
+    "incus",
+    "lxc",
+    "containers",
+    "virtual-machines",
+    "kubernetes",
+    "sdk",
+    "api",
+    "incendio"
+  ],
+  "homepage": "https://github.com/m41denx/incendio/tree/incus-port/packages/api#readme",
+  "bugs": {
+    "url": "https://github.com/m41denx/incendio/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/m41denx/incendio.git",
+    "directory": "packages/api"
+  },
   "type": "module",
   "sideEffects": false,
   "main": "./dist/index.cjs",
@@ -38,13 +57,21 @@
   "files": [
     "dist"
   ],
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
     "build": "tsup",
     "generate-types": "bun run scripts/generate-types.ts",
     "lint": "tsc --noEmit",
     "format": "prettier 'src/**/*.ts' 'test/**/*.ts' 'scripts/**/*.ts' --write",
     "test": "bun test test/unit",
-    "test:integration": "bun test test/integration"
+    "test:integration": "bun test test/integration",
+    "prepublishOnly": "tsup"
   },
   "dependencies": {
     "axios": "^1.20.0"

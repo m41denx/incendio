@@ -4,6 +4,10 @@ name: API SDK
 # against a real Incus daemon installed on the runner.
 on:
   push:
+    # Branches only: path filters don't apply to tag pushes, so without this
+    # every tag would run the suite (api-v* tags run it via api-publish.yaml).
+    branches:
+      - "**"
     paths:
       - "packages/api/**"
       - "package.json"
@@ -19,6 +23,12 @@ on:
     inputs:
       incus_channel:
         description: "Zabbly Incus channel (stable, lts-6.0)"
+        default: "stable"
+  # Reused by api-publish.yaml so nothing is published without a green suite.
+  workflow_call:
+    inputs:
+      incus_channel:
+        type: string
         default: "stable"
 
 permissions:
