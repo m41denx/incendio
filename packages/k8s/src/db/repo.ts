@@ -137,6 +137,17 @@ export const clusterRepo = {
     return row ? toView(row) : undefined;
   },
 
+  /** Replace the stored create-spec (e.g. the requested MetalLB addresses). */
+  setSpec(name: string, spec: unknown): ClusterView | undefined {
+    const row = db
+      .update(clusters)
+      .set({ specJson: JSON.stringify(spec), updatedAt: new Date().toISOString() })
+      .where(eq(clusters.name, name))
+      .returning()
+      .get();
+    return row ? toView(row) : undefined;
+  },
+
   deleteByName(name: string): boolean {
     const row = db
       .delete(clusters)

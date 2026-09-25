@@ -7,6 +7,16 @@ import { TemplateVariables } from "../lib/template-vars.ts";
 import { ClusterPatchBody, PatchRejected } from "../lib/cluster-patch.ts";
 import { customImageError } from "../lib/upgrade.ts";
 import { nextStatus } from "../lib/lifecycle.ts";
+import { MetalLBBody, outsideSubnet, overlapping } from "../lib/metallb.ts";
+import {
+  forgetJob,
+  hasKubeconfig,
+  metallbStatus,
+  NoKubeconfigError,
+  startInstall,
+  startRemove,
+} from "../lib/metallb-ops.ts";
+import { metallbNetworkHint } from "../lib/network-hint.ts";
 import {
   createProject,
   deleteProject,
@@ -49,7 +59,35 @@ const CreateClusterBody = z.object({
   project: z.string().optional(),
   // Every other form option, as CAPN template variables (unknown keys → 400).
   variables: TemplateVariables.default({}),
+  // Install MetalLB with these addresses once the cluster is first ready.
+  metallb: MetalLBBody.optional(),
 });
+
+/** MetalLB addresses the cluster should have (create option or later PUT). */
+function wantedMetalLB(record: ClusterView): string[] | undefined {
+  const spec = record.spec as { metallb?: { addresses?: string[] } } | null;
+  return spec?.metallb?.addresses;
+}
+
+/** Every other cluster's MetalLB pool, with the owning cluster's name. */
+function otherPools(except: string | undefined): { cluster: string; addresses: string[] }[] {
+  return clusterRepo
+    .list()
+    .filter((c) => c.name !== except)
+    .map((c) => ({ cluster: c.name, addresses: wantedMetalLB(c) ?? [] }))
+    .filter((p) => p.addresses.length > 0);
+}
+
+/** Why `addresses` would collide with another cluster's pool, or null. */
+function poolConflict(addresses: string[], except: string | undefined): string | null {
+  for (const pool of otherPools(except)) {
+    const clash = overlapping(addresses, pool.addresses);
+    if (clash.length > 0) {
+      return `${clash.join(", ")} overlaps the MetalLB pool of cluster ${pool.cluster} (${pool.addresses.join(", ")})`;
+    }
+  }
+  return null;
+}
 
 /** Keep the cache's desired counts and version in step with the CAPI topology. */
 function syncDesired(record: ClusterView, live: LiveStatus): ClusterView {
@@ -75,7 +113,14 @@ function syncDesired(record: ClusterView, live: LiveStatus): ClusterView {
 /** Status from the live CRDs, persisted so the next read knows the history. */
 function syncStatus(record: ClusterView, live: LiveStatus): ClusterStatus {
   const status = nextStatus(record.status, live);
-  if (status !== record.status) clusterRepo.setStatus(record.name, status);
+  if (status !== record.status) {
+    clusterRepo.setStatus(record.name, status);
+    // First time ready: install the add-ons requested at create time.
+    const addresses = wantedMetalLB(record);
+    if (status === "ready" && (record.status === "pending" || record.status === "provisioning") && addresses) {
+      startInstall(record.name, addresses);
+    }
+  }
   return status;
 }
 
@@ -177,6 +222,13 @@ export const clusterRoutes = new Elysia({ prefix: "/v1/clusters" })
         return { error: "cluster already exists", name: body.name };
       }
       const project = body.project ?? suggestProjectName("workload", body.name);
+      if (body.metallb) {
+        const conflict = poolConflict(body.metallb.addresses, body.name);
+        if (conflict) {
+          set.status = 409;
+          return { error: "MetalLB addresses already in use", detail: conflict };
+        }
+      }
       const secretName = secretNameFor(body.name);
       log.info(
         `create cluster: name=${body.name} project=${project} k8s=${body.kubernetesVersion} cp=${body.controlPlaneCount} workers=${body.workerCount} lb=${env.LOAD_BALANCER_TYPE}`,
@@ -244,6 +296,30 @@ export const clusterRoutes = new Elysia({ prefix: "/v1/clusters" })
       detail: {
         summary:
           "Create a cluster: stamp the Incus project, then clusterctl generate | kubectl apply the CAPN manifest",
+        tags: ["clusters"],
+        security: [{ bearerAuth: [] }],
+      },
+    },
+  )
+  .get(
+    "/metallb-hint",
+    async ({ query, set }) => {
+      try {
+        const record = query.cluster ? clusterRepo.getByName(query.cluster) : undefined;
+        return await metallbNetworkHint(
+          record?.project ?? null,
+          otherPools(query.cluster).flatMap((p) => p.addresses),
+        );
+      } catch (error) {
+        set.status = 502;
+        return { error: "failed to read the cluster network", detail: incusErrorDetail(error) };
+      }
+    },
+    {
+      query: z.object({ cluster: z.string().optional() }),
+      detail: {
+        summary:
+          "The Incus network a (new or existing) cluster uses and a free address block on it for MetalLB",
         tags: ["clusters"],
         security: [{ bearerAuth: [] }],
       },
@@ -370,6 +446,123 @@ export const clusterRoutes = new Elysia({ prefix: "/v1/clusters" })
       },
     },
   )
+  .get(
+    "/:name/metallb",
+    async ({ params, set }) => {
+      const record = clusterRepo.getByName(params.name);
+      if (!record) {
+        set.status = 404;
+        return { error: "not found" };
+      }
+      const wanted = wantedMetalLB(record);
+      try {
+        const status = await metallbStatus(params.name);
+        // Requested but missing (agent restarted mid-install, or the cluster
+        // came up while nobody was polling): install it now.
+        if (status.state === "absent" && wanted && record.status === "ready") {
+          startInstall(params.name, wanted);
+          return { ...status, state: "installing", requested: wanted };
+        }
+        return { ...status, requested: wanted ?? null };
+      } catch (error) {
+        if (error instanceof NoKubeconfigError) {
+          // Control plane not initialized yet: a create-time request waits.
+          // (Not the cached status: a cluster that was ready and is briefly
+          // unavailable still has MetalLB to report.)
+          return {
+            state: wanted ? "waiting" : "absent",
+            addresses: [],
+            services: [],
+            requested: wanted ?? null,
+          };
+        }
+        const detail = incusErrorDetail(error);
+        set.status = 502;
+        return { error: "failed to read MetalLB status", detail };
+      }
+    },
+    {
+      detail: {
+        summary: "MetalLB in the workload cluster: state, address pool, LoadBalancer services",
+        tags: ["clusters"],
+        security: [{ bearerAuth: [] }],
+      },
+    },
+  )
+  .put(
+    "/:name/metallb",
+    async ({ params, body, set }) => {
+      const record = clusterRepo.getByName(params.name);
+      if (!record) {
+        set.status = 404;
+        return { error: "not found" };
+      }
+      if (!(await hasKubeconfig(params.name))) {
+        set.status = 409;
+        return {
+          error: "cluster not initialized",
+          detail: "MetalLB can be installed once the control plane is up",
+        };
+      }
+      const conflict = poolConflict(body.addresses, params.name);
+      if (conflict) {
+        set.status = 409;
+        return { error: "addresses already in use", detail: conflict };
+      }
+      try {
+        const hint = await metallbNetworkHint(record.project);
+        const outside = outsideSubnet(body.addresses, hint.cidr);
+        if (outside.length > 0) {
+          set.status = 400;
+          return {
+            error: "addresses outside the cluster network",
+            detail: `${outside.join(", ")} not in ${hint.subnet} (network ${hint.network}); MetalLB's L2 mode can only announce addresses on the nodes' network`,
+          };
+        }
+      } catch (error) {
+        log.warn(`metallb ${params.name}: network check skipped: ${incusErrorDetail(error)}`);
+      }
+      const spec = (record.spec ?? {}) as Record<string, unknown>;
+      clusterRepo.setSpec(params.name, { ...spec, metallb: body });
+      forgetJob(params.name);
+      startInstall(params.name, body.addresses);
+      auditRepo.record("cluster.metallb", `name=${params.name} addresses=${body.addresses.join(",")}`);
+      set.status = 202;
+      return { state: "installing", requested: body.addresses };
+    },
+    {
+      body: MetalLBBody,
+      detail: {
+        summary: "Install MetalLB (or change its address pool) in the workload cluster",
+        tags: ["clusters"],
+        security: [{ bearerAuth: [] }],
+      },
+    },
+  )
+  .delete(
+    "/:name/metallb",
+    ({ params, set }) => {
+      const record = clusterRepo.getByName(params.name);
+      if (!record) {
+        set.status = 404;
+        return { error: "not found" };
+      }
+      const { metallb: _removed, ...spec } = (record.spec ?? {}) as Record<string, unknown>;
+      clusterRepo.setSpec(params.name, spec);
+      forgetJob(params.name);
+      startRemove(params.name);
+      auditRepo.record("cluster.metallb.remove", `name=${params.name}`);
+      set.status = 202;
+      return { state: "removing" };
+    },
+    {
+      detail: {
+        summary: "Remove MetalLB from the workload cluster",
+        tags: ["clusters"],
+        security: [{ bearerAuth: [] }],
+      },
+    },
+  )
   .patch(
     "/:name",
     async ({ params, body, set }) => {
@@ -459,6 +652,7 @@ export const clusterRoutes = new Elysia({ prefix: "/v1/clusters" })
         return { error: "failed to delete cluster", detail };
       }
       clusterRepo.deleteByName(params.name);
+      forgetJob(params.name);
       auditRepo.record(
         "cluster.delete",
         `name=${params.name} project=${record.project ?? ""}`,

@@ -46,6 +46,11 @@ export const env = createEnv({
     // Incus API when unset.
     WORKLOAD_STORAGE_POOL: z.string().optional(),
     WORKLOAD_NETWORK: z.string().optional(),
+    // MetalLB release installed into workload clusters on request (service
+    // load balancer, L2 mode). The manifest URL overrides the GitHub one,
+    // e.g. for a mirror.
+    METALLB_VERSION: z.string().default("v0.16.0"),
+    METALLB_MANIFEST_URL: z.string().optional(),
     // Path to the agent's sqlite cache/log DB. In the appliance the bootstrap
     // script points this at /opt/incendio; ":memory:" is handy for tests.
     DB_PATH: z.string().default("incendio-k8s.sqlite"),

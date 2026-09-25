@@ -27,6 +27,7 @@ export const infoRoutes = new Elysia()
         // Day-2 features the UI gates on (absent on older agents).
         upgrade: true,
         activity: true,
+        metallb: true,
         operator: true,
         projects: true,
         flavors: FLAVORS,
