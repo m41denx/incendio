@@ -233,6 +233,10 @@ Incus serves a self-signed certificate whose names usually don't include the add
 use `serverCert`, which pins the certificate by fingerprint, as `incus remote add` does. `ca` is only
 for daemons with a CA-issued certificate.
 
+Websockets (events, exec, console) use the same pinning. **Under Bun** there's one caveat: Bun's
+`WebSocket` can't pin a certificate, so the pin is checked on a separate TLS connection just before
+the websocket opens. Node checks every socket. REST calls are pinned per connection in both.
+
 `IncusClientOptions` also accepts `requester` (your own axios instance), `axios` (extra axios
 defaults), `websocket` (a custom connector) and `timeout`.
 

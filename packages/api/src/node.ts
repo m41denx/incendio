@@ -161,22 +161,90 @@ const httpsAgentFor = (opts: NodeTransportOptions): Agent =>
         keepAlive: true,
       });
 
-/** A websocket connector for Node using the `ws` package. */
+const isBun = typeof (globalThis as { Bun?: unknown }).Bun !== "undefined";
+
+/** Connects once and checks the server certificate against a pin. */
+const probePin = (
+  url: URL,
+  fingerprint: string,
+  opts: NodeTransportOptions,
+): Promise<void> =>
+  new Promise((resolve, reject) => {
+    const socket = connect({
+      host: url.hostname,
+      port: Number(url.port || 443),
+      servername: /^[\d.]+$|:/.test(url.hostname) ? undefined : url.hostname,
+      cert: opts.cert,
+      key: opts.key,
+      rejectUnauthorized: false,
+    });
+    socket.once("error", reject);
+    socket.once("secureConnect", () => {
+      const presented = normalizeFingerprint(
+        socket.getPeerCertificate().fingerprint256 ?? "",
+      );
+      socket.end();
+      if (presented === fingerprint) resolve();
+      else {
+        reject(
+          new Error(
+            `Server certificate sha256:${presented} does not match the pinned sha256:${fingerprint}`,
+          ),
+        );
+      }
+    });
+  });
+
+/**
+ * Websocket connector for Node/Bun.
+ *
+ * Node: the `ws` package over the same pinned/mTLS agent as REST calls.
+ * Bun: its `ws` shim ignores custom agents and cannot trust a self-signed
+ * certificate, so the native `WebSocket` is used; it cannot pin either, so
+ * with `serverCert` the pin is checked on a separate TLS connection right
+ * before the websocket connects (weaker than Node's per-socket check).
+ */
 export const nodeWebSocketConnector = (
   opts: NodeTransportOptions = {},
 ): WebSocketConnector => {
+  if (!opts.url) {
+    return async (path) => {
+      const WebSocket = await loadWs();
+      const socket = new WebSocket(
+        `ws+unix://${opts.socket ?? defaultSocketPath()}:${path}`,
+      );
+      socket.binaryType = "arraybuffer";
+      return socket;
+    };
+  }
+  const base = opts.url.replace(/\/+$/, "").replace(/^http/, "ws");
+  if (isBun) {
+    const fingerprint = opts.serverCert
+      ? pinFingerprint(opts.serverCert)
+      : undefined;
+    return async (path) => {
+      if (fingerprint) await probePin(new URL(base), fingerprint, opts);
+      const BunWebSocket = globalThis.WebSocket as unknown as new (
+        url: string,
+        init: { tls: Record<string, unknown> },
+      ) => WebSocketLike;
+      const socket = new BunWebSocket(base + path, {
+        tls: {
+          cert: opts.cert?.toString(),
+          key: opts.key?.toString(),
+          ca: opts.ca?.toString(),
+          rejectUnauthorized: !fingerprint && !opts.insecure,
+        },
+      });
+      socket.binaryType = "arraybuffer";
+      return socket;
+    };
+  }
   // One agent per connector: the pinning check runs on every new socket.
-  const agent = opts.url ? httpsAgentFor(opts) : undefined;
+  const agent = httpsAgentFor(opts);
   return async (path) => {
     const WebSocket = await loadWs();
-    const socket = opts.url
-      ? new WebSocket(
-          opts.url.replace(/\/+$/, "").replace(/^http/, "ws") + path,
-          { agent },
-        )
-      : new WebSocket(
-          `ws+unix://${opts.socket ?? defaultSocketPath()}:${path}`,
-        );
+    const socket = new WebSocket(base + path, { agent });
     socket.binaryType = "arraybuffer";
     return socket;
   };
