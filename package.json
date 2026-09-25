@@ -11,11 +11,13 @@
     "build": "bun run --filter '@incendio/ui' build",
     "build:ui": "bun run --filter '@incendio/ui' build",
     "build:k8s": "bun run --filter '@incendio/k8s' build",
+    "build:api": "bun run --filter '@incendio/api' build",
     "lint-js": "bun run --filter '@incendio/ui' lint-js",
     "lint-scss": "bun run --filter '@incendio/ui' lint-scss",
     "check-circular-deps": "bun run --filter '@incendio/ui' check-circular-deps",
     "format-js": "bun run --filter '@incendio/ui' format-js",
     "test-js": "bun run --filter '@incendio/ui' test-js",
+    "test:api": "bun run --filter '@incendio/api' test",
     "start": "bun run --filter '@incendio/ui' start",
     "hooks-add": "husky",
     "hooks-remove": "git config --unset core.hooksPath || true"
