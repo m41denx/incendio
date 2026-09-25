@@ -26,6 +26,7 @@ import DeleteClusterBtn from "pages/kubernetes/DeleteClusterBtn";
 import ScaleClusterBtn from "pages/kubernetes/ScaleClusterBtn";
 import UpgradeClusterBtn from "pages/kubernetes/UpgradeClusterBtn";
 import ClusterActivity from "pages/kubernetes/ClusterActivity";
+import ClusterMetalLB from "pages/kubernetes/ClusterMetalLB";
 import { runningVersion } from "util/k8s/upgrade";
 import { useNodeBootstrap } from "pages/kubernetes/useNodeBootstrap";
 import ClusterKubeconfig from "pages/kubernetes/ClusterKubeconfig";
@@ -325,6 +326,18 @@ const ClusterDetail: FC = () => {
           </Col>
         </Row>
       ) : null}
+
+      <Row>
+        <Col size={3}>
+          <h2 className="p-heading--5">Load balancer services</h2>
+        </Col>
+        <Col size={9}>
+          <ClusterMetalLB
+            name={name}
+            supported={capabilities?.metallb === true}
+          />
+        </Col>
+      </Row>
 
       <Row>
         <Col size={3}>

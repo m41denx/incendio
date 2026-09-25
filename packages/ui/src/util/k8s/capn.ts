@@ -89,6 +89,11 @@ export interface K8sClusterConfig {
   installKubeadm: boolean;
   podCidr: string;
   serviceCidr: string;
+  // Service load balancer, installed by the agent once the cluster is ready
+  // (not a CAPN variable: absent from the generated artifacts).
+  metallb: boolean;
+  /** Comma-separated IPv4 ranges or CIDRs. */
+  metallbAddresses: string;
 }
 
 export const defaultK8sClusterConfig: K8sClusterConfig = {
@@ -124,6 +129,8 @@ export const defaultK8sClusterConfig: K8sClusterConfig = {
   installKubeadm: false,
   podCidr: "10.244.0.0/16",
   serviceCidr: "10.96.0.0/12",
+  metallb: false,
+  metallbAddresses: "",
 };
 
 export const loadBalancerOptions: { label: string; value: LoadBalancerType }[] =

@@ -71,3 +71,9 @@
   overflow: auto;
   white-space: pre-wrap;
 }
+
+.k8s-cluster-detail .k8s-metallb-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}

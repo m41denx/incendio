@@ -25,7 +25,12 @@ import { useProfiles } from "context/useProfiles";
 import { useClusterMembers } from "context/useClusterMembers";
 import { useClusterGroups } from "context/useClusterGroups";
 import { useIncusCredentials } from "pages/kubernetes/useIncusCredentials";
-import { useCreateK8sCluster } from "pages/kubernetes/useK8sClusters";
+import {
+  useCreateK8sCluster,
+  useK8sMetalLBHint,
+} from "pages/kubernetes/useK8sClusters";
+import MetalLBAddressInput from "pages/kubernetes/MetalLBAddressInput";
+import { metallbAddressesError } from "util/k8s/metallb";
 import { useK8sManagement } from "pages/kubernetes/useK8sManagement";
 import { ROOT_PATH } from "util/rootPath";
 import { downloadText } from "util/k8s/download";
@@ -101,14 +106,22 @@ const KubernetesCreate: FC = () => {
   const toastNotify = useToastNotification();
   const navigate = useNavigate();
   const createCluster = useCreateK8sCluster();
-  const { state: management } = useK8sManagement();
+  const { state: management, info } = useK8sManagement();
   const managementReady = management.stage === "ready";
+  const hasMetalLB = info?.capabilities.metallb === true;
 
   const [active, setActive] = useState<string>(CLUSTER);
   const [config, setConfig] = useState<K8sClusterConfig>(
     defaultK8sClusterConfig,
   );
   const controlPlaneIssue = controlPlaneSizeIssue(config);
+  const { data: metallbHint } = useK8sMetalLBHint(
+    undefined,
+    hasMetalLB && config.metallb,
+  );
+  const metallbError = config.metallb
+    ? metallbAddressesError(config.metallbAddresses)
+    : null;
   const {
     serverUrl,
     setServerUrl,
@@ -512,6 +525,45 @@ const KubernetesCreate: FC = () => {
                     </Col>
                   </Row>
                 ) : null}
+
+                <h3 className="p-heading--5 u-sv1">Service load balancer</h3>
+                {hasMetalLB ? (
+                  <>
+                    <Input
+                      type="checkbox"
+                      label="Install MetalLB"
+                      checked={config.metallb}
+                      help="Gives Services of type LoadBalancer an external IP. Without it they stay pending; NodePort still works. Installed by the Kubernetes agent once the cluster is ready."
+                      onChange={(e) => {
+                        const enable = e.target.checked;
+                        update("metallb", enable);
+                        if (
+                          enable &&
+                          !config.metallbAddresses &&
+                          metallbHint?.range
+                        ) {
+                          update("metallbAddresses", metallbHint.range);
+                        }
+                      }}
+                    />
+                    {config.metallb ? (
+                      <MetalLBAddressInput
+                        id="metallbAddresses"
+                        value={config.metallbAddresses}
+                        hint={metallbHint}
+                        error={metallbError}
+                        onChange={(value) => {
+                          update("metallbAddresses", value);
+                        }}
+                      />
+                    ) : null}
+                  </>
+                ) : (
+                  <p className="u-text--muted">
+                    Update the Kubernetes agent (Kubernetes settings →
+                    Management appliance) to install MetalLB with the cluster.
+                  </p>
+                )}
               </>
             ) : null}
 
@@ -765,12 +817,13 @@ const KubernetesCreate: FC = () => {
           disabled={
             config.clusterName.trim().length === 0 ||
             !managementReady ||
-            controlPlaneIssue !== null
+            controlPlaneIssue !== null ||
+            metallbError !== null
           }
           title={
             !managementReady
               ? management.title
-              : (controlPlaneIssue?.message ?? undefined)
+              : (controlPlaneIssue?.message ?? metallbError ?? undefined)
           }
           onClick={() => {
             createCluster.mutate(config, {

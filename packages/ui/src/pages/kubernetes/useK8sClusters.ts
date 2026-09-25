@@ -147,6 +147,13 @@ export const useCreateK8sCluster = (): UseMutationResult<
           // Every other form option (CNI, flavors, profiles, load balancer,
           // image, CIDRs...) as the same template variables the preview shows.
           variables: buildTemplateVariables(cluster),
+          ...(cluster.metallb
+            ? {
+                metallb: {
+                  addresses: splitAddresses(cluster.metallbAddresses),
+                },
+              }
+            : {}),
         }),
       }),
     onSuccess: async () => {
@@ -211,6 +218,104 @@ export const useK8sClusterActivity = (
     },
     enabled: enabled && config.url.length > 0 && name.length > 0,
     refetchInterval,
+  });
+};
+
+export const splitAddresses = (value: string): string[] =>
+  value
+    .split(/[,\s]+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+export interface K8sLoadBalancerService {
+  namespace: string;
+  name: string;
+  addresses: string[];
+  ports: string[];
+}
+
+export type K8sMetalLBState =
+  | "absent"
+  | "waiting"
+  | "installing"
+  | "installed"
+  | "removing"
+  | "failed";
+
+/** GET /v1/clusters/:name/metallb */
+export interface K8sMetalLB {
+  state: K8sMetalLBState;
+  error?: string;
+  version?: string;
+  /** The agent's pool as installed. */
+  addresses: string[];
+  /** What was asked for (create option or last change). */
+  requested: string[] | null;
+  services: K8sLoadBalancerService[];
+}
+
+const METALLB_BUSY: K8sMetalLBState[] = ["waiting", "installing", "removing"];
+
+export const useK8sMetalLB = (
+  name: string,
+  enabled: boolean,
+): UseQueryResult<K8sMetalLB> => {
+  const config = useAgentConfig();
+  return useQuery({
+    queryKey: [...CLUSTERS_KEY, config.url, name, "metallb"],
+    queryFn: async () =>
+      agentRequest<K8sMetalLB>(
+        config,
+        `/v1/clusters/${encodeURIComponent(name)}/metallb`,
+      ),
+    enabled: enabled && config.url.length > 0 && name.length > 0,
+    refetchInterval: (query) =>
+      query.state.data && METALLB_BUSY.includes(query.state.data.state)
+        ? 5_000
+        : 30_000,
+  });
+};
+
+/** GET /v1/clusters/metallb-hint — the network and a free address block. */
+export interface K8sMetalLBHint {
+  network: string;
+  cidr: string;
+  subnet: string;
+  range: string | null;
+  warning?: string;
+}
+
+export const useK8sMetalLBHint = (
+  cluster: string | undefined,
+  enabled: boolean,
+): UseQueryResult<K8sMetalLBHint> => {
+  const config = useAgentConfig();
+  const query = cluster ? `?cluster=${encodeURIComponent(cluster)}` : "";
+  return useQuery({
+    queryKey: [...CLUSTERS_KEY, config.url, "metallb-hint", cluster ?? ""],
+    queryFn: async () =>
+      agentRequest<K8sMetalLBHint>(config, `/v1/clusters/metallb-hint${query}`),
+    enabled: enabled && config.url.length > 0,
+    staleTime: 60_000,
+    retry: false,
+  });
+};
+
+/** PUT (install / change addresses) or DELETE MetalLB. */
+export const useChangeK8sMetalLB = (
+  name: string,
+): UseMutationResult<unknown, Error, string[] | null> => {
+  const queryClient = useQueryClient();
+  const config = useAgentConfig();
+  return useMutation({
+    mutationFn: async (addresses: string[] | null) =>
+      agentRequest(config, `/v1/clusters/${encodeURIComponent(name)}/metallb`, {
+        method: addresses ? "PUT" : "DELETE",
+        ...(addresses ? { body: JSON.stringify({ addresses }) } : {}),
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: CLUSTERS_KEY });
+    },
   });
 };
 
