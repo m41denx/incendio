@@ -5,6 +5,7 @@ import {
   isDiskDevice,
   isHostDiskDevice,
   isOtherDevice,
+  isTmpfsDisk,
   isVolumeDevice,
 } from "util/devices";
 import type { FormDevice } from "types/formDevice";
@@ -65,6 +66,9 @@ const DeviceListTable: FC<Props> = ({ configBaseURL, devices, location }) => {
 
       if (isHostDiskDevice(device)) {
         deviceType += " (host path)";
+      }
+      if (isTmpfsDisk(device)) {
+        deviceType += " (memory)";
       }
     }
 

@@ -1,7 +1,7 @@
 import type { FC } from "react";
-import { isRootDisk, isHostDiskDevice } from "util/devices";
+import { isRootDisk, isHostDiskDevice, isTmpfsDisk } from "util/devices";
 import type { FormDevice } from "types/formDevice";
-import type { LxdDeviceValue } from "types/device";
+import type { LxdDeviceValue, LxdDiskDevice } from "types/device";
 import ResourceLink from "components/ResourceLink";
 import StoragePoolRichChip from "pages/storage/StoragePoolRichChip";
 import { ROOT_PATH } from "util/rootPath";
@@ -29,6 +29,17 @@ const DeviceDetails: FC<Props> = ({ device, project, location }) => {
 
     if (isHostDiskDevice(device)) {
       return device.source;
+    }
+
+    if (isTmpfsDisk(device)) {
+      const disk = device as LxdDiskDevice;
+      const kind = disk.source === "tmpfs-overlay:" ? "tmpfs overlay" : "tmpfs";
+      return (
+        <>
+          Memory ({kind}
+          {disk.size ? `, ${disk.size}` : ""}) at {disk.path}
+        </>
+      );
     }
 
     return (

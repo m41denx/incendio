@@ -51,9 +51,18 @@ export const isRootDisk = (device: FormDevice): boolean => {
   return device.type === "disk" && device.path === "/" && !device.source;
 };
 
+// In-memory disks (container_disk_tmpfs), containers only.
+export const TMPFS_SOURCES = ["tmpfs:", "tmpfs-overlay:"];
+
+export const isTmpfsDisk = (device: { source?: string }): boolean =>
+  TMPFS_SOURCES.includes(device.source ?? "");
+
 export const isHostDiskDevice = (device: LxdDiskDevice): boolean => {
   return (
-    device.type === "disk" && device.pool === undefined && device.path !== "/"
+    device.type === "disk" &&
+    device.pool === undefined &&
+    device.path !== "/" &&
+    !isTmpfsDisk(device)
   );
 };
 

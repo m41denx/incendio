@@ -15,6 +15,10 @@ export interface LxdDiskDevice {
   "io.bus"?: string;
   "io.cache"?: string;
   wwn?: string;
+  // tmpfs: / tmpfs-overlay: disks (and ownership of created sub-paths)
+  "initial.uid"?: string;
+  "initial.gid"?: string;
+  "initial.mode"?: string;
   type: "disk";
 }
 

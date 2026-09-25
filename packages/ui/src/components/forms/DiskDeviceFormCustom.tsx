@@ -43,11 +43,17 @@ import {
   ISO_VOLUME_PROFILE_NAME,
   ISO_VOLUME_TYPE,
   isRootDisk,
+  isTmpfsDisk,
 } from "util/devices";
 import { isInstanceCreation } from "util/instanceEdit";
 import { ensureEditMode } from "util/editMode";
 import { focusField } from "util/formFields";
 import { getSpecialDiskSourceOptions } from "util/storageVolume";
+
+const TMPFS_SOURCE_OPTIONS = [
+  { label: "tmpfs", value: "tmpfs:" },
+  { label: "tmpfs with overlay", value: "tmpfs-overlay:" },
+];
 import AttachDiskDeviceBtn from "pages/storage/AttachDiskDeviceBtn";
 import type { LxdProfile } from "types/profile";
 import type { LxdStorageVolume } from "types/storage";
@@ -427,10 +433,46 @@ const DiskDeviceFormCustom: FC<Props> = ({ formik, project, profiles }) => {
           override: "",
         });
 
+      const tmpfsDeviceSource = () =>
+        getConfigurationRowBase({
+          className: "no-border-top inherited-with-form",
+          configuration: (
+            <Label forId={`devices.${index}.source`} className="u-text--muted">
+              Memory
+            </Label>
+          ),
+          inherited: readOnly ? (
+            <div className="custom-disk-read-mode">
+              <div className="mono-font custom-disk-value u-truncate">
+                <b>{item.source}</b>
+              </div>
+              {editButton(`devices.${index}.source`)}
+            </div>
+          ) : (
+            <Select
+              id={`devices.${index}.source`}
+              name={`devices.${index}.source`}
+              onChange={(e) => {
+                ensureEditMode(formik);
+                void formik.setFieldValue(
+                  `devices.${index}.source`,
+                  e.target.value,
+                );
+              }}
+              value={item.source}
+              options={TMPFS_SOURCE_OPTIONS}
+              help="Only added while the container is stopped. An overlay keeps what is already at the mount point visible underneath; that path must exist."
+            />
+          ),
+          override: "",
+        });
+
       if (isSpecialDisk(item)) {
         rows.push(specialDiskDeviceSource());
       } else if (isVolumeDevice(item)) {
         rows.push(volumeDeviceSource());
+      } else if (isTmpfsDisk(item)) {
+        rows.push(tmpfsDeviceSource());
       } else {
         rows.push(hostDeviceSource());
       }
@@ -480,6 +522,51 @@ const DiskDeviceFormCustom: FC<Props> = ({ formik, project, profiles }) => {
       }
 
       const diskItem = item as FormDiskDevice;
+      // Memory disks have no I/O to limit: size and ownership instead.
+      if (isTmpfsDisk(diskItem)) {
+        rows.push(
+          diskOptionRow(
+            index,
+            diskItem,
+            "size",
+            "Size",
+            undefined,
+            "e.g. 256MiB (default: half of the RAM)",
+          ),
+        );
+        rows.push(
+          diskOptionRow(
+            index,
+            diskItem,
+            "initial.mode",
+            "Mode",
+            undefined,
+            "e.g. 1777",
+          ),
+        );
+        rows.push(
+          diskOptionRow(
+            index,
+            diskItem,
+            "initial.uid",
+            "Owner UID",
+            undefined,
+            "0",
+          ),
+        );
+        rows.push(
+          diskOptionRow(
+            index,
+            diskItem,
+            "initial.gid",
+            "Owner GID",
+            undefined,
+            "0",
+          ),
+        );
+        customDiskDeviceCount++;
+        continue;
+      }
       if (showVmDiskOptions) {
         rows.push(
           diskOptionRow(index, diskItem, "io.bus", "I/O bus", IO_BUS_OPTIONS),

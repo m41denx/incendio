@@ -12,6 +12,7 @@ import type { RemoteImage } from "types/image";
 import { remoteImageToIsoDevice } from "util/formDevices";
 import CustomIsoModal from "pages/images/CustomIsoModal";
 import type { CustomDiskDevice } from "types/formDevice";
+import { useSupportedFeatures } from "context/useSupportedFeatures";
 
 type DiskDeviceType =
   | "custom volume"
@@ -102,6 +103,14 @@ const AttachDiskDeviceModal: FC<Props> = ({
 
   const modalTitle = getModalTitle();
 
+  const { hasDiskTmpfs } = useSupportedFeatures();
+  // tmpfs disks exist for containers only (container_disk_tmpfs).
+  const canAttachTmpfs =
+    hasDiskTmpfs &&
+    (formik.values.entityType === "profile" ||
+      (formik.values.entityType === "instance" &&
+        formik.values.instanceType === "container"));
+
   const canAttachIso =
     formik.values.entityType === "profile" ||
     (formik.values.entityType === "instance" &&
@@ -131,6 +140,17 @@ const AttachDiskDeviceModal: FC<Props> = ({
                 setType("host path");
               }}
             />
+            {canAttachTmpfs && (
+              <FormLink
+                icon="units"
+                title="Memory disk (tmpfs)"
+                onClick={() => {
+                  // Added straight to the form, where its mount point, size
+                  // and ownership are set.
+                  onFinish({ type: "disk", source: "tmpfs:", path: "" });
+                }}
+              />
+            )}
             {canAttachIso && (
               <FormLink
                 icon="iso"
