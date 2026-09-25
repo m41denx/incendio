@@ -1,11 +1,13 @@
 name: Release UI bundle
 
 # Releases are cut by pushing a tag (e.g. `0.22-p6`), not on every branch push,
-# so routine commits/bugfixes don't create releases.
+# so routine commits/bugfixes don't create releases. `api-v*` tags publish the
+# @incendio/api SDK instead (api-publish.yaml).
 on:
   push:
     tags:
       - "*"
+      - "!api-v*"
 
 permissions:
   contents: write
