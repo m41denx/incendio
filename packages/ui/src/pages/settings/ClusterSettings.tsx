@@ -22,6 +22,10 @@ import { updateSettings } from "api/server";
 import { queryKeys } from "util/queryKeys";
 import { useServerEntitlements } from "util/entitlements/server";
 import { useSupportedFeatures } from "context/useSupportedFeatures";
+import { useCurrentProject } from "context/useCurrentProject";
+import { placementScriptletState } from "util/placementGroups";
+import { ROOT_PATH } from "util/rootPath";
+import { Link } from "react-router-dom";
 
 interface ClusterSettingsValues {
   rebalanceInterval: string;
@@ -40,6 +44,7 @@ const ClusterSettings: FC = () => {
   const { data: settings, isLoading } = useSettings();
   const { canEditServerConfiguration } = useServerEntitlements();
   const { hasClusterRebalance, hasPlacementScriptlet } = useSupportedFeatures();
+  const { project } = useCurrentProject();
 
   const config = settings?.config ?? {};
 
@@ -160,6 +165,20 @@ const ClusterSettings: FC = () => {
                   chooses a cluster member for new instances. Incus uses this in
                   place of placement groups.
                 </p>
+                {placementScriptletState(formik.values.scriptlet) !== "none" &&
+                placementScriptletState(formik.values.scriptlet) !==
+                  "custom" ? (
+                  <Notification severity="caution" title="Managed by Incendio">
+                    This scriptlet enforces the{" "}
+                    <Link
+                      to={`${ROOT_PATH}/ui/project/${encodeURIComponent(project?.name ?? "default")}/placement-groups`}
+                    >
+                      placement groups
+                    </Link>
+                    . Editing it can break them, and Incendio replaces it when
+                    it ships a new version; manage the groups instead.
+                  </Notification>
+                ) : null}
                 <div className="code-editor-wrapper">
                   <ReactCodeMirror
                     value={formik.values.scriptlet}

@@ -1,3 +1,4 @@
+import { PLACEMENT_GROUP_KEY } from "util/placementGroups";
 import type { FC } from "react";
 import { Button, Icon, Input } from "@canonical/react-components";
 import type { InstanceAndProfileFormikProps } from "types/forms/instanceAndProfileFormProps";
@@ -14,11 +15,15 @@ export interface UserPropertyFormValues {
   nameEditable: boolean;
 }
 
+// user.* keys the UI edits elsewhere: listing them here would write the old
+// value back over the dedicated field on save.
+export const RESERVED_USER_KEYS = new Set([PLACEMENT_GROUP_KEY]);
+
 export const userPropertiesFromConfig = (
   config: Record<string, string | undefined>,
 ): [string, string][] => {
-  return Object.entries(config ?? {}).filter(([k]) =>
-    k.startsWith(userPropPrefix),
+  return Object.entries(config ?? {}).filter(
+    ([k]) => k.startsWith(userPropPrefix) && !RESERVED_USER_KEYS.has(k),
   ) as [string, string][];
 };
 

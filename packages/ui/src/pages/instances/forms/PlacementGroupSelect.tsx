@@ -1,3 +1,4 @@
+import { PLACEMENT_GROUP_KEY } from "util/placementGroups";
 import type { FC } from "react";
 import { CustomSelect } from "@canonical/react-components";
 import { usePlacementGroups } from "context/usePlacementGroups";
@@ -34,7 +35,7 @@ const PlacementGroupSelect: FC<Props> = ({
   const { data: profiles = [] } = useProfiles(project);
   const { data: placementGroups = [] } = usePlacementGroups(project);
 
-  // Incus has no placement-groups API; hide the selector entirely.
+  // Placement groups need a cluster and the placement scriptlet extension.
   if (!hasPlacementGroups) {
     return null;
   }
@@ -68,10 +69,10 @@ const PlacementGroupSelect: FC<Props> = ({
     let result = null;
     for (const profileName of profileNames) {
       const profile = profiles.find((item) => item.name === profileName);
-      if (profile?.config["placement.group"]) {
+      if (profile?.config[PLACEMENT_GROUP_KEY]) {
         result = (
           <>
-            {profile.config["placement.group"]}{" "}
+            {profile.config[PLACEMENT_GROUP_KEY]}{" "}
             <span className="u-text--muted">
               (from profile <code>{profile.name}</code>)
             </span>

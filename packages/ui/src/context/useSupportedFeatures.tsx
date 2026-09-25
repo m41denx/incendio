@@ -1,3 +1,4 @@
+import { isClusteredServer } from "util/settings";
 import { useSettings } from "./useSettings";
 
 export const useSupportedFeatures = () => {
@@ -36,8 +37,12 @@ export const useSupportedFeatures = () => {
       serverMajor > 5,
     hasAccessManagement: apiExtensions.has("access_management"),
     hasAccessManagementTLS: apiExtensions.has("access_management_tls"),
-    // LXD-only: Incus uses placement scriptlets instead of placement groups.
-    hasPlacementGroups: apiExtensions.has("instance_placement_groups"),
+    // Incus has no placement-groups API; Incendio emulates LXD's groups with
+    // its own placement scriptlet (util/placementGroups.ts), which only
+    // matters when there are cluster members to choose from.
+    hasPlacementGroups:
+      apiExtensions.has("instances_placement_scriptlet") &&
+      isClusteredServer(settings),
     hasInstanceCreateStart: apiExtensions.has("instance_create_start"),
     hasInstanceImportConversion: apiExtensions.has(
       "instance_import_conversion",

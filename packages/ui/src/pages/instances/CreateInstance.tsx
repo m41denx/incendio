@@ -1,3 +1,4 @@
+import { PLACEMENT_GROUP_KEY } from "util/placementGroups";
 import { useEffect, useState, type FC, type ReactNode } from "react";
 import {
   ActionButton,
@@ -436,7 +437,7 @@ const CreateInstance: FC = () => {
         ...cloudInitPayload(values),
         ...sshKeyPayload(values),
         ...(values.placementGroup && {
-          "placement.group": values.placementGroup,
+          [PLACEMENT_GROUP_KEY]: values.placementGroup,
         }),
       },
     };

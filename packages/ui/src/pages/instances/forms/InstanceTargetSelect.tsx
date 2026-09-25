@@ -210,8 +210,8 @@ const InstanceTargetSelect: FC<Props> = ({ formik }) => {
               clusterMemberOptions.length === 0 ||
               isProjectBlockingClusterMemberTargeting,
           },
-          // Incus has no placement groups (it uses placement scriptlets), so
-          // only offer this on servers that support them.
+          // Placement groups are Incendio's, enforced by its placement
+          // scriptlet (util/placementGroups.ts) on clustered servers.
           ...(hasPlacementGroups
             ? [
                 {

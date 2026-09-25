@@ -15,7 +15,6 @@ import {
 } from "@canonical/react-components";
 import { useParams } from "react-router-dom";
 import NotificationRow from "components/NotificationRow";
-import HelpLink from "components/HelpLink";
 import useSortTableData from "util/useSortTableData";
 import PageHeader from "components/PageHeader";
 import { usePlacementGroups } from "context/usePlacementGroups";
@@ -24,7 +23,7 @@ import CreatePlacementGroupPanel from "pages/placement-groups/panels/CreatePlace
 import EditPlacementGroupPanel from "pages/placement-groups/panels/EditPlacementGroupPanel";
 import DeletePlacementGroupBtn from "pages/placement-groups/actions/DeletePlacementGroupBtn";
 import CreatePlacementGroupBtn from "pages/placement-groups/actions/CreatePlacementGroupBtn";
-import DocLink from "components/DocLink";
+import PlacementScriptletStatus from "pages/placement-groups/PlacementScriptletStatus";
 
 const PlacementGroupList: FC = () => {
   const panelParams = usePanelParams();
@@ -148,14 +147,7 @@ const PlacementGroupList: FC = () => {
         header={
           <PageHeader>
             <PageHeader.Left>
-              <PageHeader.Title>
-                <HelpLink
-                  docPath="/howto/cluster_placement_groups/"
-                  title="Learn how to use placement groups"
-                >
-                  Placement groups
-                </HelpLink>
-              </PageHeader.Title>
+              <PageHeader.Title>Placement groups</PageHeader.Title>
             </PageHeader.Left>
             <PageHeader.BaseActions>
               {!isEmpty && (
@@ -168,6 +160,7 @@ const PlacementGroupList: FC = () => {
         <NotificationRow />
         <Row className="no-grid-gap">
           <Col size={12}>
+            <PlacementScriptletStatus hasGroups={!isEmpty} />
             {isEmpty && (
               <EmptyState
                 className="empty-state"
@@ -176,12 +169,10 @@ const PlacementGroupList: FC = () => {
               >
                 <p>There are no placement groups in this project.</p>
                 <p>
-                  <DocLink
-                    docPath="/howto/cluster_placement_groups/"
-                    hasExternalIcon
-                  >
-                    Learn how to use placement groups
-                  </DocLink>
+                  A group keeps its instances together on as few cluster members
+                  as possible (compact), or apart on different members (spread).
+                  Instances join a group from their target setting or through a
+                  profile.
                 </p>
                 <CreatePlacementGroupBtn />
               </EmptyState>

@@ -1,3 +1,4 @@
+import { PLACEMENT_GROUP_KEY } from "util/placementGroups";
 import { useEffect, type FC } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Col, Row, useListener, useNotify } from "@canonical/react-components";
@@ -69,10 +70,10 @@ const ProfileDetailOverview: FC<Props> = ({ profile }) => {
                 <tr>
                   <th className="u-text--muted">Placement group</th>
                   <td>
-                    {profile.config["placement.group"] ? (
+                    {profile.config[PLACEMENT_GROUP_KEY] ? (
                       <ResourceLink
                         type="placement-group"
-                        value={profile.config["placement.group"]}
+                        value={profile.config[PLACEMENT_GROUP_KEY]}
                         to={`${ROOT_PATH}/ui/project/${project}/placement-groups`}
                       />
                     ) : (

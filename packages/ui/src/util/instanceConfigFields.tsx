@@ -1,3 +1,4 @@
+import { PLACEMENT_GROUP_KEY } from "util/placementGroups";
 const instanceConfigFormFieldsToPayload: Record<string, string> = {
   rootStorage: "",
   limits_cpu: "limits.cpu",
@@ -17,7 +18,7 @@ const instanceConfigFormFieldsToPayload: Record<string, string> = {
   limits_memory_hugepages: "limits.memory.hugepages",
   limits_memory_oom_priority: "limits.memory.oom_priority",
   limits_memory_swap_priority: "limits.memory.swap.priority",
-  placement_group: "placement.group",
+  placement_group: PLACEMENT_GROUP_KEY,
   security_privileged: "security.privileged",
   security_nesting: "security.nesting",
   security_protection_delete: "security.protection.delete",

@@ -1,3 +1,4 @@
+import { PLACEMENT_GROUP_KEY } from "util/placementGroups";
 import {
   getInstanceConfigKeys,
   getInstanceField,
@@ -33,6 +34,7 @@ import { parseCpuLimit, parseMemoryLimit } from "util/limits";
 import { parseSshKeys } from "util/instanceEdit";
 import {
   userPropertiesFromConfig,
+  RESERVED_USER_KEYS,
   type UserPropertyFormValues,
 } from "components/forms/UserPropertiesForm";
 import {
@@ -393,7 +395,9 @@ export const userPropertiesPayload = (
 ) => {
   const result: Record<string, string | undefined> = Object.fromEntries(
     Object.entries(config)
-      .filter(([k]) => k.startsWith(userPropPrefix))
+      .filter(
+        ([k]) => k.startsWith(userPropPrefix) && !RESERVED_USER_KEYS.has(k),
+      )
       .map(([k]) => [k, undefined]),
   );
 
@@ -615,7 +619,7 @@ const getEditValues = (
     limits_memory_oom_priority: item.config["limits.memory.oom_priority"],
     limits_memory_swap_priority: item.config["limits.memory.swap.priority"],
 
-    placement_group: item.config["placement.group"],
+    placement_group: item.config[PLACEMENT_GROUP_KEY],
 
     security_protection_delete: item.config["security.protection.delete"],
     security_privileged: item.config["security.privileged"],

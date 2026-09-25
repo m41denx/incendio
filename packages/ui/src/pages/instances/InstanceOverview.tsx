@@ -1,3 +1,4 @@
+import { PLACEMENT_GROUP_KEY } from "util/placementGroups";
 import { useEffect, type FC } from "react";
 import {
   isoTimeToString,
@@ -134,10 +135,10 @@ const InstanceOverview: FC<Props> = ({ instance }) => {
                   <tr>
                     <th className="u-text--muted">Placement group</th>
                     <td>
-                      {instance.expanded_config["placement.group"] ? (
+                      {instance.expanded_config[PLACEMENT_GROUP_KEY] ? (
                         <ResourceLink
                           type="placement-group"
-                          value={instance.expanded_config["placement.group"]}
+                          value={instance.expanded_config[PLACEMENT_GROUP_KEY]}
                           to={`${ROOT_PATH}/ui/project/${instance.project}/placement-groups`}
                         />
                       ) : (
