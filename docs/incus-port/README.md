@@ -189,7 +189,8 @@ NIC-device type options). Remaining bits are raw-config-only advanced keys (NIC 
 - [x] **Uptime/started-at + CPU-time** on the instance overview (Started/Uptime/CPU time/Allocated CPU time,
       from `instance_state_started_at` + `instances_state_total`).
 - [x] **Richer custom-disk options**: `io.bus`/`io.cache`, combined byte/s+IOPS `limits.read/write/max`,
-      `limits.max.burst`(+length), `wwn`. (tmpfs disk **source type** still TODO — separate special-disk flow.)
+      `limits.max.burst`(+length), `wwn`. **tmpfs / tmpfs-overlay** memory disks (size, mode, owner) for
+      containers and profiles (0.22-p14).
 - [x] **SMBIOS & credentials** raw key/value editor (`smbios11.*`, `systemd.credential(.*|-binary.*)`).
 
 *Cluster / server / auth*
@@ -207,16 +208,13 @@ NIC-device type options). Remaining bits are raw-config-only advanced keys (NIC 
       healing/offline thresholds + Starlark `instances.placement.scriptlet` editor); cluster groups
       show config + used-by (and edit no longer drops group config). Evacuation mode options + per-
       instance `cluster.evacuate` were already in the base. Daemon-validated.
-- [ ] **Placement-group replacement for Incus** (proposed; design agreed, build deferred). Incus has no
-      placement groups — emulate LXD's policy (compact/spread) + rigor (strict/permissive) via the
-      global `instances.placement.scriptlet`. Two tiers:
-      **A (faithful):** UI writes per-instance `user.placement.group/policy/rigor` and installs a
-      generated `instance_placement(request, candidate_members)` scriptlet that packs (compact) or
-      anti-affines (spread) using `get_instances()`, failing on strict / falling through on permissive.
-      Caveat: the scriptlet is singular + server-global, so the UI must manage it as one block and
-      warn/refuse when a custom scriptlet already exists; multi-member cluster only.
-      **B (lightweight):** no scriptlet — at create time the UI computes a `target` member from where
-      group-mates run (best-effort, create-time only, no evacuation/rebalance/CLI). **Med**.
+- [x] **Placement groups for Incus** (0.22-p14) — LXD's placement-group pages kept, backed by an
+      emulation: groups live in project config (`user.placement-group.<name>.policy|rigor|description`),
+      instances/profiles join with `user.placement.group`, and one generic Incendio scriptlet
+      (`instances.placement.scriptlet`, marker `# incendio:placement-groups vN`) enforces spread/compact
+      × strict/permissive on automatic placement (new, relocation, evacuation never blocked, rebalance
+      never breaks the policy). Installed with the first group; a custom scriptlet is detected and
+      only replaced on confirmation. Clustered servers only.
 - [x] Project restriction toggles (`restricted.storage-pools`, VM nesting) (0.22-p10): **VM nesting**
       (`restricted.virtual-machines.nesting`, allow/block) added to Restrictions → Instances; **Available
       storage pools** (`restricted.storage-pools.access`, comma-separated allow-list) added to

@@ -446,6 +446,32 @@ that forward a listen port to named backends. Commit `8da7f80dc4`. Changes:
 - Live-checked on Incus 7.4 against a `btrfs` custom volume: list, mkdir, upload, HEAD headers,
   read back, non-recursive delete of a non-empty directory refused, recursive delete OK.
 
+## Placement groups, tmpfs disks, agent rollback (0.22-p14, done)
+
+- **Placement groups** — Incus has no placement-groups API, so the LXD pages (list, create/edit
+  panels, used-by, instance target + profile/instance selectors, overview rows) now run on an
+  emulation (`util/placementGroups.ts`, `api/placement-groups.tsx`): group definitions in project
+  config `user.placement-group.<name>.{policy,rigor,description}`, membership in
+  `user.placement.group` (instance or profile; reserved from the user-properties editor, which would
+  otherwise write the old value back over the picker), enforcement by a generic Starlark scriptlet in
+  `instances.placement.scriptlet`. The scriptlet receives the profile-expanded config for every
+  reason (new/relocation/evacuation/rebalance), and `get_instances` returns each instance's
+  `expanded_config` + `location`; note `get_instances` takes `project` first (the docs show
+  `location` first), so it is called with keywords. Evacuation is never blocked (strict → best
+  effort), rebalance never breaks the policy (always strict). The list page shows whether groups are
+  enforced (installed / outdated / custom scriptlet) with install/update/replace; Cluster settings
+  warns when editing Incendio's scriptlet. Gate: `instances_placement_scriptlet` + clustered.
+  Live-checked on Incus 7.4 (single-member cluster): strict spread refuses a 2nd member with a
+  readable error, compact co-locates, permissive places, undefined group → default placement.
+- **tmpfs disks** (`container_disk_tmpfs`) — "Memory disk (tmpfs)" in the attach-disk chooser for
+  containers and profiles; the disk form shows source (tmpfs / tmpfs-overlay), mount point, size and
+  `initial.mode/uid/gid` instead of I/O limits; device lists label it "memory". Incus only adds these
+  while the container is stopped. Live-checked: size/mode/owner applied; overlay keeps the lower dir
+  visible and writes land in memory.
+- **Roll back agent** — the Kubernetes agent updater keeps the replaced binary as `.prev`; a button
+  swaps them back (a swap, so it can be undone) through the Incus exec API and waits for the agent.
+  Live-checked 0.2.1 → 0.2.0 → 0.2.1.
+
 ## Phase 2 candidates (reassess with user before starting — per decision)
 - Read-only `instance_access`/`project_access` entitlement panels.
 - Incus-only api_extension features (187 incus-only extensions) — new UI surface (placement scriptlets, LINSTOR/TrueNAS pool options, etc.).

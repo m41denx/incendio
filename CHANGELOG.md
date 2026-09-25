@@ -1,3 +1,10 @@
+## 0.22-p14
+## What's Changed
+### ✨ New Features
+- (feat) Clustering: **placement groups** on Incus — keep a group's instances apart on different cluster members (spread) or together on as few as possible (compact), strictly or as a preference. Groups are per project; instances join one from the create form's target, their details, or a profile. Incendio enforces them with its own placement scriptlet, installed with the first group (an existing custom scriptlet is only replaced if you confirm), and the page shows whether they are enforced
+- (feat) Instances: **memory disks (tmpfs)** — attach an in-memory file system to a container or profile, optionally as an overlay on an existing directory, with size, mode and owner
+- (feat) Kubernetes: **roll back the agent** — go back to the agent version the last update replaced (and forward again) from the Management appliance tab
+
 ## 0.22-p13
 ## What's Changed
 ### ✨ New Features

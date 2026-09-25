@@ -261,8 +261,8 @@ Ranked by how soon a user runs into the gap.
    is published, and/or ship a prebuilt distrobuilder image with k3s, clusterctl
    and the agent baked in, so a deploy takes seconds instead of a cloud-init
    run that downloads everything (§9 "v2 distrobuilder image").
-5. **Smaller follow-ups:** show the agent/appliance version and a "Roll back
-   agent" action (the updater keeps `incendio-k8s.prev`); upgrade the CAPI /
+5. **Smaller follow-ups:** (a "Roll back agent" action shipped in 0.22-p14);
+   upgrade the CAPI /
    CAPN providers from the UI (`clusterctl upgrade plan|apply`); multiple worker
    groups (more `machineDeployments` with their own flavor/profiles); stream
    activity with SSE once the agent can authenticate a stream (a short-lived
