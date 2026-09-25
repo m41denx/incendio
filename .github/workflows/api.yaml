@@ -1,0 +1,124 @@
+name: API SDK
+
+# Lints, unit-tests and builds @incendio/api, then runs its integration suite
+# against a real Incus daemon installed on the runner.
+on:
+  push:
+    paths:
+      - "packages/api/**"
+      - "package.json"
+      - "bun.lock"
+      - ".github/workflows/api.yaml"
+  pull_request:
+    paths:
+      - "packages/api/**"
+      - "package.json"
+      - "bun.lock"
+      - ".github/workflows/api.yaml"
+  workflow_dispatch:
+    inputs:
+      incus_channel:
+        description: "Zabbly Incus channel (stable, lts-6.0)"
+        default: "stable"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: api-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit:
+    name: Lint, unit tests, build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/api
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.2"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Lint (tsc)
+        run: bun run lint
+
+      - name: Format check
+        run: bunx prettier --check 'src/**/*.ts' 'test/**/*.ts' 'scripts/**/*.ts'
+
+      - name: Unit tests
+        run: bun run test
+
+      - name: Build
+        run: bun run build
+
+  integration:
+    name: Integration (Incus ${{ inputs.incus_channel || 'stable' }})
+    runs-on: ubuntu-24.04
+    needs: unit
+    timeout-minutes: 20
+    env:
+      INCUS_CHANNEL: ${{ inputs.incus_channel || 'stable' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.2"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install Incus (Zabbly packages)
+        run: |
+          sudo mkdir -p /etc/apt/keyrings
+          sudo curl -fsSL https://pkgs.zabbly.com/key.asc -o /etc/apt/keyrings/zabbly.asc
+          cat <<EOF | sudo tee /etc/apt/sources.list.d/zabbly-incus.sources
+          Enabled: yes
+          Types: deb
+          URIs: https://pkgs.zabbly.com/incus/${INCUS_CHANNEL}
+          Suites: $(. /etc/os-release && echo "${VERSION_CODENAME}")
+          Components: main
+          Architectures: $(dpkg --print-architecture)
+          Signed-By: /etc/apt/keyrings/zabbly.asc
+          EOF
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends incus
+
+      - name: Initialize Incus
+        run: |
+          # Docker on the runner sets the FORWARD policy to DROP, which breaks
+          # the Incus bridge.
+          sudo iptables -P FORWARD ACCEPT
+          sudo incus admin init --auto
+          sudo incus version
+          sudo incus storage list
+          sudo incus profile show default
+
+      - name: Cache a test image
+        run: |
+          # Small image so launches take seconds; the suite uses it via INCUS_IMAGE.
+          sudo incus image copy images:alpine/edge local: --alias sdk-test --quiet
+          sudo incus image list
+
+      - name: Integration tests
+        working-directory: packages/api
+        env:
+          INCUS_IMAGE: sdk-test
+        # The daemon socket is root:incus-admin; run the suite as root.
+        run: sudo --preserve-env=INCUS_IMAGE "$(command -v bun)" test test/integration
+
+      - name: Daemon log on failure
+        if: failure()
+        run: |
+          sudo incus list --all-projects || true
+          sudo journalctl -u incus --no-pager -n 200 || true
