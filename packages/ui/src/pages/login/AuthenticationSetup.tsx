@@ -12,10 +12,12 @@ import { useSecondsLeft } from "context/useSecondsLeft";
 import { getExpiryMessage } from "util/seconds";
 import AuthenticationOptions from "components/AuthenticationOptions";
 import { ROOT_PATH } from "util/rootPath";
+import { useSupportedFeatures } from "context/useSupportedFeatures";
 
 const AuthenticationSetup: FC = () => {
   const { isAuthLoading, isAuthenticated, authMethod, authExpiresAt } =
     useAuth();
+  const { hasAccessManagement } = useSupportedFeatures();
   const secondsLeft = useSecondsLeft(authExpiresAt);
   const expiryMessage = getExpiryMessage(secondsLeft);
 
@@ -24,9 +26,11 @@ const AuthenticationSetup: FC = () => {
   }
 
   if (isAuthenticated && isPermanent(authMethod)) {
-    return (
-      <Navigate to={`${ROOT_PATH}/ui/permissions/identities`} replace={true} />
-    );
+    // Incus has no identities API; its trust store is the closest page.
+    const target = hasAccessManagement
+      ? `${ROOT_PATH}/ui/permissions/identities`
+      : `${ROOT_PATH}/ui/settings/certificates`;
+    return <Navigate to={target} replace={true} />;
   }
 
   if (!isAuthenticated) {

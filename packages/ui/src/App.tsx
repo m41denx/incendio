@@ -5,6 +5,7 @@ import ProjectLoader from "pages/projects/ProjectLoader";
 import { useAuth } from "context/auth";
 import { setTitle } from "util/title";
 import NoMatch from "components/NoMatch";
+import AccessManagementRoute from "components/AccessManagementRoute";
 import { isBearerAuthError, logoutBearerToken, logoutOidc } from "util/helpers";
 import { ROOT_PATH } from "util/rootPath";
 import lazy from "util/lazyWithRetry";
@@ -744,15 +745,31 @@ const App: FC = () => {
         />
         <Route
           path={`${ROOT_PATH}/ui/permissions/identities`}
-          element={<ProtectedRoute outlet={<PermissionIdentities />} />}
+          element={
+            <ProtectedRoute
+              outlet={
+                <AccessManagementRoute outlet={<PermissionIdentities />} />
+              }
+            />
+          }
         />
         <Route
           path={`${ROOT_PATH}/ui/permissions/groups`}
-          element={<ProtectedRoute outlet={<PermissionGroups />} />}
+          element={
+            <ProtectedRoute
+              outlet={<AccessManagementRoute outlet={<PermissionGroups />} />}
+            />
+          }
         />
         <Route
           path={`${ROOT_PATH}/ui/permissions/idp-groups`}
-          element={<ProtectedRoute outlet={<PermissionIdpGroups />} />}
+          element={
+            <ProtectedRoute
+              outlet={
+                <AccessManagementRoute outlet={<PermissionIdpGroups />} />
+              }
+            />
+          }
         />
         <Route
           path={`${ROOT_PATH}/ui/settings`}
