@@ -10,6 +10,8 @@ import StorageVolumeSnapshots from "./StorageVolumeSnapshots";
 import { useStorageVolume } from "context/useVolumes";
 import { getVolumeDetailUrl } from "util/storageVolume";
 import NotFound from "components/NotFound";
+import { useSupportedFeatures } from "context/useSupportedFeatures";
+import StorageVolumeFiles from "pages/storage/StorageVolumeFiles";
 
 const tabs: string[] = ["Overview", "Configuration", "Snapshots"];
 
@@ -29,6 +31,8 @@ const StorageVolumeDetail: FC = () => {
     type: string;
     volume: string;
   }>();
+
+  const { hasStorageVolumeFiles } = useSupportedFeatures();
 
   if (!pool) {
     return <>Missing storage pool</>;
@@ -61,6 +65,13 @@ const StorageVolumeDetail: FC = () => {
     );
   }
 
+  // The file API serves custom filesystem volumes only (not block or ISO).
+  const hasFiles =
+    hasStorageVolumeFiles &&
+    volume.type === "custom" &&
+    volume.content_type === "filesystem";
+  const volumeTabs = hasFiles ? [...tabs, "Files"] : tabs;
+
   return (
     <CustomLayout
       header={<StorageVolumeHeader volume={volume} project={project} />}
@@ -68,7 +79,7 @@ const StorageVolumeDetail: FC = () => {
     >
       <Row>
         <TabLinks
-          tabs={tabs}
+          tabs={volumeTabs}
           activeTab={activeTab}
           tabUrl={getVolumeDetailUrl(volume)}
         />
@@ -88,6 +99,12 @@ const StorageVolumeDetail: FC = () => {
         {activeTab === "snapshots" && (
           <div role="tabpanel" aria-labelledby="snapshots">
             <StorageVolumeSnapshots volume={volume} />
+          </div>
+        )}
+
+        {activeTab === "files" && hasFiles && (
+          <div role="tabpanel" aria-labelledby="files">
+            <StorageVolumeFiles volume={volume} />
           </div>
         )}
       </Row>

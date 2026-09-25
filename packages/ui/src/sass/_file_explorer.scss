@@ -7,3 +7,30 @@
 .breadcrumb-header {
   display: inline-block;
 }
+
+// Breadcrumb on the left, directory actions on the right.
+.file-explorer-header {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  justify-content: space-between;
+
+  .p-breadcrumbs {
+    margin-bottom: 0;
+  }
+}
+
+.file-explorer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+
+  .p-button {
+    margin-bottom: 0;
+  }
+}
+
+.file-explorer-upload-list .p-progress-bar {
+  margin-top: 0.25rem;
+}

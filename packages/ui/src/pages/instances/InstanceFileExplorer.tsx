@@ -1,20 +1,14 @@
 import { type FC } from "react";
-import {
-  Button,
-  EmptyState,
-  Icon,
-  Notification,
-  Row,
-  Spinner,
-} from "@canonical/react-components";
+import { EmptyState, Icon, Row } from "@canonical/react-components";
+import { useSearchParams } from "react-router-dom";
 import type { LxdInstance } from "types/instance";
 import { isInstanceRunning } from "util/instanceStatus";
-import FileExplorerTable from "./FileExplorerTable";
-import FileExplorerBreadcrumb from "./FileExplorerBreadcrumb";
-import { fetchInstanceDirectory } from "api/instances";
-import { useSearchParams } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "util/queryKeys";
+import { useInstanceEntitlements } from "util/entitlements/instances";
+import { getFileExplorerDirectoryURL } from "util/instances";
+import { instanceFileTarget } from "api/files";
+import FileExplorer from "components/fileExplorer/FileExplorer";
+import { InstanceRichChip } from "./InstanceRichChip";
 import StartInstanceBtn from "./actions/StartInstanceBtn";
 
 interface Props {
@@ -22,40 +16,11 @@ interface Props {
 }
 
 const InstanceFileExplorer: FC<Props> = ({ instance }) => {
-  const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const currentPath = searchParams.get("path") || "/";
+  const { canAccessInstanceFiles } = useInstanceEntitlements();
   const canServeFiles =
     isInstanceRunning(instance) || instance.type === "container";
-
-  const {
-    data: directoryContent,
-    error,
-    isLoading,
-  } = useQuery({
-    queryKey: [
-      queryKeys.instances,
-      instance.name,
-      instance.project,
-      queryKeys.files,
-      currentPath,
-    ],
-    queryFn: async () =>
-      fetchInstanceDirectory(instance.name, instance.project, currentPath),
-    enabled: canServeFiles,
-  });
-
-  const invalidateCache = () => {
-    queryClient.invalidateQueries({
-      queryKey: [
-        queryKeys.instances,
-        instance.name,
-        instance.project,
-        queryKeys.files,
-        currentPath,
-      ],
-    });
-  };
 
   if (!canServeFiles) {
     return (
@@ -79,34 +44,28 @@ const InstanceFileExplorer: FC<Props> = ({ instance }) => {
 
   return (
     <Row className="general">
-      <FileExplorerBreadcrumb currentPath={currentPath} instance={instance} />
-      {error ? (
-        <>
-          <Notification
-            severity="negative"
-            title="Error connecting to file system"
-            className="u-no-margin--bottom"
-          >
-            {error.message}
-          </Notification>
-          <div className="p-panel">
-            <div className="p-panel__content">
-              <Button appearance="positive" onClick={invalidateCache}>
-                Retry connection
-              </Button>
-            </div>
-          </div>
-        </>
-      ) : isLoading ? (
-        <Spinner className="u-loader" text="Loading file system..." />
-      ) : (
-        <FileExplorerTable
-          key={directoryContent?.metadata.length}
-          files={directoryContent?.metadata ?? []}
-          currentPath={currentPath}
-          instance={instance}
-        />
-      )}
+      <FileExplorer
+        target={instanceFileTarget(instance)}
+        queryKey={[
+          queryKeys.instances,
+          instance.name,
+          instance.project,
+          queryKeys.files,
+        ]}
+        currentPath={currentPath}
+        directoryLink={(path) => getFileExplorerDirectoryURL(path, instance)}
+        owner={
+          <InstanceRichChip
+            instanceName={instance.name}
+            projectName={instance.project}
+          />
+        }
+        writeDisabledReason={
+          canAccessInstanceFiles(instance)
+            ? undefined
+            : "You do not have permission to manage files on this instance"
+        }
+      />
     </Row>
   );
 };

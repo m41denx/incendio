@@ -104,21 +104,6 @@ export const getFileExplorerDirectoryURL = (
   return `${ROOT_PATH}/ui/project/${encodeURIComponent(instance.project)}/instance/${encodeURIComponent(instance.name)}/file-explorer?${params.toString()}`;
 };
 
-export const getFileExplorerFileURL = (
-  parentPath: string,
-  fileName: string,
-  instance: LxdInstance,
-) => {
-  const params = new URLSearchParams();
-  params.set("project", instance.project);
-  params.set(
-    "path",
-    parentPath === "/" ? `/${fileName}` : `${parentPath}/${fileName}`,
-  );
-
-  return `${ROOT_PATH}/1.0/instances/${encodeURIComponent(instance.name)}/files?${params.toString()}`;
-};
-
 export const instanceIncludeConfigWhenCopying = (
   configKey: string,
 ): boolean => {
