@@ -2,13 +2,6 @@ import { memo, useState, type FC } from "react";
 import { SearchBox } from "@canonical/react-components";
 import { useSearchParams } from "react-router-dom";
 
-export const QUERY = "query";
-export const STATUS = "status";
-export const TYPE = "type";
-export const PROFILE = "profile";
-export const CLUSTER_MEMBER = "member";
-export const PROJECT = "project";
-
 interface Props {
   onSearch: (filter: string) => void;
 }
