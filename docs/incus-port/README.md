@@ -168,7 +168,11 @@ non-merge commits touch files that also changed upstream (`9cbb82d9`→`0.22`), 
 NIC-device type options). Remaining bits are raw-config-only advanced keys (NIC acceleration/promiscuous).
 
 *Storage*
-- [ ] **Custom-volume file browser** (`file_storage_volume` + `custom_volume_sftp`) — browse/upload/download. **High**.
+- [x] **Custom-volume file browser** (`file_storage_volume`) — a Files tab on custom filesystem volumes:
+      browse, download, upload (multi-file, progress, overwrite warning), new folder, recursive
+      delete. Shares one explorer with the instance File Explorer tab, which gained upload/new
+      folder and was fixed for Incus (it read `X-LXD-*` headers, so nothing was navigable).
+      (0.22-p13; the SFTP endpoint, `custom_volume_sftp`, needs a websocket client and is not used.)
 - [ ] Storage **volume** config coverage (`storage_volume_*`, ~120 keys) + volume **rebuild** + `dependent` disk flag. **Med**.
 - [x] Storage **bucket backups** (export/import) + local buckets on non-object pools. **Med**. (0.22-p10)
 - [x] ZFS vdev/raid builder, btrfs compression, initial-owner on volume forms. **Med/Low**. (0.22-p10)

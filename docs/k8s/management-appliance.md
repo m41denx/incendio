@@ -235,3 +235,35 @@ Deltas from the plan above, learned while bringing the appliance up for real:
   service. The UI then waits for `/v1/info` to report the new version.
 - **Capabilities:** `/v1/info` advertises `upgrade` and `activity`; the UI
   disables those features (with a hint to update the agent) on older agents.
+
+## 12. Ideas (not built yet)
+
+Ranked by how soon a user runs into the gap.
+
+1. **LoadBalancer services (MetalLB add-on).** CAPN's haproxy only fronts the
+   workload cluster's kube-apiserver; there is no service load-balancer
+   controller, so `type: LoadBalancer` services stay `<pending>` forever
+   (`NodePort` works). Add a create-form option + an IP range (free addresses
+   on the Incus network) and ship MetalLB in L2 mode through a
+   ClusterResourceSet, like the flannel addon. Existing clusters: a "Load
+   balancer" section on the detail page that applies the same CRS.
+2. **Show foreign CAPN clusters (read-only).** Clusters created with
+   `clusterctl` outside the agent live in the same mgmt cluster (or carry the
+   `user.cluster-*` instance tags) but are invisible to the UI, which lists the
+   agent's sqlite records. List CAPI Clusters without a record as "external":
+   status, nodes, kubeconfig — no scale/upgrade/delete unless adopted.
+3. **Cluster Autoscaler.** CAPI's `clusterapi` provider scales MachineDeployments
+   between `cluster.x-k8s.io/cluster-api-autoscaler-node-group-min/max-size`
+   annotations. Needs the autoscaler running in the mgmt cluster with the
+   workload kubeconfig, plus min/max fields on the scale dialog. Less useful on
+   a single-host lab; worth it once people run real multi-host clusters.
+4. **Appliance base image.** Move `images:ubuntu/24.04/cloud` to 26.04 once it
+   is published, and/or ship a prebuilt distrobuilder image with k3s, clusterctl
+   and the agent baked in, so a deploy takes seconds instead of a cloud-init
+   run that downloads everything (§9 "v2 distrobuilder image").
+5. **Smaller follow-ups:** show the agent/appliance version and a "Roll back
+   agent" action (the updater keeps `incendio-k8s.prev`); upgrade the CAPI /
+   CAPN providers from the UI (`clusterctl upgrade plan|apply`); multiple worker
+   groups (more `machineDeployments` with their own flavor/profiles); stream
+   activity with SSE once the agent can authenticate a stream (a short-lived
+   token in the query string).

@@ -1,3 +1,15 @@
+## 0.22-p13
+## What's Changed
+### ✨ New Features
+- (feat) Storage: **browse custom volumes** — a Files tab on custom filesystem volumes to browse, download, upload (several files at once, with progress and an overwrite warning), create folders and delete files or whole folders, without attaching the volume to an instance
+- (feat) Instances: the **File Explorer** tab can now upload files and create folders too
+
+### 📦 Other changes
+- (fix) Instances: the File Explorer works on Incus — every entry showed as "unknown" and folders could not be opened, and modification times now display
+- (fix) Opening a permissions page by URL (identities, groups, IdP groups) explains that Incus manages permissions outside the server instead of showing a page that cannot load
+- (docs) Kubernetes: ideas not built yet (LoadBalancer services, external CAPN clusters, autoscaling, appliance image)
+- (chore) Removed unused search helpers
+
 ## 0.22-p12
 ## What's Changed
 ### ✨ New Features

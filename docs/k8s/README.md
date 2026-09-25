@@ -9,7 +9,8 @@ actually built.
 **Docs map (read in this order for current decisions):**
 - [`management-appliance.md`](./management-appliance.md) — **current** source of
   truth for the management plane (k3s-in-container appliance), transport, agent
-  persistence, and the Clusters-page UI. Start here.
+  persistence, and the Clusters-page UI. Start here. §11 covers day-2
+  operations, §12 the ideas not built yet.
 - [`deploy-model.md`](./deploy-model.md) — deploy/manage model; three-plane
   mental model + `user.incendio.*` schema still apply, but the operator-VM /
   kubeadm-management specifics are superseded by `management-appliance.md`.

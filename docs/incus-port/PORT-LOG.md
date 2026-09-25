@@ -428,8 +428,24 @@ that forward a listen port to named backends. Commit `8da7f80dc4`. Changes:
   "lacking a storage buckets listener address" and local buckets get an empty `s3_url` — the case the new
   caution warns about. `tsc`/`yarn lint-js` clean, `yarn build` succeeds.
 
+## Storage: custom-volume file browser + cleanups (0.22-p13, done)
+
+- **Shared file explorer** (`components/fileExplorer/`, `api/files.tsx`, `util/fileExplorer.ts`)
+  over the Incus file API, used by the instance **File Explorer** tab and a new volume **Files**
+  tab (custom `filesystem` volumes, gated on `file_storage_volume`; `target=` for volumes on one
+  cluster member). Browse (directories first), download, upload (several files, progress,
+  cancel, overwrite warning), new folder, delete (directories recursively via `X-Incus-force`).
+- **Instance explorer fixed for Incus:** it read `X-LXD-type`/`X-LXD-modified`, which Incus never
+  sends (it sends `X-Incus-*`), so every entry was "unknown" and folders could not be opened; the
+  modified time is Go's `time.String()` format, now parsed. Per-row metadata moved from a
+  hook-in-a-loop to `useQueries`.
+- **Cleanups:** `/ui/permissions/*` routes render a "managed outside Incus" page unless the server
+  has `access_management` (the nav already hid them; typed URLs opened broken pages), and the
+  permanent-auth setup redirects to Trusted certificates on Incus. Removed the dead
+  `searchChipBaseUrl` helper and the unused `InstanceSearchFilter` param constants.
+- Live-checked on Incus 7.4 against a `btrfs` custom volume: list, mkdir, upload, HEAD headers,
+  read back, non-recursive delete of a non-empty directory refused, recursive delete OK.
+
 ## Phase 2 candidates (reassess with user before starting — per decision)
 - Read-only `instance_access`/`project_access` entitlement panels.
-- Gate `/ui/permissions/*` routes behind `hasAccessManagement` (nav already hidden; blocks manual URL entry only).
 - Incus-only api_extension features (187 incus-only extensions) — new UI surface (placement scriptlets, LINSTOR/TrueNAS pool options, etc.).
-- Optional cleanup: unused `util/searchAndFilter` helpers / InstanceSearchFilter param constants left after server-side filtering.
