@@ -110,12 +110,24 @@ jobs:
           sudo incus image copy images:alpine/edge local: --alias sdk-test --quiet
           sudo incus image list
 
+      - name: Expose HTTPS with a trusted test client certificate
+        run: |
+          sudo incus config set core.https_address 127.0.0.1:8443
+          openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:secp384r1 -nodes -days 1 \
+            -subj "/CN=incendio-api-ci" -keyout "$RUNNER_TEMP/client.key" -out "$RUNNER_TEMP/client.crt"
+          sudo incus config trust add-certificate "$RUNNER_TEMP/client.crt" --name incendio-api-ci
+
       - name: Integration tests
         working-directory: packages/api
         env:
           INCUS_IMAGE: sdk-test
+          INCUS_TEST_URL: https://127.0.0.1:8443
+          INCUS_TEST_CLIENT_CERT: ${{ runner.temp }}/client.crt
+          INCUS_TEST_CLIENT_KEY: ${{ runner.temp }}/client.key
         # The daemon socket is root:incus-admin; run the suite as root.
-        run: sudo --preserve-env=INCUS_IMAGE "$(command -v bun)" test test/integration
+        run: >-
+          sudo --preserve-env=INCUS_IMAGE,INCUS_TEST_URL,INCUS_TEST_CLIENT_CERT,INCUS_TEST_CLIENT_KEY
+          "$(command -v bun)" test test/integration
 
       - name: Daemon log on failure
         if: failure()

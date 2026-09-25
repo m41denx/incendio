@@ -30,6 +30,11 @@ export interface ExecOptions {
   user?: number;
   /** GID to run as. */
   group?: number;
+  /**
+   * Seconds to wait for `exec()` to finish before throwing (the command keeps
+   * running). Default: no limit.
+   */
+  timeout?: number;
 }
 
 export interface ExecResult {
@@ -361,7 +366,9 @@ export class Instance {
       "wait-for-websocket": false,
       "record-output": true,
     });
-    const done = await this.client.operation(op).wait();
+    const done = await this.client
+      .operation(op)
+      .wait({ timeout: opts.timeout });
     const output = (done.metadata?.output ?? {}) as Record<string, string>;
     const read = async (fd: string) => {
       if (!output[fd]) return "";
