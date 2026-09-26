@@ -43,6 +43,8 @@ export interface LiveStatus {
   message?: string;
   /** Workload cluster API server, from spec.controlPlaneEndpoint. */
   endpoint?: string;
+  /** Control plane load balancer kind (lxc, oci, kube-vip, ovn). */
+  loadBalancer?: string;
   /** Target Kubernetes version (spec.topology.version). */
   version?: string;
   /** What CAPI is changing right now, if anything. */
@@ -56,7 +58,7 @@ interface K8sObject {
   spec?: {
     version?: string;
     controlPlaneEndpoint?: { host?: string; port?: number };
-    topology?: Topology;
+    topology?: Topology & { variables?: { name?: string; value?: unknown }[] };
   };
   status?: {
     phase?: string;
@@ -140,6 +142,12 @@ export function detectRollout(
   return undefined;
 }
 
+/** Which control plane load balancer the topology asks CAPN for. */
+function loadBalancerKind(cluster: K8sObject): string | undefined {
+  const value = cluster.spec?.topology?.variables?.find((v) => v.name === "loadBalancer")?.value;
+  return value && typeof value === "object" ? Object.keys(value)[0] : undefined;
+}
+
 /**
  * Live status for every workload cluster, keyed by name. A machine counts as
  * ready on CAPI's Ready condition — phase "Running" only means its instance is
@@ -180,8 +188,9 @@ export function summarizeLive(
       // CAPI v1beta2 aggregates the blocking sub-conditions into this message.
       message: isAvailable ? undefined : nonEmpty(available?.message),
       endpoint: endpoint?.host
-        ? `https://${endpoint.host}:${endpoint.port ?? 6443}`
+        ? `https://${endpoint.host.includes(":") ? `[${endpoint.host}]` : endpoint.host}:${endpoint.port ?? 6443}`
         : undefined,
+      loadBalancer: loadBalancerKind(c),
       version: c.spec?.topology?.version,
       rollout: detectRollout(c, list),
       conditions: c.status?.conditions ?? [],

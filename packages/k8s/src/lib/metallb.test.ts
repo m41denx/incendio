@@ -39,6 +39,13 @@ describe("MetalLBBody", () => {
 });
 
 describe("suggestRange", () => {
+  it("finds single addresses too (a cluster's API endpoint)", () => {
+    expect(suggestRange(gay, 1).range).toBe("10.133.241.254-10.133.241.254");
+    expect(suggestRange({ ...gay, taken: ["10.133.241.254"] }, 1).range).toBe(
+      "10.133.241.253-10.133.241.253",
+    );
+  });
+
   it("picks the highest free block, away from DHCP, OVN and the broadcast", () => {
     expect(suggestRange(gay)).toEqual({
       range: "10.133.241.235-10.133.241.254",

@@ -192,6 +192,8 @@ export interface ClusterStatusView {
   rollout?: "upgrading" | "scaling";
   message?: string;
   endpoint?: string;
+  /** Why the cluster cannot come up on its own, when the agent can tell. */
+  problem?: string;
   machines?: MachineStatus[];
   conditions: unknown[];
   updatedAt: string;

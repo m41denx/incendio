@@ -151,6 +151,34 @@ export async function ensureWorkloadProfile(
   );
 }
 
+/**
+ * Profile that pins the cluster's load balancer to `address`: the default
+ * profile's NIC again, with a static DHCP lease. CAPN launches the load
+ * balancer with `profiles: [default, <this>]`, so this `eth0` wins. See
+ * endpoint-pin.ts for why the endpoint needs a fixed IPv4.
+ */
+export async function ensureLoadBalancerProfile(
+  project: string,
+  name: string,
+  network: string,
+  address: string,
+): Promise<void> {
+  const client = incusClient();
+  const body = {
+    description: `Incendio: control plane load balancer at ${address}`,
+    config: {},
+    devices: { eth0: { type: "nic", network, "ipv4.address": address } },
+  };
+  const query = `project=${encodeURIComponent(project)}`;
+  try {
+    await client.post(`/1.0/profiles?${query}`, { name, ...body });
+  } catch (error: unknown) {
+    if (httpStatus(error) !== 409) throw error;
+    await client.put(`/1.0/profiles/${encodeURIComponent(name)}?${query}`, body);
+  }
+  log.info(`workload project '${project}': load balancer pinned to ${address} (${network})`);
+}
+
 interface IncusStoragePool {
   name: string;
   status?: string;
@@ -217,7 +245,8 @@ function lastPathSegment(url: string): string {
  * non-empty project, and CAPN leaves two things behind: any instances (only
  * when the CAPI cascade did not run, e.g. the mgmt cluster was unreachable) and
  * the per-project *cached images* it pulled to launch them (haproxy + the
- * kubeadm node image). We force-stop and delete instances, then delete images.
+ * kubeadm node image). We force-stop and delete instances, then delete images
+ * and any profile the agent added (incendio-lb).
  */
 async function emptyProject(name: string): Promise<void> {
   const client = incusClient();
@@ -248,6 +277,15 @@ async function emptyProject(name: string): Promise<void> {
     const fingerprint = lastPathSegment(url);
     const del = await client.delete(`/1.0/images/${fingerprint}?project=${project}`);
     await waitForOp(del.data);
+  }
+
+  // Profiles besides `default` (the pinned load balancer's) also block it.
+  const { data: profileData } = await client.get(`/1.0/profiles?project=${project}`);
+  const profiles: string[] = profileData?.metadata ?? [];
+  for (const url of profiles) {
+    const profile = decodeURIComponent(lastPathSegment(url).split("?")[0] ?? "");
+    if (profile === "default" || profile === "") continue;
+    await client.delete(`/1.0/profiles/${encodeURIComponent(profile)}?project=${project}`);
   }
 }
 

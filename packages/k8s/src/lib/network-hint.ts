@@ -56,26 +56,41 @@ export interface NetworkHint extends Suggestion {
   cidr: string;
 }
 
+/** What `suggestRange` needs to know about `network`, read from Incus. */
+async function networkFacts(network: string): Promise<{ cidr: string; reserved: string[]; used: string[] }> {
+  const { data } = await incusClient().get(`/1.0/networks/${encodeURIComponent(network)}`);
+  const config = (data?.metadata?.config ?? {}) as Record<string, string>;
+  return {
+    cidr: config["ipv4.address"] ?? "",
+    reserved: [config["ipv4.dhcp.ranges"], config["ipv4.ovn.ranges"]].filter(
+      (r): r is string => !!r,
+    ),
+    used: await usedAddresses(network),
+  };
+}
+
 /**
- * `taken`: other clusters' MetalLB pools. They are not DHCP leases, so the
- * network knows nothing about them; the agent does.
+ * `taken`: other clusters' MetalLB pools and API endpoints. They are not DHCP
+ * leases, so the network knows nothing about them; the agent does.
  */
 export async function metallbNetworkHint(
   project: string | null,
   taken: string[] = [],
 ): Promise<NetworkHint> {
   const network = await clusterNetwork(project);
-  const { data } = await incusClient().get(`/1.0/networks/${encodeURIComponent(network)}`);
-  const config = (data?.metadata?.config ?? {}) as Record<string, string>;
-  const cidr = config["ipv4.address"] ?? "";
-  const reserved = [config["ipv4.dhcp.ranges"], config["ipv4.ovn.ranges"]].filter(
-    (r): r is string => !!r,
-  );
-  const suggestion = suggestRange({
-    cidr,
-    reserved,
-    taken,
-    used: await usedAddresses(network),
-  });
-  return { network, cidr, ...suggestion };
+  const facts = await networkFacts(network);
+  return { network, cidr: facts.cidr, ...suggestRange({ ...facts, taken }) };
+}
+
+/**
+ * A free IPv4 on `network` for a new cluster's API endpoint (the highest one
+ * outside the DHCP/OVN ranges, leases and `taken`), or null when the network
+ * has no IPv4 subnet or no free address.
+ */
+export async function pickEndpointAddress(
+  network: string,
+  taken: string[],
+): Promise<string | null> {
+  const suggestion = suggestRange({ ...(await networkFacts(network)), taken }, 1);
+  return suggestion.range?.split("-")[0] ?? null;
 }

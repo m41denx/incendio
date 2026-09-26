@@ -32,6 +32,8 @@ export interface K8sClusterRecord {
   message?: string;
   // Workload cluster API server (https://host:port).
   endpoint?: string;
+  // Why the cluster cannot come up on its own, when the agent can tell.
+  problem?: string;
   // A day-2 change CAPI is rolling out (status is then scaling/upgrading).
   rollout?: "upgrading" | "scaling";
   controlPlaneReady?: number;
@@ -85,6 +87,8 @@ export interface K8sClusterStatus {
   rollout?: "upgrading" | "scaling";
   message?: string;
   endpoint?: string;
+  /** Why the cluster cannot come up on its own, when the agent can tell. */
+  problem?: string;
   machines?: K8sMachine[];
   conditions: K8sCondition[];
   updatedAt: string;

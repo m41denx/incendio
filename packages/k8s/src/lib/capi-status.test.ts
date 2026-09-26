@@ -31,6 +31,10 @@ const clusters = {
         topology: {
           controlPlane: { replicas: 3 },
           workers: { machineDeployments: [{ name: "md-0", replicas: 2 }] },
+          variables: [
+            { name: "secretRef", value: "incendio-c1" },
+            { name: "loadBalancer", value: { lxc: { profiles: ["default"] } } },
+          ],
         },
       },
       status: {
@@ -99,6 +103,20 @@ describe("summarizeLive", () => {
     expect(live?.available).toBe(false);
     expect(live?.message).toContain("WorkersAvailable");
     expect(live?.phase).toBe("Provisioned");
+  });
+
+  it("brackets an IPv6 endpoint and names the load balancer", () => {
+    const v6 = {
+      items: [
+        {
+          ...clusters.items[0],
+          spec: { ...clusters.items[0]!.spec, controlPlaneEndpoint: { host: "fd42::5", port: 6443 } },
+        },
+      ],
+    };
+    const live = summarizeLive(v6, { items: [] }).get("c1");
+    expect(live?.endpoint).toBe("https://[fd42::5]:6443");
+    expect(live?.loadBalancer).toBe("lxc");
   });
 
   it("reports desired counts from the topology", () => {

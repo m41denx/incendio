@@ -177,6 +177,11 @@ const ClusterDetail: FC = () => {
           ))}
         </Notification>
       ) : null}
+      {status?.problem ? (
+        <Notification severity="negative" title="This cluster will not come up">
+          <p className="u-no-margin--bottom">{status.problem}</p>
+        </Notification>
+      ) : null}
       {status?.message ? (
         <Notification severity="caution" title="Not available yet">
           <pre className="u-no-margin--bottom k8s-condition-message">

@@ -17,6 +17,8 @@ import {
   startRemove,
 } from "../lib/metallb-ops.ts";
 import { metallbNetworkHint } from "../lib/network-hint.ts";
+import { pinClusterEndpoint } from "../lib/endpoint-ops.ts";
+import { endpointProblem, manifestList, parseManifest } from "../lib/endpoint-pin.ts";
 import {
   createProject,
   deleteProject,
@@ -69,6 +71,22 @@ function wantedMetalLB(record: ClusterView): string[] | undefined {
   return spec?.metallb?.addresses;
 }
 
+/** The API endpoint address the agent pinned for the cluster at create. */
+function pinnedEndpoint(record: ClusterView): string | undefined {
+  return (record.spec as { endpointHost?: string } | null)?.endpointHost;
+}
+
+/**
+ * Addresses the network does not know are spoken for: other clusters' MetalLB
+ * pools and every pinned API endpoint (a stopped load balancer holds no lease).
+ */
+function reservedAddresses(except: string | undefined): string[] {
+  return [
+    ...otherPools(except).flatMap((p) => p.addresses),
+    ...clusterRepo.list().flatMap((c) => pinnedEndpoint(c) ?? []),
+  ];
+}
+
 /** Every other cluster's MetalLB pool, with the owning cluster's name. */
 function otherPools(except: string | undefined): { cluster: string; addresses: string[] }[] {
   return clusterRepo
@@ -84,6 +102,12 @@ function poolConflict(addresses: string[], except: string | undefined): string |
     const clash = overlapping(addresses, pool.addresses);
     if (clash.length > 0) {
       return `${clash.join(", ")} overlaps the MetalLB pool of cluster ${pool.cluster} (${pool.addresses.join(", ")})`;
+    }
+  }
+  for (const record of clusterRepo.list()) {
+    const host = pinnedEndpoint(record);
+    if (host && overlapping(addresses, [host]).length > 0) {
+      return `${host} is the API endpoint of cluster ${record.name}`;
     }
   }
   return null;
@@ -124,6 +148,15 @@ function syncStatus(record: ClusterView, live: LiveStatus): ClusterStatus {
   return status;
 }
 
+/** Why the cluster cannot come up on its own, if the agent can tell. */
+function problemOf(live: LiveStatus): string | undefined {
+  return endpointProblem({
+    endpoint: live.endpoint,
+    available: live.available,
+    haproxy: live.loadBalancer === "lxc" || live.loadBalancer === "oci",
+  });
+}
+
 /**
  * Overlay live CRD status onto a cached record for list responses. When CRDs
  * are readable the status becomes CRD-sourced (and the cache is refreshed so
@@ -140,6 +173,7 @@ function enrich(cached: ClusterView, live: LiveStatus | undefined) {
     phase: live.phase,
     message: live.message,
     endpoint: live.endpoint,
+    problem: problemOf(live),
     rollout: live.rollout,
     controlPlaneReady: live.controlPlaneReady,
     workerReady: live.workerReady,
@@ -168,6 +202,7 @@ function liveStatusView(
     rollout: live.rollout,
     message: live.message,
     endpoint: live.endpoint,
+    problem: problemOf(live),
     machines: live.machines,
     conditions: live.conditions,
     updatedAt: new Date().toISOString(),
@@ -243,6 +278,7 @@ export const clusterRoutes = new Elysia({ prefix: "/v1/clusters" })
         };
       }
 
+      let endpointHost: string | undefined;
       try {
         // Project-per-workload-cluster: stamp user.incendio.* metadata so the
         // cluster is detectable and teardown is one delete. Then make its
@@ -266,8 +302,20 @@ export const clusterRoutes = new Elysia({ prefix: "/v1/clusters" })
           loadBalancer: env.LOAD_BALANCER_TYPE,
           variables: body.variables,
         });
-        await kubectlApply(manifest);
-        log.info(`create cluster '${body.name}': CAPN manifest applied`);
+        // A fixed IPv4 endpoint, so a dual-stack network cannot hand CAPN an
+        // IPv6 one haproxy does not serve (endpoint-pin.ts).
+        const pinned = await pinClusterEndpoint(parseManifest(manifest), {
+          cluster: body.name,
+          project,
+          network,
+          taken: [...reservedAddresses(body.name), ...(body.metallb?.addresses ?? [])],
+        });
+        endpointHost = pinned?.host;
+        await kubectlApply(pinned ? manifestList(pinned.docs) : manifest);
+        log.info(
+          `create cluster '${body.name}': CAPN manifest applied` +
+            (endpointHost ? ` (API endpoint ${endpointHost})` : ""),
+        );
       } catch (error) {
         const detail = incusErrorDetail(error);
         log.error(`create cluster '${body.name}': ${detail}`);
@@ -285,7 +333,7 @@ export const clusterRoutes = new Elysia({ prefix: "/v1/clusters" })
         controlPlaneCount: body.controlPlaneCount,
         workerCount: body.workerCount,
         status: "provisioning",
-        spec: body,
+        spec: endpointHost ? { ...body, endpointHost } : body,
       });
       auditRepo.record("cluster.create", `name=${body.name} project=${project}`);
       set.status = 201;
@@ -306,10 +354,7 @@ export const clusterRoutes = new Elysia({ prefix: "/v1/clusters" })
     async ({ query, set }) => {
       try {
         const record = query.cluster ? clusterRepo.getByName(query.cluster) : undefined;
-        return await metallbNetworkHint(
-          record?.project ?? null,
-          otherPools(query.cluster).flatMap((p) => p.addresses),
-        );
+        return await metallbNetworkHint(record?.project ?? null, reservedAddresses(query.cluster));
       } catch (error) {
         set.status = 502;
         return { error: "failed to read the cluster network", detail: incusErrorDetail(error) };
