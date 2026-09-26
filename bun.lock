@@ -36,7 +36,7 @@
     },
     "packages/k8s": {
       "name": "@incendio/k8s",
-      "version": "0.2.1",
+      "version": "0.3.1",
       "dependencies": {
         "@elysiajs/bearer": "^1.4.4",
         "@elysiajs/cors": "^1.4.2",

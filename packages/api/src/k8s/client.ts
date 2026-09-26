@@ -8,7 +8,13 @@ import {
 } from "./appliance";
 import { K8sCluster, type WaitForClusterOptions } from "./cluster";
 import { createClusterRequest, type ClusterSpec } from "./spec";
-import type { AgentHandle, AgentInfo } from "./types";
+import type {
+  AgentHandle,
+  AgentInfo,
+  ControllerHealth,
+  ControllerRestart,
+  MetalLBHint,
+} from "./types";
 
 export interface K8sClientOptions {
   /**
@@ -133,6 +139,28 @@ export class K8sClient {
     const cluster = new K8sCluster(agent, this.incus, record);
     if (opts.wait !== false) await cluster.waitUntilReady(opts);
     return cluster;
+  }
+
+  /**
+   * A free address block for MetalLB on the network a cluster's nodes use
+   * (a new cluster's, without `cluster`), avoiding DHCP, leases and other
+   * clusters' pools and API endpoints.
+   */
+  async metallbHint(cluster?: string): Promise<MetalLBHint> {
+    return (await this.agent()).getMetalLBHint(cluster);
+  }
+
+  /** The management cluster's Cluster API controllers and unreachable nodes. */
+  async controllers(): Promise<ControllerHealth> {
+    return (await this.agent()).getControllers();
+  }
+
+  /**
+   * Restarts the Cluster API controllers (they can stay stuck after the
+   * appliance was paused). Returns once the restart has started.
+   */
+  async restartControllers(): Promise<ControllerRestart> {
+    return (await this.agent()).restartControllers();
   }
 
   /** Deletes a cluster by name. */

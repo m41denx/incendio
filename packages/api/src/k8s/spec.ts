@@ -72,6 +72,11 @@ export interface ClusterSpec {
   serviceCidr?: string;
   /** Raw CAPN template variables, applied last. */
   variables?: Record<string, string>;
+  /**
+   * Install MetalLB with these addresses once the cluster is first ready
+   * (see `K8sClient.metallbHint` for a free range). Agent 0.3.0+.
+   */
+  metallb?: string[];
 }
 
 /** `{cpu: 2, memoryGiB: 4}` → `c2-m4`; strings pass through. */
@@ -180,6 +185,7 @@ export const createClusterRequest = (
     workerCount: Number(variables.WORKER_MACHINE_COUNT),
     project: spec.project,
     variables,
+    ...(spec.metallb?.length ? { metallb: { addresses: spec.metallb } } : {}),
   };
 };
 

@@ -29,6 +29,10 @@ export interface AgentInfo {
     roles?: string[];
     upgrade?: boolean;
     activity?: boolean;
+    /** MetalLB for LoadBalancer services (agent 0.3.0+). */
+    metallb?: boolean;
+    /** Controller health and restart (agent 0.3.1+). */
+    controllers?: boolean;
   };
   incus: { apiUrl: string; configured: boolean };
   /** SHA-256 of the agent's self-signed serving certificate (`sha256:<hex>`). */
@@ -52,8 +56,10 @@ export interface ClusterRecord {
   phase?: string;
   /** Why the cluster is not Available yet. */
   message?: string;
-  /** Workload API server, `https://host:port`. */
+  /** Workload API server, `https://host:port` (`https://[v6]:port`). */
   endpoint?: string;
+  /** Why the cluster cannot come up on its own, when the agent can tell. */
+  problem?: string;
   rollout?: Rollout;
   controlPlaneReady?: number;
   workerReady?: number;
@@ -91,6 +97,8 @@ export interface ClusterStatusView {
   rollout?: Rollout;
   message?: string;
   endpoint?: string;
+  /** Why the cluster cannot come up on its own, when the agent can tell. */
+  problem?: string;
   machines?: Machine[];
   conditions: unknown[];
   updatedAt: string;
@@ -123,6 +131,8 @@ export interface CreateClusterRequest {
   project?: string;
   /** CAPN template variables (see `buildTemplateVariables`). */
   variables?: Record<string, string>;
+  /** Install MetalLB with these addresses once the cluster is first ready. */
+  metallb?: { addresses: string[] };
 }
 
 /** `PATCH /v1/clusters/:name` body. */
@@ -132,6 +142,89 @@ export interface ClusterPatchRequest {
   workerCount?: number;
   /** Next minor (or patch) version, `vX.Y.Z`. */
   kubernetesVersion?: string;
+}
+
+export type MetalLBState =
+  | "absent"
+  /** Requested at create time; the control plane is not up yet. */
+  | "waiting"
+  | "installing"
+  | "installed"
+  | "removing"
+  | "failed";
+
+/** A `type: LoadBalancer` service of a workload cluster. */
+export interface LoadBalancerService {
+  namespace: string;
+  name: string;
+  /** External addresses; empty while pending. */
+  addresses: string[];
+  /** e.g. `80/TCP`. */
+  ports: string[];
+}
+
+/** `GET /v1/clusters/:name/metallb` */
+export interface MetalLBStatus {
+  state: MetalLBState;
+  /** Why the last install/remove failed (state `failed`). */
+  error?: string;
+  /** MetalLB version, when installed. */
+  version?: string;
+  /** The agent's address pool, when installed. */
+  addresses: string[];
+  services: LoadBalancerService[];
+  /** Addresses asked for (at create or by the last change), if any. */
+  requested?: string[] | null;
+}
+
+/** `GET /v1/clusters/metallb-hint` — the cluster network and a free address block. */
+export interface MetalLBHint {
+  /** Incus network the nodes use. */
+  network: string;
+  /** Its `ipv4.address` (gateway/prefix). */
+  cidr: string;
+  subnet: string;
+  /** Proposed range (`a.b.c.d-e.f.g.h`), or null when nothing is free. */
+  range: string | null;
+  /** Why the range may still collide (e.g. no DHCP range on the network). */
+  warning?: string;
+}
+
+/** A node Cluster API cannot inspect (`GET /v1/management/controllers`). */
+export interface UnreachableMachine {
+  cluster: string;
+  machine: string;
+  /** The Machine condition that says so. */
+  condition: string;
+  message: string;
+  /** When the condition turned Unknown. */
+  since: string;
+}
+
+/** A restart of the Cluster API controllers. */
+export interface ControllerRestart {
+  at: string;
+  reason: string;
+  /** Done by the agent's watchdog rather than requested. */
+  automatic: boolean;
+  /** Absent while the restart is still rolling out. */
+  ok?: boolean;
+  error?: string;
+}
+
+/** `GET /v1/management/controllers` */
+export interface ControllerHealth {
+  deployments: {
+    namespace: string;
+    name: string;
+    ready: number;
+    desired: number;
+  }[];
+  unreachable: UnreachableMachine[];
+  restarting: boolean;
+  lastRestart?: ControllerRestart;
+  /** The agent restarts stuck controllers itself. */
+  watchdog: boolean;
 }
 
 /** The agent handle stored in Incus server config (`user.k8s.api-config`). */

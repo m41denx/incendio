@@ -170,6 +170,7 @@ const cluster = await k8s.createCluster(
     controlPlane: { count: 1, flavor: { cpu: 2, memoryGiB: 4 } },
     workers: { count: 2, flavor: "c2-m4", type: "vm" },
     loadBalancer: { type: "lxc" },           // or kube-vip / ovn / oci
+    metallb: [(await k8s.metallbHint()).range!], // optional: LoadBalancer services via MetalLB
   },
   { onProgress: (s) => console.log(s.status, s.phase, s.message) },
 );                                            // resolves when the cluster is ready
@@ -178,6 +179,8 @@ writeFileSync("demo.kubeconfig", await cluster.kubeconfig());
 
 await cluster.scale({ workers: 3 });
 await cluster.upgrade();                      // next allowed version (one minor at a time)
+await cluster.setMetalLB();                   // or install/change it later (suggested range by default)
+console.log((await cluster.metallb()).services); // LoadBalancer services and their external IPs
 for (const node of await cluster.nodes()) console.log(node.role, node.name, node.machine?.phase);
 await cluster.delete();                       // machines, load balancer and the Incus project
 ```
@@ -188,6 +191,13 @@ await cluster.delete();                       // machines, load balancer and the
   before anything is created.
 - `waitUntilReady()` watches nodes that never join and fails fast with kubeadm's error (for example
   `[ERROR NumCPU]`) as a `K8sBootstrapError`, instead of waiting for the timeout.
+- `waitUntilReady()` also stops when the agent reports a `problem` the cluster cannot recover
+  from, for example an API endpoint its load balancer does not serve.
+- **MetalLB** (agent 0.3.0+): `cluster.metallb()`, `setMetalLB(addresses?)`, `removeMetalLB()`, and
+  `k8s.metallbHint(cluster?)` for a free range on the nodes' network.
+- **Controllers** (agent 0.3.1+): `k8s.controllers()` lists the Cluster API controllers and any nodes
+  they cannot reach; `k8s.restartControllers()` restarts them when they are stuck after the
+  appliance was paused (the agent also does this on its own).
 - `k8s.appliance` covers the management appliance: `deploy()`, `state()` (the UI's staged
   checklist), `waitUntilReady()`, `trust()`, `bootstrapLog()`, and `handle()`/`agent()`. The agent
   URL and token live in Incus server config (`user.k8s.api-config`), shared with the UI.

@@ -9,7 +9,12 @@ import type {
   ClusterPatchRequest,
   ClusterRecord,
   ClusterStatusView,
+  ControllerHealth,
+  ControllerRestart,
   CreateClusterRequest,
+  MetalLBHint,
+  MetalLBState,
+  MetalLBStatus,
 } from "./types";
 
 /** An error answered by the Kubernetes agent (or a transport failure). */
@@ -197,5 +202,56 @@ export class K8sAgentClient {
       { params: { limit } },
     );
     return entries;
+  }
+
+  /** MetalLB state, address pool and LoadBalancer services of a cluster. */
+  getMetalLB(name: string): Promise<MetalLBStatus> {
+    return this.call<MetalLBStatus>("GET", `/v1/clusters/${seg(name)}/metallb`);
+  }
+
+  /**
+   * Installs MetalLB with these addresses (ranges, CIDRs or single IPv4s on
+   * the nodes' network), or changes the pool of an installed one. Runs in the
+   * background; poll `getMetalLB`. 409 when they overlap another cluster's
+   * pool or API endpoint, or the control plane is not up yet.
+   */
+  setMetalLB(
+    name: string,
+    addresses: string[],
+  ): Promise<{ state: MetalLBState; requested: string[] }> {
+    return this.call("PUT", `/v1/clusters/${seg(name)}/metallb`, {
+      data: { addresses },
+    });
+  }
+
+  /** Removes MetalLB (in the background); services go back to pending. */
+  removeMetalLB(name: string): Promise<{ state: MetalLBState }> {
+    return this.call("DELETE", `/v1/clusters/${seg(name)}/metallb`);
+  }
+
+  /**
+   * The network a cluster's nodes use and a free address block on it for
+   * MetalLB. Without `cluster`: the network a new cluster would get.
+   */
+  getMetalLBHint(cluster?: string): Promise<MetalLBHint> {
+    return this.call<MetalLBHint>("GET", "/v1/clusters/metallb-hint", {
+      params: cluster ? { cluster } : undefined,
+    });
+  }
+
+  /** Cluster API controllers, nodes they cannot inspect, the last restart. */
+  getControllers(): Promise<ControllerHealth> {
+    return this.call<ControllerHealth>("GET", "/v1/management/controllers");
+  }
+
+  /**
+   * Restarts the Cluster API controllers in the background (for when they
+   * are stuck after the appliance was paused). 409 while one is running.
+   */
+  restartControllers(): Promise<ControllerRestart> {
+    return this.call<ControllerRestart>(
+      "POST",
+      "/v1/management/controllers/restart",
+    );
   }
 }

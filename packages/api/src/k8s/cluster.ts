@@ -9,6 +9,7 @@ import type {
   ClusterStatus,
   ClusterStatusView,
   Machine,
+  MetalLBStatus,
 } from "./types";
 
 /** An Incus instance of the cluster joined with its CAPI machine. */
@@ -199,7 +200,8 @@ export class K8sCluster {
   }
 
   /**
-   * Polls until the cluster is ready. Throws on `error` status, on a node
+   * Polls until the cluster is ready. Throws on `error` status, on a problem
+   * the agent reports (e.g. an unusable API endpoint), on a node
    * whose kubeadm bootstrap failed (see `diagnose`), or on timeout.
    */
   async waitUntilReady(
@@ -212,6 +214,11 @@ export class K8sCluster {
       const status = await this.getStatus();
       opts.onProgress?.(status);
       if (status.status === "ready") return status;
+      if (status.problem) {
+        throw new Error(
+          `Cluster ${this.name} will not come up: ${status.problem}`,
+        );
+      }
       if (status.status === "error") {
         throw new Error(
           `Cluster ${this.name} is in error: ${status.message ?? "see activity()"}`,
@@ -243,6 +250,39 @@ export class K8sCluster {
       node.machine !== undefined &&
       !node.machine.nodeName
     );
+  }
+
+  /** Why the cluster cannot come up on its own, when the agent can tell. */
+  get problem(): string | undefined {
+    return this.$status?.problem ?? this.$data.problem;
+  }
+
+  /** MetalLB state, address pool and LoadBalancer services. */
+  metallb(): Promise<MetalLBStatus> {
+    return this.agent.getMetalLB(this.name);
+  }
+
+  /**
+   * Installs MetalLB, or changes its pool. Without addresses, uses the free
+   * range the agent suggests for the cluster's network.
+   */
+  async setMetalLB(addresses?: string[]): Promise<void> {
+    let pool = addresses;
+    if (!pool?.length) {
+      const hint = await this.agent.getMetalLBHint(this.name);
+      if (!hint.range) {
+        throw new Error(
+          `No free address range on ${hint.network}${hint.warning ? `: ${hint.warning}` : ""}`,
+        );
+      }
+      pool = [hint.range];
+    }
+    await this.agent.setMetalLB(this.name, pool);
+  }
+
+  /** Removes MetalLB; LoadBalancer services go back to pending. */
+  async removeMetalLB(): Promise<void> {
+    await this.agent.removeMetalLB(this.name);
   }
 
   /** Admin kubeconfig. Throws a 409 `K8sAgentError` until the control plane is up. */

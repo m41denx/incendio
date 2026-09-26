@@ -96,6 +96,16 @@ describe("cluster spec → CAPN variables", () => {
       workerCount: 0,
       project: "k8s-demo",
     });
+    expect(body.metallb).toBeUndefined();
+  });
+
+  test("request body carries MetalLB addresses when asked", () => {
+    const body = createClusterRequest({
+      name: "demo",
+      metallb: ["10.0.0.200-10.0.0.219"],
+    });
+    expect(body.metallb).toEqual({ addresses: ["10.0.0.200-10.0.0.219"] });
+    expect(body.variables).not.toHaveProperty("metallb");
   });
 
   test("upgrade targets: newer, same major, at most one minor ahead", () => {
@@ -294,6 +304,74 @@ describe("agent client", () => {
     );
     const unauthorized = await agent.listClusters().catch((e: unknown) => e);
     expect((unauthorized as K8sAgentError).isUnauthorized).toBe(true);
+  });
+
+  test("MetalLB and controller endpoints", async () => {
+    const { agent, calls } = client((c) => {
+      const key = `${c.method?.toUpperCase()} ${c.url}`;
+      switch (key) {
+        case "GET /v1/clusters/c1/metallb":
+          return [
+            200,
+            {
+              state: "installed",
+              addresses: ["10.0.0.200-10.0.0.219"],
+              services: [],
+            },
+          ];
+        case "PUT /v1/clusters/c1/metallb":
+          return [202, { state: "installing", requested: ["10.0.0.200/30"] }];
+        case "DELETE /v1/clusters/c1/metallb":
+          return [202, { state: "removing" }];
+        case "GET /v1/clusters/metallb-hint":
+          return [
+            200,
+            {
+              network: "br0",
+              cidr: "10.0.0.1/24",
+              subnet: "10.0.0.0/24",
+              range: "10.0.0.235-10.0.0.254",
+            },
+          ];
+        case "GET /v1/management/controllers":
+          return [
+            200,
+            {
+              deployments: [],
+              unreachable: [],
+              restarting: false,
+              watchdog: true,
+            },
+          ];
+        case "POST /v1/management/controllers/restart":
+          return [
+            202,
+            {
+              at: "2026-09-26T00:00:00Z",
+              reason: "requested from the UI",
+              automatic: false,
+            },
+          ];
+        default:
+          return [404, {}];
+      }
+    });
+    expect((await agent.getMetalLB("c1")).state).toBe("installed");
+    expect((await agent.setMetalLB("c1", ["10.0.0.200/30"])).state).toBe(
+      "installing",
+    );
+    expect(JSON.parse(String(calls.at(-1)!.data))).toEqual({
+      addresses: ["10.0.0.200/30"],
+    });
+    expect((await agent.removeMetalLB("c1")).state).toBe("removing");
+    expect((await agent.getMetalLBHint("c1")).range).toBe(
+      "10.0.0.235-10.0.0.254",
+    );
+    expect(calls.at(-1)!.params).toEqual({ cluster: "c1" });
+    await agent.getMetalLBHint();
+    expect(calls.at(-1)!.params).toBeUndefined();
+    expect((await agent.getControllers()).watchdog).toBe(true);
+    expect((await agent.restartControllers()).automatic).toBe(false);
   });
 });
 
