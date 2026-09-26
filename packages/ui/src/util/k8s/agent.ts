@@ -22,6 +22,8 @@ export interface AgentInfo {
     upgrade?: boolean;
     activity?: boolean;
     metallb?: boolean;
+    // Controller health + restart (0.3.1+).
+    controllers?: boolean;
   };
   incus: { apiUrl: string; configured: boolean };
   // SHA-256 fingerprint ("sha256:<hex>") of the agent's self-signed serving

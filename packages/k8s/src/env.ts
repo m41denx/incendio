@@ -51,6 +51,12 @@ export const env = createEnv({
     // e.g. for a mirror.
     METALLB_VERSION: z.string().default("v0.16.0"),
     METALLB_MANIFEST_URL: z.string().optional(),
+    // Restart the Cluster API controllers when they are stuck on stale
+    // workload connections (after the appliance was paused; self-heal.ts).
+    CONTROLLER_WATCHDOG: z
+      .enum(["true", "false"])
+      .default("true")
+      .transform((v) => v === "true"),
     // Path to the agent's sqlite cache/log DB. In the appliance the bootstrap
     // script points this at /opt/incendio; ":memory:" is handy for tests.
     DB_PATH: z.string().default("incendio-k8s.sqlite"),

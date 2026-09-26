@@ -1,10 +1,8 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { env } from "../env.ts";
 import { log } from "./log.ts";
 import { execError, run } from "./exec.ts";
 import { getKubeconfig } from "./capi.ts";
+import { NoKubeconfigError, withKubeconfig } from "./workload.ts";
 import {
   buildPoolManifest,
   loadBalancerServices,
@@ -20,32 +18,11 @@ import {
  * cannot wait for. Installs run as background jobs (a minute or two).
  */
 
+export { NoKubeconfigError };
+
 const manifestUrl = () =>
   env.METALLB_MANIFEST_URL ??
   `https://raw.githubusercontent.com/metallb/metallb/${env.METALLB_VERSION}/config/manifests/metallb-native.yaml`;
-
-/** The control plane has not been initialized: nothing to talk to yet. */
-export class NoKubeconfigError extends Error {}
-
-async function withKubeconfig<T>(
-  cluster: string,
-  fn: (kubeconfig: string) => Promise<T>,
-): Promise<T> {
-  const kubeconfig = await getKubeconfig(cluster);
-  if (kubeconfig === null) {
-    throw new NoKubeconfigError(
-      "the cluster has no kubeconfig yet (control plane not initialized)",
-    );
-  }
-  const dir = mkdtempSync(join(tmpdir(), "incendio-kc-"));
-  const path = join(dir, "kubeconfig");
-  writeFileSync(path, kubeconfig, { mode: 0o600 });
-  try {
-    return await fn(path);
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-}
 
 const kubectl = (kubeconfig: string, args: string[], input?: string, timeoutMs = 60_000) =>
   run(["kubectl", "--kubeconfig", kubeconfig, ...args], { input, timeoutMs });

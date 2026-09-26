@@ -1,3 +1,11 @@
+## 0.22-p16
+## What's Changed
+### ✨ New Features
+- (feat) Kubernetes: **restart the cluster controllers** from the Management appliance tab, which also lists the controllers and any nodes Cluster API cannot reach. The agent restarts them itself when they get stuck after the appliance was paused or the host slept: clusters used to stay in provisioning with their nodes reported "unreachable". Needs Kubernetes agent 0.3.1
+
+### 📦 Other changes
+- (fix) Kubernetes: new clusters get a **fixed IPv4 API endpoint**. On networks with IPv6, a cluster could get an IPv6 endpoint its load balancer does not serve and never come up. Clusters already stuck that way now say so and suggest recreating them. Needs Kubernetes agent 0.3.1
+
 ## 0.22-p15
 ## What's Changed
 ### ✨ New Features

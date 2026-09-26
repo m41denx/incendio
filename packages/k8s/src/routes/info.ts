@@ -28,6 +28,7 @@ export const infoRoutes = new Elysia()
         upgrade: true,
         activity: true,
         metallb: true,
+        controllers: true,
         operator: true,
         projects: true,
         flavors: FLAVORS,

@@ -314,7 +314,7 @@ export async function patchCluster(
 }
 
 // Provider controllers whose logs narrate a cluster's bring-up, by label.
-const CONTROLLERS: { source: string; namespace: string; deployment: string }[] = [
+export const CONTROLLERS: { source: string; namespace: string; deployment: string }[] = [
   { source: "capn", namespace: "capn-system", deployment: "capn-controller-manager" },
   { source: "capi", namespace: "capi-system", deployment: "capi-controller-manager" },
   {

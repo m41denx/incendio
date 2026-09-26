@@ -8,6 +8,7 @@ import {
 } from "@canonical/react-components";
 import type { K8sManagement } from "pages/kubernetes/useK8sManagement";
 import { useAgentUpdate } from "pages/kubernetes/useAgentUpdate";
+import ManagementControllers from "pages/kubernetes/ManagementControllers";
 import { managementSteps, type StepStatus } from "util/k8s/management";
 
 const STEP_ICON: Record<StepStatus, string> = {
@@ -164,6 +165,9 @@ const ManagementStatus: FC<Props> = ({ management }) => {
             Update agent
           </ActionButton>
         </Notification>
+      ) : null}
+      {info?.capabilities.controllers && state.stage === "ready" ? (
+        <ManagementControllers />
       ) : null}
       {log && state.stage !== "ready" ? (
         <>

@@ -266,6 +266,51 @@ Deltas from the plan above, learned while bringing the appliance up for real:
   nginx `LoadBalancer` service got the first pool address and answered from
   the host; a cluster created with the option got MetalLB once it was ready.
 
+## 11b. Reliability (0.22-p16, agent 0.3.1)
+
+- **Pinned IPv4 API endpoint.** CAPN sets `LXCCluster.spec.controlPlaneEndpoint`
+  from the haproxy load balancer's first address the moment it has one
+  (`controller_normal.go`: `Host = lbIPs[0]`, "TODO: care about IPv4 vs
+  IPv6"). On a dual-stack bridge the SLAAC IPv6 often beats the DHCP IPv4, the
+  endpoint becomes IPv6, haproxy only binds IPv4 and the control plane never
+  initializes (seen on the first `lbt`, ~20 min of retries). Sysctls and
+  cloud-init network-config on the instance did not stop SLAAC. CAPN keeps an
+  endpoint that is already set, and the default ClusterClass only sets one for
+  kube-vip/OVN, so for `lxc`/`oci` load balancers the agent now:
+  1. picks a free IPv4 on the cluster network (the highest address outside
+     the DHCP/OVN ranges, leases, every MetalLB pool and other pinned
+     endpoints; stored as `spec.endpointHost` in the agent's record),
+  2. creates the `incendio-lb` profile in the cluster project: `eth0` on the
+     same network with `ipv4.address` (a static DHCP lease),
+  3. adds the optional `incendioControlPlaneHost` variable and the
+     `incendioControlPlaneEndpoint` patch (→ `/spec/template/spec/controlPlaneEndpoint`)
+     to the `capn-v1beta2` ClusterClass, once. The class is patched in the
+     management cluster, or in the manifest when clusterctl ships it with the
+     first cluster. It has no effect on clusters that do not set the variable,
+  4. sets the variable and adds `incendio-lb` to the load balancer's profiles
+     in the generated Cluster.
+
+  Any failure falls back to the old behaviour (CAPN picks the endpoint).
+  Deleting a cluster removes the profile with the project (Incus only deletes
+  empty projects, so the agent deletes non-default profiles first).
+  Clusters that already have an IPv6 endpoint get a `problem` on their status
+  ("delete and create again"), shown on the cluster page. `/v1/clusters` status
+  endpoints bracket IPv6 hosts (`https://[fd42::5]:6443`).
+- **Controller watchdog.** After the appliance is paused or the host sleeps,
+  the controllers' cached workload clients can stay broken: KCP reports the
+  control-plane Machine's conditions as `Unknown/InspectionFailed: Node … is
+  unreachable` while the node is Ready and its API answers, and the cluster
+  sits in provisioning (c1, 2026-09-25). Restarting the four controller
+  deployments fixes it. Once a minute the agent looks for such conditions;
+  when one has lasted 5 min *and* the workload API answers the appliance
+  (`/readyz` with its kubeconfig), it `rollout restart`s capi, kcp, cabpk and
+  capn. After that it waits 15 min before it acts again, and it stops after 2
+  restarts in a row that did not help. `CONTROLLER_WATCHDOG=false` turns it
+  off. `GET /v1/management/controllers` (deployments, unreachable nodes, last
+  restart) and `POST /v1/management/controllers/restart` back the "Cluster
+  controllers" section of the Management appliance tab. `/v1/info` advertises
+  `controllers`.
+
 ## 12. Ideas (not built yet)
 
 Ranked by how soon a user runs into the gap.

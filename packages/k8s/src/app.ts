@@ -8,6 +8,7 @@ import { log } from "./lib/log.ts";
 import { infoRoutes } from "./routes/info.ts";
 import { operatorRoutes } from "./routes/operator.ts";
 import { clusterRoutes } from "./routes/clusters.ts";
+import { managementRoutes } from "./routes/management.ts";
 
 /**
  * Assembles the agent HTTP app: CORS for the browser UI, OpenAPI docs, JWT
@@ -15,7 +16,8 @@ import { clusterRoutes } from "./routes/clusters.ts";
  *
  * There is deliberately no reconcile loop here: the agent is a thin broker over
  * the CAPI/CAPN control plane, and CAPI's controllers own all reconciliation
- * (see docs/k8s/deploy-model.md §4). The agent only reads status on demand.
+ * (see docs/k8s/deploy-model.md §4). The agent only reads status on demand;
+ * its one timer is the controller watchdog (lib/self-heal.ts).
  */
 export const app = new Elysia()
   .use(
@@ -36,6 +38,7 @@ export const app = new Elysia()
           { name: "meta", description: "Handshake and health" },
           { name: "operator", description: "Operator appliance lifecycle" },
           { name: "clusters", description: "Kubernetes cluster lifecycle" },
+          { name: "management", description: "The management cluster's controllers" },
         ],
       },
     }),
@@ -53,6 +56,7 @@ export const app = new Elysia()
   })
   .use(infoRoutes)
   .use(operatorRoutes)
-  .use(clusterRoutes);
+  .use(clusterRoutes)
+  .use(managementRoutes);
 
 export type App = typeof app;

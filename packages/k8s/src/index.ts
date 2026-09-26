@@ -1,6 +1,7 @@
 import { app } from "./app.ts";
 import { env } from "./env.ts";
 import { log } from "./lib/log.ts";
+import { startWatchdog } from "./lib/self-heal.ts";
 
 // Serve self-signed TLS when both cert and key are configured (the bootstrap
 // script generates them in the appliance; see docs/k8s/management-appliance.md
@@ -21,3 +22,5 @@ log.info(
   `incendio-k8s agent listening on ${scheme}://${env.HOST}:${env.PORT} (OpenAPI at /openapi)` +
     (tlsEnabled ? "" : " [plain HTTP — dev only, no TLS_CERT_FILE/TLS_KEY_FILE]"),
 );
+
+startWatchdog();
