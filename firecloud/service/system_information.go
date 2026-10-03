@@ -33,6 +33,9 @@ type SystemInformation struct {
 	// AvailableDisks is the list of disks available for use on the system.
 	AvailableDisks map[string]api.ResourcesStorageDisk
 
+	// StorageDrivers are the storage drivers Incus can use on the system.
+	StorageDrivers []string
+
 	// AvailableUplinkInterfaces is the list of networks that can be used for the OVN uplink network.
 	AvailableUplinkInterfaces map[string]api.Network
 
@@ -155,6 +158,16 @@ func (sh *Handler) CollectSystemInformation(ctx context.Context, connectInfo mul
 
 			s.AvailableDisks[disk.ID] = disk
 		}
+	}
+
+	if localSystem {
+		s.StorageDrivers, err = lxd.GetStorageDrivers(ctx, s.ClusterName, "", nil)
+	} else {
+		s.StorageDrivers, err = lxd.GetStorageDrivers(ctx, s.ClusterName, s.ClusterAddress, connectInfo.Certificate)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("Failed to get storage drivers of %q: %w", s.ClusterName, err)
 	}
 
 	// Free partitions are offered next to whole disks, so storage does not
@@ -319,6 +332,11 @@ func (s *SystemInformation) SupportsRemotePool() (hasPool bool, supportsPool boo
 	}
 
 	return true, false
+}
+
+// ExistingRemotePool returns the storage pool named "remote" on the system, if any.
+func (s *SystemInformation) ExistingRemotePool() *api.StoragePool {
+	return s.existingRemotePool
 }
 
 // SupportsRemoteFSPool checks if the SystemInformation supports a Firecloud configured remote-fs storage pool.

@@ -3,12 +3,14 @@ package service
 import (
 	"bufio"
 	"context"
+	"crypto/x509"
 	"fmt"
 	"net"
 	"os"
 	"strconv"
 	"strings"
 
+	incus "github.com/lxc/incus/v7/client"
 	"github.com/lxc/incus/v7/shared/api"
 )
 
@@ -305,6 +307,18 @@ func (s LXDService) DefaultCephStoragePool() (*api.StoragePoolsPost, error) {
 	return &req, nil
 }
 
+// DefaultCephStoragePoolJoinConfig returns the Ceph pool configuration a
+// member needs when joining a cluster that already has the pool: Incus keeps
+// "source" per member.
+func (s LXDService) DefaultCephStoragePoolJoinConfig() api.ClusterMemberConfigKey {
+	return api.ClusterMemberConfigKey{
+		Entity: "storage-pool",
+		Name:   DefaultCephPool,
+		Key:    "source",
+		Value:  DefaultCephOSDPool,
+	}
+}
+
 // DefaultPendingCephFSStoragePool returns the default cephfs storage configuration when
 // creating a pending pool on a specific cluster member target.
 // If extra source config is not required by the used version of LXD, only the pool definition is returned.
@@ -369,4 +383,113 @@ func (s LXDService) DefaultCephFSStoragePoolJoinConfig() (*api.ClusterMemberConf
 
 	// This version of LXD doesn't require any config when joining a CephFS pool.
 	return nil, nil
+}
+
+// TrueNASConfig is a shared storage pool on a TrueNAS server.
+type TrueNASConfig struct {
+	Host          string
+	APIKey        string
+	Dataset       string
+	AllowInsecure bool
+}
+
+// DefaultPendingTrueNASStoragePool returns the TrueNAS pool definition for one
+// member: every member uses the same dataset.
+func (s LXDService) DefaultPendingTrueNASStoragePool(cfg TrueNASConfig) api.StoragePoolsPost {
+	return api.StoragePoolsPost{
+		Name:           DefaultCephPool,
+		Driver:         "truenas",
+		StoragePoolPut: api.StoragePoolPut{Config: map[string]string{"source": cfg.Dataset}},
+	}
+}
+
+// DefaultTrueNASStoragePool returns the finalized TrueNAS pool.
+func (s LXDService) DefaultTrueNASStoragePool(cfg TrueNASConfig) api.StoragePoolsPost {
+	config := map[string]string{
+		"truenas.host":    cfg.Host,
+		"truenas.api_key": cfg.APIKey,
+	}
+
+	if cfg.AllowInsecure {
+		config["truenas.allow_insecure"] = "true"
+	}
+
+	return api.StoragePoolsPost{
+		Name:   DefaultCephPool,
+		Driver: "truenas",
+		StoragePoolPut: api.StoragePoolPut{
+			Config:      config,
+			Description: "Shared storage on TrueNAS",
+		},
+	}
+}
+
+// DefaultLVMClusterVG is the volume group Firecloud creates on a shared disk.
+const DefaultLVMClusterVG = "incus"
+
+// DefaultPendingLVMClusterStoragePool returns the clustered LVM pool
+// definition for one member: the shared disk as that member sees it.
+func (s LXDService) DefaultPendingLVMClusterStoragePool(source string, vgName string) api.StoragePoolsPost {
+	return api.StoragePoolsPost{
+		Name:   DefaultCephPool,
+		Driver: "lvmcluster",
+		StoragePoolPut: api.StoragePoolPut{Config: map[string]string{
+			"source":      source,
+			"lvm.vg_name": vgName,
+		}},
+	}
+}
+
+// DefaultLVMClusterStoragePool returns the finalized clustered LVM pool.
+func (s LXDService) DefaultLVMClusterStoragePool() api.StoragePoolsPost {
+	return api.StoragePoolsPost{
+		Name:   DefaultCephPool,
+		Driver: "lvmcluster",
+		StoragePoolPut: api.StoragePoolPut{
+			Description: "Shared storage on clustered LVM",
+		},
+	}
+}
+
+// SharedPoolJoinConfig returns the per-member keys a joining member needs for
+// an existing TrueNAS or clustered LVM pool, copied from an existing member.
+func (s LXDService) SharedPoolJoinConfig(memberConfig map[string]string) []api.ClusterMemberConfigKey {
+	out := []api.ClusterMemberConfigKey{}
+	for _, key := range []string{"source", "lvm.vg_name"} {
+		value := memberConfig[key]
+		if value == "" {
+			continue
+		}
+
+		out = append(out, api.ClusterMemberConfigKey{Entity: "storage-pool", Name: DefaultCephPool, Key: key, Value: value})
+	}
+
+	return out
+}
+
+// GetStorageDrivers returns the storage drivers Incus can use on the system.
+func (s LXDService) GetStorageDrivers(ctx context.Context, name string, address string, cert *x509.Certificate) ([]string, error) {
+	var client incus.InstanceServer
+	var err error
+	if name == s.Name() {
+		client, err = s.Client(ctx)
+	} else {
+		client, err = s.remoteClient(cert, address, CloudPort)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	server, _, err := client.GetServer()
+	if err != nil {
+		return nil, err
+	}
+
+	drivers := []string{}
+	for _, d := range server.Environment.StorageSupportedDrivers {
+		drivers = append(drivers, d.Name)
+	}
+
+	return drivers, nil
 }

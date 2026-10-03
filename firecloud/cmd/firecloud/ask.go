@@ -297,6 +297,23 @@ func (c *initConfig) askAddress(filterAddress string) error {
 }
 
 func (c *initConfig) askDisks(sh *service.Handler) error {
+	// A disk every system sees under the same ID is a shared LUN: keep it
+	// for clustered LVM, out of local and Ceph storage.
+	if len(c.state) > 1 {
+		c.sharedLUNs = sharedDisks(c.state)
+		for name, state := range c.state {
+			for id, disk := range state.AvailableDisks {
+				for _, lun := range c.sharedLUNs {
+					if service.FormatDiskPath(disk) == service.FormatDiskPath(lun) {
+						delete(state.AvailableDisks, id)
+					}
+				}
+			}
+
+			c.state[name] = state
+		}
+	}
+
 	err := c.askLocalPool(sh)
 	if err != nil {
 		return err
@@ -307,7 +324,7 @@ func (c *initConfig) askDisks(sh *service.Handler) error {
 		return err
 	}
 
-	return nil
+	return c.askSharedPool(sh)
 }
 
 func (c *initConfig) askLocalPool(sh *service.Handler) error {
@@ -1080,6 +1097,14 @@ func (c *initConfig) askRemotePool(sh *service.Handler) error {
 			}
 
 			finalConfigs = append(finalConfigs, *req)
+		}
+	}
+
+	// Incus keeps the Ceph pool's source per member, so members joining an
+	// existing pool need it (LXD can drop it with storage_remote_drop_source).
+	if joinRemote {
+		for target := range askSystemsRemote {
+			joinConfigs[target] = append(joinConfigs[target], lxd.DefaultCephStoragePoolJoinConfig())
 		}
 	}
 

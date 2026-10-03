@@ -123,6 +123,14 @@ type initConfig struct {
 
 	// state is the current state information for each system.
 	state map[string]service.SystemInformation
+
+	// sharedLUNs are disks every system sees under the same ID, kept for
+	// clustered LVM instead of local or Ceph storage.
+	sharedLUNs []incusAPI.ResourcesStorageDisk
+
+	// lvmCluster is set when the shared pool uses clustered LVM, so every
+	// member needs a sanlock host_id.
+	lvmCluster bool
 }
 
 type cmdInit struct {
@@ -718,7 +726,7 @@ func (c *initConfig) setupCluster(s *service.Handler) error {
 		// If no device is set, allow each pool managed by Firecloud except CephFS ("local" using ZFS or "remote" using Ceph).
 		// If CephFS is enabled, ensure we don't replace the profile's root device with the CephFS pool
 		// as we always want to use a pool which allows the creation of all types of volumes.
-		if pool.Driver == "ceph" || (profile.Devices["root"] == nil && pool.Driver == "zfs") {
+		if slices.Contains([]string{"ceph", "truenas", "lvmcluster"}, pool.Driver) || (profile.Devices["root"] == nil && pool.Driver == "zfs") {
 			profile.Devices["root"] = map[string]string{"path": "/", "pool": pool.Name, "type": "disk"}
 		}
 	}
@@ -893,13 +901,6 @@ func (c *initConfig) setupCluster(s *service.Handler) error {
 		}
 	}
 
-	// Put MicroCeph's configuration in /etc/ceph on every member before
-	// Incus creates the Ceph pools.
-	err = c.syncMembers(s)
-	if err != nil {
-		return err
-	}
-
 	fmt.Println("Configuring cluster-wide devices ...")
 
 	// Update LXD's global config.
@@ -955,6 +956,21 @@ func (c *initConfig) setupCluster(s *service.Handler) error {
 		}
 	}
 
+	// Clustered LVM: every member gets a sanlock host_id that is never reused.
+	if c.lvmCluster {
+		existing, err := integration.ParseHostIDs(server.Config[integration.KeyLVMHostIDs])
+		if err != nil {
+			return err
+		}
+
+		ids, err := integration.AssignHostIDs(existing, slices.Collect(maps.Keys(c.systems)))
+		if err != nil {
+			return err
+		}
+
+		config[integration.KeyLVMHostIDs] = integration.FormatHostIDs(ids)
+	}
+
 	newServer := server.Writable()
 	changed := false
 	for k, v := range config {
@@ -970,6 +986,13 @@ func (c *initConfig) setupCluster(s *service.Handler) error {
 		if err != nil {
 			return err
 		}
+	}
+
+	// Put MicroCeph's configuration in /etc/ceph and prepare clustered LVM on
+	// every member before Incus creates the pools.
+	err = c.syncMembers(s)
+	if err != nil {
+		return err
 	}
 
 	reverter.Add(func() {
