@@ -1,3 +1,8 @@
+## 0.22-p17
+## What's Changed
+### ✨ New Features
+- (feat) **Permissions with OpenFGA** — a new Permissions section manages who can do what when Incus authorizes users through OpenFGA. Grant users and groups a role (admin, operator, user, viewer) or a single permission on the server, a project or any resource Incus knows about; manage group members; check what a user can actually do; and set up the OpenFGA connection and which clients it authorizes (with warnings before you route your own login away from full access, or leave every SSO user a full admin). The page talks to OpenFGA from your browser with the key saved in the server settings (admins only), so OpenFGA must be reachable from admin machines over HTTPS and allow the UI's origin in CORS
+
 ## 0.22-p16
 ## What's Changed
 ### ✨ New Features

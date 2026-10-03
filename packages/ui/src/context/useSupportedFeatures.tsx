@@ -38,6 +38,12 @@ export const useSupportedFeatures = () => {
       serverMajor > 5,
     hasAccessManagement: apiExtensions.has("access_management"),
     hasAccessManagementTLS: apiExtensions.has("access_management_tls"),
+    // OpenFGA keys moved from openfga.* to authorization.openfga.*.
+    hasAuthorizationConfig: apiExtensions.has("authorization_config"),
+    // authorization.client.* picks the driver per client class.
+    hasAuthorizationClientRouting: apiExtensions.has(
+      "authorization_client_routing",
+    ),
     // Incus has no placement-groups API; Incendio emulates LXD's groups with
     // its own placement scriptlet (util/placementGroups.ts), which only
     // matters when there are cluster members to choose from.

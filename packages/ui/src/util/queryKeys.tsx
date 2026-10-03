@@ -28,6 +28,7 @@ export const queryKeys = {
   networkIntegrations: "network-integrations",
   networkZones: "network-zones",
   networkZoneRecords: "network-zone-records",
+  openfga: "openfga",
   operations: "operations",
   os: "os",
   osApps: "osApps",

@@ -147,6 +147,18 @@ const AcmeSettings = lazy(async () => import("pages/settings/AcmeSettings"));
 const ClusterSettings = lazy(
   async () => import("pages/settings/ClusterSettings"),
 );
+const AuthorizationGrants = lazy(
+  async () => import("pages/authorization/AuthorizationGrants"),
+);
+const AuthorizationGroups = lazy(
+  async () => import("pages/authorization/AuthorizationGroups"),
+);
+const AuthorizationCheck = lazy(
+  async () => import("pages/authorization/AuthorizationCheck"),
+);
+const AuthorizationSetup = lazy(
+  async () => import("pages/authorization/AuthorizationSetup"),
+);
 const TrustedCertificates = lazy(
   async () => import("pages/settings/TrustedCertificates"),
 );
@@ -770,6 +782,28 @@ const App: FC = () => {
               }
             />
           }
+        />
+        <Route
+          path={`${ROOT_PATH}/ui/authorization`}
+          element={
+            <Navigate to={`${ROOT_PATH}/ui/authorization/grants`} replace />
+          }
+        />
+        <Route
+          path={`${ROOT_PATH}/ui/authorization/grants`}
+          element={<ProtectedRoute outlet={<AuthorizationGrants />} />}
+        />
+        <Route
+          path={`${ROOT_PATH}/ui/authorization/groups`}
+          element={<ProtectedRoute outlet={<AuthorizationGroups />} />}
+        />
+        <Route
+          path={`${ROOT_PATH}/ui/authorization/check`}
+          element={<ProtectedRoute outlet={<AuthorizationCheck />} />}
+        />
+        <Route
+          path={`${ROOT_PATH}/ui/authorization/setup`}
+          element={<ProtectedRoute outlet={<AuthorizationSetup />} />}
         />
         <Route
           path={`${ROOT_PATH}/ui/settings`}

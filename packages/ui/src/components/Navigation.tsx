@@ -39,7 +39,9 @@ import { ALL_PROJECTS } from "util/projects";
 import { isAdmin } from "util/permissions";
 
 const initialiseOpenNavMenus = (location: Location) => {
-  const openPermissions = location.pathname.includes("/permissions/");
+  const openPermissions =
+    location.pathname.includes("/permissions/") ||
+    location.pathname.includes("/authorization/");
   const openStorage = location.pathname.includes("/storage/");
   const openNetwork = location.pathname.includes("/network");
   const openCluster =
@@ -820,6 +822,66 @@ const Navigation: FC = () => {
                                   className="accordion-nav-secondary"
                                 >
                                   IDP groups
+                                </NavLink>
+                              </SideNavigationItem>,
+                            ]}
+                          </NavAccordion>
+                        </SideNavigationItem>
+                      )}
+                      {!hasAccessManagement && hasAdminPermissions && (
+                        <SideNavigationItem>
+                          <NavAccordion
+                            baseUrls={[`${ROOT_PATH}/ui/authorization`]}
+                            title="Permissions (OpenFGA)"
+                            iconName="user"
+                            label="Permissions"
+                            onOpen={() => {
+                              toggleAccordionNav("permissions");
+                            }}
+                            open={
+                              openNavMenus.includes("permissions") &&
+                              !menuCollapsed
+                            }
+                          >
+                            {[
+                              <SideNavigationItem key="/ui/authorization/grants">
+                                <NavLink
+                                  to={`${ROOT_PATH}/ui/authorization/grants`}
+                                  title="Who can access what"
+                                  onClick={softToggleMenu}
+                                  className="accordion-nav-secondary"
+                                >
+                                  Grants
+                                </NavLink>
+                              </SideNavigationItem>,
+                              <SideNavigationItem key="/ui/authorization/groups">
+                                <NavLink
+                                  to={`${ROOT_PATH}/ui/authorization/groups`}
+                                  title="Groups of users"
+                                  onClick={softToggleMenu}
+                                  className="accordion-nav-secondary"
+                                >
+                                  Groups
+                                </NavLink>
+                              </SideNavigationItem>,
+                              <SideNavigationItem key="/ui/authorization/check">
+                                <NavLink
+                                  to={`${ROOT_PATH}/ui/authorization/check`}
+                                  title="Check what a user can do"
+                                  onClick={softToggleMenu}
+                                  className="accordion-nav-secondary"
+                                >
+                                  Check access
+                                </NavLink>
+                              </SideNavigationItem>,
+                              <SideNavigationItem key="/ui/authorization/setup">
+                                <NavLink
+                                  to={`${ROOT_PATH}/ui/authorization/setup`}
+                                  title="OpenFGA connection and client routing"
+                                  onClick={softToggleMenu}
+                                  className="accordion-nav-secondary"
+                                >
+                                  Setup
                                 </NavLink>
                               </SideNavigationItem>,
                             ]}
