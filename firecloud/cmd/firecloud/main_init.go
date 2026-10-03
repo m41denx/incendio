@@ -332,6 +332,11 @@ func (c *initConfig) runInteractive(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	openFGA, err := c.askOpenFGA()
+	if err != nil {
+		return err
+	}
+
 	err = c.validateSystems(s)
 	if err != nil {
 		return err
@@ -344,6 +349,15 @@ func (c *initConfig) runInteractive(cmd *cobra.Command, args []string) error {
 
 	if c.setupMany {
 		reverter.Success()
+	}
+
+	if openFGA != nil {
+		err = applyOpenFGA(s, openFGA)
+		if err != nil {
+			return err
+		}
+
+		fmt.Println(tui.SummarizeResult("Incus authorizes users through OpenFGA store %s", openFGA.StoreID))
 	}
 
 	if wantUIToken {

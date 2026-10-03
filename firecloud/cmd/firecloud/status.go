@@ -183,7 +183,7 @@ func (c *cmdStatus) run(cmd *cobra.Command, args []string) error {
 		fmt.Println("")
 	}
 
-	headers := []string{"Name", "Address", "OSDs", "MicroCeph Units", "MicroOVN Units", "Status"}
+	headers := []string{"Name", "Address", "OSDs", "MicroCeph Units", "MicroOVN Units", "Sync", "Status"}
 
 	statusByName := make(map[string]types.Status, len(statuses))
 	var localStatus types.Status
@@ -403,6 +403,15 @@ func compileWarnings(name string, statuses []types.Status) Warnings {
 		warnings = append(warnings, Warning{Level: Warn, Message: msg})
 	}
 
+	for _, st := range statuses {
+		for _, e := range st.Sync.Errors {
+			msg := tui.Printf(tui.Fmt{Arg: "Sync on %s: %s"},
+				tui.Fmt{Color: tui.Bright, Bold: true, Arg: st.Name},
+				tui.Fmt{Arg: e})
+			warnings = append(warnings, Warning{Level: Warn, Message: msg})
+		}
+	}
+
 	return warnings
 }
 
@@ -462,5 +471,17 @@ func formatStatusRow(localStatus types.Status, s types.Status) []string {
 		}
 	}
 
-	return []string{s.Name, s.Address, osds, cephServices, ovnServices, status}
+	return []string{s.Name, s.Address, osds, cephServices, ovnServices, formatSync(s.Sync), status}
+}
+
+// formatSync summarizes a member's last sync of settings into Incus.
+func formatSync(sync types.SyncStatus) string {
+	switch {
+	case len(sync.Errors) > 0:
+		return tui.ErrorColor("failed", false)
+	case sync.LastSuccess.IsZero():
+		return tui.WarningColor("-", false)
+	}
+
+	return tui.SuccessColor("ok "+sync.LastSuccess.Local().Format("15:04"), false)
 }
