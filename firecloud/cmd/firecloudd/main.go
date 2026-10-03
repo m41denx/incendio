@@ -131,6 +131,7 @@ func (c *cmdDaemon) run(cmd *cobra.Command, args []string) error {
 	endpoints := []microTypes.Endpoint{
 		api.SyncCmd(s),
 		api.UICmd(s),
+		api.FreePartitionsCmd(s),
 		api.StatusCmd(s),
 		api.ServicesCmd(s),
 		api.ServiceTokensCmd(s),

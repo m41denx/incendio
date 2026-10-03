@@ -203,3 +203,18 @@ func UpdateUI(ctx context.Context, c microTypes.Client, target string, tag strin
 
 	return out.Tag, nil
 }
+
+// GetFreePartitions returns the kernel names of the partitions storage can
+// use on the member c points at.
+func GetFreePartitions(ctx context.Context, c microTypes.Client) ([]string, error) {
+	queryCtx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+
+	partitions := []string{}
+	err := c.Query(queryCtx, "GET", types.APIVersion, &api.NewURL().Path("storage", "free-partitions").URL, nil, &partitions)
+	if err != nil {
+		return nil, err
+	}
+
+	return partitions, nil
+}

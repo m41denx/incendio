@@ -345,9 +345,48 @@ func (c *initConfig) askLocalPool(sh *service.Handler) error {
 		availableDisks[name] = state.AvailableDisks
 	}
 
-	// Local storage is already set up on every system, or if not every system has a disk.
-	if len(askSystems) == 0 || len(availableDisks) != len(askSystems) {
-		tui.PrintWarning("No disks available for local storage. Skipping configuration")
+	// Local storage is already set up on every system.
+	if len(askSystems) == 0 {
+		return nil
+	}
+
+	wantsDisks, err := c.asker.AskBool("Would you like to set up local storage?", true)
+	if err != nil {
+		return err
+	}
+
+	if !wantsDisks {
+		return nil
+	}
+
+	// Systems without a free disk can keep local storage in a loop file.
+	question := "Offer a loop file on each system for local storage? Size (e.g. 100GiB), empty for none:"
+	if len(availableDisks) != len(askSystems) {
+		question = "Some systems have no free disk or partition. Size of a loop file for local storage (e.g. 100GiB), empty to skip:"
+	}
+
+	answer, err := c.asker.AskString(question, "", func(input string) error {
+		_, err := parseLoopSize(input)
+		return err
+	})
+	if err != nil {
+		return err
+	}
+
+	loopGiB, _ := parseLoopSize(answer)
+	if loopGiB > 0 {
+		for name := range askSystems {
+			if availableDisks[name] == nil {
+				availableDisks[name] = map[string]api.ResourcesStorageDisk{}
+			}
+
+			spec := localLoopSpec(loopGiB)
+			availableDisks[name][spec] = api.ResourcesStorageDisk{ID: spec, Model: "Loop file", Type: diskTypeLoop, Size: loopGiB << 30}
+		}
+	}
+
+	if len(availableDisks) != len(askSystems) {
+		tui.PrintWarning("No disks available for local storage on every system. Skipping configuration")
 
 		return nil
 	}
@@ -366,17 +405,12 @@ func (c *initConfig) askLocalPool(sh *service.Handler) error {
 
 		for _, disk := range sortedDisks {
 			devicePath := service.FormatDiskPath(disk)
+			if disk.Type == diskTypeLoop {
+				devicePath = disk.ID
+			}
+
 			data = append(data, []string{peer, disk.Model, units.GetByteSizeStringIEC(int64(disk.Size), 2), disk.Type, devicePath})
 		}
-	}
-
-	wantsDisks, err := c.asker.AskBool("Would you like to set up local storage?", true)
-	if err != nil {
-		return err
-	}
-
-	if !wantsDisks {
-		return nil
 	}
 
 	lxd := sh.Services[types.LXD].(*service.LXDService)
@@ -416,15 +450,22 @@ func (c *initConfig) askLocalPool(sh *service.Handler) error {
 			return errors.New("Failed to add local storage pool: Some peers don't have an available disk")
 		}
 
-		if wipeable {
-			newRows := make([][]string, len(answers))
-			for row := range answers {
-				newRows[row] = make([]string, len(header))
-				for j, h := range header {
-					newRows[row][j] = answers[row][h]
-				}
+		// Loop files are new files: there is nothing to wipe.
+		newRows := [][]string{}
+		for row := range answers {
+			if answers[row]["TYPE"] == diskTypeLoop {
+				continue
 			}
 
+			newRow := make([]string, len(header))
+			for j, h := range header {
+				newRow[j] = answers[row][h]
+			}
+
+			newRows = append(newRows, newRow)
+		}
+
+		if wipeable && len(newRows) > 0 {
 			answers, err := table.Render(context.Background(), c.asker, "Select which disks to wipe:", newRows...)
 			if err != nil {
 				return fmt.Errorf("Failed to confirm which disks to wipe: %w", err)
@@ -459,11 +500,23 @@ func (c *initConfig) askLocalPool(sh *service.Handler) error {
 	if useJoinConfig {
 		joinConfigs = map[string][]api.ClusterMemberConfigKey{}
 		for target, path := range selectedDisks {
+			size, isLoop := localLoopSize(path)
+			if isLoop {
+				joinConfigs[target] = lxd.DefaultLoopZFSStoragePoolJoinConfig(size)
+				continue
+			}
+
 			joinConfigs[target] = lxd.DefaultZFSStoragePoolJoinConfig(wipeable && toWipe[target] != "", path)
 		}
 	} else {
 		targetConfigs = map[string][]api.StoragePoolsPost{}
 		for target, path := range selectedDisks {
+			size, isLoop := localLoopSize(path)
+			if isLoop {
+				targetConfigs[target] = []api.StoragePoolsPost{lxd.DefaultPendingLoopZFSStoragePool(size)}
+				continue
+			}
+
 			targetConfigs[target] = []api.StoragePoolsPost{lxd.DefaultPendingZFSStoragePool(wipeable && toWipe[target] != "", path)}
 		}
 
@@ -742,15 +795,44 @@ func (c *initConfig) askRemotePool(sh *service.Handler) error {
 			}
 		}
 
+		wantsDisks, err := c.asker.AskBool("Would you like to set up distributed storage?", true)
+		if err != nil {
+			return err
+		}
+
+		// Loop files let Ceph run without spare disks or partitions.
+		if wantsDisks {
+			question := "Offer a loop file on each system as a Ceph disk? Size (e.g. 50GiB), empty for none:"
+			if availableDiskCount == 0 {
+				question = "No free disks or partitions. Size of a loop file on each system for Ceph (e.g. 50GiB), empty to skip:"
+			}
+
+			answer, err := c.asker.AskString(question, "", func(input string) error {
+				_, err := parseLoopSize(input)
+				return err
+			})
+			if err != nil {
+				return err
+			}
+
+			loopGiB, _ := parseLoopSize(answer)
+			if loopGiB > 0 {
+				for name := range askSystemsRemote {
+					if availableDisks[name] == nil {
+						availableDisks[name] = map[string]api.ResourcesStorageDisk{}
+					}
+
+					spec := cephLoopSpec(loopGiB)
+					availableDisks[name][spec] = api.ResourcesStorageDisk{ID: spec, Model: "Loop file", Type: diskTypeLoop, Size: loopGiB << 30}
+					availableDiskCount++
+				}
+			}
+		}
+
 		if availableDiskCount == 0 && len(existingClusterDisks) == 0 {
 			tui.PrintWarning("No disks available for distributed storage. Skipping configuration")
 
 			return nil
-		}
-
-		wantsDisks, err := c.asker.AskBool("Would you like to set up distributed storage?", true)
-		if err != nil {
-			return err
 		}
 
 		if len(existingClusterDisks) > 0 && wantsDisks {
@@ -787,6 +869,10 @@ func (c *initConfig) askRemotePool(sh *service.Handler) error {
 					for _, disk := range sortedDisks {
 						// Skip any disks that have been reserved for the local storage pool.
 						devicePath := service.FormatDiskPath(disk)
+						if disk.Type == diskTypeLoop {
+							devicePath = disk.ID
+						}
+
 						data = append(data, []string{peer, disk.Model, units.GetByteSizeStringIEC(int64(disk.Size), 2), disk.Type, devicePath})
 					}
 				}
@@ -798,20 +884,27 @@ func (c *initConfig) askRemotePool(sh *service.Handler) error {
 				sort.Sort(cli.SortColumnsNaturally(data))
 				var toWipe []map[string]string
 				table := tui.NewSelectableTable(header, data)
-				selected, err := table.Render(context.Background(), c.asker, "Select from the available unpartitioned disks:")
+				selected, err := table.Render(context.Background(), c.asker, "Select disks, partitions or loop files:")
 				if err != nil {
 					return err
 				}
 
-				if len(selected) > 0 {
-					newRows := make([][]string, len(selected))
-					for row := range selected {
-						newRows[row] = make([]string, len(header))
-						for j, h := range header {
-							newRows[row][j] = selected[row][h]
-						}
+				// Loop files are new files: there is nothing to wipe.
+				newRows := [][]string{}
+				for row := range selected {
+					if selected[row]["TYPE"] == diskTypeLoop {
+						continue
 					}
 
+					newRow := make([]string, len(header))
+					for j, h := range header {
+						newRow[j] = selected[row][h]
+					}
+
+					newRows = append(newRows, newRow)
+				}
+
+				if len(newRows) > 0 {
 					toWipe, err = table.Render(context.Background(), c.asker, "Select which disks to wipe:", newRows...)
 					if err != nil {
 						return err
@@ -907,7 +1000,17 @@ func (c *initConfig) askRemotePool(sh *service.Handler) error {
 	}
 
 	encryptDisks := false
-	if len(selectedDisks) > 0 {
+	hasDevices := false
+	for _, disks := range selectedDisks {
+		for _, disk := range disks {
+			if !isLoopSpec(disk) {
+				hasDevices = true
+			}
+		}
+	}
+
+	// MicroCeph cannot encrypt loop files.
+	if hasDevices {
 		var err error
 		encryptDisks, err = c.asker.AskBool("Do you want to encrypt the selected disks?", false)
 		if err != nil {
@@ -946,7 +1049,7 @@ func (c *initConfig) askRemotePool(sh *service.Handler) error {
 				osds[target] = []cephTypes.DisksPost{}
 			}
 
-			osds[target] = append(osds[target], cephTypes.DisksPost{Path: []string{disk}, Wipe: wipeDisks[target][disk], Encrypt: encryptDisks})
+			osds[target] = append(osds[target], cephTypes.DisksPost{Path: []string{disk}, Wipe: wipeDisks[target][disk], Encrypt: encryptDisks && !isLoopSpec(disk)})
 		}
 	}
 

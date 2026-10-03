@@ -1082,7 +1082,7 @@ func (c *initConfig) setupCluster(s *service.Handler) error {
 		// In this case add the pool's name to the list of available storage pools.
 		for _, cfg := range system.JoinConfig {
 			if cfg.Name == "local" {
-				if cfg.Entity == "storage-pool" && cfg.Key == "source" {
+				if cfg.Entity == "storage-pool" && (cfg.Key == "source" || cfg.Key == "size") {
 					poolNames = append(poolNames, cfg.Name)
 				}
 			}

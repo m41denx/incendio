@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	lxd "github.com/canonical/lxd/client"
 	"github.com/canonical/lxd/shared/ws"
+	incus "github.com/lxc/incus/v7/client"
 	"github.com/canonical/microcluster/v3/microcluster"
 	"github.com/canonical/microcluster/v3/microcluster/types"
 
@@ -68,13 +68,13 @@ func lxdHandler(s types.State, r *http.Request) types.Response {
 	unixPath := filepath.Join(LXDDir, "unix.socket")
 	_, err := os.Stat(unixPath)
 	if err != nil {
-		return types.NotFound(fmt.Errorf("Failed to find LXD unix socket %q: %w", unixPath, err))
+		return types.NotFound(fmt.Errorf("Failed to find Incus unix socket %q: %w", unixPath, err))
 	}
 
 	if r.Header.Get("Upgrade") == "websocket" {
-		client, err := lxd.ConnectLXDUnix(unixPath, nil)
+		client, err := incus.ConnectIncusUnix(unixPath, nil)
 		if err != nil {
-			return types.SmartError(fmt.Errorf("Failed to connect to local LXD: %w", err))
+			return types.SmartError(fmt.Errorf("Failed to connect to local Incus: %w", err))
 		}
 
 		// RawWebsocket assigns /1.0, so remove it here.
@@ -105,9 +105,9 @@ func lxdHandler(s types.State, r *http.Request) types.Response {
 	r.URL.Scheme = "http"
 	r.URL.Host = "unix.socket"
 	r.Host = r.URL.Host
-	client, err := lxd.ConnectLXDUnix(filepath.Join(LXDDir, "unix.socket"), nil)
+	client, err := incus.ConnectIncusUnix(filepath.Join(LXDDir, "unix.socket"), nil)
 	if err != nil {
-		return types.SmartError(fmt.Errorf("Failed to connect to local LXD: %w", err))
+		return types.SmartError(fmt.Errorf("Failed to connect to local Incus: %w", err))
 	}
 
 	resp, err := client.DoHTTP(r)

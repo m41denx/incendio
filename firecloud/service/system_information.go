@@ -6,12 +6,16 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"slices"
 
 	lxdAPI "github.com/canonical/lxd/shared/api"
+	"github.com/canonical/lxd/shared/logger"
 	cephTypes "github.com/canonical/microceph/microceph/api/types"
+	microTypes "github.com/canonical/microcluster/v3/microcluster/types"
 	"github.com/lxc/incus/v7/shared/api"
 
 	"github.com/m41denx/incendio/firecloud/api/types"
+	cloudClient "github.com/m41denx/incendio/firecloud/client"
 	"github.com/m41denx/incendio/firecloud/multicast"
 )
 
@@ -150,6 +154,28 @@ func (sh *Handler) CollectSystemInformation(ctx context.Context, connectInfo mul
 			}
 
 			s.AvailableDisks[disk.ID] = disk
+		}
+	}
+
+	// Free partitions are offered next to whole disks, so storage does not
+	// need a dedicated disk. Only the machine itself can tell which are free.
+	if allResources != nil {
+		partitions, err := sh.freePartitions(ctx, localSystem, connectInfo)
+		if err != nil {
+			logger.Warn("Failed to list free partitions", logger.Ctx{"system": s.ClusterName, "error": err})
+		}
+
+		for _, disk := range PartitionDisks(allResources.Storage.Disks, partitions) {
+			diskUsed := false
+			for _, usedCephDisk := range usedCephDisks {
+				if usedCephDisk.Path == FormatDiskPath(disk) && usedCephDisk.Location == connectInfo.Name {
+					diskUsed = true
+				}
+			}
+
+			if !diskUsed {
+				s.AvailableDisks[disk.ID] = disk
+			}
 		}
 	}
 
@@ -406,4 +432,58 @@ func FormatDiskPath(disk api.ResourcesStorageDisk) string {
 	}
 
 	return devicePath
+}
+
+// freePartitions asks the Firecloud daemon of the system which partitions are free.
+func (sh *Handler) freePartitions(ctx context.Context, localSystem bool, connectInfo multicast.ServerInfo) ([]string, error) {
+	cloud, ok := sh.Services[types.Firecloud].(*CloudService)
+	if !ok {
+		return nil, nil
+	}
+
+	var c microTypes.Client
+	var err error
+	if localSystem {
+		c, err = cloud.Client()
+	} else {
+		c, err = cloud.RemoteClient(connectInfo.Certificate, connectInfo.Address)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	return cloudClient.GetFreePartitions(ctx, c)
+}
+
+// PartitionDisks turns the named partitions of disks into disk entries the
+// disk selection can offer, with by-id or by-path links of the partition
+// (udev names them <disk link>-part<N>).
+func PartitionDisks(disks []api.ResourcesStorageDisk, names []string) []api.ResourcesStorageDisk {
+	out := []api.ResourcesStorageDisk{}
+	for _, disk := range disks {
+		for _, p := range disk.Partitions {
+			if !slices.Contains(names, p.ID) || p.ReadOnly {
+				continue
+			}
+
+			suffix := fmt.Sprintf("-part%d", p.Partition)
+			entry := api.ResourcesStorageDisk{
+				ID:    p.ID,
+				Model: fmt.Sprintf("%s (partition %d)", disk.Model, p.Partition),
+				Type:  "partition",
+				Size:  p.Size,
+			}
+
+			if disk.DeviceID != "" {
+				entry.DeviceID = disk.DeviceID + suffix
+			} else if disk.DevicePath != "" {
+				entry.DevicePath = disk.DevicePath + suffix
+			}
+
+			out = append(out, entry)
+		}
+	}
+
+	return out
 }

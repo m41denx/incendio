@@ -190,6 +190,30 @@ func (s LXDService) DefaultPendingZFSStoragePool(wipe bool, path string) api.Sto
 	}
 }
 
+// DefaultPendingLoopZFSStoragePool returns the local storage configuration for
+// a member without a spare disk: Incus keeps the pool in a loop file of size.
+func (s LXDService) DefaultPendingLoopZFSStoragePool(size string) api.StoragePoolsPost {
+	return api.StoragePoolsPost{
+		Name:   DefaultZFSPool,
+		Driver: "zfs",
+		StoragePoolPut: api.StoragePoolPut{
+			Config:      map[string]string{"size": size},
+			Description: "Local storage on ZFS",
+		},
+	}
+}
+
+// DefaultLoopZFSStoragePoolJoinConfig returns the loop-file size of the local
+// pool for a member joining an existing cluster.
+func (s LXDService) DefaultLoopZFSStoragePoolJoinConfig(size string) []api.ClusterMemberConfigKey {
+	return []api.ClusterMemberConfigKey{{
+		Entity: "storage-pool",
+		Name:   DefaultZFSPool,
+		Key:    "size",
+		Value:  size,
+	}}
+}
+
 // DefaultZFSStoragePool returns the default local storage configuration when
 // creating the finalized pool.
 func (s LXDService) DefaultZFSStoragePool() api.StoragePoolsPost {
