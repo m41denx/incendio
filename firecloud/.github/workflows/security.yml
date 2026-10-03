@@ -1,0 +1,138 @@
+name: Vulnerability Scanning with Trivy
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * *'  # Test Trivy daily at midnight
+
+permissions:
+  contents: read
+
+env:
+  KEV_URL: https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  trivy-repo:
+    name: Trivy - Repository
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      security-events: write # for uploading SARIF results to the security tab
+    if: ${{ ( github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' ) && github.ref_name == 'main' && github.repository_owner == 'canonical' }}
+    env:
+      SARIF_FILE: trivy-${{ github.event.repository.name }}-repo-scan-results.sarif
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,secret,misconfig
+          format: sarif
+          severity: LOW,MEDIUM,HIGH,CRITICAL
+          output: ${{ env.SARIF_FILE }}
+
+      - name: Tag KEV alerts
+        run: |
+            set -euo pipefail
+            curl -s --compressed --proto '=https' --tlsv1.3 --fail --max-time 30 -o kev.json "${KEV_URL}"
+            kev_ids="$(jq -r '.vulnerabilities[].cveID' kev.json)"
+            jq --exit-status --arg ids "$kev_ids" '($ids | split("\n")) as $id_list | .runs[].tool.driver.rules[] |= (
+              if (.id as $id | $id_list | index($id)) then
+                .shortDescription.text |= . + " (KEV)"
+              else
+                .
+              end
+            )' "${SARIF_FILE}" > trivy-modified.sarif
+            mv trivy-modified.sarif "${SARIF_FILE}"
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd # v4.37.7
+        with:
+          sarif_file: ${{ env.SARIF_FILE }}
+          sha: ${{ github.sha }}
+          ref: refs/heads/main
+
+  trivy-snap:
+    name: Trivy - Snap
+    runs-on: ubuntu-24.04
+    needs: trivy-repo
+    permissions:
+      contents: read
+      security-events: write # for uploading SARIF results to the security tab
+    if: ${{ ( github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' ) && github.ref_name == 'main' && github.repository_owner == 'canonical' }}
+    strategy:
+      matrix:
+        include:
+          - track: 3
+            branch: main
+          - track: 2
+            branch: v2-edge
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ matrix.branch }}
+          persist-credentials: false
+
+      - name: Resolve branch HEAD SHA
+        id: branch-sha
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Download snap for scan
+        env:
+          SNAP_NAME: ${{ github.event.repository.name }}
+        run: |
+          snap download "${SNAP_NAME}" --channel=${{ matrix.track }}/stable --cohort="+"
+          unsquashfs ./${SNAP_NAME}*.snap
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: rootfs
+          scan-ref: squashfs-root
+          scanners: vuln,secret,misconfig
+          format: sarif
+          severity: LOW,MEDIUM,HIGH,CRITICAL
+          output: ${{ matrix.branch }}.sarif
+
+      - name: Flag snap scanning alerts and tag KEV alerts
+        run: |
+          set -euo pipefail
+          # Download KEV catalog
+          curl -s --compressed --proto '=https' --tlsv1.3 --fail --max-time 30 -o kev.json "${KEV_URL}"
+          kev_ids="$(jq -r '.vulnerabilities[].cveID' kev.json)"
+          # Modify the SARIF file to both add "Snap scan - " prefix and tag KEV alerts
+          jq --exit-status --arg ids "$kev_ids" '
+            ($ids | split("\n")) as $id_list |
+            .runs[].tool.driver.rules[] |= (
+              # First add the Snap scan prefix to all entries
+              .shortDescription.text = "Snap scan - " + .shortDescription.text |
+              # Then add KEV tag if applicable
+              if (.id as $id | $id_list | index($id)) then
+                .shortDescription.text |= . + " (KEV)"
+              else
+                .
+              end
+            )' ${{ matrix.branch }}.sarif > ${{ matrix.branch }}-modified.sarif
+          mv ${{ matrix.branch }}-modified.sarif ${{ matrix.branch }}.sarif
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd # v4.37.7
+        with:
+          sarif_file: ${{ matrix.branch }}.sarif
+          sha: ${{ steps.branch-sha.outputs.sha }}
+          ref: refs/heads/${{ matrix.branch }}

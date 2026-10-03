@@ -1,0 +1,107 @@
+# `initiator` defines which system takes over the role of the initiator during the trust establishment using multicast discovery.
+# Make sure to also set `lookup_subnet`.
+# The field cannot be set together with `initiator_address`.
+# Required if `initiator_address` isn't specified.
+initiator: micro01
+
+# `initiator_address` defines which system takes over the role of the initiator during the trust establishment.
+# It also allows joining systems to learn about the address they have to connect to.
+# The field cannot be set together with `initiator`.
+# Required if `initiator` isn't specified.
+initiator_address: 10.0.0.1
+
+# `lookup_subnet` is required and limits the subnet when looking up systems using multicast discovery.
+# The first assigned address of this subnet is used for MicroCloud itself.
+lookup_subnet: 10.0.0.0/24
+
+# `lookup_timeout` is optional and configures how long the joining system will wait for a system to be discovered using multicast discovery.
+# The value has to be provided in seconds.
+# It defaults to 60 seconds.
+lookup_timeout: 300
+
+# `session_passphrase` is required and configures the passphrase used during the trust establishment session.
+session_passphrase: 83P27XWKbDczUyE7xaX3pgVfaEacfQ2qiQ0r6gPb
+
+# `session_timeout` is optional and configures how long the trust establishment session will last.
+# The value has to be provided in seconds.
+# It defaults to 60 minutes.
+session_timeout: 300
+
+# `systems` is required and lists the systems we expect to find by their host name.
+#   `name` is required and represents the host name.
+#   `address` sets the address used for MicroCloud and is required in case `initiator_address` is present.
+#   `ovn_uplink_interface` is optional and represents the name of the interface reserved for use with OVN.
+#   `ovn_underlay_ip` is optional and represents the Geneve Encap IP for each system.
+#   `storage` is optional and represents explicit paths to disks for each system.
+systems:
+- name: micro01
+  address: 10.0.0.1
+  ovn_uplink_interface: eth1
+  ovn_underlay_ip: 10.0.2.101
+- name: micro02
+  address: 10.0.0.2
+  ovn_uplink_interface: eth1
+  ovn_underlay_ip: 10.0.2.102
+  storage:
+    local:
+      path: /dev/nvme5n1
+      wipe: true
+    ceph:
+      - path: /dev/nvme4n1
+        wipe: true
+      - path: nvme3n1
+        wipe: true
+        encrypt: true
+- name: micro03
+  address: 10.0.0.3
+  ovn_uplink_interface: eth1
+  ovn_underlay_ip: 10.0.2.103
+- name: micro04
+  address: 10.0.0.4
+  ovn_uplink_interface: eth1
+
+# `ceph` is optional and represents the Ceph global configuration
+# `cephfs: true` can be used to optionally set up a CephFS file system alongside Ceph distributed storage.
+# `internal_network: subnet` optionally specifies the internal cluster network for the Ceph cluster. This network handles OSD heartbeats, object replication, and recovery traffic.
+# `public_network: subnet` optionally specifies the public network for the Ceph cluster. This network conveys information regarding the management of your Ceph nodes. It is by default set to the MicroCloud lookup subnet.
+ceph:
+  cephfs: true
+  internal_network: 10.0.1.0/24
+  public_network: 10.0.0.0/24
+
+# `ovn` is optional and represents the OVN & uplink network configuration for LXD.
+ovn:
+  ipv4_gateway: 192.0.2.1/24
+  ipv4_range: 192.0.2.100-192.0.2.254
+  ipv6_gateway: 2001:db8:d:200::1/64
+  dns_servers: 192.0.2.1,2001:db8:d:200::1
+
+# `storage` is optional and is used as basic filtering logic for finding disks across all systems.
+# Filters will only apply to systems which do not have an explicitly defined disk above for the corresponding storage type.
+# Filters are checked in order of appearance.
+# The names and values of each key correspond to the YAML field names for the `api.ResouresStorageDisk`
+# struct here:
+# https://github.com/canonical/lxd/blob/c86603236167a43836c2766647e2fac97d79f899/shared/api/resource.go#L591
+# Supported operands: &&, ||, <, >, <=, >=, ==, !=, !
+# String values must not be in quotes unless the string contains a space.
+# Single quotes are fine, but double quotes must be escaped.
+# `find_min` and `find_max` can be used to validate the number of disks each filter finds.
+storage:
+  local:
+    - find: size > 10GiB && size < 50GiB && type == nvme
+      find_min: 1
+      find_max: 1
+      wipe: true
+    - find: size > 10GiB && size < 50GiB && type == hdd && block_size == 512 && model == 'Samsung %'
+      find_min: 3
+      find_max: 3
+      wipe: false
+  ceph:
+    - find: size > 10GiB && size < 50GiB && type == nvme
+      find_min: 1
+      find_max: 2
+      wipe: true
+    - find: size > 10GiB && size < 50GiB && type == hdd && block_size == 512 && model == 'Samsung %'
+      find_min: 3
+      find_max: 8
+      wipe: false

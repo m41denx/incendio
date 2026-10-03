@@ -1,0 +1,193 @@
+name: System test
+inputs:
+  setup_testbed:
+    description: 'Set up the testbed infrastructure (VMs, networks, etc.)'
+    required: false
+    default: 'true'
+  setup_terraform:
+    description: 'Set up Terraform for tests that require it'
+    required: false
+    default: 'false'
+  collect_coverage:
+    description: 'Whether to collect Go coverage data for this test'
+    required: false
+    default: 'true'
+runs:
+  using: composite
+  steps:
+    - name: Tune disk performance
+      uses: canonical/lxd/.github/actions/tune-disk-performance@main # zizmor: ignore[unpinned-uses]
+
+    - name: Reclaim some space
+      uses: canonical/lxd/.github/actions/reclaim-disk-space@main # zizmor: ignore[unpinned-uses]
+
+    - name: Reclaim some memory
+      uses: canonical/lxd/.github/actions/reclaim-memory@main # zizmor: ignore[unpinned-uses]
+
+    - name: Disable Docker (GitHub runners)
+      if: ${{ runner.environment == 'github-hosted' }}
+      uses: canonical/lxd/.github/actions/disable-docker@main # zizmor: ignore[unpinned-uses]
+
+    - name: "Disable br_netfilter"
+      shell: bash
+      run: |
+        # When br_netfilter is enabled, the multicast traffic that passes the native LXD bridge
+        # will get masqueraded too which breaks the multicast discovery.
+        if lsmod | grep -qw ^br_netfilter; then
+          sudo modprobe -r br_netfilter
+        fi
+
+    - name: Checkout
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
+
+    - name: Install Go
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      with:
+        go-version-file: 'go.mod'
+
+    - name: Download system test dependencies
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      with:
+        name: system-test-deps
+        merge-multiple: true
+        # Pick the right home path of the runner user.
+        # The GitHub runners use /home/runner and the Canonical ones use /home/ubuntu.
+        # The path intput supports expansion.
+        path: ~/go/bin
+
+    - name: Make GOCOVERDIR
+      shell: bash
+      run: mkdir -p "${GOCOVERDIR}"
+      if: env.GOCOVERDIR != ''
+
+    - name: Sideload debug binaries
+      shell: bash
+      run: | # zizmor: ignore[github-env]
+        set -eux
+
+        # Binaries to sideload
+        export MICROCLOUD_DEBUG_PATH=~/go/bin/microcloud
+        export MICROCLOUDD_DEBUG_PATH=~/go/bin/microcloudd
+
+        echo "MICROCLOUD_DEBUG_PATH=${MICROCLOUD_DEBUG_PATH}"   >> "${GITHUB_ENV}"
+        echo "MICROCLOUDD_DEBUG_PATH=${MICROCLOUDD_DEBUG_PATH}" >> "${GITHUB_ENV}"
+
+    - name: Strip debug binaries
+      if: env.GOCOVERDIR == ''
+      shell: bash
+      run: |
+        set -eux
+        strip -s "${MICROCLOUD_DEBUG_PATH}" "${MICROCLOUDD_DEBUG_PATH}"
+
+    - name: "Free up the ephemeral disk"
+      shell: bash
+      run: | # zizmor: ignore[github-env]
+        set -eux
+
+        if ! mountpoint --quiet /mnt; then
+          echo "INFO: no ephemeral disk mounted on /mnt"
+          mount
+          exit 0
+        fi
+
+        # If the rootfs and the ephemeral part are on the same physical disk, giving the whole
+        # disk to microceph would wipe our rootfs. Since it is pretty rare for GitHub Action
+        # runners to have a single disk, we immediately bail rather than trying to gracefully
+        # handle it. Once snapd releases with https://github.com/snapcore/snapd/pull/13150,
+        # we will be able to stop worrying about that special case.
+        if [ "$(stat -c '%d' /)" = "$(stat -c '%d' /mnt)" ]; then
+          echo "FAIL: rootfs and ephemeral part on the same disk, aborting"
+          lsblk
+          blkid
+          sudo fdisk -l
+          exit 1
+        fi
+
+        # Free-up the ephemeral disk to use it as storage device for LXD.
+        sudo swapoff /mnt/swapfile
+        ephemeral_disk="$(findmnt --noheadings --output SOURCE --target /mnt | sed 's/[0-9]\+$//')"
+        sudo umount /mnt
+        sudo wipefs -a "${ephemeral_disk}"
+        export TEST_STORAGE_SOURCE="${ephemeral_disk}"
+
+        echo "TEST_STORAGE_SOURCE=${TEST_STORAGE_SOURCE}" >> "${GITHUB_ENV}"
+
+    - name: "Setup host LXD"
+      shell: bash
+      run: |
+        set -eux
+
+        # Source the retry func.
+        . test/includes/microcloud.sh
+
+        retry sudo snap install lxd --channel 5.21/edge
+        sudo lxd init --auto --storage-backend=zfs
+
+        # Save cached images into the (compressed) zpool
+        sudo lxc storage volume create default images
+        sudo lxc config set storage.images_volume=default/images
+
+    - name: "Prepare for system tests"
+      shell: bash
+      run: | # zizmor: ignore[github-env]
+        set -eux
+        chmod +x ~
+
+        export BASE_OS="${{ matrix.os }}"
+        export LXD_SNAP_CHANNEL="${{ matrix.lxd }}"
+        export MICROCEPH_SNAP_CHANNEL="${{ matrix.microceph }}"
+        export MICROOVN_SNAP_CHANNEL="${{ matrix.microovn }}"
+        export MICROCLOUD_SNAP_CHANNEL="${{ matrix.microcloud }}"
+
+        cd test
+        if [ "${INPUTS_SETUP_TESTBED}" = "false" ]; then
+          echo "Skipping testbed setup"
+        else
+          sudo --preserve-env=GOCOVERDIR,DEBUG,GITHUB_ACTIONS,MICROCLOUD_DEBUG_PATH,MICROCLOUDD_DEBUG_PATH,SKIP_VM_LAUNCH,SNAPSHOT_RESTORE,TEST_STORAGE_SOURCE,TESTBED_READY,BASE_OS,LXD_SNAP_CHANNEL,MICROCEPH_SNAP_CHANNEL,MICROOVN_SNAP_CHANNEL,MICROCLOUD_SNAP_CHANNEL ./main.sh setup
+        fi
+        echo "TESTBED_READY=1" >> "${GITHUB_ENV}"
+        echo "BASE_OS=${BASE_OS}" >> "${GITHUB_ENV}"
+        echo "LXD_SNAP_CHANNEL=${LXD_SNAP_CHANNEL}" >> "${GITHUB_ENV}"
+        echo "MICROCEPH_SNAP_CHANNEL=${MICROCEPH_SNAP_CHANNEL}" >> "${GITHUB_ENV}"
+        echo "MICROOVN_SNAP_CHANNEL=${MICROOVN_SNAP_CHANNEL}" >> "${GITHUB_ENV}"
+        echo "MICROCLOUD_SNAP_CHANNEL=${MICROCLOUD_SNAP_CHANNEL}" >> "${GITHUB_ENV}"
+      env:
+        INPUTS_SETUP_TESTBED: ${{ inputs.setup_testbed }}
+
+    - name: Setup Terraform
+      if: ${{ inputs.setup_terraform == 'true' }}
+      shell: bash
+      run: |
+        set -eux
+
+        # Source the retry func.
+        . test/includes/microcloud.sh
+
+        retry sudo snap install terraform --classic
+
+    - name: "Run system tests (${{ matrix.suite }})"
+      shell: bash
+      run: | # zizmor: ignore[github-env]
+        set -eux
+        chmod +x ~
+
+        # Handle coverage collection based on input
+        if [ "${INPUTS_COLLECT_COVERAGE}" = "false" ]; then
+          echo "Coverage collection disabled for this test"
+          export GOCOVERDIR=''
+        fi
+
+        cd test
+        sudo --preserve-env=GOCOVERDIR,DEBUG,GITHUB_ACTIONS,MICROCLOUD_DEBUG_PATH,MICROCLOUDD_DEBUG_PATH,SKIP_VM_LAUNCH,SNAPSHOT_RESTORE,TEST_STORAGE_SOURCE,TESTBED_READY,BASE_OS,LXD_SNAP_CHANNEL,MICROCEPH_SNAP_CHANNEL,MICROOVN_SNAP_CHANNEL,MICROCLOUD_SNAP_CHANNEL ./main.sh ${{ matrix.suite }}
+        echo "TIMESTAMP=$(date +%Y%m%d_%H%M%S_%N)" >> "${GITHUB_ENV}"
+      env:
+        INPUTS_COLLECT_COVERAGE: ${{ inputs.collect_coverage }}
+
+    - name: Upload coverage data
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: coverage-${{ matrix.suite }}-${{ env.TIMESTAMP }}
+        path: ${{ env.GOCOVERDIR }}
+      if: env.GOCOVERDIR != ''

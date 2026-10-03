@@ -1,0 +1,389 @@
+package main
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+
+	"github.com/canonical/lxd/shared/api"
+	cli "github.com/canonical/lxd/shared/cmd"
+	"github.com/canonical/lxd/shared/validate"
+	"github.com/canonical/microcluster/v3/microcluster"
+	microTypes "github.com/canonical/microcluster/v3/microcluster/types"
+	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v2"
+
+	"github.com/canonical/microcloud/microcloud/api/types"
+	"github.com/canonical/microcloud/microcloud/database"
+)
+
+type cmdClusterManager struct {
+	common *CmdControl
+}
+
+// command returns the subcommand to manage cluster manager configuration.
+func (c *cmdClusterManager) command() *cobra.Command {
+	cmd := &cobra.Command{}
+	cmd.Use = "cluster-manager"
+	cmd.Short = "Manage cluster manager connection"
+	cmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+		// Skip the check if this is the root command itself
+		if cmd.Use == "cluster-manager" {
+			return nil
+		}
+
+		return checkInitialized(c.common.FlagMicroCloudDir, true, false)
+	}
+
+	// Join
+	clusterManagerJoinCmd := cmdClusterManagerJoin{common: c.common, alias: c}
+	cmd.AddCommand(clusterManagerJoinCmd.command())
+
+	// Show
+	clusterManagerShowCmd := cmdClusterManagerShow{common: c.common, alias: c}
+	cmd.AddCommand(clusterManagerShowCmd.command())
+
+	// Delete
+	clusterManagerDeleteCmd := cmdClusterManagerDelete{common: c.common, alias: c}
+	cmd.AddCommand(clusterManagerDeleteCmd.command())
+
+	// Get
+	clusterManagerGetCmd := cmdClusterManagerGet{common: c.common, alias: c}
+	cmd.AddCommand(clusterManagerGetCmd.command())
+
+	// Set
+	clusterManagerSetCmd := cmdClusterManagerSet{common: c.common, alias: c}
+	cmd.AddCommand(clusterManagerSetCmd.command())
+
+	// Unset
+	clusterManagerUnsetCmd := cmdClusterManagerUnset{common: c.common, alias: c}
+	cmd.AddCommand(clusterManagerUnsetCmd.command())
+
+	// Workaround for subcommand usage errors. See: https://github.com/spf13/cobra/issues/706
+	cmd.Args = cobra.NoArgs
+	cmd.Run = func(cmd *cobra.Command, args []string) { _ = cmd.Usage() }
+	return cmd
+}
+
+// Join.
+type cmdClusterManagerJoin struct {
+	common *CmdControl
+	alias  *cmdClusterManager
+}
+
+func (c *cmdClusterManagerJoin) command() *cobra.Command {
+	cmd := &cobra.Command{}
+	cmd.Use = "join <token>"
+	cmd.Short = "Join a cluster manager"
+	cmd.Example = `microcloud cluster-manager join "base64_encoded_token"`
+
+	cmd.RunE = c.run
+
+	return cmd
+}
+
+func (c *cmdClusterManagerJoin) run(_ *cobra.Command, args []string) error {
+	if len(args) != 1 {
+		return errors.New("Expected exactly one argument with the token")
+	}
+
+	token := args[0]
+
+	if token == "" {
+		return errors.New("Token cannot be empty")
+	}
+
+	payload := types.ClusterManagersPost{
+		Name:  database.ClusterManagerDefaultName,
+		Token: token,
+	}
+
+	apiClient, err := getApiClient(c.common)
+	if err != nil {
+		return err
+	}
+
+	err = apiClient.Query(context.Background(), "POST", "1.0", &api.NewURL().Path("cluster-managers").URL, payload, nil)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("Successfully joined cluster manager")
+
+	return nil
+}
+
+// Show.
+type cmdClusterManagerShow struct {
+	common *CmdControl
+	alias  *cmdClusterManager
+}
+
+func (c *cmdClusterManagerShow) command() *cobra.Command {
+	cmd := &cobra.Command{}
+	cmd.Use = "show"
+	cmd.Short = "Show cluster manager configuration"
+	cmd.Example = `microcloud cluster-manager show`
+
+	cmd.RunE = c.run
+
+	return cmd
+}
+
+func (c *cmdClusterManagerShow) run(_ *cobra.Command, _ []string) error {
+	apiClient, err := getApiClient(c.common)
+	if err != nil {
+		return err
+	}
+
+	var clusterManager *types.ClusterManager
+	err = apiClient.Query(context.Background(), "GET", "1.0", &api.NewURL().Path("cluster-managers", database.ClusterManagerDefaultName).URL, nil, &clusterManager)
+	if err != nil {
+		return err
+	}
+
+	yamlConfig, err := yaml.Marshal(clusterManager)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(string(yamlConfig))
+
+	return nil
+}
+
+// Delete.
+type cmdClusterManagerDelete struct {
+	common    *CmdControl
+	alias     *cmdClusterManager
+	flagForce bool
+}
+
+func (c *cmdClusterManagerDelete) command() *cobra.Command {
+	cmd := &cobra.Command{}
+	cmd.Use = "delete"
+	cmd.Short = "Clear cluster manager configuration"
+	cmd.Example = `microcloud cluster-manager delete`
+
+	cmd.Flags().BoolVarP(&c.flagForce, "force", "f", false, "Forcibly remove cluster manager configuration without notifying cluster manager.")
+
+	cmd.RunE = c.run
+
+	return cmd
+}
+
+func (c *cmdClusterManagerDelete) run(_ *cobra.Command, _ []string) error {
+	apiClient, err := getApiClient(c.common)
+	if err != nil {
+		return err
+	}
+
+	payload := types.ClusterManagerDelete{
+		Force: c.flagForce,
+	}
+
+	err = apiClient.Query(context.Background(), "DELETE", "1.0", &api.NewURL().Path("cluster-managers", database.ClusterManagerDefaultName).URL, payload, nil)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Get.
+type cmdClusterManagerGet struct {
+	common *CmdControl
+	alias  *cmdClusterManager
+}
+
+func (c *cmdClusterManagerGet) command() *cobra.Command {
+	cmd := &cobra.Command{}
+	cmd.Use = "get"
+	cmd.Short = "Get specific cluster manager configuration by key."
+	cmd.Example = cli.FormatSection("", `microcloud cluster-manager get addresses
+microcloud cluster-manager get certificate_fingerprint
+microcloud cluster-manager get update_interval_seconds
+microcloud cluster-manager get status_last_success_time
+microcloud cluster-manager get status_last_error_time
+microcloud cluster-manager get status_last_error_response`)
+
+	cmd.RunE = c.run
+
+	return cmd
+}
+
+func (c *cmdClusterManagerGet) run(_ *cobra.Command, args []string) error {
+	if len(args) != 1 {
+		return errors.New("Expected exactly one argument with the key")
+	}
+
+	key := args[0]
+
+	apiClient, err := getApiClient(c.common)
+	if err != nil {
+		return err
+	}
+
+	var clusterManager *types.ClusterManager
+	err = apiClient.Query(context.Background(), "GET", "1.0", &api.NewURL().Path("cluster-managers", database.ClusterManagerDefaultName).URL, nil, &clusterManager)
+	if err != nil {
+		return err
+	}
+
+	switch key {
+	case "addresses":
+		fmt.Printf("%s\n", strings.Join(clusterManager.Addresses, ", "))
+	case "certificate_fingerprint":
+		fmt.Printf("%s\n", clusterManager.CertificateFingerprint)
+	case "update_interval_seconds":
+		value, ok := clusterManager.Config[database.UpdateIntervalSecondsKey]
+		if ok {
+			fmt.Printf("%s\n", value)
+		}
+
+	case "status_last_success_time":
+		fmt.Printf("%s\n", clusterManager.StatusLastSuccessTime)
+	case "status_last_error_time":
+		fmt.Printf("%s\n", clusterManager.StatusLastErrorTime)
+	case "status_last_error_response":
+		fmt.Printf("%s\n", clusterManager.StatusLastErrorResponse)
+	case "reverse_tunnel":
+		value, ok := clusterManager.Config[database.ReverseTunnelKey]
+		if ok {
+			fmt.Printf("%s\n", value)
+		}
+
+	default:
+		return errors.New("Invalid key")
+	}
+
+	return nil
+}
+
+// Set.
+type cmdClusterManagerSet struct {
+	common *CmdControl
+	alias  *cmdClusterManager
+}
+
+func (c *cmdClusterManagerSet) command() *cobra.Command {
+	cmd := &cobra.Command{}
+	cmd.Use = "set"
+	cmd.Short = "Set specific cluster manager configuration key."
+	cmd.Example = cli.FormatSection("", `microcloud cluster-manager set addresses example.com:8443
+microcloud cluster-manager set certificate_fingerprint abababababababababababababababababababababababababababababababab
+microcloud cluster-manager set update_interval_seconds 50
+microcloud cluster-manager set reverse_tunnel true`)
+
+	cmd.RunE = c.run
+
+	return cmd
+}
+
+func (c *cmdClusterManagerSet) run(_ *cobra.Command, args []string) error {
+	if len(args) != 2 {
+		return errors.New("Expected exactly two arguments: key and value")
+	}
+
+	key := args[0]
+	value := args[1]
+
+	apiClient, err := getApiClient(c.common)
+	if err != nil {
+		return err
+	}
+
+	payload := types.ClusterManagerPut{}
+
+	switch key {
+	case "addresses":
+		payload.Addresses = []string{value}
+	case "certificate_fingerprint":
+		payload.CertificateFingerprint = &value
+	case "update_interval_seconds":
+		payload.UpdateIntervalSeconds = &value
+	case "reverse_tunnel":
+		err := validate.IsBool(value)
+		if err != nil {
+			return errors.New("Invalid value for reverse_tunnel, expected 'true' or 'false'")
+		}
+
+		enabled := value == "true" || value == "yes" || value == "on" || value == "1"
+		payload.ReverseTunnel = &enabled
+	default:
+		return errors.New("Invalid key")
+	}
+
+	err = apiClient.Query(context.Background(), "PUT", "1.0", &api.NewURL().Path("cluster-managers", database.ClusterManagerDefaultName).URL, payload, nil)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Unset.
+type cmdClusterManagerUnset struct {
+	common *CmdControl
+	alias  *cmdClusterManager
+}
+
+func (c *cmdClusterManagerUnset) command() *cobra.Command {
+	cmd := &cobra.Command{}
+	cmd.Use = "unset"
+	cmd.Short = "Unset specific cluster manager configuration key."
+	cmd.Example = cli.FormatSection("", `microcloud cluster-manager unset update_interval_seconds`)
+
+	cmd.RunE = c.run
+
+	return cmd
+}
+
+func (c *cmdClusterManagerUnset) run(_ *cobra.Command, args []string) error {
+	if len(args) != 1 {
+		return errors.New("Expected exactly on argument with the key")
+	}
+
+	key := args[0]
+
+	apiClient, err := getApiClient(c.common)
+	if err != nil {
+		return err
+	}
+
+	payload := types.ClusterManagerPut{}
+
+	switch key {
+	case "update_interval_seconds":
+		payload.UpdateIntervalSeconds = new("")
+
+	case "reverse_tunnel":
+		disabled := false
+		payload.ReverseTunnel = &disabled
+
+	default:
+		return errors.New("Invalid key")
+	}
+
+	err = apiClient.Query(context.Background(), "PUT", "1.0", &api.NewURL().Path("cluster-managers", database.ClusterManagerDefaultName).URL, payload, nil)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func getApiClient(common *CmdControl) (microTypes.Client, error) {
+	cloudApp, err := microcluster.App(microcluster.Args{StateDir: common.FlagMicroCloudDir})
+	if err != nil {
+		return nil, err
+	}
+
+	apiClient, err := cloudApp.LocalClient()
+	if err != nil {
+		return nil, err
+	}
+
+	return apiClient, nil
+}
