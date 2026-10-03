@@ -1,0 +1,11 @@
+#!/bin/sh
+set -e
+
+# The daemon's cluster database stays unless the package is purged.
+if [ "$1" = "purge" ]; then
+    rm -rf /var/lib/firecloud
+fi
+
+if [ -d /run/systemd/system ]; then
+    systemctl daemon-reload || true
+fi

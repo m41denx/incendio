@@ -1,0 +1,122 @@
+name: Firecloud
+
+# Tests Firecloud on changes under firecloud/. A firecloud-v<version> tag
+# also builds the .deb packages (amd64, arm64) and publishes them as a
+# GitHub release; the UI release workflow ignores these tags.
+on:
+  push:
+    branches:
+      - "**"
+    paths:
+      - "firecloud/**"
+      - ".github/workflows/firecloud.yaml"
+    tags:
+      - "firecloud-v*"
+  pull_request:
+    paths:
+      - "firecloud/**"
+      - ".github/workflows/firecloud.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: firecloud
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: firecloud/go.mod
+          cache-dependency-path: firecloud/go.sum
+
+      - name: Build dqlite
+        # Ubuntu 24.04's libdqlite is older than go-dqlite needs.
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q autoconf automake libtool pkg-config libuv1-dev liblz4-dev libsqlite3-dev
+          git clone -q --depth 1 --branch v1.18.7 https://github.com/canonical/dqlite /tmp/dqlite
+          cd /tmp/dqlite
+          autoreconf -i
+          ./configure --enable-build-raft --prefix=/usr
+          make -j"$(nproc)"
+          sudo make install
+          sudo ldconfig
+
+      - name: Vet
+        run: go vet -tags agent ./...
+
+      - name: Test
+        run: go test -tags agent ./...
+
+  deb:
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/firecloud-v')
+    strategy:
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: firecloud/go.mod
+          cache-dependency-path: firecloud/go.sum
+
+      - name: Build dependencies
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q autoconf automake libtool pkg-config libuv1-dev liblz4-dev libsqlite3-dev
+
+      - name: Build .deb
+        run: |
+          version="${GITHUB_REF_NAME#firecloud-v}"
+          firecloud/packaging/build-deb.sh "$version" "$PWD/dist"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deb-${{ matrix.runner }}
+          path: dist/*.deb
+
+  release:
+    needs: deb
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Checksums and notes
+        run: |
+          cd dist
+          sha256sum *.deb > SHA256SUMS
+          version="${GITHUB_REF_NAME#firecloud-v}"
+          # This version's section of firecloud/CHANGELOG.md.
+          awk -v ver="## ${version}" '
+            $0 == ver { f = 1; print; next }
+            f && /^## [0-9]/ { exit }
+            f { print }
+          ' ../firecloud/CHANGELOG.md > ../NOTES.md
+          [ -s ../NOTES.md ] || printf '## %s\n' "$version" > ../NOTES.md
+
+      - uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Firecloud ${{ github.ref_name }}
+          body_path: NOTES.md
+          # Keep the UI release as the repository's "Latest".
+          make_latest: false
+          files: |
+            dist/*.deb
+            dist/SHA256SUMS

@@ -1,74 +1,99 @@
-<p align="left">
-    <img alt="Firecloud logo" width="10%" src="doc/images/firecloud_logo_dark.svg#gh-dark-mode-only">
-    <img alt="Firecloud logo" width="10%" src="doc/images/firecloud_logo_light.svg#gh-light-mode-only">
-</p>
+# Firecloud
 
-# **Firecloud**
+Firecloud sets up an [Incus](https://linuxcontainers.org/incus/) cluster
+across machines in minutes: Incus clustering, OVN networking through
+MicroOVN, optional shared storage (MicroCeph, TrueNAS or clustered LVM) and
+the [Incendio](../README.md) web UI. Afterwards its daemon keeps the OVN, Ceph
+and clustered-LVM settings Incus needs in step as machines come and go.
 
-Deploy a scalable, low-touch cloud platform in minutes with **Firecloud**.
+Firecloud is a fork of [MicroCloud](https://github.com/canonical/microcloud)
+3.3, ported from LXD to Incus and packaged as a `.deb` instead of a snap.
 
-Firecloud creates a lightweight cluster of machines that operates as an open source private cloud. It combines LXD for virtualization, MicroCeph for distributed storage, and MicroOVN for networking—all automatically configured by the [Firecloud snap](https://snapcraft.io/firecloud) for reproducible, reliable deployments.
+## Install
 
-With Firecloud, you can eliminate the complexity of manual setup and quickly benefit from high availability, automatic security updates, and the advanced features of its components such as self-healing clusters and fine-grained access control. Cluster members can run full virtual machines or lightweight system containers with bare-metal performance.
-
-Firecloud is designed for small-scale private clouds and hybrid cloud extensions. Its efficiency and simplicity also make it an excellent choice for edge computing, test labs, and other resource-constrained use cases.
-
-<div style="display: flex; justify-content: center;">
-  <img alt="Firecloud basic architecture" width="50%"  src="doc/images/firecloud_basic_architecture.svg">
-</div>
-
-## **Requirements**
-
-Firecloud can be deployed on machines running Ubuntu 22.04 or newer. A Firecloud cluster can consist of a single cluster member for a testing deployment, and requires a minimum of 3 cluster members for a production deployment. 
-
-See: [Pre-deployment requirements](https://canonical.com/firecloud/docs/latest/how-to/install/#pre-deployment-requirements) in the Firecloud documentation for a full list of requirements.
-
-
-## **How to get started**
-
-To get started, install the LXD, MicroCeph, MicroOVN, and Firecloud snaps. You can install them all at once with the following command:
+On every machine (Debian 13, Ubuntu 24.04 or newer):
 
 ```sh
-snap install lxd microceph microovn firecloud
+sudo apt install ./firecloud_<version>_<arch>.deb   # from the GitHub release
+sudo firecloud install --ceph                        # see the options below
 ```
 
-Then start the bootstrapping process with the following command:
+`firecloud install` prepares the machine:
+
+| Option | Installs |
+|---|---|
+| (always) | Incus from the [Zabbly](https://github.com/zabbly/incus) stable repository |
+| (default) | MicroOVN (`--ovn-channel`, default `26.03/stable`); `--no-ovn` to skip |
+| `--ceph` | MicroCeph (`--ceph-channel`, default `tentacle/stable`) and `ceph-common` |
+| `--truenas` | `open-iscsi` and `truenas_incus_ctl` for TrueNAS pools |
+| `--lvmcluster` | `lvm2`, `lvm2-lockd` and `sanlock` for clustered LVM, with `lvmlockd` enabled |
+| (default) | the latest Incendio UI in `/opt/incus/ui`; `--no-ui` to skip |
+
+Firecloud only builds new clusters: `install` refuses an Incus that already
+has storage pools or managed networks.
+
+## Set up the cluster
 
 ```sh
-firecloud init
+sudo firecloud init     # on one machine
+sudo firecloud join     # on each of the others, at the same time
 ```
 
-If you want to set up a multi-machine Firecloud, run the following command on all the other machines:
+The wizard finds the other machines on the local network, and asks about:
+
+- **Local storage:** a ZFS pool per machine, on a whole disk, a free
+  partition, or a loop file when a machine has no spare disk.
+- **Distributed storage (Ceph):** whole disks, free partitions or loop files
+  (`loop,<size>,1` in MicroCeph), plus optional CephFS.
+- **Shared storage without Ceph:** a TrueNAS server (host, API key, dataset)
+  or a disk every machine sees (iSCSI, FC or NVMe-oF LUN) with clustered
+  LVM. Only the drivers Incus supports on every machine are offered.
+- **Networking:** an OVN uplink and network, or a Fan bridge without OVN.
+- **Incendio login:** a single-use trust token to enter on the UI's login
+  page.
+- **OpenFGA (optional):** connect Incus to an existing OpenFGA server and
+  route OIDC users to it. Trusted TLS certificates keep full access.
+
+`firecloud preseed` takes the same answers from a YAML file (TrueNAS, clustered
+LVM and OpenFGA are interactive only for now).
+
+## Keeping settings in sync
+
+Incus from the Zabbly packages does not read MicroOVN's and MicroCeph's
+settings itself the way the LXD snap does. The Firecloud daemon on every
+member does it, every minute and when members join or leave:
+
+- `network.ovn.northbound_connection`, `network.ovn.ca_cert`,
+  `network.ovn.client_cert` and `network.ovn.client_key` from MicroOVN
+  (`ovn.env` and its certificates), written by one member;
+  `network.ovs.connection` on every member.
+- MicroCeph's `ceph.conf` and admin keyring in `/etc/ceph`.
+- For clustered LVM: `use_lvmlockd`, the member's sanlock `host_id`
+  (recorded in `user.firecloud.lvm_host_ids`, never reused) and the
+  `lvmlockd`/`sanlock` services.
+
+`firecloud status` shows each member's last sync and any errors.
+
+## Other commands
+
+- `firecloud add`, `firecloud remove`: grow or shrink the cluster.
+- `firecloud ui update [--tag 0.22-pN]`: install an Incendio release on
+  every member.
+- `firecloud status`, `firecloud cluster list`, `firecloud service list`.
+
+## Building
 
 ```sh
-firecloud join
+packaging/build-deb.sh 0.1.0 dist/   # needs Go, autotools, libuv/lz4/sqlite3 headers
 ```
 
-Following the CLI prompts, a working Firecloud will be ready within minutes.
+The package ships its own dqlite in `/usr/lib/firecloud`. Releases are cut by
+pushing a `firecloud-v<version>` tag (`.github/workflows/firecloud.yaml`).
 
-The Firecloud snap drives three other snaps ([LXD](https://canonical.com/firecloud/docs/latest/lxd/), [MicroCeph](https://canonical.com/firecloud/docs/latest/microceph/), and [MicroOVN](https://canonical.com/firecloud/docs/latest/microovn/)), enabling automated deployment of a highly available LXD cluster for compute, with Ceph as the storage driver and OVN as the managed network.
+## License
 
-During initialization, Firecloud scrapes the other servers for details and then prompts you to add disks to Ceph and configure the networking setup.
-
-At the end of this, you’ll have an OVN cluster, a Ceph cluster, and a LXD cluster. LXD itself will have been configured with both networking and storage suitable for use in a cluster.
-
-For more information, see the Firecloud documentation for [installation](https://canonical.com/firecloud/docs/latest/how-to/install/) and [initialization](https://canonical.com/firecloud/docs/latest/how-to/initialize/). You can also [follow a tutorial](https://canonical.com/firecloud/docs/latest/tutorial/) that demonstrates the basics of Firecloud.
-
-## **What about networking?**
-
-By default, Firecloud uses MicroOVN for networking, which is a minimal wrapper around OVN (Open Virtual Network).
-If you decide to not use MicroOVN, Firecloud falls back on the Ubuntu fan for basic networking.
-
-You can optionally add the following dedicated networks:
-  - a network for Ceph management traffic (also called public traffic)
-  - a network for internal traffic (also called cluster traffic)
-  - a network for OVN underlay traffic
-
-### **RESOURCES:**
-
-- Documentation: <https://canonical.com/firecloud/docs/latest/>
-- Find the package at the Snap Store:
-
- [![Snapcraft logo](https://dashboard.snapcraft.io/site_media/appmedia/2018/04/Snapcraft-logo-bird.png)](https://snapcraft.io/firecloud)
-
-- Snap package sources: [firecloud-pkg-snap](https://github.com/canonical/firecloud-pkg-snap)
+Firecloud is licensed under the GNU Affero General Public License version 3
+(see [COPYING](COPYING)), like MicroCloud, MicroOVN, MicroCeph and microcluster
+it builds on. This folder is a separate program from the rest of the
+repository; nothing outside it imports Firecloud code, so the AGPL does not
+extend to Incendio's UI, SDK or Kubernetes agent.

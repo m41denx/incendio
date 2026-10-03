@@ -1,18 +1,14 @@
 // Package version provides shared version information.
 package version
 
-// RawVersion is the current daemon version of Firecloud.
-// LTS versions also include the patch number.
-const RawVersion = "3.3"
+// RawVersion is the current daemon version of Firecloud, set at build time
+// (packaging/build-deb.sh). Members compare it when forming a cluster.
+var RawVersion = "0.1.0-dev"
 
-// LTS should be set if the current version is an LTS (long-term support) version.
-const LTS = false
+// Upstream is the MicroCloud release Firecloud is based on.
+const Upstream = "MicroCloud 3.3"
 
-// Version appends "LTS" to the raw version string if Firecloud is an LTS version.
+// Version returns the version with the MicroCloud release it is based on.
 func Version() string {
-	if LTS {
-		return RawVersion + " LTS"
-	}
-
-	return RawVersion
+	return RawVersion + " (based on " + Upstream + ")"
 }

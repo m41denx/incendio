@@ -1,0 +1,8 @@
+#!/bin/sh
+set -e
+
+if [ "$1" = "configure" ] && [ -d /run/systemd/system ]; then
+    systemctl daemon-reload
+    systemctl enable firecloud.service >/dev/null
+    systemctl restart firecloud.service
+fi

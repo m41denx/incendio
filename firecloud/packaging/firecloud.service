@@ -1,0 +1,18 @@
+[Unit]
+Description=Firecloud daemon (Incus cluster bootstrapper)
+Documentation=https://github.com/m41denx/incendio/tree/incus-port/firecloud
+After=network-online.target incus.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment=DQLITE_SOCKET=@firecloud.dqlite
+ExecStart=/usr/bin/firecloudd --state-dir /var/lib/firecloud
+StateDirectory=firecloud
+StateDirectoryMode=0700
+Restart=on-failure
+RestartSec=5s
+LimitNOFILE=1048576
+
+[Install]
+WantedBy=multi-user.target
