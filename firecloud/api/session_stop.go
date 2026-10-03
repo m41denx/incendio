@@ -8,11 +8,11 @@ import (
 	"github.com/canonical/lxd/shared/api"
 	microTypes "github.com/canonical/microcluster/v3/microcluster/types"
 
-	"github.com/canonical/microcloud/microcloud/api/types"
-	"github.com/canonical/microcloud/microcloud/service"
+	"github.com/m41denx/incendio/firecloud/api/types"
+	"github.com/m41denx/incendio/firecloud/service"
 )
 
-// SessionStopCmd represents the /1.0/session/stop API on MicroCloud.
+// SessionStopCmd represents the /1.0/session/stop API on Firecloud.
 var SessionStopCmd = func(sh *service.Handler) microTypes.Endpoint {
 	return microTypes.Endpoint{
 		AllowedBeforeInit: true,

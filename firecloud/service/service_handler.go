@@ -11,8 +11,8 @@ import (
 
 	"github.com/canonical/lxd/shared/api"
 
-	"github.com/canonical/microcloud/microcloud/api/types"
-	cloudClient "github.com/canonical/microcloud/microcloud/client"
+	"github.com/m41denx/incendio/firecloud/api/types"
+	cloudClient "github.com/m41denx/incendio/firecloud/client"
 )
 
 const (
@@ -25,10 +25,10 @@ const (
 	// LXDPort is the default LXD port.
 	LXDPort int64 = 8443
 
-	// CloudPort is the default MicroCloud port.
+	// CloudPort is the default Firecloud port.
 	CloudPort int64 = 9443
 
-	// CloudMulticastPort is the default MicroCloud multicast discovery port.
+	// CloudMulticastPort is the default Firecloud multicast discovery port.
 	CloudMulticastPort int64 = 9444
 )
 
@@ -55,7 +55,7 @@ func NewHandler(name string, addr string, stateDir string, services ...types.Ser
 		var service Service
 		var err error
 		switch serviceType {
-		case types.MicroCloud:
+		case types.Firecloud:
 			service, err = NewCloudService(name, addr, stateDir)
 		case types.MicroCeph:
 			service, err = NewCephService(name, addr, stateDir)
@@ -220,7 +220,7 @@ func Exists(service types.ServiceType, stateDir string) bool {
 	return err == nil
 }
 
-// Address gets the address used for the MicroCloud API.
+// Address gets the address used for the Firecloud API.
 func (s *Handler) Address() string {
 	s.initMu.RLock()
 	defer s.initMu.RUnlock()
@@ -228,7 +228,7 @@ func (s *Handler) Address() string {
 	return s.address
 }
 
-// SetAddress sets the address used for the MicroCloud API.
+// SetAddress sets the address used for the Firecloud API.
 func (s *Handler) SetAddress(addr string) {
 	s.initMu.Lock()
 	defer s.initMu.Unlock()

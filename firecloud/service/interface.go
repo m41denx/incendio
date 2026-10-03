@@ -4,10 +4,10 @@ import (
 	"context"
 	"crypto/x509"
 
-	"github.com/canonical/microcloud/microcloud/api/types"
+	"github.com/m41denx/incendio/firecloud/api/types"
 )
 
-// Service represents a common interface for all MicroCloud services.
+// Service represents a common interface for all Firecloud services.
 type Service interface {
 	Bootstrap(ctx context.Context) error
 	Join(ctx context.Context, config JoinConfig) error

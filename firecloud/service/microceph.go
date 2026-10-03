@@ -18,8 +18,8 @@ import (
 	"github.com/canonical/microcluster/v3/microcluster"
 	microTypes "github.com/canonical/microcluster/v3/microcluster/types"
 
-	"github.com/canonical/microcloud/microcloud/api/types"
-	cloudClient "github.com/canonical/microcloud/microcloud/client"
+	"github.com/m41denx/incendio/firecloud/api/types"
+	cloudClient "github.com/m41denx/incendio/firecloud/client"
 )
 
 // cephJobTimeout is the maximum time we allow for a Ceph job to complete before the context gets canceled.
@@ -250,7 +250,7 @@ func (s CephService) PoolSetReplicationFactor(ctx context.Context, data cephType
 
 // GetConfig returns the requested config.
 // It allows passing a certificate in case the cluster config is derived directly from the remote
-// before the MicroCloud cluster is being formed.
+// before the Firecloud cluster is being formed.
 // If the cluster is already formed and the trust got established this isn't required anymore.
 func (s CephService) GetConfig(ctx context.Context, data cephTypes.Config, target string, cert *x509.Certificate) (cephTypes.Configs, error) {
 	var c microTypes.Client
@@ -320,7 +320,7 @@ func (s CephService) remoteClient(cert *x509.Certificate, address string) (micro
 	return client, nil
 }
 
-// RemoteClusterMembers returns a map of cluster member names and addresses from the MicroCloud at the given address.
+// RemoteClusterMembers returns a map of cluster member names and addresses from the Firecloud at the given address.
 // Provide the certificate of the remote server for mTLS.
 func (s CephService) RemoteClusterMembers(ctx context.Context, cert *x509.Certificate, address string) (map[string]string, error) {
 	client, err := s.remoteClient(cert, address)

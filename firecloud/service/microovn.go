@@ -18,8 +18,8 @@ import (
 	microTypes "github.com/canonical/microcluster/v3/microcluster/types"
 	ovnTypes "github.com/canonical/microovn/microovn/api/types"
 
-	"github.com/canonical/microcloud/microcloud/api/types"
-	cloudClient "github.com/canonical/microcloud/microcloud/client"
+	"github.com/m41denx/incendio/firecloud/api/types"
+	cloudClient "github.com/m41denx/incendio/firecloud/client"
 )
 
 // OVNService is a MicroOVN service.
@@ -122,7 +122,7 @@ func (s OVNService) Join(ctx context.Context, joinConfig JoinConfig) error {
 	return s.m.JoinCluster(ctx, s.name, util.CanonicalNetworkAddress(s.address, s.port), joinConfig.Token, joinConfig.OVNConfig)
 }
 
-// RemoteClusterMembers returns a map of cluster member names and addresses from the MicroCloud at the given address.
+// RemoteClusterMembers returns a map of cluster member names and addresses from the Firecloud at the given address.
 // Provide the certificate of the remote server for mTLS.
 func (s OVNService) RemoteClusterMembers(ctx context.Context, cert *x509.Certificate, address string) (map[string]string, error) {
 	var err error

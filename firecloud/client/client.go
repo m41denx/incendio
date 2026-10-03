@@ -13,7 +13,7 @@ import (
 	microTypes "github.com/canonical/microcluster/v3/microcluster/types"
 	"github.com/gorilla/websocket"
 
-	"github.com/canonical/microcloud/microcloud/api/types"
+	"github.com/m41denx/incendio/firecloud/api/types"
 )
 
 // GetStatus fetches a set of status information for the whole cluster.
@@ -137,7 +137,7 @@ func JoinIntent(ctx context.Context, c microTypes.Client, data types.SessionJoin
 	return resp.TLS.PeerCertificates[0], nil
 }
 
-// RemoteIssueToken issues a token on the remote MicroCloud.
+// RemoteIssueToken issues a token on the remote Firecloud.
 func RemoteIssueToken(ctx context.Context, c microTypes.Client, serviceType types.ServiceType, data types.ServiceTokensPost) (string, error) {
 	queryCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()

@@ -68,18 +68,18 @@ runs:
         set -eux
 
         # Binaries to sideload
-        export MICROCLOUD_DEBUG_PATH=~/go/bin/microcloud
-        export MICROCLOUDD_DEBUG_PATH=~/go/bin/microcloudd
+        export FIRECLOUD_DEBUG_PATH=~/go/bin/firecloud
+        export FIRECLOUDD_DEBUG_PATH=~/go/bin/firecloudd
 
-        echo "MICROCLOUD_DEBUG_PATH=${MICROCLOUD_DEBUG_PATH}"   >> "${GITHUB_ENV}"
-        echo "MICROCLOUDD_DEBUG_PATH=${MICROCLOUDD_DEBUG_PATH}" >> "${GITHUB_ENV}"
+        echo "FIRECLOUD_DEBUG_PATH=${FIRECLOUD_DEBUG_PATH}"   >> "${GITHUB_ENV}"
+        echo "FIRECLOUDD_DEBUG_PATH=${FIRECLOUDD_DEBUG_PATH}" >> "${GITHUB_ENV}"
 
     - name: Strip debug binaries
       if: env.GOCOVERDIR == ''
       shell: bash
       run: |
         set -eux
-        strip -s "${MICROCLOUD_DEBUG_PATH}" "${MICROCLOUDD_DEBUG_PATH}"
+        strip -s "${FIRECLOUD_DEBUG_PATH}" "${FIRECLOUDD_DEBUG_PATH}"
 
     - name: "Free up the ephemeral disk"
       shell: bash
@@ -120,7 +120,7 @@ runs:
         set -eux
 
         # Source the retry func.
-        . test/includes/microcloud.sh
+        . test/includes/firecloud.sh
 
         retry sudo snap install lxd --channel 5.21/edge
         sudo lxd init --auto --storage-backend=zfs
@@ -139,20 +139,20 @@ runs:
         export LXD_SNAP_CHANNEL="${{ matrix.lxd }}"
         export MICROCEPH_SNAP_CHANNEL="${{ matrix.microceph }}"
         export MICROOVN_SNAP_CHANNEL="${{ matrix.microovn }}"
-        export MICROCLOUD_SNAP_CHANNEL="${{ matrix.microcloud }}"
+        export FIRECLOUD_SNAP_CHANNEL="${{ matrix.firecloud }}"
 
         cd test
         if [ "${INPUTS_SETUP_TESTBED}" = "false" ]; then
           echo "Skipping testbed setup"
         else
-          sudo --preserve-env=GOCOVERDIR,DEBUG,GITHUB_ACTIONS,MICROCLOUD_DEBUG_PATH,MICROCLOUDD_DEBUG_PATH,SKIP_VM_LAUNCH,SNAPSHOT_RESTORE,TEST_STORAGE_SOURCE,TESTBED_READY,BASE_OS,LXD_SNAP_CHANNEL,MICROCEPH_SNAP_CHANNEL,MICROOVN_SNAP_CHANNEL,MICROCLOUD_SNAP_CHANNEL ./main.sh setup
+          sudo --preserve-env=GOCOVERDIR,DEBUG,GITHUB_ACTIONS,FIRECLOUD_DEBUG_PATH,FIRECLOUDD_DEBUG_PATH,SKIP_VM_LAUNCH,SNAPSHOT_RESTORE,TEST_STORAGE_SOURCE,TESTBED_READY,BASE_OS,LXD_SNAP_CHANNEL,MICROCEPH_SNAP_CHANNEL,MICROOVN_SNAP_CHANNEL,FIRECLOUD_SNAP_CHANNEL ./main.sh setup
         fi
         echo "TESTBED_READY=1" >> "${GITHUB_ENV}"
         echo "BASE_OS=${BASE_OS}" >> "${GITHUB_ENV}"
         echo "LXD_SNAP_CHANNEL=${LXD_SNAP_CHANNEL}" >> "${GITHUB_ENV}"
         echo "MICROCEPH_SNAP_CHANNEL=${MICROCEPH_SNAP_CHANNEL}" >> "${GITHUB_ENV}"
         echo "MICROOVN_SNAP_CHANNEL=${MICROOVN_SNAP_CHANNEL}" >> "${GITHUB_ENV}"
-        echo "MICROCLOUD_SNAP_CHANNEL=${MICROCLOUD_SNAP_CHANNEL}" >> "${GITHUB_ENV}"
+        echo "FIRECLOUD_SNAP_CHANNEL=${FIRECLOUD_SNAP_CHANNEL}" >> "${GITHUB_ENV}"
       env:
         INPUTS_SETUP_TESTBED: ${{ inputs.setup_testbed }}
 
@@ -163,7 +163,7 @@ runs:
         set -eux
 
         # Source the retry func.
-        . test/includes/microcloud.sh
+        . test/includes/firecloud.sh
 
         retry sudo snap install terraform --classic
 
@@ -180,7 +180,7 @@ runs:
         fi
 
         cd test
-        sudo --preserve-env=GOCOVERDIR,DEBUG,GITHUB_ACTIONS,MICROCLOUD_DEBUG_PATH,MICROCLOUDD_DEBUG_PATH,SKIP_VM_LAUNCH,SNAPSHOT_RESTORE,TEST_STORAGE_SOURCE,TESTBED_READY,BASE_OS,LXD_SNAP_CHANNEL,MICROCEPH_SNAP_CHANNEL,MICROOVN_SNAP_CHANNEL,MICROCLOUD_SNAP_CHANNEL ./main.sh ${{ matrix.suite }}
+        sudo --preserve-env=GOCOVERDIR,DEBUG,GITHUB_ACTIONS,FIRECLOUD_DEBUG_PATH,FIRECLOUDD_DEBUG_PATH,SKIP_VM_LAUNCH,SNAPSHOT_RESTORE,TEST_STORAGE_SOURCE,TESTBED_READY,BASE_OS,LXD_SNAP_CHANNEL,MICROCEPH_SNAP_CHANNEL,MICROOVN_SNAP_CHANNEL,FIRECLOUD_SNAP_CHANNEL ./main.sh ${{ matrix.suite }}
         echo "TIMESTAMP=$(date +%Y%m%d_%H%M%S_%N)" >> "${GITHUB_ENV}"
       env:
         INPUTS_COLLECT_COVERAGE: ${{ inputs.collect_coverage }}

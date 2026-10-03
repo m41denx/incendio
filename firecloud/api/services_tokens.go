@@ -9,11 +9,11 @@ import (
 	microTypes "github.com/canonical/microcluster/v3/microcluster/types"
 	"github.com/gorilla/mux"
 
-	"github.com/canonical/microcloud/microcloud/api/types"
-	"github.com/canonical/microcloud/microcloud/service"
+	"github.com/m41denx/incendio/firecloud/api/types"
+	"github.com/m41denx/incendio/firecloud/service"
 )
 
-// ServiceTokensCmd represents the /1.0/services/serviceType/tokens API on MicroCloud.
+// ServiceTokensCmd represents the /1.0/services/serviceType/tokens API on Firecloud.
 var ServiceTokensCmd = func(sh *service.Handler) microTypes.Endpoint {
 	return microTypes.Endpoint{
 		AllowedBeforeInit: true,
@@ -24,7 +24,7 @@ var ServiceTokensCmd = func(sh *service.Handler) microTypes.Endpoint {
 	}
 }
 
-// serviceTokensPost issues a token for service using the MicroCloud proxy.
+// serviceTokensPost issues a token for service using the Firecloud proxy.
 // Normally a token request to a service is restricted to trusted systems,
 // so this endpoint makes use of the estblished mTLS and then proxies the request to the local unix socket of the remote system.
 func serviceTokensPost(s microTypes.State, r *http.Request) microTypes.Response {

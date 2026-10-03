@@ -17,13 +17,13 @@ import (
 	"github.com/canonical/microcluster/v3/microcluster"
 	microTypes "github.com/canonical/microcluster/v3/microcluster/types"
 
-	"github.com/canonical/microcloud/microcloud/api/types"
-	cloudClient "github.com/canonical/microcloud/microcloud/client"
-	"github.com/canonical/microcloud/microcloud/cmd/tui"
-	"github.com/canonical/microcloud/microcloud/version"
+	"github.com/m41denx/incendio/firecloud/api/types"
+	cloudClient "github.com/m41denx/incendio/firecloud/client"
+	"github.com/m41denx/incendio/firecloud/cmd/tui"
+	"github.com/m41denx/incendio/firecloud/version"
 )
 
-// LXDInitializationTimeout is the time limit for LXD initialization for microcloud.
+// LXDInitializationTimeout is the time limit for LXD initialization for firecloud.
 const LXDInitializationTimeout time.Duration = 1 * time.Minute
 
 // LXDService is a LXD service.
@@ -126,7 +126,7 @@ func (s LXDService) Bootstrap(ctx context.Context) error {
 	newServer := currentServer.Writable()
 	newServer.Config["core.https_address"] = "[::]:8443"
 	newServer.Config["cluster.https_address"] = addr
-	newServer.Config["user.microcloud"] = version.RawVersion
+	newServer.Config["user.firecloud"] = version.RawVersion
 	if client.HasExtension("instances_migration_stateful") {
 		newServer.Config["instances.migration.stateful"] = "true"
 	}
@@ -328,7 +328,7 @@ func (s LXDService) Metrics(ctx context.Context, address string) (string, error)
 	return metrics, nil
 }
 
-// RemoteClusterMembers returns a map of cluster member names and addresses from the MicroCloud at the given address.
+// RemoteClusterMembers returns a map of cluster member names and addresses from the Firecloud at the given address.
 // Provide the certificate of the remote server for mTLS.
 func (s LXDService) RemoteClusterMembers(ctx context.Context, cert *x509.Certificate, address string) (map[string]string, error) {
 	client, err := s.remoteClient(cert, address, CloudPort)
@@ -449,7 +449,7 @@ func (s *LXDService) HasExtension(ctx context.Context, target string, address st
 
 // GetResources returns the system resources for the LXD target.
 // As we cannot guarantee that LXD is available on this machine, the request is
-// forwarded through MicroCloud on via the ListenPort argument.
+// forwarded through Firecloud on via the ListenPort argument.
 func (s *LXDService) GetResources(ctx context.Context, target string, address string, cert *x509.Certificate) (*api.Resources, error) {
 	var err error
 	var client lxd.InstanceServer

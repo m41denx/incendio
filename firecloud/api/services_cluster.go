@@ -12,11 +12,11 @@ import (
 	microTypes "github.com/canonical/microcluster/v3/microcluster/types"
 	"github.com/gorilla/mux"
 
-	"github.com/canonical/microcloud/microcloud/api/types"
-	"github.com/canonical/microcloud/microcloud/service"
+	"github.com/m41denx/incendio/firecloud/api/types"
+	"github.com/m41denx/incendio/firecloud/service"
 )
 
-// ServicesClusterCmd represents the /1.0/services/cluster/{name} API on MicroCloud.
+// ServicesClusterCmd represents the /1.0/services/cluster/{name} API on Firecloud.
 var ServicesClusterCmd = func(sh *service.Handler) microTypes.Endpoint {
 	return microTypes.Endpoint{
 		AllowedBeforeInit: true,
@@ -41,7 +41,7 @@ func removeClusterMember(state microTypes.State, r *http.Request) microTypes.Res
 		types.LXD:       LXDDir,
 	}
 
-	existingServices := []types.ServiceType{types.MicroCloud}
+	existingServices := []types.ServiceType{types.Firecloud}
 	for serviceType, stateDir := range supportedServices {
 		if service.Exists(serviceType, stateDir) {
 			existingServices = append(existingServices, serviceType)
@@ -78,7 +78,7 @@ func removeClusterMember(state microTypes.State, r *http.Request) microTypes.Res
 
 			for _, service := range cephServices {
 				if service.Location == name && service.Service == "mon" {
-					return microTypes.SmartError(fmt.Errorf("%q must be removed from the Ceph monmap before it can be removed from MicroCloud", name))
+					return microTypes.SmartError(fmt.Errorf("%q must be removed from the Ceph monmap before it can be removed from Firecloud", name))
 				}
 			}
 		}
@@ -87,9 +87,9 @@ func removeClusterMember(state microTypes.State, r *http.Request) microTypes.Res
 	// Remove the node from services in the following order:
 	// 1. Remove from LXD first as it may have storage & networks that depend on the others for cleanup.
 	// 2. Remove from MicroCeph and MicroOVN next, concurrently.
-	// 3. Remove from MicroCloud last so that if there were any errors causing the other services to fail, MicroCloud will still know about the node.
+	// 3. Remove from Firecloud last so that if there were any errors causing the other services to fail, Firecloud will still know about the node.
 	var memberExists bool
-	err = sh.RunConcurrent(types.LXD, types.MicroCloud, func(s service.Service) error {
+	err = sh.RunConcurrent(types.LXD, types.Firecloud, func(s service.Service) error {
 		existingMembers, err := s.ClusterMembers(r.Context())
 		if err != nil && !api.StatusErrorCheck(err, http.StatusServiceUnavailable) {
 			return err

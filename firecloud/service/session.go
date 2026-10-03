@@ -10,9 +10,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/canonical/microcloud/microcloud/api/types"
-	cloudClient "github.com/canonical/microcloud/microcloud/client"
-	"github.com/canonical/microcloud/microcloud/multicast"
+	"github.com/m41denx/incendio/firecloud/api/types"
+	cloudClient "github.com/m41denx/incendio/firecloud/client"
+	"github.com/m41denx/incendio/firecloud/multicast"
 )
 
 // AllowedFailedJoinAttempts contains the number of allowed failed session join attempts.

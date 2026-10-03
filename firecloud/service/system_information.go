@@ -10,19 +10,19 @@ import (
 	"github.com/canonical/lxd/shared/api"
 	cephTypes "github.com/canonical/microceph/microceph/api/types"
 
-	"github.com/canonical/microcloud/microcloud/api/types"
-	"github.com/canonical/microcloud/microcloud/multicast"
+	"github.com/m41denx/incendio/firecloud/api/types"
+	"github.com/m41denx/incendio/firecloud/multicast"
 )
 
-// SystemInformation represents all information MicroCloud needs from a system in order to set it up as part of the MicroCloud.
+// SystemInformation represents all information Firecloud needs from a system in order to set it up as part of the Firecloud.
 type SystemInformation struct {
 	// ExistingServices is a map of cluster members for each service currently installed on the system.
 	ExistingServices map[types.ServiceType]map[string]string
 
-	// ClusterName is the name of the system in MicroCloud.
+	// ClusterName is the name of the system in Firecloud.
 	ClusterName string
 
-	// ClusterAddress is the default cluster address used for MicroCloud.
+	// ClusterAddress is the default cluster address used for Firecloud.
 	ClusterAddress string
 
 	// AvailableDisks is the list of disks available for use on the system.
@@ -37,8 +37,8 @@ type SystemInformation struct {
 	// AvailableOVNInterfaces is the list of networks that can be used for an OVN underlay network.
 	AvailableOVNInterfaces map[string]DedicatedInterface
 
-	// AvailableMicroCloudInterfaces is the list of networks that can be used for a MicroCloud internal network.
-	AvailableMicroCloudInterfaces map[string]DedicatedInterface
+	// AvailableFirecloudInterfaces is the list of networks that can be used for a Firecloud internal network.
+	AvailableFirecloudInterfaces map[string]DedicatedInterface
 
 	// LXDLocalConfig is the local configuration of LXD on this system.
 	LXDLocalConfig map[string]any
@@ -84,7 +84,7 @@ func (sh *Handler) CollectSystemInformation(ctx context.Context, connectInfo mul
 		AvailableUplinkInterfaces:     map[string]api.Network{},
 		AvailableCephInterfaces:       map[string]DedicatedInterface{},
 		AvailableOVNInterfaces:        map[string]DedicatedInterface{},
-		AvailableMicroCloudInterfaces: map[string]DedicatedInterface{},
+		AvailableFirecloudInterfaces: map[string]DedicatedInterface{},
 	}
 
 	var err error
@@ -161,7 +161,7 @@ func (sh *Handler) CollectSystemInformation(ctx context.Context, connectInfo mul
 	s.AvailableUplinkInterfaces = uplinkInterfaces
 	s.AvailableCephInterfaces = dedicatedInterfaces
 	s.AvailableOVNInterfaces = dedicatedInterfaces
-	s.AvailableMicroCloudInterfaces = dedicatedInterfaces
+	s.AvailableFirecloudInterfaces = dedicatedInterfaces
 
 	for _, network := range allNets {
 		if network.Name == DefaultFANNetwork {
@@ -266,7 +266,7 @@ func (sh *Handler) GetExistingClusters(ctx context.Context, connectInfo multicas
 	return existingServices, nil
 }
 
-// SupportsLocalPool checks if the SystemInformation supports a MicroCloud configured local storage pool.
+// SupportsLocalPool checks if the SystemInformation supports a Firecloud configured local storage pool.
 // Additionally returns whether such a pool already exists.
 func (s *SystemInformation) SupportsLocalPool() (hasPool bool, supportsPool bool) {
 	if s.existingLocalPool == nil {
@@ -280,7 +280,7 @@ func (s *SystemInformation) SupportsLocalPool() (hasPool bool, supportsPool bool
 	return true, false
 }
 
-// SupportsRemotePool checks if the SystemInformation supports a MicroCloud configured remote storage pool.
+// SupportsRemotePool checks if the SystemInformation supports a Firecloud configured remote storage pool.
 // Additionally returns whether such a pool already exists.
 func (s *SystemInformation) SupportsRemotePool() (hasPool bool, supportsPool bool) {
 	if s.existingRemotePool == nil {
@@ -294,7 +294,7 @@ func (s *SystemInformation) SupportsRemotePool() (hasPool bool, supportsPool boo
 	return true, false
 }
 
-// SupportsRemoteFSPool checks if the SystemInformation supports a MicroCloud configured remote-fs storage pool.
+// SupportsRemoteFSPool checks if the SystemInformation supports a Firecloud configured remote-fs storage pool.
 // Additionally returns whether such a pool already exists.
 func (s *SystemInformation) SupportsRemoteFSPool() (hasPool bool, supportsPool bool) {
 	if s.existingRemoteFSPool == nil {
@@ -308,7 +308,7 @@ func (s *SystemInformation) SupportsRemoteFSPool() (hasPool bool, supportsPool b
 	return true, false
 }
 
-// SupportsOVNNetwork checks if the SystemInformation supports MicroCloud configured default and UPLINK networks.
+// SupportsOVNNetwork checks if the SystemInformation supports Firecloud configured default and UPLINK networks.
 // Additionally returns whether such networks already exist.
 func (s *SystemInformation) SupportsOVNNetwork() (hasNet bool, supportsNet bool) {
 	// If both the default OVN network and the uplink network aren't present, we can be sure that OVN wasn't yet configured.
@@ -330,7 +330,7 @@ func (s *SystemInformation) SupportsOVNNetwork() (hasNet bool, supportsNet bool)
 	return true, false
 }
 
-// SupportsFANNetwork checks if the SystemInformation supports a MicroCloud configured lxdfan0 network.
+// SupportsFANNetwork checks if the SystemInformation supports a Firecloud configured lxdfan0 network.
 // Additionally returns whether such a network already exists.
 // If checkUsable is set, it will also check /proc/net/route to see if an interface that can support the FAN network is present.
 func (s *SystemInformation) SupportsFANNetwork(checkUsable bool) (hasNet bool, supportsNet bool, err error) {

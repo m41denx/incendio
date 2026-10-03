@@ -15,7 +15,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-// testConsole is used to simulate a terminal for the purposes of interacting with the MicroCloud CLI for testing.
+// testConsole is used to simulate a terminal for the purposes of interacting with the Firecloud CLI for testing.
 type testConsole struct {
 	queue   *bufio.Reader // queue of commands to send to "stdin".
 	inRead  *os.File      // read by the input handler like stdin.
@@ -87,7 +87,7 @@ func PrepareTestAsker(ctx context.Context, r io.Reader, output *os.File) (*Input
 	return handler, nil
 }
 
-// parseInput reads a line from the test input and sends the appropriate interaction to the MicroCloud CLI.
+// parseInput reads a line from the test input and sends the appropriate interaction to the Firecloud CLI.
 func (c *testConsole) parseInput(handler *InputHandler) error {
 	// If there is no active asker, we don't need to read any lines yet.
 	if !handler.isActive() {

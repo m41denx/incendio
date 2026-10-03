@@ -7,18 +7,18 @@ import (
 
 	"golang.org/x/mod/semver"
 
-	"github.com/canonical/microcloud/microcloud/api/types"
-	"github.com/canonical/microcloud/microcloud/cmd/tui"
+	"github.com/m41denx/incendio/firecloud/api/types"
+	"github.com/m41denx/incendio/firecloud/cmd/tui"
 )
 
 const (
-	// lxdMinVersion is the minimum version of LXD that fully supports all MicroCloud features.
+	// lxdMinVersion is the minimum version of LXD that fully supports all Firecloud features.
 	lxdMinVersion = "5.21"
 
-	// microCephMinVersion is the minimum version of MicroCeph that fully supports all MicroCloud features.
+	// microCephMinVersion is the minimum version of MicroCeph that fully supports all Firecloud features.
 	microCephMinVersion = "19.2"
 
-	// microOVNMinVersion is the minimum version of MicroOVN that fully supports all MicroCloud features.
+	// microOVNMinVersion is the minimum version of MicroOVN that fully supports all Firecloud features.
 	microOVNMinVersion = "24.03"
 )
 
@@ -51,7 +51,7 @@ func compareVersion(presentVersion string, minVersion string, serviceType types.
 	// * -1 in case presentVersion < minVersion
 	comparison := semver.Compare(semver.MajorMinor(canonicalPresentVersion), semver.MajorMinor(canonicalMinVersion))
 
-	// Only if the present version is lower than the expected version MicroCloud should error out.
+	// Only if the present version is lower than the expected version Firecloud should error out.
 	if comparison == -1 {
 		return fmt.Errorf("%s version %q is not supported", serviceType, presentVersion)
 	}
@@ -64,7 +64,7 @@ func compareVersion(presentVersion string, minVersion string, serviceType types.
 	return nil
 }
 
-// validateVersion checks that the daemon version for the given service is at a supported version for this version of MicroCloud.
+// validateVersion checks that the daemon version for the given service is at a supported version for this version of Firecloud.
 func validateVersion(serviceType types.ServiceType, daemonVersion string) error {
 	switch serviceType {
 	case types.LXD:

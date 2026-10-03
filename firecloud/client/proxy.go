@@ -11,7 +11,7 @@ import (
 	"github.com/canonical/lxd/shared"
 	microTypes "github.com/canonical/microcluster/v3/microcluster/types"
 
-	"github.com/canonical/microcloud/microcloud/api/types"
+	"github.com/m41denx/incendio/firecloud/api/types"
 )
 
 // AuthConfig is used to configure the various authentication settings during trust establishment.
@@ -24,7 +24,7 @@ type AuthConfig struct {
 	InsecureSkipVerify   bool
 }
 
-// UseAuthProxy takes the given microcluster client and HMAC and proxies requests to other services through the MicroCloud API.
+// UseAuthProxy takes the given microcluster client and HMAC and proxies requests to other services through the Firecloud API.
 // The HMAC will be set in the Authorization header in lieu of mTLS authentication, if present.
 // If no HMAC is present mTLS is assumed.
 func UseAuthProxy(c microTypes.Client, serviceType types.ServiceType, conf AuthConfig) (microTypes.Client, error) {
@@ -51,7 +51,7 @@ func UseAuthProxy(c microTypes.Client, serviceType types.ServiceType, conf AuthC
 	return c, nil
 }
 
-// AuthProxy takes a request to a service and sends it to MicroCloud instead,
+// AuthProxy takes a request to a service and sends it to Firecloud instead,
 // to be then forwarded to the unix socket of the corresponding service.
 // The HMAC is set in the request header to be used partially in lieu of mTLS authentication.
 func AuthProxy(hmac string, serviceType types.ServiceType) func(r *http.Request) (*url.URL, error) {
@@ -60,8 +60,8 @@ func AuthProxy(hmac string, serviceType types.ServiceType) func(r *http.Request)
 			r.Header.Set("Authorization", hmac)
 		}
 
-		// MicroCloud itself doesn't need to use the proxy.
-		if serviceType != types.MicroCloud {
+		// Firecloud itself doesn't need to use the proxy.
+		if serviceType != types.Firecloud {
 			path := "/1.0/services/" + strings.ToLower(string(serviceType))
 			if !strings.HasPrefix(r.URL.Path, path) {
 				r.URL.Path = path + r.URL.Path

@@ -28,23 +28,23 @@ deps:
 .PHONY: build
 build:
 ifeq "$(GOCOVERDIR)" ""
-	go install -tags=agent -v ./cmd/microcloud
-	go install -tags=agent -v ./cmd/microcloudd
+	go install -tags=agent -v ./cmd/firecloud
+	go install -tags=agent -v ./cmd/firecloudd
 else
-	go install -tags=agent -v -cover ./cmd/microcloud
-	go install -tags=agent -v -cover ./cmd/microcloudd
+	go install -tags=agent -v -cover ./cmd/firecloud
+	go install -tags=agent -v -cover ./cmd/firecloudd
 endif
 
-# Build MicroCloud for testing. Replaces EFF word-list,
+# Build Firecloud for testing. Replaces EFF word-list,
 # and enables feeding input to questions from a file with TEST_CONSOLE=1.
 .PHONY: build-test
 build-test:
 ifeq "$(GOCOVERDIR)" ""
-	go install -tags=test -v ./cmd/microcloud
-	go install -tags=test -v ./cmd/microcloudd
+	go install -tags=test -v ./cmd/firecloud
+	go install -tags=test -v ./cmd/firecloudd
 else
-	go install -tags=test -v -cover ./cmd/microcloud
-	go install -tags=test -v -cover ./cmd/microcloudd
+	go install -tags=test -v -cover ./cmd/firecloud
+	go install -tags=test -v -cover ./cmd/firecloudd
 endif
 
 # Testing targets.

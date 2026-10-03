@@ -1,8 +1,8 @@
-name: Install MicroCloud build dependencies
+name: Install Firecloud build dependencies
 runs:
   using: composite
   steps:
-    - name: Installs MicroCloud build dependencies
+    - name: Installs Firecloud build dependencies
       shell: bash
       run: |
         set -eux

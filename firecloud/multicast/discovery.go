@@ -12,7 +12,7 @@ import (
 	"github.com/canonical/lxd/shared/logger"
 	"golang.org/x/net/ipv4"
 
-	"github.com/canonical/microcloud/microcloud/api/types"
+	"github.com/m41denx/incendio/firecloud/api/types"
 )
 
 // ServerInfo is information about the server that is discovered using multicast.

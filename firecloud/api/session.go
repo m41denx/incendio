@@ -19,16 +19,16 @@ import (
 	microTypes "github.com/canonical/microcluster/v3/microcluster/types"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/canonical/microcloud/microcloud/api/types"
-	cloudClient "github.com/canonical/microcloud/microcloud/client"
-	"github.com/canonical/microcloud/microcloud/multicast"
-	"github.com/canonical/microcloud/microcloud/service"
+	"github.com/m41denx/incendio/firecloud/api/types"
+	cloudClient "github.com/m41denx/incendio/firecloud/client"
+	"github.com/m41denx/incendio/firecloud/multicast"
+	"github.com/m41denx/incendio/firecloud/service"
 )
 
-// HMACMicroCloud10 is the HMAC format version used during trust establishment.
-const HMACMicroCloud10 trust.HMACVersion = "MicroCloud-1.0"
+// HMACFirecloud10 is the HMAC format version used during trust establishment.
+const HMACFirecloud10 trust.HMACVersion = "Firecloud-1.0"
 
-// SessionInitiatingCmd represents the /1.0/session/initiating API on MicroCloud.
+// SessionInitiatingCmd represents the /1.0/session/initiating API on Firecloud.
 var SessionInitiatingCmd = func(sh *service.Handler) microTypes.Endpoint {
 	return microTypes.Endpoint{
 		AllowedBeforeInit: true,
@@ -39,7 +39,7 @@ var SessionInitiatingCmd = func(sh *service.Handler) microTypes.Endpoint {
 	}
 }
 
-// SessionJoiningCmd represents the /1.0/session/joining API on MicroCloud.
+// SessionJoiningCmd represents the /1.0/session/joining API on Firecloud.
 var SessionJoiningCmd = func(sh *service.Handler) microTypes.Endpoint {
 	return microTypes.Endpoint{
 		AllowedBeforeInit: true,
@@ -50,7 +50,7 @@ var SessionJoiningCmd = func(sh *service.Handler) microTypes.Endpoint {
 	}
 }
 
-// sessionGet returns a MicroCloud join session.
+// sessionGet returns a Firecloud join session.
 func sessionGet(sh *service.Handler, sessionRole types.SessionRole) func(state microTypes.State, r *http.Request) microTypes.Response {
 	return func(state microTypes.State, r *http.Request) microTypes.Response {
 		if sh.ActiveSession() {
@@ -195,10 +195,10 @@ func handleInitiatingSession(state microTypes.State, sh *service.Handler, gw *cl
 		// Add system to temporary truststore.
 		sh.Session.Allow(intent.Name, *remoteCert)
 
-		cloud := sh.Services[types.MicroCloud].(*service.CloudService)
+		cloud := sh.Services[types.Firecloud].(*service.CloudService)
 		cert, err := cloud.ServerCert()
 		if err != nil {
-			return fmt.Errorf("Failed to get certificate of %q: %w", types.MicroCloud, err)
+			return fmt.Errorf("Failed to get certificate of %q: %w", types.Firecloud, err)
 		}
 
 		joinIntent := types.SessionJoinPost{
@@ -209,7 +209,7 @@ func handleInitiatingSession(state microTypes.State, sh *service.Handler, gw *cl
 			Services:    session.Services,
 		}
 
-		h, err := trust.NewHMACArgon2([]byte(sessionPassphrase), nil, trust.NewDefaultHMACConf(HMACMicroCloud10))
+		h, err := trust.NewHMACArgon2([]byte(sessionPassphrase), nil, trust.NewDefaultHMACConf(HMACFirecloud10))
 		if err != nil {
 			return fmt.Errorf("Failed to create a new HMAC instance using argon2: %w", err)
 		}
@@ -286,10 +286,10 @@ func handleJoiningSession(state microTypes.State, sh *service.Handler, gw *cloud
 	}
 
 	// Get the remotes name.
-	cloud := sh.Services[types.MicroCloud].(*service.CloudService)
+	cloud := sh.Services[types.Firecloud].(*service.CloudService)
 	cert, err := cloud.ServerCert()
 	if err != nil {
-		return fmt.Errorf("Failed to get certificate of %q: %w", types.MicroCloud, err)
+		return fmt.Errorf("Failed to get certificate of %q: %w", types.Firecloud, err)
 	}
 
 	joinIntent := types.SessionJoinPost{
@@ -300,7 +300,7 @@ func handleJoiningSession(state microTypes.State, sh *service.Handler, gw *cloud
 		Services:    session.Services,
 	}
 
-	h, err := trust.NewHMACArgon2([]byte(session.Passphrase), nil, trust.NewDefaultHMACConf(HMACMicroCloud10))
+	h, err := trust.NewHMACArgon2([]byte(session.Passphrase), nil, trust.NewDefaultHMACConf(HMACFirecloud10))
 	if err != nil {
 		return fmt.Errorf("Failed to create a new HMAC instance using argon2: %w", err)
 	}

@@ -10,7 +10,7 @@ import (
 	"github.com/canonical/lxd/shared/trust"
 	"github.com/canonical/microcluster/v3/microcluster/types"
 
-	"github.com/canonical/microcloud/microcloud/service"
+	"github.com/m41denx/incendio/firecloud/service"
 )
 
 // endpointHandler is just a convenience for writing clean return types.
@@ -52,7 +52,7 @@ func authHandlerMTLS(sh *service.Handler, f endpointHandler) endpointHandler {
 func authHandlerHMAC(sh *service.Handler, f endpointHandler) endpointHandler {
 	return func(s types.State, r *http.Request) types.Response {
 		sessionFunc := func(session *service.Session) error {
-			h, err := trust.NewHMACArgon2([]byte(session.Passphrase()), nil, trust.NewDefaultHMACConf(HMACMicroCloud10))
+			h, err := trust.NewHMACArgon2([]byte(session.Passphrase()), nil, trust.NewDefaultHMACConf(HMACFirecloud10))
 			if err != nil {
 				return err
 			}

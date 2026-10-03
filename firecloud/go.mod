@@ -1,4 +1,4 @@
-module github.com/canonical/microcloud/microcloud
+module github.com/m41denx/incendio/firecloud
 
 go 1.26.5
 

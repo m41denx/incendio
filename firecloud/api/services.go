@@ -10,11 +10,11 @@ import (
 	"github.com/canonical/lxd/lxd/util"
 	microTypes "github.com/canonical/microcluster/v3/microcluster/types"
 
-	"github.com/canonical/microcloud/microcloud/api/types"
-	"github.com/canonical/microcloud/microcloud/service"
+	"github.com/m41denx/incendio/firecloud/api/types"
+	"github.com/m41denx/incendio/firecloud/service"
 )
 
-// ServicesCmd represents the /1.0/services API on MicroCloud.
+// ServicesCmd represents the /1.0/services API on Firecloud.
 var ServicesCmd = func(sh *service.Handler) microTypes.Endpoint {
 	return microTypes.Endpoint{
 		AllowedBeforeInit: true,
@@ -25,7 +25,7 @@ var ServicesCmd = func(sh *service.Handler) microTypes.Endpoint {
 	}
 }
 
-// servicesPut updates the cluster status of the MicroCloud peer.
+// servicesPut updates the cluster status of the Firecloud peer.
 func servicesPut(state microTypes.State, r *http.Request) microTypes.Response {
 	// Parse the request.
 	req := types.ServicesPut{}
@@ -53,7 +53,7 @@ func servicesPut(state microTypes.State, r *http.Request) microTypes.Response {
 		return microTypes.SmartError(err)
 	}
 
-	err = sh.RunConcurrent(types.MicroCloud, types.LXD, func(s service.Service) error {
+	err = sh.RunConcurrent(types.Firecloud, types.LXD, func(s service.Service) error {
 		// set a 5 minute context for completing the join request in case the system is very slow.
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Minute)
 		defer cancel()

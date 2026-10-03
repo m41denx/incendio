@@ -94,7 +94,7 @@ jobs:
           path: ${{ steps.ShellCheck.outputs.sarif }}
         if: github.event_name == 'pull_request'
 
-      - name: Install MicroCloud build dependencies
+      - name: Install Firecloud build dependencies
         uses: ./.github/actions/install-builddeps
 
       - name: Build
@@ -133,8 +133,8 @@ jobs:
         with:
           name: system-test-deps
           path: |
-            /home/runner/go/bin/microcloud
-            /home/runner/go/bin/microcloudd
+            /home/runner/go/bin/firecloud
+            /home/runner/go/bin/firecloudd
             /home/runner/go/bin/dqlite
           retention-days: 1
 
@@ -176,10 +176,10 @@ jobs:
           # Both LXD 5.21 and 6 are supported.
           - "5.21/edge"
           - "6/edge"
-        microcloud: ["latest/edge"]
+        firecloud: ["latest/edge"]
         exclude:
           # Exclude LXD 5.21 for regular development pipelines to speed up the result cycle.
-          # MicroCloud edge tests should always run with LXD edge. The LTS edge is tested in the weekly schedule.
+          # Firecloud edge tests should always run with LXD edge. The LTS edge is tested in the weekly schedule.
           # Launch the LXD 5.21 tests both for schedules and manual workflow dispatch.
           - lxd: ${{ github.event_name != 'schedule' && github.event_name != 'workflow_dispatch' && '5.21/edge' }}
     steps:
@@ -215,7 +215,7 @@ jobs:
           - "squid/stable"
         microovn: ["24.03/stable"]
         lxd: ["5.21/stable"]
-        microcloud: ["2/candidate"]
+        firecloud: ["2/candidate"]
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -266,7 +266,7 @@ jobs:
           merge-multiple: true
           path: /home/runner/go/bin
 
-      - name: Install MicroCloud build dependencies
+      - name: Install Firecloud build dependencies
         uses: ./.github/actions/install-builddeps
 
       - name: Install dependencies
@@ -286,7 +286,7 @@ jobs:
         uses: tiobe/tics-github-action@333078bc527399e5916a166bd1a3a788be5a01a9 # v3.12.0
         with:
           mode: qserver
-          project: microcloud
+          project: firecloud
           viewerUrl: https://canonical.tiobe.com/tiobeweb/TICS/api/cfg?name=GoProjects
           branchdir: ${{ github.workspace }}
           ticsAuthToken: ${{ secrets.TICSAUTHTOKEN }}
@@ -322,7 +322,7 @@ jobs:
       #      available through the SSH_AUTH_SOCK environment variable.
       - uses: canonical/lxd/.github/actions/lp-snap-build@main # zizmor: ignore[unpinned-uses]
         with:
-          repo: "git+ssh://lxdbot@git.launchpad.net/~microcloud-snap/microcloud"
+          repo: "git+ssh://lxdbot@git.launchpad.net/~firecloud-snap/firecloud"
           ssh-key: ${{ secrets.LAUNCHPAD_LXD_BOT_KEY }} # zizmor: ignore[secrets-outside-env]
 
       - name: Trigger Launchpad snap build

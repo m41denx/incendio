@@ -7,8 +7,8 @@ import (
 
 	"github.com/stretchr/testify/suite"
 
-	"github.com/canonical/microcloud/microcloud/api/types"
-	"github.com/canonical/microcloud/microcloud/version"
+	"github.com/m41denx/incendio/firecloud/api/types"
+	"github.com/m41denx/incendio/firecloud/version"
 )
 
 type versionSuite struct {
@@ -39,9 +39,9 @@ func (s *versionSuite) Test_validateVersions() {
 			expectErr: false,
 		},
 		{
-			desc:      "Valid MicroCloud",
+			desc:      "Valid Firecloud",
 			version:   version.RawVersion,
-			service:   types.MicroCloud,
+			service:   types.Firecloud,
 			expectErr: false,
 		},
 		{
@@ -69,9 +69,9 @@ func (s *versionSuite) Test_validateVersions() {
 			expectErr: false,
 		},
 		{
-			desc:      "MicroCloud is always valid because it's local",
+			desc:      "Firecloud is always valid because it's local",
 			version:   "",
-			service:   types.MicroCloud,
+			service:   types.Firecloud,
 			expectErr: false,
 		},
 		{

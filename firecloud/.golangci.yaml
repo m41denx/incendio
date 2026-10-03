@@ -32,4 +32,4 @@ formatters:
       sections:
         - standard
         - default
-        - prefix(github.com/canonical/microcloud/microcloud)
+        - prefix(github.com/m41denx/incendio/firecloud)

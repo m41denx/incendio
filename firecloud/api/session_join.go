@@ -12,11 +12,11 @@ import (
 	"github.com/canonical/lxd/shared/api"
 	microTypes "github.com/canonical/microcluster/v3/microcluster/types"
 
-	"github.com/canonical/microcloud/microcloud/api/types"
-	"github.com/canonical/microcloud/microcloud/service"
+	"github.com/m41denx/incendio/firecloud/api/types"
+	"github.com/m41denx/incendio/firecloud/service"
 )
 
-// SessionJoinCmd represents the /1.0/session/join API on MicroCloud.
+// SessionJoinCmd represents the /1.0/session/join API on Firecloud.
 var SessionJoinCmd = func(sh *service.Handler) microTypes.Endpoint {
 	return microTypes.Endpoint{
 		AllowedBeforeInit: true,

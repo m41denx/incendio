@@ -1,14 +1,14 @@
 // Package version provides shared version information.
 package version
 
-// RawVersion is the current daemon version of MicroCloud.
+// RawVersion is the current daemon version of Firecloud.
 // LTS versions also include the patch number.
 const RawVersion = "3.3"
 
 // LTS should be set if the current version is an LTS (long-term support) version.
 const LTS = false
 
-// Version appends "LTS" to the raw version string if MicroCloud is an LTS version.
+// Version appends "LTS" to the raw version string if Firecloud is an LTS version.
 func Version() string {
 	if LTS {
 		return RawVersion + " LTS"

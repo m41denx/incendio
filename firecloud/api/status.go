@@ -16,12 +16,12 @@ import (
 	microTypes "github.com/canonical/microcluster/v3/microcluster/types"
 	ovnTypes "github.com/canonical/microovn/microovn/api/types"
 
-	"github.com/canonical/microcloud/microcloud/api/types"
-	"github.com/canonical/microcloud/microcloud/client"
-	"github.com/canonical/microcloud/microcloud/service"
+	"github.com/m41denx/incendio/firecloud/api/types"
+	"github.com/m41denx/incendio/firecloud/client"
+	"github.com/m41denx/incendio/firecloud/service"
 )
 
-// StatusCmd represents the /1.0/status API on MicroCloud.
+// StatusCmd represents the /1.0/status API on Firecloud.
 var StatusCmd = func(sh *service.Handler) microTypes.Endpoint {
 	return microTypes.Endpoint{
 		Name: "status",
@@ -64,10 +64,10 @@ func statusGet(sh *service.Handler) endpointHandler {
 		var address string
 		addrPort, err := microTypes.ParseAddrPort(s.Address().Host)
 		if err != nil {
-			return microTypes.SmartError(fmt.Errorf("Failed to parse MicroCloud listen address: %w", err))
+			return microTypes.SmartError(fmt.Errorf("Failed to parse Firecloud listen address: %w", err))
 		}
 
-		// The address may be empty if we haven't initialized MicroCloud yet.
+		// The address may be empty if we haven't initialized Firecloud yet.
 		address = addrPort.String()
 		if address != "" {
 			address = addrPort.Addr().String()
@@ -116,7 +116,7 @@ func statusGet(sh *service.Handler) endpointHandler {
 				statusMu.Lock()
 				status.Clusters[s.Type()] = clusterMembers
 				statusMu.Unlock()
-			case types.MicroCloud:
+			case types.Firecloud:
 				m := s.(*service.CloudService).Microcluster()
 
 				clusterMembers, err := microStatus(r.Context(), m)

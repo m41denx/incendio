@@ -13,26 +13,29 @@ import (
 	"github.com/canonical/microcluster/v3/microcluster"
 	"github.com/canonical/microcluster/v3/microcluster/types"
 
-	"github.com/canonical/microcloud/microcloud/service"
+	"github.com/m41denx/incendio/firecloud/service"
 )
 
-// LXDProxy proxies all requests from MicroCloud to LXD.
+// LXDProxy proxies all requests from Firecloud to LXD.
 func LXDProxy(sh *service.Handler) types.Endpoint {
 	return proxy(sh, "lxd", "services/lxd/{rest:.*}", lxdHandler)
 }
 
-// CephProxy proxies all requests from MicroCloud to MicroCeph.
+// CephProxy proxies all requests from Firecloud to MicroCeph.
 func CephProxy(sh *service.Handler) types.Endpoint {
 	return proxy(sh, "microceph", "services/microceph/{rest:.*}", microHandler("microceph", MicroCephDir))
 }
 
-// OVNProxy proxies all requests from MicroCloud to MicroOVN.
+// OVNProxy proxies all requests from Firecloud to MicroOVN.
 func OVNProxy(sh *service.Handler) types.Endpoint {
 	return proxy(sh, "microovn", "services/microovn/{rest:.*}", microHandler("microovn", MicroOVNDir))
 }
 
-// LXDDir is the path to the state directory of the LXD snap.
-const LXDDir = "/var/snap/lxd/common/lxd"
+// LXDDir is the path to the state directory of Incus (Zabbly packages).
+const LXDDir = "/var/lib/incus"
+
+// FirecloudDir is the default state directory of the Firecloud daemon.
+const FirecloudDir = "/var/lib/firecloud"
 
 // MicroCephDir is the path to the state directory of the MicroCeph snap.
 const MicroCephDir = "/var/snap/microceph/common/state"
