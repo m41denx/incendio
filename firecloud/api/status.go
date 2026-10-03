@@ -82,6 +82,10 @@ func statusGet(sh *service.Handler) endpointHandler {
 			OVNServices:  []ovnTypes.Service{},
 		}
 
+		if sh.Sync != nil {
+			status.Sync = sh.Sync.Status()
+		}
+
 		err = sh.RunConcurrent("", "", func(s service.Service) error {
 			switch s.Type() {
 			case types.LXD:

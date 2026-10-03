@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/x509"
 	"fmt"
+	"maps"
 	"net"
 	"os"
 	"slices"
@@ -17,13 +18,16 @@ import (
 	"github.com/canonical/lxd/shared/revert"
 	"github.com/canonical/lxd/shared/validate"
 	cephTypes "github.com/canonical/microceph/microceph/api/types"
+	incus "github.com/lxc/incus/v7/client"
 	incusAPI "github.com/lxc/incus/v7/shared/api"
 	"github.com/spf13/cobra"
 
 	"github.com/m41denx/incendio/firecloud/api"
 	"github.com/m41denx/incendio/firecloud/api/types"
+	"github.com/m41denx/incendio/firecloud/client"
 	cloudClient "github.com/m41denx/incendio/firecloud/client"
 	"github.com/m41denx/incendio/firecloud/cmd/tui"
+	"github.com/m41denx/incendio/firecloud/integration"
 	"github.com/m41denx/incendio/firecloud/multicast"
 	"github.com/m41denx/incendio/firecloud/service"
 )
@@ -889,6 +893,13 @@ func (c *initConfig) setupCluster(s *service.Handler) error {
 		}
 	}
 
+	// Put MicroCeph's configuration in /etc/ceph on every member before
+	// Incus creates the Ceph pools.
+	err = c.syncMembers(s)
+	if err != nil {
+		return err
+	}
+
 	fmt.Println("Configuring cluster-wide devices ...")
 
 	// Update LXD's global config.
@@ -899,10 +910,10 @@ func (c *initConfig) setupCluster(s *service.Handler) error {
 
 	config := make(map[string]string)
 
-	// LXD can dynamically determine the OVN northbound DB connection string from MicroOVN's `ovn.env` file.
-	// This feature was added with the ovn_dynamic_northbound_connection API extension.
-	// Only set the connection string in case of an older LXD.
-	if s.Services[types.MicroOVN] != nil && !lxdClient.HasExtension("ovn_dynamic_northbound_connection") {
+	// Incus does not read MicroOVN's settings itself (unlike the LXD snap), so
+	// point it at the OVN central members and give it MicroOVN's client
+	// certificate. The daemons keep these in step afterwards.
+	if s.Services[types.MicroOVN] != nil {
 		serviceOVN := s.Services[types.MicroOVN].(*service.OVNService)
 
 		services, err := serviceOVN.GetServices(context.Background())
@@ -927,7 +938,21 @@ func (c *initConfig) setupCluster(s *service.Handler) error {
 			}
 		}
 
-		config["network.ovn.northbound_connection"] = strings.Join(conns, ",")
+		ovnState, err := integration.ReadOVN(integration.MicroOVNRoot)
+		if err != nil {
+			return fmt.Errorf("Failed to read MicroOVN's certificates: %w", err)
+		}
+
+		ovnState.Northbound = strings.Join(conns, ",")
+		maps.Copy(config, ovnState.GlobalConfig())
+
+		// Each member reaches Open vSwitch through the MicroOVN snap's socket.
+		for name := range c.systems {
+			err = setMemberConfig(lxdClient, name, integration.KeyOVSConnection, integration.OVSConnection)
+			if err != nil {
+				return err
+			}
+		}
 	}
 
 	newServer := server.Writable()
@@ -1105,6 +1130,56 @@ func (c *initConfig) setupCluster(s *service.Handler) error {
 	}
 
 	reverter.Success()
+
+	return nil
+}
+
+// setMemberConfig sets a member-specific Incus server key on the given member.
+func setMemberConfig(client incus.InstanceServer, member string, key string, value string) error {
+	target := client.UseTarget(member)
+	server, etag, err := target.GetServer()
+	if err != nil {
+		return err
+	}
+
+	if server.Config[key] == value {
+		return nil
+	}
+
+	put := server.Writable()
+	put.Config[key] = value
+	err = target.UpdateServer(put, etag)
+	if err != nil {
+		return fmt.Errorf("Failed to set %s on %q: %w", key, member, err)
+	}
+
+	return nil
+}
+
+// syncMembers runs a sync on every Firecloud member, so each has MicroCeph's
+// configuration in /etc/ceph (and the other settings) before Incus uses them.
+func (c *initConfig) syncMembers(sh *service.Handler) error {
+	cloud := sh.Services[types.Firecloud].(*service.CloudService)
+	local, err := cloud.Client()
+	if err != nil {
+		return err
+	}
+
+	for name := range c.systems {
+		target := name
+		if name == sh.Name {
+			target = ""
+		}
+
+		status, err := client.Sync(context.Background(), local, target)
+		if err != nil {
+			return fmt.Errorf("Failed to sync settings on %q: %w", name, err)
+		}
+
+		if len(status.Errors) > 0 {
+			tui.PrintWarning(fmt.Sprintf("Sync on %q: %s", name, strings.Join(status.Errors, "; ")))
+		}
+	}
 
 	return nil
 }

@@ -1,6 +1,8 @@
 package types
 
 import (
+	"time"
+
 	cephTypes "github.com/canonical/microceph/microceph/api/types"
 	microTypes "github.com/canonical/microcluster/v3/microcluster/types"
 	ovnTypes "github.com/canonical/microovn/microovn/api/types"
@@ -25,4 +27,22 @@ type Status struct {
 
 	// OVNServices is a list of all ovn services running on this member.
 	OVNServices ovnTypes.Services `json:"ovn_services" yaml:"ovn_services"`
+
+	// Sync is the outcome of the member's last sync of OVN, Ceph and LVM settings into Incus.
+	Sync SyncStatus `json:"sync" yaml:"sync"`
+}
+
+// SyncStatus is the outcome of a member's last sync.
+type SyncStatus struct {
+	// LastRun is when the last sync ran; zero if it has not run yet.
+	LastRun time.Time `json:"last_run" yaml:"last_run"`
+
+	// LastSuccess is when a sync last ran without errors.
+	LastSuccess time.Time `json:"last_success" yaml:"last_success"`
+
+	// Applied lists what the last sync changed.
+	Applied []string `json:"applied" yaml:"applied"`
+
+	// Errors lists what failed in the last sync.
+	Errors []string `json:"errors" yaml:"errors"`
 }

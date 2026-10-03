@@ -40,7 +40,7 @@ func SyncCeph(src string, dst string) ([]string, error) {
 		}
 
 		target := filepath.Join(dst, f.to)
-		changed, err := writeIfChanged(target, content, f.mode)
+		changed, err := WriteIfChanged(target, content, f.mode)
 		if err != nil {
 			return written, err
 		}
@@ -53,9 +53,9 @@ func SyncCeph(src string, dst string) ([]string, error) {
 	return written, nil
 }
 
-// writeIfChanged writes content to path through a temporary file and a
+// WriteIfChanged writes content to path through a temporary file and a
 // rename, unless the file already holds exactly that content and mode.
-func writeIfChanged(path string, content []byte, mode os.FileMode) (bool, error) {
+func WriteIfChanged(path string, content []byte, mode os.FileMode) (bool, error) {
 	current, err := os.ReadFile(path)
 	if err == nil && bytes.Equal(current, content) {
 		info, err := os.Stat(path)

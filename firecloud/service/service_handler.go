@@ -44,6 +44,10 @@ type Handler struct {
 	sessionLock sync.RWMutex
 	Session     *Session
 
+	// Sync keeps Incus in step with MicroOVN, MicroCeph and clustered LVM.
+	// Only set in the daemon.
+	Sync *Syncer
+
 	initMu  sync.RWMutex
 	address string
 }

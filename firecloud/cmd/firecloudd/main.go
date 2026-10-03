@@ -126,7 +126,10 @@ func (c *cmdDaemon) run(cmd *cobra.Command, args []string) error {
 		}
 	}()
 
+	s.Sync = service.NewSyncer(s)
+
 	endpoints := []microTypes.Endpoint{
+		api.SyncCmd(s),
 		api.StatusCmd(s),
 		api.ServicesCmd(s),
 		api.ServiceTokensCmd(s),
@@ -182,8 +185,17 @@ func (c *cmdDaemon) run(cmd *cobra.Command, args []string) error {
 				return setHandlerAddress(state.Address().Host)
 			},
 			OnStart: func(ctx context.Context, state microTypes.State) error {
-				g, _ := errgroup.WithContext(ctx)
+				g, backgroundTasksCtx := errgroup.WithContext(ctx)
 				backgroundTasks = g
+				s.Sync.Ready = func(ctx context.Context) bool {
+					return state.Database().IsOpen(ctx) == nil
+				}
+
+				g.Go(func() error {
+					s.Sync.Run(backgroundTasksCtx)
+
+					return nil
+				})
 
 				// If we are already initialized, there's nothing to do.
 				err := state.Database().IsOpen(ctx)
@@ -245,6 +257,16 @@ func (c *cmdDaemon) run(cmd *cobra.Command, args []string) error {
 				if err != nil {
 					logger.Error("Failed to update LXD configuration on start", logger.Ctx{"error": err})
 				}
+
+				return nil
+			},
+			OnNewMember: func(ctx context.Context, state microTypes.State, newMember microTypes.ClusterMemberLocal) error {
+				s.Sync.Trigger()
+
+				return nil
+			},
+			PostRemove: func(ctx context.Context, state microTypes.State, force bool) error {
+				s.Sync.Trigger()
 
 				return nil
 			},

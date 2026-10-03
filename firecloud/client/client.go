@@ -163,3 +163,23 @@ func DeleteClusterMember(ctx context.Context, c microTypes.Client, memberName st
 
 	return c.Query(queryCtx, "DELETE", types.APIVersion, &path.URL, nil, nil)
 }
+
+// Sync runs a sync of OVN, Ceph and LVM settings into Incus on the given
+// cluster member (the local one if target is empty) and returns its outcome.
+func Sync(ctx context.Context, c microTypes.Client, target string) (*types.SyncStatus, error) {
+	queryCtx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+
+	url := api.NewURL().Path("sync")
+	if target != "" {
+		url = url.WithQuery("target", target)
+	}
+
+	status := &types.SyncStatus{}
+	err := c.Query(queryCtx, "POST", types.APIVersion, &url.URL, nil, status)
+	if err != nil {
+		return nil, err
+	}
+
+	return status, nil
+}
