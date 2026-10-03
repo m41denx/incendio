@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	// lxdMinVersion is the minimum version of LXD that fully supports all Firecloud features.
-	lxdMinVersion = "5.21"
+	// lxdMinVersion is the minimum version of Incus that fully supports all Firecloud features.
+	lxdMinVersion = "6.0"
 
 	// microCephMinVersion is the minimum version of MicroCeph that fully supports all Firecloud features.
 	microCephMinVersion = "19.2"

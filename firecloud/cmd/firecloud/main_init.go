@@ -13,11 +13,11 @@ import (
 
 	"github.com/canonical/lxd/lxd/util"
 	"github.com/canonical/lxd/shared"
-	lxdAPI "github.com/canonical/lxd/shared/api"
 	"github.com/canonical/lxd/shared/logger"
 	"github.com/canonical/lxd/shared/revert"
 	"github.com/canonical/lxd/shared/validate"
 	cephTypes "github.com/canonical/microceph/microceph/api/types"
+	incusAPI "github.com/lxc/incus/v7/shared/api"
 	"github.com/spf13/cobra"
 
 	"github.com/m41denx/incendio/firecloud/api"
@@ -48,7 +48,7 @@ type InitSystem struct {
 	// ServerInfo contains the data reported about this system.
 	ServerInfo multicast.ServerInfo
 	// AvailableDisks contains the disks as reported by LXD.
-	AvailableDisks []lxdAPI.ResourcesStorageDisk
+	AvailableDisks []incusAPI.ResourcesStorageDisk
 	// MicroCephDisks contains the disks intended to be passed to MicroCeph.
 	MicroCephDisks []cephTypes.DisksPost
 	// MicroCephPublicNetwork specifies the optional public network configuration for Ceph.
@@ -61,21 +61,21 @@ type InitSystem struct {
 	// Includes the subnet (IPv4/IPv6 CIDR), network interface name, and IP address within the subnet.
 	FirecloudInternalNetwork *NetworkInterfaceInfo
 	// TargetNetworks contains the network configuration for the target system.
-	TargetNetworks []lxdAPI.NetworksPost
+	TargetNetworks []incusAPI.NetworksPost
 	// TargetStoragePools contains the storage pool configuration for the target system.
-	TargetStoragePools []lxdAPI.StoragePoolsPost
+	TargetStoragePools []incusAPI.StoragePoolsPost
 	// Networks is the cluster-wide network configuration.
-	Networks []lxdAPI.NetworksPost
+	Networks []incusAPI.NetworksPost
 	// OVNGeneveNetwork specifies the configuration for the OVN Geneve tunnel.
 	// Includes the IP address, network interface name, and subnet to use for Geneve traffic.
 	// If left empty, Geneve traffic will be routed through the management network.
 	OVNGeneveNetwork *NetworkInterfaceInfo
 	// StoragePools is the cluster-wide storage pool configuration.
-	StoragePools []lxdAPI.StoragePoolsPost
+	StoragePools []incusAPI.StoragePoolsPost
 	// StorageVolumes is the cluster-wide storage volume configuration.
-	StorageVolumes map[string][]lxdAPI.StorageVolumesPost
+	StorageVolumes map[string][]incusAPI.StorageVolumesPost
 	// JoinConfig is the LXD configuration for joining members.
-	JoinConfig []lxdAPI.ClusterMemberConfigKey
+	JoinConfig []incusAPI.ClusterMemberConfigKey
 }
 
 // initConfig holds the configuration for cluster formation based on the initial flags and answers provided to Firecloud.
@@ -315,7 +315,7 @@ func (c *initConfig) runInteractive(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	uiAccessLink, err := c.askInitialUIAccessLink(s)
+	wantUIToken, err := c.askUITrustToken()
 	if err != nil {
 		return err
 	}
@@ -334,11 +334,17 @@ func (c *initConfig) runInteractive(cmd *cobra.Command, args []string) error {
 		reverter.Success()
 	}
 
-	if uiAccessLink != "" {
-		fmt.Println()
-		fmt.Println("UI initial access link (expires in 1 day):")
-		fmt.Println(uiAccessLink)
-		fmt.Println()
+	if wantUIToken {
+		token, err := createUITrustToken(s)
+		if err != nil {
+			tui.PrintWarning(err.Error())
+		} else {
+			fmt.Println()
+			fmt.Printf("Incendio UI: https://%s:%d\n", s.Address(), service.LXDPort)
+			fmt.Println("Trust token (single use) for the UI login page:")
+			fmt.Println(token)
+			fmt.Println()
+		}
 	}
 
 	fmt.Println(tui.SuccessColor("Firecloud is ready", true))
@@ -690,7 +696,7 @@ func (c *initConfig) setupCluster(s *service.Handler) error {
 
 	// If bootstrapping, finalize setup of storage pools & networks, and update the default profile accordingly.
 	system := c.systems[s.Name]
-	profile := lxdAPI.ProfilesPost{ProfilePut: lxdAPI.ProfilePut{Devices: map[string]map[string]string{}}, Name: "default"}
+	profile := incusAPI.ProfilesPost{ProfilePut: incusAPI.ProfilePut{Devices: map[string]map[string]string{}}, Name: "default"}
 	profiles, err := lxdClient.GetProfileNames()
 	if err != nil {
 		return err
@@ -955,19 +961,11 @@ func (c *initConfig) setupCluster(s *service.Handler) error {
 		}
 
 		for _, network := range system.Networks {
-			op, err := lxdClient.DeleteNetwork(network.Name)
-			if err == nil {
-				// Network deletion is asynchronous; wait for completion before proceeding.
-				_ = op.Wait()
-			}
+			_ = lxdClient.DeleteNetwork(network.Name)
 		}
 
 		for _, pool := range system.StoragePools {
-			op, err := lxdClient.DeleteStoragePool(pool.Name)
-			if err == nil {
-				// Storage pool deletion is asynchronous; wait for completion before proceeding.
-				_ = op.Wait()
-			}
+			_ = lxdClient.DeleteStoragePool(pool.Name)
 		}
 	})
 
@@ -978,25 +976,10 @@ func (c *initConfig) setupCluster(s *service.Handler) error {
 			return err
 		}
 
-		// Populate the server info cache so that HasExtension works correctly.
-		// Without this, a fresh client has server == nil, which causes HasExtension
-		// to return true for any extension, including storage_and_network_operations,
-		// even on older LXD servers that don't support it. That causes async operations
-		// to call queryOperation, which fails when the server returns a 200 sync response
-		// (no real operation ID to wait on).
-		_, _, err = lxdClient.GetServer()
-		if err != nil {
-			return err
-		}
-
 		targetClient := lxdClient.UseTarget(name)
 
 		for _, pool := range system.TargetStoragePools {
-			op, err := targetClient.CreateStoragePool(pool)
-			if err == nil {
-				// Storage pool creation is asynchronous; wait for completion before proceeding.
-				err = op.Wait()
-			}
+			err := targetClient.CreateStoragePool(pool)
 
 			if err != nil {
 				return err
@@ -1004,11 +987,7 @@ func (c *initConfig) setupCluster(s *service.Handler) error {
 		}
 
 		for _, network := range system.TargetNetworks {
-			op, err := targetClient.CreateNetwork(network)
-			if err == nil {
-				// Network creation is asynchronous; wait for completion before proceeding.
-				err = op.Wait()
-			}
+			err := targetClient.CreateNetwork(network)
 
 			if err != nil {
 				return err
@@ -1016,7 +995,7 @@ func (c *initConfig) setupCluster(s *service.Handler) error {
 		}
 	}
 
-	cephFSPool := lxdAPI.StoragePoolsPost{}
+	cephFSPool := incusAPI.StoragePoolsPost{}
 	for _, pool := range system.StoragePools {
 		// Ensure the cephfs pool is created after the ceph pool so we set up crush rules.
 		if pool.Driver == "cephfs" {
@@ -1024,11 +1003,7 @@ func (c *initConfig) setupCluster(s *service.Handler) error {
 			continue
 		}
 
-		op, err := lxdClient.CreateStoragePool(pool)
-		if err == nil {
-			// Storage pool creation is asynchronous; wait for completion before proceeding.
-			err = op.Wait()
-		}
+		err := lxdClient.CreateStoragePool(pool)
 
 		if err != nil {
 			return err
@@ -1036,11 +1011,7 @@ func (c *initConfig) setupCluster(s *service.Handler) error {
 	}
 
 	if cephFSPool.Driver != "" {
-		op, err := lxdClient.CreateStoragePool(cephFSPool)
-		if err == nil {
-			// Storage pool creation is asynchronous; wait for completion before proceeding.
-			err = op.Wait()
-		}
+		err := lxdClient.CreateStoragePool(cephFSPool)
 
 		if err != nil {
 			return err
@@ -1048,11 +1019,7 @@ func (c *initConfig) setupCluster(s *service.Handler) error {
 	}
 
 	for _, network := range system.Networks {
-		op, err := lxdClient.CreateNetwork(network)
-		if err == nil {
-			// Network creation is asynchronous; wait for completion before proceeding.
-			err = op.Wait()
-		}
+		err := lxdClient.CreateNetwork(network)
 
 		if err != nil {
 			return err
@@ -1065,14 +1032,9 @@ func (c *initConfig) setupCluster(s *service.Handler) error {
 			return err
 		}
 	} else {
-		op, err := lxdClient.UpdateProfile(profile.Name, profile.ProfilePut, "")
+		err := lxdClient.UpdateProfile(profile.Name, profile.ProfilePut, "")
 		if err != nil {
 			return fmt.Errorf("Failed to update profile %q: %w", profile.Name, err)
-		}
-
-		err = op.Wait()
-		if err != nil {
-			return fmt.Errorf("Failed to wait for profile %q to update: %w", profile.Name, err)
 		}
 	}
 
@@ -1113,38 +1075,22 @@ func (c *initConfig) setupCluster(s *service.Handler) error {
 					_ = targetClient.UpdateServer(server.Writable(), "")
 				})
 
-				op, err := targetClient.CreateStoragePoolVolume("local", lxdAPI.StorageVolumesPost{Name: "images", Type: "custom"})
+				err = targetClient.CreateStoragePoolVolume("local", incusAPI.StorageVolumesPost{Name: "images", Type: "custom"})
 				if err != nil {
 					return fmt.Errorf("Failed to create volume %q on pool %q: %w", "images", "local", err)
 				}
 
-				err = op.Wait()
-				if err != nil {
-					return fmt.Errorf("Failed to wait for volume %q on pool %q: %w", "images", "local", err)
-				}
-
 				reverter.Add(func() {
-					op, err := targetClient.DeleteStoragePoolVolume("local", "custom", "images")
-					if err == nil {
-						_ = op.Wait()
-					}
+					_ = targetClient.DeleteStoragePoolVolume("local", "custom", "images")
 				})
 
-				op, err = targetClient.CreateStoragePoolVolume("local", lxdAPI.StorageVolumesPost{Name: "backups", Type: "custom"})
+				err = targetClient.CreateStoragePoolVolume("local", incusAPI.StorageVolumesPost{Name: "backups", Type: "custom"})
 				if err != nil {
 					return fmt.Errorf("Failed to create volume %q on pool %q: %w", "backups", "local", err)
 				}
 
-				err = op.Wait()
-				if err != nil {
-					return fmt.Errorf("Failed to wait for volume %q on pool %q: %w", "backups", "local", err)
-				}
-
 				reverter.Add(func() {
-					op, err = targetClient.DeleteStoragePoolVolume("local", "custom", "backups")
-					if err == nil {
-						_ = op.Wait()
-					}
+					_ = targetClient.DeleteStoragePoolVolume("local", "custom", "backups")
 				})
 
 				newServer := server.Writable()

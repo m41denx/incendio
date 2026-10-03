@@ -11,11 +11,12 @@ import (
 	"slices"
 	"time"
 
-	"github.com/canonical/lxd/client"
 	"github.com/canonical/lxd/lxd/util"
-	"github.com/canonical/lxd/shared/api"
+	lxdAPI "github.com/canonical/lxd/shared/api"
 	"github.com/canonical/microcluster/v3/microcluster"
 	microTypes "github.com/canonical/microcluster/v3/microcluster/types"
+	incus "github.com/lxc/incus/v7/client"
+	"github.com/lxc/incus/v7/shared/api"
 
 	"github.com/m41denx/incendio/firecloud/api/types"
 	cloudClient "github.com/m41denx/incendio/firecloud/client"
@@ -53,13 +54,13 @@ func NewLXDService(name string, addr string, cloudDir string) (*LXDService, erro
 }
 
 // Client returns a client to the LXD unix socket.
-func (s LXDService) Client(ctx context.Context) (lxd.InstanceServer, error) {
+func (s LXDService) Client(ctx context.Context) (incus.InstanceServer, error) {
 	c, err := s.m.LocalClient()
 	if err != nil {
 		return nil, err
 	}
 
-	return lxd.ConnectLXDUnixWithContext(ctx, s.m.FileSystem.ControlSocket().Host, &lxd.ConnectionArgs{
+	return incus.ConnectIncusUnixWithContext(ctx, s.m.FileSystem.ControlSocket().Host, &incus.ConnectionArgs{
 		HTTPClient:    c.HTTP(),
 		SkipGetServer: true,
 		Proxy:         cloudClient.AuthProxy("", types.LXD),
@@ -68,7 +69,7 @@ func (s LXDService) Client(ctx context.Context) (lxd.InstanceServer, error) {
 
 // remoteClient returns an https client for the given address:port.
 // It picks the cluster certificate if none is provided to verify the remote.
-func (s LXDService) remoteClient(cert *x509.Certificate, address string, port int64) (lxd.InstanceServer, error) {
+func (s LXDService) remoteClient(cert *x509.Certificate, address string, port int64) (incus.InstanceServer, error) {
 	c, err := s.m.RemoteClient(util.CanonicalNetworkAddress(address, port))
 	if err != nil {
 		return nil, err
@@ -93,7 +94,7 @@ func (s LXDService) remoteClient(cert *x509.Certificate, address string, port in
 	}
 
 	remoteURL := c.URL()
-	client, err := lxd.ConnectLXD(remoteURL.String(), &lxd.ConnectionArgs{
+	client, err := incus.ConnectIncus(remoteURL.String(), &incus.ConnectionArgs{
 		HTTPClient:    c.HTTP(),
 		TLSClientCert: string(serverCert.PublicKey()),
 		TLSClientKey:  string(serverCert.PrivateKey()),
@@ -259,7 +260,7 @@ func (s LXDService) IssueToken(ctx context.Context, peer string) (string, error)
 
 // DeleteToken deletes a token by its name.
 func (s LXDService) DeleteToken(ctx context.Context, tokenName string, address string) error {
-	var c lxd.InstanceServer
+	var c incus.InstanceServer
 	var err error
 	if address != "" {
 		c, err = s.remoteClient(nil, address, CloudPort)
@@ -307,7 +308,7 @@ func (s LXDService) DeleteToken(ctx context.Context, tokenName string, address s
 
 // Metrics fetches the metrics from the LXD daemon at the given address with a remote client.
 func (s LXDService) Metrics(ctx context.Context, address string) (string, error) {
-	var c lxd.InstanceServer
+	var c incus.InstanceServer
 	var err error
 	if address != "" {
 		c, err = s.remoteClient(nil, address, CloudPort)
@@ -351,14 +352,14 @@ func (s LXDService) ClusterMembers(ctx context.Context) (map[string]string, erro
 
 // clusterMembers returns a map of cluster member names and addresses.
 // If LXD is not clustered, it returns a 503 http error similar to microcluster.
-func (s LXDService) clusterMembers(client lxd.InstanceServer) (map[string]string, error) {
+func (s LXDService) clusterMembers(client incus.InstanceServer) (map[string]string, error) {
 	server, _, err := client.GetServer()
 	if err != nil {
 		return nil, err
 	}
 
 	if !server.Environment.ServerClustered {
-		return nil, api.StatusErrorf(http.StatusServiceUnavailable, "LXD is not part of a cluster")
+		return nil, lxdAPI.StatusErrorf(http.StatusServiceUnavailable, "Incus is not part of a cluster")
 	}
 
 	members, err := client.GetClusterMembers()
@@ -423,7 +424,7 @@ func (s *LXDService) SetConfig(config map[string]string) {
 // HasExtension checks if the server supports the API extension.
 func (s *LXDService) HasExtension(ctx context.Context, target string, address string, cert *x509.Certificate, apiExtension string) (bool, error) {
 	var err error
-	var client lxd.InstanceServer
+	var client incus.InstanceServer
 	if s.Name() == target {
 		client, err = s.Client(ctx)
 		if err != nil {
@@ -452,7 +453,7 @@ func (s *LXDService) HasExtension(ctx context.Context, target string, address st
 // forwarded through Firecloud on via the ListenPort argument.
 func (s *LXDService) GetResources(ctx context.Context, target string, address string, cert *x509.Certificate) (*api.Resources, error) {
 	var err error
-	var client lxd.InstanceServer
+	var client incus.InstanceServer
 	if s.Name() == target {
 		client, err = s.Client(ctx)
 		if err != nil {
@@ -471,7 +472,7 @@ func (s *LXDService) GetResources(ctx context.Context, target string, address st
 // GetStoragePools fetches the list of all storage pools from LXD, keyed by pool name.
 func (s LXDService) GetStoragePools(ctx context.Context, name string, address string, cert *x509.Certificate) (map[string]api.StoragePool, error) {
 	var err error
-	var client lxd.InstanceServer
+	var client incus.InstanceServer
 	if name == s.Name() {
 		client, err = s.Client(ctx)
 	} else {
@@ -498,7 +499,7 @@ func (s LXDService) GetStoragePools(ctx context.Context, name string, address st
 // GetConfig returns the member-specific and cluster-wide configurations of LXD.
 // If LXD is not clustered, it just returns the member-specific configuration.
 func (s LXDService) GetConfig(ctx context.Context, clustered bool, name string, address string, cert *x509.Certificate) (localConfig map[string]any, globalConfig map[string]any, err error) {
-	var client lxd.InstanceServer
+	var client incus.InstanceServer
 	if name == s.Name() {
 		client, err = s.Client(ctx)
 	} else {
@@ -520,7 +521,7 @@ func (s LXDService) GetConfig(ctx context.Context, clustered bool, name string, 
 			return nil, nil, err
 		}
 
-		return localServer.Writable().Config, server.Writable().Config, nil
+		return configAny(localServer.Writable().Config), configAny(server.Writable().Config), nil
 	}
 
 	server, _, err := client.GetServer()
@@ -528,7 +529,18 @@ func (s LXDService) GetConfig(ctx context.Context, clustered bool, name string, 
 		return nil, nil, err
 	}
 
-	return server.Writable().Config, nil, nil
+	return configAny(server.Writable().Config), nil, nil
+}
+
+// configAny returns Incus server config in the generic form the system
+// information uses for every service.
+func configAny(config api.ConfigMap) map[string]any {
+	out := make(map[string]any, len(config))
+	for k, v := range config {
+		out[k] = v
+	}
+
+	return out
 }
 
 // defaultNetworkInterfacesFilter filters a network based on default rules and returns whether it should be skipped.
@@ -575,7 +587,7 @@ type DedicatedInterface struct {
 // - The list of all networks.
 func (s LXDService) GetNetworkInterfaces(ctx context.Context, name string, address string, cert *x509.Certificate) (map[string]api.Network, map[string]DedicatedInterface, []api.Network, error) {
 	var err error
-	var client lxd.InstanceServer
+	var client incus.InstanceServer
 	if name == s.Name() {
 		client, err = s.Client(ctx)
 	} else {
@@ -732,7 +744,7 @@ func (s LXDService) IsInitialized(ctx context.Context) (bool, error) {
 
 // isInitialized checks if LXD is initialized by fetching the storage pools, and cluster status.
 // If none exist, that means LXD has not yet been set up.
-func (s *LXDService) isInitialized(c lxd.InstanceServer) (bool, error) {
+func (s *LXDService) isInitialized(c incus.InstanceServer) (bool, error) {
 	server, _, err := c.GetServer()
 	if err != nil {
 		return false, err
@@ -753,7 +765,7 @@ func (s *LXDService) isInitialized(c lxd.InstanceServer) (bool, error) {
 // WaitReady repeatedly (500ms intervals) asks LXD if it is ready, up to the given context timeout.
 // It waits up to ctx timeout for LXD to start, before failing.
 // Furthermore the caller can wait for both network and storage to be ready.
-func (s *LXDService) WaitReady(ctx context.Context, c lxd.InstanceServer, network bool, storage bool) error {
+func (s *LXDService) WaitReady(ctx context.Context, c incus.InstanceServer, network bool, storage bool) error {
 	url := api.NewURL().Path("internal", "ready")
 	if network {
 		url.WithQuery("network", "1")

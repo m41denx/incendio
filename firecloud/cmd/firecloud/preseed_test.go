@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/canonical/lxd/shared/api"
 	"github.com/canonical/lxd/shared/units"
+	"github.com/lxc/incus/v7/shared/api"
 	"github.com/stretchr/testify/suite"
 )
 

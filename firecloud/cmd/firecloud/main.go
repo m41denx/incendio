@@ -18,10 +18,10 @@ import (
 type CmdControl struct {
 	cmd *cobra.Command //nolint:unused // FIXME: Remove the nolint flag when this is in use.
 
-	FlagHelp          bool
-	FlagVersion       bool
+	FlagHelp         bool
+	FlagVersion      bool
 	FlagFirecloudDir string
-	FlagNoColor       bool
+	FlagNoColor      bool
 
 	asker *tui.InputHandler
 }

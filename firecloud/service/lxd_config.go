@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/canonical/lxd/shared/api"
+	"github.com/lxc/incus/v7/shared/api"
 )
 
 const (

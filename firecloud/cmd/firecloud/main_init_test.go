@@ -3,13 +3,13 @@ package main
 import (
 	"testing"
 
-	lxdAPI "github.com/canonical/lxd/shared/api"
+	incusAPI "github.com/lxc/incus/v7/shared/api"
 
 	"github.com/m41denx/incendio/firecloud/multicast"
 	"github.com/m41denx/incendio/firecloud/service"
 )
 
-func newSystemWithNetworks(address string, networks []lxdAPI.NetworksPost) InitSystem {
+func newSystemWithNetworks(address string, networks []incusAPI.NetworksPost) InitSystem {
 	return InitSystem{
 		ServerInfo: multicast.ServerInfo{
 			Name:    "testSystem",
@@ -20,10 +20,10 @@ func newSystemWithNetworks(address string, networks []lxdAPI.NetworksPost) InitS
 }
 
 func newSystemWithUplinkNetConfig(address string, config map[string]string) InitSystem {
-	return newSystemWithNetworks(address, []lxdAPI.NetworksPost{{
+	return newSystemWithNetworks(address, []incusAPI.NetworksPost{{
 		Name: service.DefaultUplinkNetwork,
 		Type: "physical",
-		NetworkPut: lxdAPI.NetworkPut{
+		NetworkPut: incusAPI.NetworkPut{
 			Config: config,
 		},
 	}})

@@ -7,8 +7,9 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/canonical/lxd/shared/api"
+	lxdAPI "github.com/canonical/lxd/shared/api"
 	cephTypes "github.com/canonical/microceph/microceph/api/types"
+	"github.com/lxc/incus/v7/shared/api"
 
 	"github.com/m41denx/incendio/firecloud/api/types"
 	"github.com/m41denx/incendio/firecloud/multicast"
@@ -77,13 +78,13 @@ func (sh *Handler) CollectSystemInformation(ctx context.Context, connectInfo mul
 	localSystem := sh.Name == connectInfo.Name
 
 	s := &SystemInformation{
-		ExistingServices:              map[types.ServiceType]map[string]string{},
-		ClusterName:                   connectInfo.Name,
-		ClusterAddress:                connectInfo.Address,
-		AvailableDisks:                map[string]api.ResourcesStorageDisk{},
-		AvailableUplinkInterfaces:     map[string]api.Network{},
-		AvailableCephInterfaces:       map[string]DedicatedInterface{},
-		AvailableOVNInterfaces:        map[string]DedicatedInterface{},
+		ExistingServices:             map[types.ServiceType]map[string]string{},
+		ClusterName:                  connectInfo.Name,
+		ClusterAddress:               connectInfo.Address,
+		AvailableDisks:               map[string]api.ResourcesStorageDisk{},
+		AvailableUplinkInterfaces:    map[string]api.Network{},
+		AvailableCephInterfaces:      map[string]DedicatedInterface{},
+		AvailableOVNInterfaces:       map[string]DedicatedInterface{},
 		AvailableFirecloudInterfaces: map[string]DedicatedInterface{},
 	}
 
@@ -118,7 +119,7 @@ func (sh *Handler) CollectSystemInformation(ctx context.Context, connectInfo mul
 			usedCephDisks, err = microceph.GetDisks(ctx, s.ClusterAddress, connectInfo.Certificate)
 		}
 
-		if err != nil && !api.StatusErrorCheck(err, http.StatusServiceUnavailable) {
+		if err != nil && !lxdAPI.StatusErrorCheck(err, http.StatusServiceUnavailable) {
 			return nil, fmt.Errorf("Failed to get Ceph disks on %q: %w", s.ClusterName, err)
 		}
 	}
@@ -210,7 +211,7 @@ func (sh *Handler) CollectSystemInformation(ctx context.Context, connectInfo mul
 			s.CephConfig, err = microceph.ClusterConfig(ctx, s.ClusterAddress, connectInfo.Certificate)
 		}
 
-		if err != nil && !api.StatusErrorCheck(err, http.StatusServiceUnavailable) {
+		if err != nil && !lxdAPI.StatusErrorCheck(err, http.StatusServiceUnavailable) {
 			return nil, fmt.Errorf("Failed to get Ceph configuration on %q: %w", s.ClusterName, err)
 		}
 	}
@@ -243,7 +244,7 @@ func (sh *Handler) GetExistingClusters(ctx context.Context, connectInfo multicas
 			existingCluster, err = sh.Services[service].RemoteClusterMembers(ctx, connectInfo.Certificate, connectInfo.Address)
 		}
 
-		if err != nil && !api.StatusErrorCheck(err, http.StatusServiceUnavailable) {
+		if err != nil && !lxdAPI.StatusErrorCheck(err, http.StatusServiceUnavailable) {
 			return nil, fmt.Errorf("Failed to reach %s on system %q: %w", service, connectInfo.Name, err)
 		}
 

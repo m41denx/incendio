@@ -9,10 +9,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/canonical/lxd/client"
+	incus "github.com/lxc/incus/v7/client"
 	lxdAPI "github.com/canonical/lxd/shared/api"
-	cli "github.com/canonical/lxd/shared/cmd"
 	"github.com/canonical/microcluster/v3/microcluster"
+	cli "github.com/lxc/incus/v7/shared/cmd"
 	"github.com/spf13/cobra"
 
 	"github.com/m41denx/incendio/firecloud/api"
@@ -121,7 +121,7 @@ func (c *cmdServiceList) run(cmd *cobra.Command, args []string) error {
 		var err error
 		var data [][]string
 		var m *microcluster.MicroCluster
-		var lxd lxd.InstanceServer
+		var lxd incus.InstanceServer
 		switch s.Type() {
 		case types.LXD:
 			lxd, err = s.(*service.LXDService).Client(context.Background())

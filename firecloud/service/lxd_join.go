@@ -8,9 +8,9 @@ import (
 
 	"github.com/canonical/lxd/lxd/util"
 	"github.com/canonical/lxd/shared"
-	"github.com/canonical/lxd/shared/api"
 	"github.com/canonical/lxd/shared/logger"
 	"github.com/canonical/lxd/shared/version"
+	"github.com/lxc/incus/v7/shared/api"
 )
 
 func (s *LXDService) configFromToken(token string) (*api.ClusterPut, error) {

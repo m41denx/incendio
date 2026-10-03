@@ -11,10 +11,10 @@ import (
 	"strings"
 
 	"github.com/canonical/lxd/shared"
-	cli "github.com/canonical/lxd/shared/cmd"
 	"github.com/canonical/lxd/shared/termios"
 	"github.com/canonical/microcluster/v3/microcluster"
 	"github.com/canonical/microcluster/v3/microcluster/types"
+	cli "github.com/lxc/incus/v7/shared/cmd"
 	"github.com/spf13/cobra"
 	"golang.org/x/sys/unix"
 	"gopkg.in/yaml.v2"

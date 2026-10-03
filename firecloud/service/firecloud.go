@@ -10,12 +10,13 @@ import (
 
 	"github.com/canonical/lxd/lxd/util"
 	"github.com/canonical/lxd/shared"
-	"github.com/canonical/lxd/shared/api"
+	lxdAPI "github.com/canonical/lxd/shared/api"
 	"github.com/canonical/lxd/shared/logger"
 	cephTypes "github.com/canonical/microceph/microceph/api/types"
 	"github.com/canonical/microcluster/v3/microcluster"
 	microTypes "github.com/canonical/microcluster/v3/microcluster/types"
 	"github.com/gorilla/websocket"
+	"github.com/lxc/incus/v7/shared/api"
 
 	"github.com/m41denx/incendio/firecloud/api/types"
 	cloudClient "github.com/m41denx/incendio/firecloud/client"
@@ -310,7 +311,7 @@ func (s *CloudService) SetConfig(config map[string]string) {
 // GetVersion gets the installed daemon version of the service, and returns an error if the version is not supported.
 func (s CloudService) GetVersion(ctx context.Context) (string, error) {
 	status, err := s.client.Status(ctx)
-	if err != nil && api.StatusErrorCheck(err, http.StatusNotFound) {
+	if err != nil && lxdAPI.StatusErrorCheck(err, http.StatusNotFound) {
 		return "", fmt.Errorf("The installed version of %s is not supported", s.Type())
 	}
 

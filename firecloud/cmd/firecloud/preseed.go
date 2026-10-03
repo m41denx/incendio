@@ -12,12 +12,12 @@ import (
 	"strings"
 	"time"
 
-	lxdAPI "github.com/canonical/lxd/shared/api"
 	"github.com/canonical/lxd/shared/filter"
 	"github.com/canonical/lxd/shared/units"
 	"github.com/canonical/lxd/shared/validate"
 	cephTypes "github.com/canonical/microceph/microceph/api/types"
 	"github.com/canonical/microcluster/v3/microcluster"
+	incusAPI "github.com/lxc/incus/v7/shared/api"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
@@ -600,7 +600,7 @@ func (p *Preseed) address(name string) (string, error) {
 }
 
 // Match matches the devices to the given filter, and returns the result.
-func (d *DiskFilter) Match(disks []lxdAPI.ResourcesStorageDisk) ([]lxdAPI.ResourcesStorageDisk, error) {
+func (d *DiskFilter) Match(disks []incusAPI.ResourcesStorageDisk) ([]incusAPI.ResourcesStorageDisk, error) {
 	if d.Find == "" {
 		return nil, errors.New("Received empty filter")
 	}
@@ -623,7 +623,7 @@ func (d *DiskFilter) Match(disks []lxdAPI.ResourcesStorageDisk) ([]lxdAPI.Resour
 		return strconv.ParseUint(c.Value, 10, 0)
 	}
 
-	matches := []lxdAPI.ResourcesStorageDisk{}
+	matches := []incusAPI.ResourcesStorageDisk{}
 	for _, disk := range disks {
 		match, err := filter.Match(disk, *clauses)
 		if err != nil {
@@ -742,9 +742,9 @@ func (p *Preseed) Parse(s *service.Handler, c *initConfig, installedServices map
 
 	for name, system := range c.systems {
 		system.MicroCephDisks = []cephTypes.DisksPost{}
-		system.TargetStoragePools = []lxdAPI.StoragePoolsPost{}
-		system.StoragePools = []lxdAPI.StoragePoolsPost{}
-		system.JoinConfig = []lxdAPI.ClusterMemberConfigKey{}
+		system.TargetStoragePools = []incusAPI.StoragePoolsPost{}
+		system.StoragePools = []incusAPI.StoragePoolsPost{}
+		system.JoinConfig = []incusAPI.ClusterMemberConfigKey{}
 
 		c.systems[name] = system
 	}
@@ -973,8 +973,8 @@ func (p *Preseed) Parse(s *service.Handler, c *initConfig, installedServices map
 		return nil, errors.New("Local disk filter cannot be used. All systems have explicitly specified a disk")
 	}
 
-	allResourcesZFS := map[string]*lxdAPI.Resources{}
-	allResourcesCeph := map[string]*lxdAPI.Resources{}
+	allResourcesZFS := map[string]*incusAPI.Resources{}
+	allResourcesCeph := map[string]*incusAPI.Resources{}
 	for peer, system := range c.systems {
 		cert := system.ServerInfo.Certificate
 
@@ -999,7 +999,7 @@ func (p *Preseed) Parse(s *service.Handler, c *initConfig, installedServices map
 	for peer, r := range allResourcesCeph {
 		system := c.systems[peer]
 
-		disks := make([]lxdAPI.ResourcesStorageDisk, 0, len(r.Storage.Disks))
+		disks := make([]incusAPI.ResourcesStorageDisk, 0, len(r.Storage.Disks))
 		for _, disk := range r.Storage.Disks {
 			if len(disk.Partitions) == 0 {
 				disks = append(disks, disk)
@@ -1054,7 +1054,7 @@ func (p *Preseed) Parse(s *service.Handler, c *initConfig, installedServices map
 			// Remove any selected disks from the remaining available set.
 			if len(matched) > 0 {
 				cephMachines[peer] = true
-				newDisks := []lxdAPI.ResourcesStorageDisk{}
+				newDisks := []incusAPI.ResourcesStorageDisk{}
 				for _, disk := range disks {
 					isMatch := false
 					for _, match := range matched {
@@ -1081,7 +1081,7 @@ func (p *Preseed) Parse(s *service.Handler, c *initConfig, installedServices map
 	for peer, r := range allResourcesZFS {
 		system := c.systems[peer]
 
-		disks := make([]lxdAPI.ResourcesStorageDisk, 0, len(r.Storage.Disks))
+		disks := make([]incusAPI.ResourcesStorageDisk, 0, len(r.Storage.Disks))
 		for _, disk := range r.Storage.Disks {
 			if len(disk.Partitions) == 0 {
 				disks = append(disks, disk)

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"sort"
 
-	cli "github.com/canonical/lxd/shared/cmd"
 	"github.com/canonical/microcluster/v3/microcluster"
+	cli "github.com/lxc/incus/v7/shared/cmd"
 	"github.com/spf13/cobra"
 
 	"github.com/m41denx/incendio/firecloud/cmd/tui"

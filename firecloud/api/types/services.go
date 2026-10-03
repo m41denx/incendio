@@ -1,8 +1,8 @@
 package types
 
 import (
-	"github.com/canonical/lxd/shared/api"
 	"github.com/canonical/microceph/microceph/api/types"
+	"github.com/lxc/incus/v7/shared/api"
 )
 
 // ServiceType represents supported services.

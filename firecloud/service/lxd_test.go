@@ -3,7 +3,7 @@ package service
 import (
 	"testing"
 
-	"github.com/canonical/lxd/shared/api"
+	"github.com/lxc/incus/v7/shared/api"
 	"github.com/stretchr/testify/suite"
 )
 

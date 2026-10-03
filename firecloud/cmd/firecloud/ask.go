@@ -7,22 +7,19 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"net/http"
 	"slices"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/canonical/lxd/client"
-	"github.com/canonical/lxd/lxd/util"
 	"github.com/canonical/lxd/shared"
-	"github.com/canonical/lxd/shared/api"
-	cli "github.com/canonical/lxd/shared/cmd"
 	"github.com/canonical/lxd/shared/logger"
 	"github.com/canonical/lxd/shared/units"
 	"github.com/canonical/lxd/shared/validate"
 	cephTypes "github.com/canonical/microceph/microceph/api/types"
-	microTypes "github.com/canonical/microcluster/v3/microcluster/types"
+	incus "github.com/lxc/incus/v7/client"
+	"github.com/lxc/incus/v7/shared/api"
+	cli "github.com/lxc/incus/v7/shared/cmd"
 
 	cloudAPI "github.com/m41denx/incendio/firecloud/api"
 	"github.com/m41denx/incendio/firecloud/api/types"
@@ -100,7 +97,7 @@ func checkInitialized(stateDir string, expectInitialized bool, preseed bool) err
 }
 
 // askUpdateProfile asks whether to update the existing profile configuration if it has changed.
-func (c *initConfig) askUpdateProfile(profile api.ProfilesPost, profiles []string, lxdClient lxd.InstanceServer) (*api.ProfilePut, error) {
+func (c *initConfig) askUpdateProfile(profile api.ProfilesPost, profiles []string, lxdClient incus.InstanceServer) (*api.ProfilePut, error) {
 	if !slices.Contains(profiles, profile.Name) {
 		return &profile.ProfilePut, nil
 	}
@@ -1895,75 +1892,39 @@ func (c *initConfig) askJoinConfirmation(gw *cloudClient.WebsocketGateway, servi
 	return nil
 }
 
-func (c *initConfig) askInitialUIAccessLink(sh *service.Handler) (string, error) {
+// askUITrustToken asks whether to print a trust token for the Incendio UI
+// once the cluster is up. The token is only issued after clustering, as
+// enabling clustering replaces the server certificate the token pins.
+func (c *initConfig) askUITrustToken() (bool, error) {
+	return c.asker.AskBool("Would you like a trust token to log in to the Incendio UI?", true)
+}
+
+// createUITrustToken issues a single-use Incus trust token for a browser
+// certificate, as entered on the Incendio login page.
+func createUITrustToken(sh *service.Handler) (string, error) {
 	lxd, ok := sh.Services[types.LXD].(*service.LXDService)
 	if !ok {
-		return "", errors.New("Failed to retrieve LXD service")
+		return "", errors.New("Failed to retrieve Incus service")
 	}
 
-	requiredAPIExtension := "auth_bearer"
-	hasAPIExtension, err := lxd.HasExtension(context.Background(), lxd.Name(), lxd.Address(), nil, requiredAPIExtension)
-	if err != nil {
-		return "", fmt.Errorf("Failed to check for the %q LXD API extension: %w", requiredAPIExtension, err)
-	}
-
-	if !hasAPIExtension {
-		return "", nil
-	}
-
-	lxdClient, err := lxd.Client(context.Background())
+	incusClient, err := lxd.Client(context.Background())
 	if err != nil {
 		return "", err
 	}
 
-	generate, err := c.asker.AskBool("Would you like to create an initial UI access link?", true)
+	req := api.CertificatesPost{Token: true}
+	req.Name = "incendio-ui"
+	req.Type = api.CertificateTypeClient
+	op, err := incusClient.CreateCertificateToken(req)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("Failed to issue a trust token for the UI: %w", err)
 	}
 
-	if !generate {
-		return "", nil
-	}
-
-	address := sh.Address()
-	if address == "" {
-		return "", errors.New("LXD server address is not set, cannot create UI initial access link")
-	}
-
-	uiAdminIdentityName := "ui-admin-initial"
-
-	// Check if identity already exists.
-	uiAdminIdentity, _, err := lxdClient.GetIdentity(api.AuthenticationMethodBearer, uiAdminIdentityName)
-	if err != nil && !api.StatusErrorCheck(err, http.StatusNotFound) {
-		return "", fmt.Errorf("Failed to check for existing initial UI identity: %w", err)
-	}
-
-	if uiAdminIdentity == nil {
-		// Create identity if it doesn't exist.
-		uiAdminIdentityReq := api.IdentitiesBearerPost{
-			Name: uiAdminIdentityName,
-			Type: api.IdentityTypeBearerTokenInitialUI,
-		}
-
-		err := lxdClient.CreateIdentityBearer(uiAdminIdentityReq)
-		if err != nil {
-			return "", fmt.Errorf("Failed to create initial UI identity: %w", err)
-		}
-	} else if uiAdminIdentity.Type != api.IdentityTypeBearerTokenInitialUI {
-		return "", fmt.Errorf("A bearer identity with name %q already exists but is not of type %q", uiAdminIdentityName, api.IdentityTypeBearerTokenInitialUI)
-	}
-
-	token, err := lxdClient.IssueBearerIdentityToken(uiAdminIdentityName, api.IdentityBearerTokenPost{})
+	opAPI := op.Get()
+	token, err := opAPI.ToCertificateAddToken()
 	if err != nil {
-		return "", fmt.Errorf("Failed to issue bearer token for initial UI access link: %w", err)
+		return "", fmt.Errorf("Failed to read the UI trust token: %w", err)
 	}
 
-	addrPort, err := microTypes.ParseAddrPort(util.CanonicalNetworkAddress(address, service.LXDPort))
-	if err != nil {
-		return "", fmt.Errorf("Failed to parse LXD address: %w", err)
-	}
-
-	uiAccessLink := api.NewURL().Scheme("https").Host(addrPort.String()).WithQuery("token", token.Token)
-
-	return uiAccessLink.String(), nil
+	return token.String(), nil
 }
