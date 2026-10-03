@@ -71,6 +71,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	var cmdInstall = cmdInstall{common: &commonCmd}
+	app.AddCommand(cmdInstall.command())
+
+	var cmdUI = cmdUI{common: &commonCmd}
+	app.AddCommand(cmdUI.command())
+
 	var cmdInit = cmdInit{common: &commonCmd}
 	app.AddCommand(cmdInit.command())
 

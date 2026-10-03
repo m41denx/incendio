@@ -8,6 +8,7 @@ on:
     tags:
       - "*"
       - "!api-v*"
+      - "!firecloud-v*"
 
 permissions:
   contents: write

@@ -183,3 +183,23 @@ func Sync(ctx context.Context, c microTypes.Client, target string) (*types.SyncS
 
 	return status, nil
 }
+
+// UpdateUI installs an Incendio UI release (the latest if tag is empty) on
+// the given cluster member and returns the installed tag.
+func UpdateUI(ctx context.Context, c microTypes.Client, target string, tag string) (string, error) {
+	queryCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+	defer cancel()
+
+	url := api.NewURL().Path("ui")
+	if target != "" {
+		url = url.WithQuery("target", target)
+	}
+
+	out := types.UIPut{}
+	err := c.Query(queryCtx, "POST", types.APIVersion, &url.URL, types.UIPut{Tag: tag}, &out)
+	if err != nil {
+		return "", err
+	}
+
+	return out.Tag, nil
+}
