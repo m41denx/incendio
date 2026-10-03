@@ -1,0 +1,55 @@
+package main
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/canonical/microcluster/v3/microcluster"
+	"github.com/spf13/cobra"
+)
+
+type cmdShutdown struct {
+	common *CmdControl
+}
+
+// command returns the subcommand for shutting down the MicroCloud daemon.
+func (c *cmdShutdown) command() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "shutdown",
+		Short: "Shut down the MicroCloud daemon",
+		RunE:  c.run,
+	}
+
+	return cmd
+}
+
+// run runs the subcommand for shutting down the MicroCloud daemon.
+func (c *cmdShutdown) run(cmd *cobra.Command, args []string) error {
+	if len(args) != 0 {
+		return cmd.Help()
+	}
+
+	options := microcluster.Args{StateDir: c.common.FlagMicroCloudDir}
+	m, err := microcluster.App(options)
+	if err != nil {
+		return err
+	}
+
+	err = m.Ready(context.Background())
+	if err != nil {
+		return fmt.Errorf("Failed to wait for MicroCloud to get ready: %w", err)
+	}
+
+	chResult := make(chan error, 1)
+	go func() {
+		defer close(chResult)
+
+		err := m.Shutdown(context.Background())
+		if err != nil {
+			chResult <- err
+			return
+		}
+	}()
+
+	return <-chResult
+}
