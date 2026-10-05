@@ -279,8 +279,10 @@ export const ROLE_HELP: Record<string, string> = {
 // Starting points for authorization.scriptlet. Incus calls
 // authorize(details, object, entitlement) for every check; object is like
 // "project:default" or "instance:default/c1", entitlement like "can_view".
-// details.Claims (Incus 7.5, authorization_scriptlet_claims) holds the
-// validated OIDC token claims, empty for other clients.
+// details has Username (the certificate fingerprint for TLS clients),
+// Protocol, ProjectName, IsAllProjectsRequest, Certificate, Chain and, from
+// Incus 7.5 (authorization_scriptlet_claims), Claims: the validated OIDC
+// token claims, empty for other clients.
 export const SCRIPTLET_EXAMPLE_CLAIMS = `# OIDC users decided by their token's "groups" claim.
 def authorize(details, object, entitlement):
     groups = details.Claims.get("groups", [])
@@ -299,9 +301,14 @@ def authorize(details, object, entitlement):
     return False
 `;
 
-export const SCRIPTLET_EXAMPLE_USERNAME = `# Users decided by name (OIDC claim from oidc.claim, or certificate name).
-ADMINS = ["alice@example.com"]
+export const SCRIPTLET_EXAMPLE_USERNAME = `# Clients decided by name: TLS clients by certificate name, OIDC users by
+# their user name (the claim set in oidc.claim, else email).
+ADMINS = ["alice@example.com", "my-laptop"]
 
 def authorize(details, object, entitlement):
+    # For TLS clients, details.Username is the certificate fingerprint.
+    if details.Certificate:
+        return details.Certificate.name in ADMINS
+
     return details.Username in ADMINS
 `;

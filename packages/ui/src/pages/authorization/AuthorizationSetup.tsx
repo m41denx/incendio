@@ -448,9 +448,10 @@ const AuthorizationSetup: FC = () => {
                   <code>project:default</code> or{" "}
                   <code>instance:default/c1</code>, <code>entitlement</code>{" "}
                   like <code>can_view</code> or <code>can_edit</code>.{" "}
-                  <code>details</code> has <code>Username</code>,{" "}
-                  <code>Protocol</code>, <code>ProjectName</code>,{" "}
-                  <code>Method</code>, <code>Path</code>
+                  <code>details</code> has <code>Username</code> (for TLS
+                  clients, the certificate fingerprint),{" "}
+                  <code>Certificate</code> (its <code>name</code> and other
+                  fields), <code>Protocol</code> and <code>ProjectName</code>
                   {hasAuthorizationScriptletClaims && (
                     <>
                       {" "}

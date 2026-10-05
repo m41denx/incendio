@@ -11,7 +11,7 @@ Gate every item on its API extension so 7.4 servers keep working.
 
 ### Worth adding
 
-Done on `incus-port`, not yet released.
+Released in 0.22-p18.
 
 - [x] **Security tags** (`instance_security_tags`): `security.tags` field in the
   instance and profile Security policies section (comma-separated). Incus does

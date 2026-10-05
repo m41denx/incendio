@@ -1,7 +1,11 @@
-## Unreleased
+## 0.22-p18
 ## What's Changed
+> **Needs Incus 7.5 or newer.** On older servers these features stay hidden and the rest of the UI works as before.
+>
+> Upgrading Incus with OpenFGA configured: make sure OpenFGA is reachable first. The first 7.5 start writes a new authorization model to OpenFGA and Incus does not start until that succeeds.
+
 ### ✨ New Features
-- (feat) **Incus 7.5** support, each shown only when the server has it:
+- (feat) **Incus 7.5** support:
   - Instances and profiles: **security tags** (`security.tags`) in Security policies. Incus does not act on them itself; OpenFGA sees each tag as an object linked to the instances that carry it
   - Permissions: the setup page edits the **authorization scriptlet**, with an example. On 7.5 the scriptlet sees OIDC token claims such as groups, so it can restrict SSO users without OpenFGA
   - Networks: bridges can stop serving the host's `/etc/hosts` over DNS (`dns.include_hosts`)
