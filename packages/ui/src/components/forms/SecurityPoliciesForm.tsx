@@ -21,7 +21,8 @@ interface Props {
 }
 
 const SecurityPoliciesForm: FC<Props> = ({ formik, setSection }) => {
-  const { hasInstanceBootMode } = useSupportedFeatures();
+  const { hasInstanceBootMode, hasInstanceSecurityTags } =
+    useSupportedFeatures();
   const isInstance = formik.values.entityType === "instance";
   const isContainerOnlyDisabled =
     isInstance &&
@@ -51,6 +52,22 @@ const SecurityPoliciesForm: FC<Props> = ({ formik, setSection }) => {
           readOnlyRenderer: (val) => optionRenderer(val, optionYesNo),
           children: <Select options={optionYesNo} />,
         }),
+
+        ...(hasInstanceSecurityTags
+          ? [
+              getConfigurationRow({
+                formik,
+                label: "Security tags",
+                name: "security_tags",
+                defaultValue: "",
+                inputHelp:
+                  "Comma-separated. Incus does not act on them; OpenFGA sees each tag as a security_tag object linked to the instances carrying it.",
+                children: (
+                  <Input type="text" placeholder="pci, internet-facing" />
+                ),
+              }),
+            ]
+          : []),
 
         getConfigurationRow({
           formik,

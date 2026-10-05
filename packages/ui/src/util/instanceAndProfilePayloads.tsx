@@ -247,6 +247,7 @@ export const securityPoliciesPayload = (values: SecurityPoliciesFormValues) => {
     [getInstanceField("security_bpffs_delegate_progs")]:
       values.security_bpffs_delegate_progs,
     [getInstanceField("security_bpffs_path")]: values.security_bpffs_path,
+    [getInstanceField("security_tags")]: values.security_tags,
     [getInstanceField("security_selinux_domain")]:
       values.security_selinux_domain,
     [getInstanceField("security_selinux_label_rootfs")]:
@@ -647,6 +648,7 @@ const getEditValues = (
     security_bpffs_delegate_progs: item.config["security.bpffs.delegate_progs"],
     security_bpffs_path: item.config["security.bpffs.path"],
     security_selinux_domain: item.config["security.selinux.domain"],
+    security_tags: item.config["security.tags"],
     security_selinux_label_rootfs: item.config["security.selinux.label_rootfs"],
     security_selinux_level: item.config["security.selinux.level"],
     security_selinux_type: item.config["security.selinux.type"],

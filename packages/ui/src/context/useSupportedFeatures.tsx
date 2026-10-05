@@ -44,6 +44,20 @@ export const useSupportedFeatures = () => {
     hasAuthorizationClientRouting: apiExtensions.has(
       "authorization_client_routing",
     ),
+    // OIDC token claims in the authorization scriptlet's details (7.5).
+    hasAuthorizationScriptletClaims: apiExtensions.has(
+      "authorization_scriptlet_claims",
+    ),
+    // security.tags on instances, exposed to OpenFGA as security_tag (7.5).
+    hasInstanceSecurityTags: apiExtensions.has("instance_security_tags"),
+    // dns.include_hosts on bridge networks (7.5).
+    hasNetworkBridgeDnsIncludeHosts: apiExtensions.has(
+      "network_bridge_dns_include_hosts",
+    ),
+    // initial.copy on custom volume disk devices (7.5).
+    hasDiskInitialCopy: apiExtensions.has("disk_initial_copy"),
+    // nvidia.clique on physical GPU devices (7.5).
+    hasGpuPhysicalClique: apiExtensions.has("gpu_physical_clique"),
     // Incus has no placement-groups API; Incendio emulates LXD's groups with
     // its own placement scriptlet (util/placementGroups.ts), which only
     // matters when there are cluster members to choose from.

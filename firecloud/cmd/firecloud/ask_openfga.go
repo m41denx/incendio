@@ -68,7 +68,7 @@ func (c *initConfig) askOpenFGA() (*openFGAConfig, error) {
 
 	fmt.Println(tui.SummarizeResult("OpenFGA store %s answers at %s", cfg.StoreID, cfg.URL))
 
-	cfg.RouteOIDC, err = c.asker.AskBool("Authorize OIDC (SSO) users through OpenFGA? Without this, every OIDC user is a full admin once OIDC is set up", true)
+	cfg.RouteOIDC, err = c.asker.AskBool("Authorize OIDC (SSO) users through OpenFGA? Without this, every OIDC user is a full admin once OIDC is set up, unless you route them to an authorization scriptlet (Incus 7.5+ passes it the token claims)", true)
 	if err != nil {
 		return nil, err
 	}

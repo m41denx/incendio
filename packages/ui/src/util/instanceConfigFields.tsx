@@ -42,6 +42,7 @@ const instanceConfigFormFieldsToPayload: Record<string, string> = {
   security_bpffs_delegate_progs: "security.bpffs.delegate_progs",
   security_bpffs_path: "security.bpffs.path",
   security_selinux_domain: "security.selinux.domain",
+  security_tags: "security.tags",
   security_selinux_label_rootfs: "security.selinux.label_rootfs",
   security_selinux_level: "security.selinux.level",
   security_selinux_type: "security.selinux.type",

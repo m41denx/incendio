@@ -87,6 +87,7 @@ export const toNetwork = (values: NetworkFormValues): Partial<LxdNetwork> => {
       [getNetworkKey("dns_domain")]: values.dns_domain,
       [getNetworkKey("dns_mode")]: values.dns_mode,
       [getNetworkKey("dns_nameservers")]: values.dns_nameservers,
+      [getNetworkKey("dns_include_hosts")]: values.dns_include_hosts,
       [getNetworkKey("dns_search")]: values.dns_search,
       [getNetworkKey("gvrp")]: values.gvrp,
       [getNetworkKey("ipv4_address")]: values.ipv4_address,

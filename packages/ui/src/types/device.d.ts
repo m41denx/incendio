@@ -19,6 +19,8 @@ export interface LxdDiskDevice {
   "initial.uid"?: string;
   "initial.gid"?: string;
   "initial.mode"?: string;
+  // Custom volumes on containers: copy what is at the path on first use.
+  "initial.copy"?: string;
   type: "disk";
 }
 
@@ -61,6 +63,8 @@ export interface LxdPhysicalGPUDevice {
   gid?: string;
   id?: string;
   mode?: string;
+  // NVIDIA GPUDirect P2P clique advertised to the guest (0-15).
+  "nvidia.clique"?: string;
   pci?: string;
   productid?: string;
   uid?: string;

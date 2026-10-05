@@ -1,3 +1,13 @@
+## Unreleased
+## What's Changed
+### ✨ New Features
+- (feat) **Incus 7.5** support, each shown only when the server has it:
+  - Instances and profiles: **security tags** (`security.tags`) in Security policies. Incus does not act on them itself; OpenFGA sees each tag as an object linked to the instances that carry it
+  - Permissions: the setup page edits the **authorization scriptlet**, with an example. On 7.5 the scriptlet sees OIDC token claims such as groups, so it can restrict SSO users without OpenFGA
+  - Networks: bridges can stop serving the host's `/etc/hosts` over DNS (`dns.include_hosts`)
+  - Instances: custom volumes mounted into a container can **copy the files already at the mount point** into the volume on first use (`initial.copy`)
+  - Instances: physical GPUs take an **NVIDIA P2P clique** (`nvidia.clique`, 0–15)
+
 ## 0.22-p17
 ## What's Changed
 ### ✨ New Features

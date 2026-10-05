@@ -7,7 +7,7 @@ import {
   useNotify,
   Spinner,
 } from "@canonical/react-components";
-import type { LxdGPUDevice } from "types/device";
+import type { LxdGPUDevice, LxdPhysicalGPUDevice } from "types/device";
 import type { InstanceAndProfileFormikProps } from "types/forms/instanceAndProfileFormProps";
 import { getInheritedGPUs } from "util/configInheritance";
 import AttachGPUBtn from "components/forms/SelectGPUBtn";
@@ -35,6 +35,7 @@ import {
 import { ensureEditMode } from "util/editMode";
 import GPUDeviceInput from "components/forms/GPUDeviceInput";
 import { useProfiles } from "context/useProfiles";
+import { useSupportedFeatures } from "context/useSupportedFeatures";
 import DocLink from "components/DocLink";
 import DeviceName from "components/forms/DeviceName";
 import { isDeviceModified } from "util/formChangeCount";
@@ -45,8 +46,12 @@ interface Props {
   target?: string;
 }
 
+const isValidClique = (value: string) =>
+  value === "" || (/^\d+$/.test(value) && Number(value) <= 15);
+
 const GPUDevicesForm: FC<Props> = ({ formik, project, target }) => {
   const notify = useNotify();
+  const { hasGpuPhysicalClique } = useSupportedFeatures();
 
   const {
     data: profiles = [],
@@ -202,7 +207,8 @@ const GPUDevicesForm: FC<Props> = ({ formik, project, target }) => {
         key === "pci" ||
         key === "id" ||
         key === "vendorid" ||
-        key === "productid"
+        key === "productid" ||
+        key === "nvidia.clique"
       ) {
         return;
       }
@@ -241,6 +247,43 @@ const GPUDevicesForm: FC<Props> = ({ formik, project, target }) => {
         readOnly: false,
       }),
     );
+
+    // gputype defaults to physical when unset.
+    const gpuType = (device as { gputype?: string }).gputype;
+    if (hasGpuPhysicalClique && (gpuType ?? "physical") === "physical") {
+      const cliqueId = `devices-${index}-nvidia-clique`;
+      const clique = (device as LxdPhysicalGPUDevice)["nvidia.clique"] ?? "";
+      customRows.push(
+        getInheritedDeviceRow({
+          label: "NVIDIA P2P clique",
+          inheritValue: (
+            <Input
+              id={cliqueId}
+              type="number"
+              min={0}
+              max={15}
+              placeholder="None"
+              value={clique}
+              disabled={!!formik.values.editRestriction}
+              title={formik.values.editRestriction}
+              help="GPUs in the same clique (0-15) can use GPUDirect peer-to-peer in the guest."
+              error={isValidClique(clique) ? undefined : "Enter 0 to 15"}
+              onChange={(e) => {
+                ensureEditMode(formik);
+                // A dotted key: replace the device rather than a nested path.
+                void formik.setFieldValue(`devices.${index}`, {
+                  ...device,
+                  "nvidia.clique": e.target.value || undefined,
+                });
+              }}
+              className="u-no-margin--bottom"
+            />
+          ),
+          readOnly: false,
+          monoFont: false,
+        }),
+      );
+    }
   });
 
   if (isProfileLoading) {

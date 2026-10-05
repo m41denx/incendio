@@ -10,6 +10,7 @@ import {
   Notification,
   Row,
   Select,
+  Textarea,
   useNotify,
   useToastNotification,
 } from "@canonical/react-components";
@@ -31,9 +32,16 @@ import {
 } from "pages/authorization/useOpenFga";
 import { queryKeys } from "util/queryKeys";
 import { AUTH_METHOD } from "util/authentication";
-import { CLIENT_ROUTES, effectiveRoute, type ClientRoute } from "util/openfga";
+import {
+  CLIENT_ROUTES,
+  effectiveRoute,
+  SCRIPTLET_EXAMPLE_CLAIMS,
+  SCRIPTLET_EXAMPLE_USERNAME,
+  type ClientRoute,
+} from "util/openfga";
 
 const routeKey = (route: ClientRoute) => `authorization.client.${route.key}`;
+const SCRIPTLET_KEY = "authorization.scriptlet";
 
 type Form = Record<string, string>;
 
@@ -46,8 +54,12 @@ const AuthorizationSetup: FC = () => {
   const notify = useNotify();
   const toastNotify = useToastNotification();
   const queryClient = useQueryClient();
-  const { settings, isSettingsLoading, hasAuthorizationClientRouting } =
-    useSupportedFeatures();
+  const {
+    settings,
+    isSettingsLoading,
+    hasAuthorizationClientRouting,
+    hasAuthorizationScriptletClaims,
+  } = useSupportedFeatures();
   const keys = useOpenFgaKeys();
   const config = settings?.config ?? {};
 
@@ -57,7 +69,7 @@ const AuthorizationSetup: FC = () => {
     keys.storeId,
     keys.token,
     ...(hasAuthorizationClientRouting
-      ? [keys.tlsIdentifier, ...CLIENT_ROUTES.map(routeKey)]
+      ? [keys.tlsIdentifier, ...CLIENT_ROUTES.map(routeKey), SCRIPTLET_KEY]
       : []),
   ];
   const saved: Form = Object.fromEntries(
@@ -170,7 +182,9 @@ const AuthorizationSetup: FC = () => {
   const warnings: string[] = [];
   if (hasOidc && effective.oidc === "allow") {
     warnings.push(
-      "OIDC users are routed to allow: everyone who can log in through your identity provider is a full admin. Route OIDC to openfga to restrict them.",
+      hasAuthorizationScriptletClaims
+        ? "OIDC users are routed to allow: everyone who can log in through your identity provider is a full admin. Route OIDC to openfga, or to scriptlet to decide from their token claims, to restrict them."
+        : "OIDC users are routed to allow: everyone who can log in through your identity provider is a full admin. Route OIDC to openfga to restrict them.",
     );
   }
   if (
@@ -189,12 +203,25 @@ const AuthorizationSetup: FC = () => {
   }
   if (
     Object.values(effective).includes("scriptlet") &&
-    !config["authorization.scriptlet"]
+    !form[SCRIPTLET_KEY]?.trim()
   ) {
     warnings.push(
       "Some clients are routed to scriptlet but authorization.scriptlet is empty: Incus denies them until it is set.",
     );
   }
+  if (
+    effective.oidc === "scriptlet" &&
+    !hasAuthorizationScriptletClaims &&
+    form[SCRIPTLET_KEY]?.includes("Claims")
+  ) {
+    warnings.push(
+      "This Incus version does not pass OIDC claims to the scriptlet (needs Incus 7.5): details.Claims fails and every check is denied.",
+    );
+  }
+  const showScriptlet =
+    hasAuthorizationClientRouting &&
+    (Object.values(effective).includes("scriptlet") ||
+      !!form[SCRIPTLET_KEY]?.trim());
 
   return (
     <CustomLayout
@@ -400,6 +427,65 @@ const AuthorizationSetup: FC = () => {
                 This Incus version has no per-client routing: once OpenFGA is
                 configured, it authorizes all remote clients.
               </p>
+            )}
+            {hasAuthorizationClientRouting &&
+              hasAuthorizationScriptletClaims && (
+                <p className="u-text--muted">
+                  For OIDC users, <code>scriptlet</code> is an alternative to
+                  OpenFGA: the scriptlet sees the validated token claims (for
+                  example the identity provider&apos;s groups) and decides from
+                  those, with nothing to keep in sync.
+                </p>
+              )}
+            {showScriptlet && (
+              <>
+                <h2 className="p-heading--4 u-sv3">Authorization scriptlet</h2>
+                <p className="u-text--muted">
+                  Starlark run for every check on clients routed to{" "}
+                  <code>scriptlet</code>:{" "}
+                  <code>authorize(details, object, entitlement)</code> returns{" "}
+                  <code>True</code> to allow. <code>object</code> is like{" "}
+                  <code>project:default</code> or{" "}
+                  <code>instance:default/c1</code>, <code>entitlement</code>{" "}
+                  like <code>can_view</code> or <code>can_edit</code>.{" "}
+                  <code>details</code> has <code>Username</code>,{" "}
+                  <code>Protocol</code>, <code>ProjectName</code>,{" "}
+                  <code>Method</code>, <code>Path</code>
+                  {hasAuthorizationScriptletClaims && (
+                    <>
+                      {" "}
+                      and <code>Claims</code> (OIDC token claims, empty for
+                      other clients)
+                    </>
+                  )}
+                  .
+                </p>
+                <Textarea
+                  label={<code>{SCRIPTLET_KEY}</code>}
+                  className="mono-font"
+                  rows={12}
+                  spellCheck={false}
+                  value={form[SCRIPTLET_KEY]}
+                  onChange={(e) => {
+                    set(SCRIPTLET_KEY, e.target.value);
+                  }}
+                />
+                {!form[SCRIPTLET_KEY]?.trim() && (
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      set(
+                        SCRIPTLET_KEY,
+                        hasAuthorizationScriptletClaims
+                          ? SCRIPTLET_EXAMPLE_CLAIMS
+                          : SCRIPTLET_EXAMPLE_USERNAME,
+                      );
+                    }}
+                  >
+                    Insert example
+                  </Button>
+                )}
+              </>
             )}
             {warnings.map((w) => (
               <Notification

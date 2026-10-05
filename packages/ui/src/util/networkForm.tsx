@@ -49,6 +49,7 @@ export const toNetworkFormValues = (
     dns_domain: network.config[getNetworkKey("dns_domain")],
     dns_mode: network.config[getNetworkKey("dns_mode")] as LxdNetworkDnsMode,
     dns_nameservers: network.config[getNetworkKey("dns_nameservers")],
+    dns_include_hosts: network.config[getNetworkKey("dns_include_hosts")],
     dns_search: network.config[getNetworkKey("dns_search")],
     gvrp: network.config.gvrp,
     ipv4_address: network.config[getNetworkKey("ipv4_address")],

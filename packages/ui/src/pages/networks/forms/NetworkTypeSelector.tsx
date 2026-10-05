@@ -125,6 +125,7 @@ const NetworkTypeSelector: FC<Props> = ({ formik }) => {
           formik.setFieldValue("bridge_mtu", undefined);
           formik.setFieldValue("dns_domain", undefined);
           formik.setFieldValue("dns_mode", undefined);
+          formik.setFieldValue("dns_include_hosts", undefined);
           formik.setFieldValue("dns_search", undefined);
           formik.setFieldValue("ipv4_address", undefined);
           formik.setFieldValue("ipv4_dhcp", undefined);
@@ -147,6 +148,7 @@ const NetworkTypeSelector: FC<Props> = ({ formik }) => {
           formik.setFieldValue("bridge_driver", undefined);
           formik.setFieldValue("bridge_external_interfaces", undefined);
           formik.setFieldValue("dns_mode", undefined);
+          formik.setFieldValue("dns_include_hosts", undefined);
           formik.setFieldValue("gvrp", undefined);
           formik.setFieldValue("parent", undefined);
           formik.setFieldValue("parentPerClusterMember", undefined);
@@ -177,6 +179,7 @@ const NetworkTypeSelector: FC<Props> = ({ formik }) => {
           formik.setFieldValue("bridge_mtu", undefined);
           formik.setFieldValue("dns_domain", undefined);
           formik.setFieldValue("dns_mode", undefined);
+          formik.setFieldValue("dns_include_hosts", undefined);
           formik.setFieldValue("dns_search", undefined);
           formik.setFieldValue("gvrp", undefined);
           formik.setFieldValue("ipv4_address", undefined);
@@ -204,6 +207,7 @@ const NetworkTypeSelector: FC<Props> = ({ formik }) => {
           formik.setFieldValue("bridge_mtu", undefined);
           formik.setFieldValue("dns_domain", undefined);
           formik.setFieldValue("dns_mode", undefined);
+          formik.setFieldValue("dns_include_hosts", undefined);
           formik.setFieldValue("dns_search", undefined);
           formik.setFieldValue("gvrp", undefined);
           formik.setFieldValue("ipv4_address", undefined);

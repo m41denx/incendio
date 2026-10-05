@@ -20,6 +20,7 @@ export interface NetworkFormValues {
   dns_domain?: string;
   dns_mode?: LxdNetworkDnsMode;
   dns_nameservers?: string;
+  dns_include_hosts?: string;
   dns_search?: string;
   gvrp?: string;
   ipv4_address?: string;

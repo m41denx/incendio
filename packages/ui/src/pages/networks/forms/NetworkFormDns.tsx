@@ -9,6 +9,8 @@ import { slugify } from "util/slugify";
 import type { MainTableRow } from "@canonical/react-components/dist/components/MainTable/MainTable";
 import { bridgeType, physicalType } from "util/networks";
 import { useSupportedFeatures } from "context/useSupportedFeatures";
+import { optionTrueFalse } from "util/options";
+import { optionRenderer } from "util/formFields";
 
 interface Props {
   formik: FormikProps<NetworkFormValues>;
@@ -16,7 +18,8 @@ interface Props {
 }
 
 const NetworkFormDns: FC<Props> = ({ formik, filterRows }) => {
-  const { hasNetworkDnsNameservers } = useSupportedFeatures();
+  const { hasNetworkDnsNameservers, hasNetworkBridgeDnsIncludeHosts } =
+    useSupportedFeatures();
   const rows = filterRows([
     ...(formik.values.networkType !== physicalType
       ? [
@@ -61,6 +64,19 @@ const NetworkFormDns: FC<Props> = ({ formik, filterRows }) => {
               />
             ),
           }),
+          ...(hasNetworkBridgeDnsIncludeHosts
+            ? [
+                getConfigurationRow({
+                  formik,
+                  name: "dns_include_hosts",
+                  label: "Serve host's /etc/hosts",
+                  defaultValue: "",
+                  readOnlyRenderer: (val) =>
+                    optionRenderer(val, optionTrueFalse),
+                  children: <Select options={optionTrueFalse} />,
+                }),
+              ]
+            : []),
         ]
       : []),
 

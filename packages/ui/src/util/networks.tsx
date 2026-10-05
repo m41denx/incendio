@@ -100,6 +100,7 @@ export const networkFormFieldToPayloadName: Record<
   dns_domain: "dns.domain",
   dns_mode: "dns.mode",
   dns_nameservers: "dns.nameservers",
+  dns_include_hosts: "dns.include_hosts",
   dns_search: "dns.search",
   gvrp: "gvrp",
   ipv4_address: "ipv4.address",

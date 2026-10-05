@@ -275,3 +275,33 @@ export const ROLE_HELP: Record<string, string> = {
   viewer: "Read-only access.",
   member: "Member of the group.",
 };
+
+// Starting points for authorization.scriptlet. Incus calls
+// authorize(details, object, entitlement) for every check; object is like
+// "project:default" or "instance:default/c1", entitlement like "can_view".
+// details.Claims (Incus 7.5, authorization_scriptlet_claims) holds the
+// validated OIDC token claims, empty for other clients.
+export const SCRIPTLET_EXAMPLE_CLAIMS = `# OIDC users decided by their token's "groups" claim.
+def authorize(details, object, entitlement):
+    groups = details.Claims.get("groups", [])
+    if "incus-admins" in groups:
+        return True
+
+    # Members of incus-dev get everything in the dev project, and may read
+    # the server itself (the UI needs that to load).
+    if "incus-dev" in groups:
+        if object == "server:incus":
+            return entitlement == "can_view"
+
+        # Project objects look like "instance:dev/c1" or "profile:dev/default".
+        return object == "project:dev" or object.partition(":")[2].startswith("dev/")
+
+    return False
+`;
+
+export const SCRIPTLET_EXAMPLE_USERNAME = `# Users decided by name (OIDC claim from oidc.claim, or certificate name).
+ADMINS = ["alice@example.com"]
+
+def authorize(details, object, entitlement):
+    return details.Username in ADMINS
+`;

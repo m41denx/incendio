@@ -14,6 +14,7 @@ export interface LxdNetworkConfig {
   "bridge.hwaddr"?: string;
   "bridge.mtu"?: string;
   "dns.domain"?: string;
+  "dns.include_hosts"?: string;
   "dns.mode"?: LxdNetworkDnsMode;
   "dns.nameservers"?: string;
   "dns.search"?: string;

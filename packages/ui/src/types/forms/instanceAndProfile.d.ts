@@ -164,6 +164,7 @@ export interface SecurityPoliciesFormValues {
   security_selinux_label_rootfs?: string;
   security_selinux_level?: string;
   security_selinux_type?: string;
+  security_tags?: string;
   security_sev_session_data?: string;
   security_sev_session_dh?: string;
   security_syscalls_allow?: string;

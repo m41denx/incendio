@@ -58,6 +58,7 @@ import AttachDiskDeviceBtn from "pages/storage/AttachDiskDeviceBtn";
 import type { LxdProfile } from "types/profile";
 import type { LxdStorageVolume } from "types/storage";
 import StoragePoolRichChip from "pages/storage/StoragePoolRichChip";
+import { useSupportedFeatures } from "context/useSupportedFeatures";
 
 interface Props {
   formik: InstanceAndProfileFormikProps;
@@ -73,6 +74,11 @@ const IO_BUS_OPTIONS = [
   { label: "usb", value: "usb" },
 ];
 
+const INITIAL_COPY_OPTIONS = [
+  { label: "No (default)", value: "" },
+  { label: "Yes", value: "true" },
+];
+
 const IO_CACHE_OPTIONS = [
   { label: "Default (none)", value: "" },
   { label: "none", value: "none" },
@@ -85,6 +91,7 @@ const DiskDeviceFormCustom: FC<Props> = ({ formik, project, profiles }) => {
 
   const existingDeviceNames = getExistingDeviceNames(formik.values, profiles);
   const isProfile = formik.values.entityType === "profile";
+  const { hasDiskInitialCopy } = useSupportedFeatures();
 
   const getInitialDeviceName = (
     deviceType: string,
@@ -566,6 +573,23 @@ const DiskDeviceFormCustom: FC<Props> = ({ formik, project, profiles }) => {
         );
         customDiskDeviceCount++;
         continue;
+      }
+      // Filesystem volumes only: a block volume has no path.
+      if (
+        hasDiskInitialCopy &&
+        !isVmInstance &&
+        isVolumeDevice(diskItem) &&
+        diskItem.path !== undefined
+      ) {
+        rows.push(
+          diskOptionRow(
+            index,
+            diskItem,
+            "initial.copy",
+            "Copy existing files on first use (containers)",
+            INITIAL_COPY_OPTIONS,
+          ),
+        );
       }
       if (showVmDiskOptions) {
         rows.push(
