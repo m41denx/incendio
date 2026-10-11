@@ -12,6 +12,9 @@ import { HydraTokens } from "./auth/session.ts";
 import { createVerifier, remoteJwks } from "./auth/verify.ts";
 import { ensureBootstrapAdmin } from "./bootstrap/admin.ts";
 import { log, setLogLevel } from "./lib/log.ts";
+import { createGateway } from "./gateway/handler.ts";
+import { ClusterCache } from "./gateway/clusters-cache.ts";
+import { Upstreams } from "./gateway/relay.ts";
 
 /** Retries start-up steps whose dependency may still be starting (Hydra, OpenFGA). */
 async function retry<T>(what: string, fn: () => Promise<T>, attempts = 30): Promise<T> {
@@ -37,7 +40,7 @@ const authz = await retry("OpenFGA", () => PlatformAuthz.init(config.openfga));
 log.info("authorization store ready", { store: authz.storeId, model: authz.modelId, tuples: await syncAll(db, authz) });
 await ensureBootstrapAdmin(db, authz, config.bootstrapAdmin);
 
-const app = createApp({
+const appDeps = {
   db,
   authz,
   hydra,
@@ -47,9 +50,12 @@ const app = createApp({
   publicUrl: config.publicUrl,
   hydraPublicUrl: config.hydra.publicUrl,
   secureCookies: config.publicUrl.startsWith("https://"),
-});
+};
+const app = createApp(appDeps);
+const gateway = createGateway({ ...appDeps, clusterDomain: config.clusterDomain, clusters: new ClusterCache(db), upstreams: new Upstreams() });
 const server = createFront({
   app,
+  gateway,
   tls: { cert: readFileSync(config.tls.certFile), key: readFileSync(config.tls.keyFile) },
 });
 server.listen(config.listen.port, config.listen.host, () => log.info("listening", { ...config.listen, publicUrl: config.publicUrl }));
