@@ -17,6 +17,7 @@ Licensed under GPL-3.0 (see `LICENSE`).
 | P3 | Reconciler: cluster OIDC/OpenFGA configuration, tenant projects | done |
 | P4 | Platform UI: clusters, tenants, users, service accounts, logs | done |
 | P5 | Fleet: inventory, metrics, global instance search, capacity | done |
+| P6 | Mobility: migration with pre-flight, jobs, replication, failover | done |
 
 ## How it fits together
 
@@ -126,6 +127,46 @@ Who sees what:
 A cluster whose inventory fails keeps its last one and shows the error.
 `server/scripts/fleet-e2e.ts` checks this on a live cluster.
 
+## Mobility
+
+Instances move and copy between clusters as **jobs**. The worker runs them
+(`IC_JOB_CONCURRENCY` at a time), and the API and the **Jobs** page show
+their progress. A job can be cancelled, and one left running by a worker
+that stopped ends as failed ("interrupted").
+
+**Migration** (the instance page's *Move or copy…*, or
+`POST /api/v1/instances/:id/migrations`). A pre-flight on both clusters
+checks the target project and name, architecture, storage pool, profiles,
+networks, attached volumes and whether a live move is possible.
+
+Then the data moves as Incus migration, in one of two ways:
+- **Direct:** the target waits in push mode and the source connects to it.
+  Incus refuses pull mode into restricted projects, which all tenant projects are.
+- **Relay:** when the source cannot reach the target, the control plane carries
+  the operation websockets between them, with backpressure.
+
+How a move proceeds:
+- A running container is stopped for a move. Only a running VM with
+  `migration.stateful` moves live.
+- The order is copy, verify, start the copy, and only then delete the source.
+- Until the delete, a failure or cancel removes the copy (tagged with its job)
+  and restarts the source.
+
+Who may migrate:
+- Tenant owners and admins, between their tenant's placements.
+- Platform operators, anywhere, choosing the project, pool and transport.
+
+**Replication** (the *Replication* page, or `/api/v1/replication-policies`).
+A policy keeps a stopped replica of an instance on another cluster:
+- The first run copies it, tagged with the policy. Later runs refresh it every
+  `intervalS` (60 s to 7 days).
+- An instance of the same name that is not the policy's replica is never touched.
+- **Failover** optionally stops the source (best effort; it may be the cluster
+  that is gone), promotes the replica to an ordinary instance and starts it.
+  The policy then stops.
+
+`server/scripts/mobility-e2e.ts` runs all of this between two live clusters.
+
 ## Configuration
 
 Settings are `IC_*` environment variables; `server/.env.example` lists them
@@ -195,6 +236,9 @@ All under `/api/v1`, bearer token or session cookie. Errors are
 | `GET instances/:id`, `GET instances/:id/metrics?hours` | one instance and its CPU (cores), memory and network history |
 | `GET clusters/:id/inventory`, `GET clusters/:id/metrics?hours` | platform viewers: members, storage pools, networks, instance counts; member memory and load history |
 | `GET fleet/summary` | instance counts by status (what the caller sees); per-cluster capacity for platform viewers |
+| `POST instances/:id/migrations/preflight`, `POST instances/:id/migrations` | check, then start a move or copy to another cluster (202, a job) |
+| `GET jobs`, `GET jobs/:id`, `POST jobs/:id/cancel` | jobs: platform viewers see all, others their tenants' and their own |
+| `GET/POST replication-policies`, `GET/PATCH/DELETE replication-policies/:id`, `POST …/:id/run`, `POST …/:id/failover` | replication policies, a run now, a failover (jobs) |
 | `GET/POST service-accounts`, `POST service-accounts/:id/rotate`, `DELETE service-accounts/:id` | tenant admins for tenant accounts, platform admins otherwise |
 | `GET/POST clusters`, `GET/PATCH/DELETE clusters/:id` | platform admins enrol; tenants see clusters they are placed on |
 | `GET clusters/:id/tenants`, `PUT/DELETE clusters/:id/tenants/:tenantId` | platform operators place tenants |
