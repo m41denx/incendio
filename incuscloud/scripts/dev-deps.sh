@@ -1,4 +1,5 @@
 #!/bin/sh
+# Hydra is the SQLite build so `dsn: memory` works.
 # Downloads the pinned development dependencies into incuscloud/.dev/ and
 # creates a development CA plus a server certificate for local services.
 # Idempotent: existing files are kept.
@@ -26,7 +27,7 @@ fetch() { # url, binary name inside the archive, destination
 	fi
 }
 
-fetch "https://github.com/ory/hydra/releases/download/v${HYDRA_VERSION}/hydra_${HYDRA_VERSION}-linux_${arch}.tar.gz" hydra "$dev/bin/hydra"
+fetch "https://github.com/ory/hydra/releases/download/v${HYDRA_VERSION}/hydra_${HYDRA_VERSION}-linux_sqlite_${arch}.tar.gz" hydra "$dev/bin/hydra"
 fetch "https://github.com/openfga/openfga/releases/download/v${OPENFGA_VERSION}/openfga_${OPENFGA_VERSION}_linux_${fga_arch}.tar.gz" openfga "$dev/bin/openfga"
 
 tls="$dev/tls"

@@ -1,0 +1,33 @@
+# Spike A: Hydra as the OIDC issuer for Incus. In-memory, development TLS.
+dsn: memory
+serve:
+  public:
+    port: 4444
+    host: 0.0.0.0
+  admin:
+    port: 4445
+    host: 127.0.0.1
+  tls:
+    enabled: true
+    cert:
+      path: /home/m41den/incendio/incuscloud/.dev/tls/server.crt
+    key:
+      path: /home/m41den/incendio/incuscloud/.dev/tls/server.key
+urls:
+  self:
+    issuer: https://127.0.0.1:4444/
+  login: http://127.0.0.1:3000/login
+  consent: http://127.0.0.1:3000/consent
+  device:
+    verification: http://127.0.0.1:3000/device
+    success: http://127.0.0.1:3000/device/done
+secrets:
+  system:
+    - spike-only-system-secret-0123456789abcdef
+strategies:
+  access_token: jwt
+oauth2:
+  client_credentials:
+    default_grant_allowed_scope: true
+log:
+  level: info
