@@ -19,6 +19,12 @@ test("applies defaults", () => {
   expect(c.openfga.storeName).toBe("incuscloud-platform");
   expect(c.secretKey.length).toBe(32);
   expect(c.bootstrapAdmin).toBeUndefined();
+  expect(c.gatewaySampleReads).toBe(0);
+});
+
+test("gateway read sampling is a share between 0 and 1", () => {
+  expect(loadConfig({ ...base, IC_GATEWAY_SAMPLE_READS: "0.25" }).gatewaySampleReads).toBe(0.25);
+  expect(() => loadConfig({ ...base, IC_GATEWAY_SAMPLE_READS: "2" })).toThrow(/IC_GATEWAY_SAMPLE_READS/);
 });
 
 test("rejects a secret key shorter than 32 bytes", () => {

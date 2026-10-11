@@ -15,6 +15,7 @@ import { log, setLogLevel } from "./lib/log.ts";
 import { createGateway } from "./gateway/handler.ts";
 import { ClusterCache } from "./gateway/clusters-cache.ts";
 import { Upstreams } from "./gateway/relay.ts";
+import { RequestLog } from "./gateway/request-log.ts";
 
 /** Retries start-up steps whose dependency may still be starting (Hydra, OpenFGA). */
 async function retry<T>(what: string, fn: () => Promise<T>, attempts = 30): Promise<T> {
@@ -52,7 +53,8 @@ const appDeps = {
   secureCookies: config.publicUrl.startsWith("https://"),
 };
 const app = createApp(appDeps);
-const gateway = createGateway({ ...appDeps, clusterDomain: config.clusterDomain, clusters: new ClusterCache(db), upstreams: new Upstreams() });
+const requestLog = new RequestLog(db, { sampleReads: config.gatewaySampleReads });
+const gateway = createGateway({ ...appDeps, clusterDomain: config.clusterDomain, clusters: new ClusterCache(db), upstreams: new Upstreams(), onRequest: (r) => requestLog.record(r) });
 const server = createFront({
   app,
   gateway,
@@ -63,7 +65,7 @@ server.listen(config.listen.port, config.listen.host, () => log.info("listening"
 for (const sig of ["SIGINT", "SIGTERM"] as const) {
   process.on(sig, () => {
     log.info("shutting down", { signal: sig });
-    server.close(() => process.exit(0));
+    server.close(() => requestLog.stop().finally(() => process.exit(0)));
     setTimeout(() => process.exit(0), 10_000).unref();
   });
 }

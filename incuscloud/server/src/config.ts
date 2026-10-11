@@ -12,6 +12,8 @@ export interface Config {
   clusterDomain: string;
   bootstrapAdmin?: { email: string; password: string };
   logLevel: "debug" | "info" | "warn" | "error";
+  /** Share of gateway reads (GET/HEAD) to log, 0..1; changes are always logged. */
+  gatewaySampleReads: number;
 }
 
 const url = z.url();
@@ -36,6 +38,7 @@ const schema = z
     IC_CLUSTER_DOMAIN: z.string().min(1),
     IC_BOOTSTRAP_ADMIN_EMAIL: z.email().optional(),
     IC_BOOTSTRAP_ADMIN_PASSWORD: z.string().min(12).optional(),
+    IC_GATEWAY_SAMPLE_READS: z.coerce.number().min(0).max(1).default(0),
     IC_LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
   })
   .superRefine((v, ctx) => {
@@ -64,5 +67,6 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
     clusterDomain: v.IC_CLUSTER_DOMAIN,
     bootstrapAdmin: v.IC_BOOTSTRAP_ADMIN_EMAIL ? { email: v.IC_BOOTSTRAP_ADMIN_EMAIL, password: v.IC_BOOTSTRAP_ADMIN_PASSWORD! } : undefined,
     logLevel: v.IC_LOG_LEVEL,
+    gatewaySampleReads: v.IC_GATEWAY_SAMPLE_READS,
   };
 }

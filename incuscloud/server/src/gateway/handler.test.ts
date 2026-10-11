@@ -10,7 +10,7 @@ import { syncAll } from "../authz/sync.ts";
 import { createFront } from "../front.ts";
 import { FakeIncus } from "../clusters/fake-incus.ts";
 import { harness, type Actor } from "../test/harness.ts";
-import { createGateway } from "./handler.ts";
+import { createGateway, type GatewayRequest } from "./handler.ts";
 import { ClusterCache } from "./clusters-cache.ts";
 import { Upstreams } from "./relay.ts";
 
@@ -24,6 +24,7 @@ let cache: ClusterCache;
 let clusterId: string;
 let member: Actor;
 let outsider: Actor;
+let logged: GatewayRequest[];
 
 beforeAll(async () => {
   fake = await new FakeIncus().start();
@@ -40,7 +41,8 @@ beforeEach(async () => {
   outsider = await h.user("o@example.com");
   await syncAll(h.db, h.authz);
   cache = new ClusterCache(h.db, 0);
-  const gateway = createGateway({ ...h.deps, clusterDomain: "clusters.test", clusters: cache, upstreams: new Upstreams() });
+  logged = [];
+  const gateway = createGateway({ ...h.deps, clusterDomain: "clusters.test", clusters: cache, upstreams: new Upstreams(), onRequest: (r) => logged.push(r) });
   server = createFront({ app: h.app, gateway, tls });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   port = (server.address() as AddressInfo).port;
@@ -154,4 +156,11 @@ test("traversal in the path never changes the cluster", async () => {
 
 test("platform API requests are not the gateway's", async () => {
   expect((await call("/healthz")).body).toEqual({ status: "ok" });
+});
+
+test("relayed and refused requests are both reported", async () => {
+  await call("/1.0/echo", { host: "c1.clusters.test", token: member.token, method: "POST" });
+  await call("/1.0/echo", { host: "c1.clusters.test", token: outsider.token, method: "POST" });
+  await Bun.sleep(20);
+  expect(logged.map((r) => [r.principal?.id, r.status])).toEqual([[member.id, 200], [outsider.id, 403]]);
 });

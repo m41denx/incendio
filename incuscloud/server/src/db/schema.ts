@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { bigserial, boolean, check, customType, jsonb, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { bigint, bigserial, boolean, check, customType, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 const citext = customType<{ data: string }>({ dataType: () => "citext" });
 const created = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
@@ -127,3 +127,24 @@ export const auditLog = pgTable("audit_log", {
   detail: jsonb("detail").$type<Record<string, unknown>>().notNull().default({}),
   ip: text("ip").notNull().default(""),
 });
+
+/** Requests that went through the gateway (writes always, reads sampled). */
+export const gatewayRequests = pgTable(
+  "gateway_requests",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+    clusterId: uuid("cluster_id").references(() => clusters.id, { onDelete: "set null" }),
+    actorType: text("actor_type").notNull(),
+    actorId: text("actor_id").notNull(),
+    method: text("method").notNull(),
+    /** Without the query string, at most 512 characters. */
+    path: text("path").notNull(),
+    status: integer("status").notNull(),
+    bytesIn: bigint("bytes_in", { mode: "number" }).notNull(),
+    bytesOut: bigint("bytes_out", { mode: "number" }).notNull(),
+    durationMs: integer("duration_ms").notNull(),
+    ip: text("ip").notNull().default(""),
+  },
+  (t) => [index("gateway_requests_cluster_id_idx").on(t.clusterId, t.id), index("gateway_requests_actor_id_idx").on(t.actorId, t.id)],
+);

@@ -79,6 +79,8 @@ export function createGateway(deps: GatewayDeps): GatewayHandler {
       return fail(403, "Cross-origin requests cannot use the session cookie");
     }
     if (principal && !(await deps.authz.check(`user:${principal.id}`, "can_access", `cluster:${cluster.id}`))) {
+      // Refusals of identified callers are worth keeping: report them too.
+      deps.onRequest?.({ cluster, principal, method: req.method ?? "", path: route.path, status: 403, bytesIn: 0, bytesOut: 0, durationMs: 0, ip: ipOf(req), upgrade });
       return fail(403, `You have no access to cluster "${cluster.name}"`);
     }
     return { route, cluster, principal, isUi };

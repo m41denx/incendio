@@ -15,6 +15,13 @@
       "when": 1791717909430,
       "tag": "0001_placements",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791719587438,
+      "tag": "0002_gateway_requests",
+      "breakpoints": true
     }
   ]
 }
