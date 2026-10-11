@@ -99,7 +99,9 @@ try {
   if (!c) throw new Error(`cluster ${cluster} is not enrolled`);
   clusterId = c.id;
   userId = (await api("POST", "/api/v1/users", { email: member.email, name: "E2E member", password: member.password })).id;
-  tenantId = (await api("POST", "/api/v1/tenants", { slug, name: `E2E ${run}`, quotas: { instances: 2, memory: 2 } })).id;
+  // The admin is the founding owner, so the member can be promoted and demoted again (a tenant keeps one owner).
+  const adminId = (await api("GET", "/api/v1/me")).id;
+  tenantId = (await api("POST", "/api/v1/tenants", { slug, name: `E2E ${run}`, quotas: { instances: 2, memory: 2 }, ownerId: adminId })).id;
   await api("PUT", `/api/v1/tenants/${tenantId}/members/${userId}`, { role: "member" });
   await api("PUT", `/api/v1/clusters/${clusterId}/tenants/${tenantId}`);
   step(`tenant ${slug} with ${member.email} placed on ${cluster}`);
@@ -141,6 +143,20 @@ try {
   const everything = await admin.api(base, "GET", `/clusters/${cluster}/1.0/projects`);
   const names = (everything.body.metadata as string[]).map((p) => p.split("/").at(-1));
   check(names.includes("default") && names.includes(slug), "the platform admin still sees every project");
+
+  // Even a tenant owner cannot lift the project's restrictions or quotas (it is never Incus project admin).
+  const served = async () => (await api("GET", `/api/v1/clusters/${clusterId}`)).reconcileRequestedAt === null;
+  await api("PUT", `/api/v1/tenants/${tenantId}/members/${userId}`, { role: "owner" });
+  await until("promotion to owner reached the cluster", served);
+  for (const remote of ["gw", "direct"]) {
+    const unrestrict = await incus("project", "set", `${remote}:${slug}`, "restricted=false");
+    check(unrestrict.code !== 0, `${remote}: owner cannot unrestrict the project (${unrestrict.err.trim().split("\n").at(-1)})`);
+    const raise = await incus("project", "set", `${remote}:${slug}`, "limits.instances=100");
+    check(raise.code !== 0, `${remote}: owner cannot raise the quota`);
+    check((await projects(remote)).includes(slug), `${remote}: owner still uses the project`);
+  }
+  await api("PUT", `/api/v1/tenants/${tenantId}/members/${userId}`, { role: "member" });
+  await until("demotion reached the cluster", served);
 
   await api("DELETE", `/api/v1/tenants/${tenantId}/members/${userId}`);
   await until("membership removal reached the cluster", async () => (await projects("direct")).length === 0);

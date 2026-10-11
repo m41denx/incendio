@@ -12,8 +12,12 @@ export function groupName(kind: "tenant" | "platform", a: string, b?: string): s
   return kind === "tenant" ? `${PREFIX}tenant-${a}-${b}` : `${PREFIX}platform-${a}`;
 }
 
-/** Tenant role → Incus project relation (spec D5). */
-const PROJECT_RELATION: Record<TenantRole, string> = { owner: "admin", admin: "admin", member: "operator", viewer: "viewer" };
+/**
+ * Tenant role → Incus project relation (spec D5). Never `admin`: in Incus a project admin can edit
+ * the project itself (`restricted`, `limits.*`), i.e. lift its own restrictions and get root on the
+ * cluster. `operator` manages everything inside the project. Owner/admin differ on the platform only.
+ */
+const PROJECT_RELATION: Record<TenantRole, string> = { owner: "operator", admin: "operator", member: "operator", viewer: "viewer" };
 const TENANT_ROLES = Object.keys(PROJECT_RELATION) as TenantRole[];
 const PLATFORM_ROLES: PlatformRole[] = ["admin", "operator", "viewer"];
 

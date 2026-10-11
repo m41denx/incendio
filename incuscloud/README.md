@@ -70,8 +70,9 @@ itself:
   afterwards; only missing values are filled in.
 - Unplacing a tenant revokes its grants but keeps its project: it may still
   hold instances, and the reconciler never deletes what it did not create.
-- Grant tuples: tenant owner and admin get `admin` on the tenant's project,
-  member gets `operator`, viewer gets `viewer`. Platform admin, operator and
+- Grant tuples: tenant owners, admins and members get `operator` on the
+  tenant's project, viewers get `viewer`. Never `admin`: an Incus project
+  admin can edit the project itself and lift its restrictions. Platform admin, operator and
   viewer get the same role on `server:incus`.
 
 A tenant member's token works directly against the cluster, with the same

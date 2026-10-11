@@ -27,8 +27,8 @@ test("desired grants cover placed tenants and platform roles only", () => {
   const g1 = (role: string) => `group:${groupName("tenant", T1, role)}`;
   expect(sorted(g)).toEqual(
     sorted([
-      { user: `${g1("owner")}#member`, relation: "admin", object: "project:acme" },
-      { user: `${g1("admin")}#member`, relation: "admin", object: "project:acme" },
+      { user: `${g1("owner")}#member`, relation: "operator", object: "project:acme" },
+      { user: `${g1("admin")}#member`, relation: "operator", object: "project:acme" },
       { user: `${g1("member")}#member`, relation: "operator", object: "project:acme" },
       { user: `${g1("viewer")}#member`, relation: "viewer", object: "project:acme" },
       { user: "user:u-owner", relation: "member", object: g1("owner") },
@@ -60,4 +60,9 @@ test("diff writes what is missing and deletes only managed extras", () => {
   const d = diffTuples([keep, add], [keep, stale, foreign]);
   expect(d.writes).toEqual([add]);
   expect(d.deletes).toEqual([stale]);
+});
+
+test("no tenant role can edit its project (restricted, limits): never project admin", () => {
+  const g = desiredGrants({ placements: [{ tenantId: T1, project: "acme" }], members: [], platform: [] });
+  expect(g.filter((t) => t.object === "project:acme").map((t) => t.relation)).not.toContain("admin");
 });
