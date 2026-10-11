@@ -9,6 +9,8 @@ import InstanceDetail from "./pages/instances/InstanceDetail";
 import JobList from "./pages/jobs/JobList";
 import JobDetail from "./pages/jobs/JobDetail";
 import PolicyList from "./pages/replication/PolicyList";
+import BackupList from "./pages/backups/BackupList";
+import TargetList from "./pages/backups/TargetList";
 import ClusterList from "./pages/clusters/ClusterList";
 import ClusterDetail from "./pages/clusters/ClusterDetail";
 import TenantList from "./pages/tenants/TenantList";
@@ -28,6 +30,8 @@ export const AppRoutes: FC = () => (
       <Route path="jobs" element={<JobList />} />
       <Route path="jobs/:id" element={<JobDetail />} />
       <Route path="replication" element={<PolicyList />} />
+      <Route path="backups" element={<BackupList />} />
+      <Route path="backup-targets" element={<TargetList />} />
       <Route path="clusters" element={<ClusterList />} />
       <Route path="clusters/:id" element={<ClusterDetail />} />
       <Route path="tenants" element={<TenantList />} />

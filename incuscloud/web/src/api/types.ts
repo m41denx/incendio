@@ -271,3 +271,64 @@ export interface ReplicationPolicy {
   createdBy: string;
   createdAt: string;
 }
+
+/** An S3 target for backups: GET /api/v1/backup-targets. Platform viewers get every field; others only id and name. */
+export interface BackupTarget {
+  id: string;
+  name: string;
+  endpoint?: string;
+  region?: string;
+  bucket?: string;
+  prefix?: string;
+  accessKeyId?: string;
+  enabled?: boolean;
+  createdAt?: string;
+}
+
+export type BackupState = "creating" | "ready" | "failed";
+
+/** GET /api/v1/backups[/:id] */
+export interface Backup {
+  id: string;
+  tenantId: string | null;
+  /** Set when a schedule made it; manual backups have none. */
+  policyId: string | null;
+  targetId: string;
+  objectKey: string;
+  clusterId: string | null;
+  project: string;
+  instanceName: string;
+  instanceType: string;
+  instanceOnly: boolean;
+  sizeBytes: number | null;
+  state: BackupState;
+  error: string;
+  jobId: string | null;
+  transport: string;
+  createdBy: string;
+  createdAt: string;
+  completedAt: string | null;
+  /** In lists only. */
+  targetName?: string;
+  clusterName?: string | null;
+}
+
+/** Scheduled backups of one instance: /api/v1/backup-policies. */
+export interface BackupPolicy {
+  id: string;
+  tenantId: string | null;
+  clusterId: string;
+  project: string;
+  instanceName: string;
+  targetId: string;
+  intervalS: number;
+  keep: number;
+  instanceOnly: boolean;
+  enabled: boolean;
+  lastRunAt: string | null;
+  lastSuccessAt: string | null;
+  lastError: string;
+  lastJobId: string | null;
+  createdBy: string;
+  createdAt: string;
+}

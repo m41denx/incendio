@@ -19,6 +19,8 @@ export function sections(me: Me) {
     { label: "Tenants", icon: "switcher-environments", to: "/tenants" },
     { label: "Jobs", icon: "loading-steps", to: "/jobs" },
     { label: "Replication", icon: "restart", to: "/replication" },
+    { label: "Backups", icon: "archive", to: "/backups" },
+    platformViewer && { label: "Backup targets", icon: "storage-bucket", to: "/backup-targets" },
     platformViewer && { label: "Users", icon: "user-group", to: "/users" },
     manages && { label: "Service accounts", icon: "applications", to: "/service-accounts" },
     manages && { label: "Audit log", icon: "show", to: "/audit" },

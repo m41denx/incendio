@@ -242,3 +242,27 @@ test("an unknown or invisible job is not found", async () => {
   renderAt(<JobDetail />, { path: "/jobs/j-9", pattern: "/jobs/:id" });
   expect(await screen.findByText("Not found")).toBeInTheDocument();
 });
+
+test("backup and restore jobs read as such, with their results", async () => {
+  mockApi({
+    "GET /api/v1/me": [200, ownUser()],
+    "GET /api/v1/clusters": [200, clusters],
+    "GET /api/v1/jobs/j-5": [200, job({ id: "j-5", type: "restore", state: "succeeded", finishedAt: new Date().toISOString(), payload: { backupId: "b-1", targetClusterId: "c-2", targetProject: "acme", targetName: "web-r", start: true }, result: { targetClusterId: "c-2", targetProject: "acme", targetName: "web-r" } })],
+  });
+  renderAt(<JobDetail />, { path: "/jobs/j-5", pattern: "/jobs/:id" });
+  expect(await screen.findByText(/Restore to acme\/web-r \(edge-2\)/)).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Restore" })).toHaveAttribute("href", "/backups");
+  expect(screen.getByText("Restored as acme/web-r")).toBeInTheDocument();
+});
+
+test("a backup job's summary and result", async () => {
+  mockApi({
+    "GET /api/v1/me": [200, ownUser()],
+    "GET /api/v1/clusters": [200, clusters],
+    "GET /api/v1/jobs/j-6": [200, job({ id: "j-6", type: "backup", state: "succeeded", finishedAt: new Date().toISOString(), payload: { clusterId: "c-1", project: "acme", instanceName: "web", targetId: "t", instanceOnly: false, transport: "auto" }, result: { backupId: "b-9", transport: "direct", sizeBytes: 4718592, pruned: 1, warnings: [] } })],
+  });
+  renderAt(<JobDetail />, { path: "/jobs/j-6", pattern: "/jobs/:id" });
+  expect(await screen.findByText(/Back up acme\/web \(edge-1\)/)).toBeInTheDocument();
+  expect(screen.getByText("4.5 MiB, uploaded by the cluster")).toBeInTheDocument();
+  expect(screen.getByText("1 older backup deleted")).toBeInTheDocument();
+});

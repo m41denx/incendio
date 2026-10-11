@@ -5,12 +5,15 @@ import ConfirmAction from "../../components/ConfirmAction";
 import { request } from "../../api/client";
 import { can, tenantRole } from "../../api/hooks";
 import type { Job, JobState, Me } from "../../api/types";
+import { UNKNOWN, bytes } from "../../lib/format";
 
 const shortId = (id: string) => (id.length > 8 ? `${id.slice(0, 8)}…` : id);
 const str = (v: unknown) => (typeof v === "string" ? v : "");
 const cap = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s);
 
-const TYPE_LABELS: Record<string, string> = { migrate: "Migration", replicate: "Replication run", failover: "Failover" };
+const TYPE_LABELS: Record<string, string> = { migrate: "Migration", replicate: "Replication run", failover: "Failover", backup: "Backup", restore: "Restore" };
+/** Pages that list what a job type works on. */
+const TYPE_PAGES: Record<string, string> = { replicate: "/replication", failover: "/replication", backup: "/backups", restore: "/backups" };
 export const typeLabel = (type: string) => TYPE_LABELS[type] ?? type;
 
 const VARIANT: Record<JobState, string> = { queued: "information", running: "information", succeeded: "positive", failed: "negative", cancelled: "" };
@@ -27,7 +30,8 @@ export const active = (job: Job) => job.state === "queued" || job.state === "run
 /** The job's type; replication runs and failovers link to the replication policies. */
 export const JobType: FC<{ job: Job }> = ({ job }) => {
   const label = typeLabel(job.type);
-  return job.type === "replicate" || job.type === "failover" ? <Link to="/replication">{label}</Link> : <>{label}</>;
+  const page = TYPE_PAGES[job.type];
+  return page ? <Link to={page}>{label}</Link> : <>{label}</>;
 };
 
 /**
@@ -35,12 +39,14 @@ export const JobType: FC<{ job: Job }> = ({ job }) => {
  * `clusterName` gives a cluster's name, and an unknown cluster shows its short id.
  */
 export function jobSummary(job: Job, clusterName: (id: string) => string | undefined = () => undefined): string {
-  if (job.type !== "migrate") return typeLabel(job.type);
   const p = job.payload;
   const place = (cluster: unknown, project: unknown, name: unknown) => {
     const id = str(cluster);
     return `${str(project)}/${str(name)} (${clusterName(id) ?? shortId(id)})`;
   };
+  if (job.type === "backup") return `Back up ${place(p.clusterId, p.project, p.instanceName)}`;
+  if (job.type === "restore") return `Restore to ${place(p.targetClusterId, p.targetProject, p.targetName)}`;
+  if (job.type !== "migrate") return typeLabel(job.type);
   const verb = cap(str(p.mode)) || "Migrate";
   return `${verb} ${place(p.sourceClusterId, p.sourceProject, p.name)} → ${place(p.targetClusterId, p.targetProject, p.targetName)}`;
 }
@@ -96,6 +102,19 @@ export function resultOf(job: Job): ReactNode | null {
       </>
     );
   }
+  if (job.type === "restore") return <div>{`Restored as ${str(r.targetProject)}/${str(r.targetName)}`}</div>;
   const warnings = Array.isArray(r.warnings) ? r.warnings.map(String) : [];
+  if (job.type === "backup") {
+    const pruned = typeof r.pruned === "number" ? r.pruned : 0;
+    return (
+      <>
+        <div>{`${typeof r.sizeBytes === "number" ? bytes(r.sizeBytes) : UNKNOWN}, ${r.transport === "direct" ? "uploaded by the cluster" : "through the control plane"}`}</div>
+        {pruned ? <div>{`${pruned} older backup${pruned === 1 ? "" : "s"} deleted`}</div> : null}
+        {warnings.map((w) => (
+          <div key={w}>{w}</div>
+        ))}
+      </>
+    );
+  }
   return warnings.length ? warnings.map((w) => <div key={w}>{w}</div>) : null;
 }

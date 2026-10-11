@@ -1,3 +1,4 @@
+import userEvent from "@testing-library/user-event";
 import { expect, test } from "vitest";
 import { screen } from "@testing-library/react";
 import { me, mockApi, renderAt } from "../../test/api";
@@ -75,18 +76,22 @@ test("an instance the caller cannot see is not found", async () => {
   expect(await screen.findByText("Not found")).toBeInTheDocument();
 });
 
-test("tenant owners and admins and platform operators get Move or copy; members do not", async () => {
+test("tenant owners and admins and platform operators get the Actions menu; members do not", async () => {
   const routes = (who: ReturnType<typeof me>) => ({
     "GET /api/v1/me": [200, who] as [number, unknown],
     "GET /api/v1/instances/i-1": [200, instance()] as [number, unknown],
     "GET /api/v1/instances/i-1/metrics": [200, { samples: [] }] as [number, unknown],
+    "GET /api/v1/backup-targets": [200, [{ id: "bt-1", name: "minio" }]] as [number, unknown],
   });
   mockApi(routes(me({ platformRole: null, tenants: [{ id: "t-1", slug: "acme", name: "Acme", role: "member" }] })));
   const { unmount } = renderAt(<InstanceDetail />, { path: "/instances/i-1", pattern: "/instances/:id" });
   await screen.findByText("Front end");
-  expect(screen.queryByRole("button", { name: "Move or copy…" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Actions" })).not.toBeInTheDocument();
   unmount();
   mockApi(routes(me({ platformRole: null, tenants: [{ id: "t-1", slug: "acme", name: "Acme", role: "admin" }] })));
   renderAt(<InstanceDetail />, { path: "/instances/i-1", pattern: "/instances/:id" });
-  expect(await screen.findByRole("button", { name: "Move or copy…" })).toBeInTheDocument();
+  await userEvent.click(await screen.findByRole("button", { name: "Actions" }));
+  for (const item of ["Move or copy…", "Replicate…", "Back up now…", "Backup schedule…"]) expect(screen.getByRole("menuitem", { name: item })).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("menuitem", { name: "Back up now…" }));
+  expect(await screen.findByRole("dialog")).toHaveTextContent(/Back up/);
 });

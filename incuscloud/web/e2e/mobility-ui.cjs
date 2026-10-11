@@ -58,7 +58,8 @@ const check = (ok, what) => {
       await page.waitForTimeout(2000);
     }
     await page.getByRole("link", { name }).click();
-    await page.getByRole("button", { name: "Move or copy…" }).click();
+    await page.getByRole("button", { name: "Actions" }).click();
+    await page.getByRole("menuitem", { name: "Move or copy…" }).click();
     const dialog = page.getByRole("dialog");
     await dialog.getByLabel("Target cluster").selectOption({ label: to });
     await dialog.getByRole("button", { name: "Check" }).click();
@@ -79,7 +80,8 @@ const check = (ok, what) => {
       await page.waitForTimeout(2000);
     }
     await page.getByRole("row").filter({ hasText: to }).getByRole("link", { name }).click();
-    await page.getByRole("button", { name: "Replicate…" }).click();
+    await page.getByRole("button", { name: "Actions" }).click();
+    await page.getByRole("menuitem", { name: "Replicate…" }).click();
     await page.getByRole("dialog").getByLabel("Target cluster").selectOption({ label: from });
     await page.getByRole("dialog").getByRole("button", { name: "Create" }).click();
     await page.waitForURL(/\/replication$/);

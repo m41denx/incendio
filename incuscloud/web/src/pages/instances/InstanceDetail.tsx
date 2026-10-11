@@ -1,6 +1,7 @@
 import { type FC, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { ContextualMenu } from "@canonical/react-components";
 import PageLayout from "../../components/PageLayout";
 import KeyValues from "../../components/KeyValues";
 import Sparkline, { type SparkPoint } from "../../components/Sparkline";
@@ -11,6 +12,8 @@ import type { Instance, MetricSample } from "../../api/types";
 import { UNKNOWN, bytes, cores, rate } from "../../lib/format";
 import MigrateInstance from "./MigrateInstance";
 import CreatePolicy from "../replication/CreatePolicy";
+import BackupNow from "../backups/BackupNow";
+import BackupSchedule from "../backups/BackupSchedule";
 
 const HOURS = 24;
 const REFRESH_MS = 60_000;
@@ -32,8 +35,8 @@ const InstanceDetail: FC = () => {
   });
   const i = instance.data;
   const { data: me } = useMe();
-  const [migrating, setMigrating] = useState(false);
-  const [replicating, setReplicating] = useState(false);
+  const [dialog, setDialog] = useState<"migrate" | "replicate" | "backup" | "schedule" | null>(null);
+  const close = () => setDialog(null);
   // Platform operators, and the tenant's owners and admins, may move it (the API decides).
   const manages = !!i && (can(me, "operator") || ["owner", "admin"].includes((i.tenantId && tenantRole(me, i.tenantId)) || ""));
 
@@ -48,14 +51,17 @@ const InstanceDetail: FC = () => {
         i ? (
           <>
             {manages ? (
-              <button type="button" className="p-button" onClick={() => setMigrating(true)}>
-                Move or copy…
-              </button>
-            ) : null}
-            {manages ? (
-              <button type="button" className="p-button" onClick={() => setReplicating(true)}>
-                Replicate…
-              </button>
+              <ContextualMenu
+                hasToggleIcon
+                position="right"
+                toggleLabel="Actions"
+                links={[
+                  { children: "Move or copy…", onClick: () => setDialog("migrate") },
+                  { children: "Replicate…", onClick: () => setDialog("replicate") },
+                  { children: "Back up now…", onClick: () => setDialog("backup") },
+                  { children: "Backup schedule…", onClick: () => setDialog("schedule") },
+                ]}
+              />
             ) : null}
             {/* Served by the server (Incendio for that cluster), not this app. */}
             <a className="p-button" href={`/clusters/${encodeURIComponent(i.clusterName)}/ui/project/${encodeURIComponent(i.project)}/instance/${encodeURIComponent(i.name)}`}>
@@ -65,8 +71,10 @@ const InstanceDetail: FC = () => {
         ) : null
       }
     >
-      {migrating && i ? <MigrateInstance instance={i} onClose={() => setMigrating(false)} /> : null}
-      {replicating && i ? <CreatePolicy instance={i} onClose={() => setReplicating(false)} /> : null}
+      {i && dialog === "migrate" ? <MigrateInstance instance={i} onClose={close} /> : null}
+      {i && dialog === "replicate" ? <CreatePolicy instance={i} onClose={close} /> : null}
+      {i && dialog === "backup" ? <BackupNow instance={i} onClose={close} /> : null}
+      {i && dialog === "schedule" ? <BackupSchedule instance={i} onClose={close} /> : null}
       <Loaded query={instance}>
         {(i) => (
           <>
