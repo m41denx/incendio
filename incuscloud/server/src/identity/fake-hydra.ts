@@ -6,6 +6,7 @@ export class FakeHydra implements HydraAdminApi {
   logins = new Map<string, LoginRequest>();
   consents = new Map<string, ConsentRequest>();
   devices = new Set<string>();
+  logouts = new Set<string>();
   accepted: Array<{ kind: string; challenge: string; body: unknown }> = [];
   rejected: Array<{ kind: string; challenge: string; body: unknown }> = [];
   clients = new Map<string, OAuth2Client>();
@@ -45,6 +46,10 @@ export class FakeHydra implements HydraAdminApi {
     if (this.validCodes && !this.validCodes.has(userCode)) throw new ApiError(400, "invalid_request", "The 'user_code' session could not be found");
     this.accepted.push({ kind: "device", challenge: ch, body: { user_code: userCode } });
     return `https://hydra.test/after-device?ch=${ch}`;
+  }
+  async acceptLogout(ch: string) {
+    if (!this.logouts.has(ch)) throw new ApiError(404, "challenge_not_found", "expired");
+    return `https://hydra.test/after-logout?ch=${ch}`;
   }
   async getClient(id: string) {
     return this.clients.get(id) ?? null;

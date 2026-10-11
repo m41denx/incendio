@@ -45,6 +45,7 @@ export interface HydraAdminApi {
   acceptConsent(challenge: string, body: Record<string, unknown>): Promise<string>;
   rejectConsent(challenge: string, body: { error: string; error_description?: string }): Promise<string>;
   acceptDevice(challenge: string, userCode: string): Promise<string>;
+  acceptLogout(challenge: string): Promise<string>;
   getClient(id: string): Promise<OAuth2Client | null>;
   createClient(c: OAuth2Client): Promise<OAuth2Client>;
   updateClient(c: OAuth2Client): Promise<OAuth2Client>;
@@ -107,6 +108,9 @@ export class HydraAdmin implements HydraAdminApi {
   }
   acceptDevice(ch: string, userCode: string) {
     return this.redirect("PUT", this.qa("device", "accept", ch), { user_code: userCode });
+  }
+  acceptLogout(ch: string) {
+    return this.redirect("PUT", this.qa("logout", "accept", ch), {});
   }
   getClient(id: string) {
     return this.call<OAuth2Client>("GET", `/admin/clients/${encodeURIComponent(id)}`, undefined, true);

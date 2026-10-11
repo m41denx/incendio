@@ -11,7 +11,11 @@ import { TestBrowser } from "../test/browser.ts";
 import { HydraAdmin } from "./hydra-admin.ts";
 import { hashPassword } from "./passwords.ts";
 import { identityRoutes } from "./routes.ts";
-import { CLI_CLIENT_ID, ensureClients } from "./bootstrap.ts";
+import { CLI_CLIENT_ID, ensureClients, webClientSecret } from "./bootstrap.ts";
+import { HydraTokens, sessionRoutes } from "../auth/session.ts";
+import { principalPlugin } from "../auth/principal.ts";
+import { createVerifier, remoteJwks } from "../auth/verify.ts";
+import { meRoutes } from "../api/me.ts";
 
 // Live: scripts/dev-hydra.sh, then IC_IT_HYDRA=1 (Hydra on :4444/:4445, pages on :7443).
 const enabled = !!process.env.IC_IT_HYDRA;
@@ -27,10 +31,26 @@ beforeAll(async () => {
   if (!process.env.IC_IT_HYDRA) return;
   const db = await testDb();
   hydra = new HydraAdmin("https://127.0.0.1:4445", { ca });
-  await ensureClients(hydra, { publicUrl: "https://127.0.0.1:7443", secretKey: Buffer.alloc(32, 4) });
+  const secretKey = Buffer.alloc(32, 4);
+  await ensureClients(hydra, { publicUrl: "https://127.0.0.1:7443", secretKey });
   const [u] = await db.insert(users).values({ email: "flow@example.com", name: "Flow", passwordHash: await hashPassword("pw-flow-123456") }).returning();
   userId = u!.id;
-  const app = new Elysia().use(errorHandling).use(identityRoutes({ db, hydra, secureCookies: true }));
+  const authDeps = {
+    db,
+    hydra,
+    tokens: new HydraTokens({ hydraPublicUrl: ISSUER, clientSecret: webClientSecret(secretKey), ca }),
+    verify: createVerifier({ issuer: ISSUER, audience: "incuscloud", jwks: remoteJwks(ISSUER, ca) }),
+    secretKey,
+    publicUrl: "https://127.0.0.1:7443",
+    hydraPublicUrl: ISSUER,
+    secureCookies: true,
+  };
+  const app = new Elysia()
+    .use(errorHandling)
+    .use(principalPlugin(authDeps))
+    .use(identityRoutes({ db, hydra, secureCookies: true }))
+    .use(sessionRoutes(authDeps))
+    .use(meRoutes({ db }));
   server = createFront({ app, tls: { cert: readFileSync(new URL("tls/server.crt", dev)), key: readFileSync(new URL("tls/server.key", dev)) } });
   await new Promise<void>((r) => server!.listen(7443, "127.0.0.1", r));
 });
@@ -82,4 +102,18 @@ live("client credentials (service accounts) get incuscloud tokens", async () => 
   expect(claims.aud).toContain("incuscloud");
   await hydra.deleteClient(id);
   expect(await hydra.getClient(id)).toBeNull();
+});
+
+live("browser sign-in creates a session that reaches the API", async () => {
+  const b = new TestBrowser(ca);
+  const loginPage = await b.go("https://127.0.0.1:7443/auth/start?return_to=/api/v1/me");
+  expect(loginPage.url).toStartWith("https://127.0.0.1:7443/auth/login");
+  const me = await b.submit(loginPage, { email: "flow@example.com", password: "pw-flow-123456" });
+  expect(me.url).toBe("https://127.0.0.1:7443/api/v1/me");
+  expect(JSON.parse(me.body)).toMatchObject({ id: userId, kind: "user", email: "flow@example.com" });
+
+  const out = await b.go("https://127.0.0.1:7443/auth/logout");
+  expect(out.url).toBe("https://127.0.0.1:7443/");
+  const after = await b.go("https://127.0.0.1:7443/api/v1/me");
+  expect(after.res.status).toBe(401);
 });
