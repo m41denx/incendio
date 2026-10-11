@@ -5,7 +5,8 @@
   "license": "LGPL-3.0-only",
   "type": "module",
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "incuscloud/server"
   ],
   "scripts": {
     "build": "bun run --filter '@incendio/ui' build",
