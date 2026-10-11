@@ -71,3 +71,34 @@ Findings that change the build:
 5. **Host routing is the default for API clients** (D11): wildcard DNS
    `*.<CLUSTER_DOMAIN>` and a wildcard certificate. Path routing stays for the
    browser UI (Incendio derives `ROOT_PATH` from the path).
+
+## C. Cross-cluster migration driven by the control plane — YES (pull and relay)
+
+`spikes/migrate.ts`: cluster A = local Incus (project `incuscloud-dev`, pool
+`nevergoonalone`), cluster B = nested Incus 7.5.1 (`cluster-b`, pool
+`default`). One admin client certificate trusted on both (the worker's role).
+Stopped Alpine container; containers have no live migration in Incus, VMs were
+not testable (no KVM on the dev host).
+
+| Mode | How | Result |
+|---|---|---|
+| pull | A: `POST /1.0/instances/<n>` `{migration:true}` → operation secrets; B: `POST /1.0/instances` `{source:{type:migration, mode:pull, operation:"<A url>/1.0/operations/<id>", certificate:<A cert>, secrets}}` | Works; B connects to A directly. 512 MB in 9.7 s |
+| refresh | Same with `source.refresh: true` on an existing target | Works; only the change moves (117 ms for a small diff). The replication primitive |
+| relay | A as above; B with `source.mode: push` → B's own secrets; the control plane opens each named operation websocket on both sides (`control`, `fs`) and pipes them | Works with no A↔B connectivity. 512 MB in 9.6 s, sha256 matches |
+
+Findings that change the build:
+
+1. **Relay is the default transport**: it only needs what the maintainer
+   guaranteed (control plane → every cluster's 8443). Pull is an optimisation
+   when the target can reach the source (try pull, fall back to relay).
+2. **Relay needs backpressure**: without it the relaying process held
+   451 MiB for a 512 MB move; pausing the reading side while the other has
+   > 4 MiB queued (`ws` `pause()/resume()`) kept it at 81 MiB and was faster.
+   Pipe message by message: the `control` socket carries framed messages.
+3. The target request is built from the source instance: config minus
+   `volatile.*`, devices with the root disk's pool mapped to the target's, NICs
+   mapped to target networks (pre-flight must check pools, networks, profiles,
+   architecture and image availability, as PegaProx does).
+4. Moving between clusters = copy + verify + delete source; Incus has no
+   cross-cluster "move". Live moves need VMs (`migration_vm_live`) and are
+   not covered by this spike.
