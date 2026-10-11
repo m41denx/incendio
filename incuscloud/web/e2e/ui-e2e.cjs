@@ -117,7 +117,6 @@ async function signIn(page, email, password) {
     await page.waitForURL(new RegExp(`/clusters/${clusterName}/ui/`));
     await page.waitForFunction(() => document.title.includes("Incendio"), null, { timeout: 30000 });
     check(true, "console opens Incendio");
-    await page.goBack();
 
     // 10. Sign out.
     await page.goto(`${base}/`);
