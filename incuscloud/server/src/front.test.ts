@@ -88,3 +88,7 @@ test("the client address reaches the app and cannot be spoofed", async () => {
   const r = await get("/ip", { headers: { "x-ic-client-ip": "6.6.6.6" } });
   expect(await r.json()).toEqual({ ip: "127.0.0.1" });
 });
+
+test("no whole-request timeout: gateway uploads and operation waits run for as long as they need", () => {
+  expect((server as unknown as { requestTimeout: number }).requestTimeout).toBe(0);
+});
