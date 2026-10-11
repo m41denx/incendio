@@ -16,6 +16,7 @@ Licensed under GPL-3.0 (see `LICENSE`).
 | P2 | Gateway: authenticated pass-through to each cluster's API, Incendio per cluster | done |
 | P3 | Reconciler: cluster OIDC/OpenFGA configuration, tenant projects | done |
 | P4 | Platform UI: clusters, tenants, users, service accounts, logs | done |
+| P5 | Fleet: inventory, metrics, global instance search, capacity | done |
 
 ## How it fits together
 
@@ -99,6 +100,31 @@ bun run test         # component tests (Vitest, jsdom)
 creating a user and a tenant, placing it on a cluster, a service account,
 the console and a tenant member's view; `server/scripts/e2e-cleanup.ts`
 removes what it created.
+
+## Fleet
+
+The worker reads every enabled cluster's inventory with the control
+plane's admin certificate (never through the gateway), once per
+`IC_INVENTORY_INTERVAL`:
+- instances in all projects, with their state;
+- cluster members (or the standalone server);
+- storage pool space per member, and managed networks.
+
+Between two passes it works out each running instance's CPU use (in cores)
+and network rates. It keeps `IC_METRICS_RETENTION` hours of samples for
+instances and members. Instance configuration is never stored.
+
+The platform UI's **Instances** page searches across every cluster:
+- words match the name, project, cluster, member, description, image or addresses;
+- filters narrow by cluster, tenant, status and type;
+- each instance has a page with its CPU, memory and network charts and a link to its console.
+
+Who sees what:
+- Tenant members see the instances in their tenants' projects.
+- Platform viewers see everything, plus each cluster's members, storage and capacity (on the cluster page and the dashboard).
+
+A cluster whose inventory fails keeps its last one and shows the error.
+`server/scripts/fleet-e2e.ts` checks this on a live cluster.
 
 ## Configuration
 

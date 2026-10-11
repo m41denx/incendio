@@ -14,6 +14,7 @@ export function sections(me: Me) {
   const manages = platformViewer || tenantAdmin(me);
   return [
     { label: "Dashboard", icon: "switcher-dashboard", to: "/", end: true },
+    { label: "Instances", icon: "containers", to: "/instances" },
     { label: "Clusters", icon: "cluster-host", to: "/clusters" },
     { label: "Tenants", icon: "switcher-environments", to: "/tenants" },
     platformViewer && { label: "Users", icon: "user-group", to: "/users" },

@@ -4,6 +4,7 @@
 @include vf-p-icon-add-canvas;
 @include vf-p-icon-applications;
 @include vf-p-icon-cluster-host;
+@include vf-p-icon-containers;
 @include vf-p-icon-copy-to-clipboard;
 @include vf-p-icon-delete;
 @include vf-p-icon-edit;
@@ -79,5 +80,72 @@
 
   dd {
     margin: 0;
+  }
+}
+
+// Capacity bars: the fill turns caution as it nears full, then negative.
+.ic-meter-group {
+  min-width: 9rem;
+
+  > span {
+    display: block;
+    margin-top: $sp-unit * 0.25;
+  }
+}
+
+.ic-meter {
+  background: $color-mid-light;
+  border-radius: 2px;
+  height: 0.5rem;
+  overflow: hidden;
+  width: 100%;
+}
+
+.ic-meter__fill {
+  background: $color-positive;
+  height: 100%;
+
+  &--caution {
+    background: $color-caution;
+  }
+
+  &--negative {
+    background: $color-negative;
+  }
+}
+
+// Small history charts (instance page): two per row on wide screens.
+.ic-spark-grid {
+  display: grid;
+  gap: $sp-unit * 3;
+  grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+  margin-bottom: $sp-unit * 3;
+}
+
+.ic-spark {
+  margin: 0;
+
+  figcaption {
+    display: flex;
+    font-style: normal;
+    justify-content: space-between;
+  }
+}
+
+.ic-spark__label {
+  color: $color-mid-dark;
+}
+
+.ic-spark__chart {
+  border-bottom: 1px solid $color-mid-light;
+  display: block;
+  height: 3rem;
+  width: 100%;
+
+  path {
+    stroke: $color-link;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 2;
   }
 }

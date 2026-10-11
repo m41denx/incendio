@@ -111,7 +111,8 @@ function instanceOf(i: IncusInstance): InstanceSnapshot {
     name: i.name,
     type: i.type,
     status: i.status,
-    location: i.location ?? "",
+    // A standalone server says "none".
+    location: i.location && i.location !== "none" ? i.location : "",
     description: i.description ?? "",
     architecture: i.architecture ?? "",
     createdAt: i.created_at,

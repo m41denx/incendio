@@ -4,6 +4,8 @@ import Shell from "./components/Shell";
 import NotFound from "./pages/NotFound";
 import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
+import InstanceList from "./pages/instances/InstanceList";
+import InstanceDetail from "./pages/instances/InstanceDetail";
 import ClusterList from "./pages/clusters/ClusterList";
 import ClusterDetail from "./pages/clusters/ClusterDetail";
 import TenantList from "./pages/tenants/TenantList";
@@ -18,6 +20,8 @@ export const AppRoutes: FC = () => (
   <Routes>
     <Route element={<Shell />}>
       <Route index element={<Dashboard />} />
+      <Route path="instances" element={<InstanceList />} />
+      <Route path="instances/:id" element={<InstanceDetail />} />
       <Route path="clusters" element={<ClusterList />} />
       <Route path="clusters/:id" element={<ClusterDetail />} />
       <Route path="tenants" element={<TenantList />} />

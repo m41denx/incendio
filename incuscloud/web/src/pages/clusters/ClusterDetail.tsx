@@ -12,6 +12,7 @@ import { can, clusterApiUrl, useMe } from "../../api/hooks";
 import type { Cluster } from "../../api/types";
 import ClusterStatus from "./ClusterStatus";
 import PlacedTenants from "./PlacedTenants";
+import ClusterInventory from "./ClusterInventory";
 import { formatLabels, parseLabels } from "./labels";
 
 const ClusterDetail: FC = () => {
@@ -31,6 +32,7 @@ const ClusterDetail: FC = () => {
   const [editingLabels, setEditingLabels] = useState(false);
   const [labels, setLabels] = useState("");
   const operator = can(me, "operator");
+  const viewer = can(me, "viewer");
   const admin = can(me, "admin");
 
   const reconcile = async () => {
@@ -96,6 +98,7 @@ const ClusterDetail: FC = () => {
             <p>Add this cluster to the incus CLI (or any Incus API client); it signs in through IncusCloud:</p>
             <pre className="ic-mono">{`incus remote add ${c.name} ${clusterApiUrl(me, c.name)} --auth-type=oidc`}</pre>
             <PlacedTenants cluster={c} canManage={operator} />
+            {viewer ? <ClusterInventory clusterId={c.id} /> : null}
             {admin ? (
               <>
                 <h2 className="p-heading--4">Administration</h2>

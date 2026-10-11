@@ -4,9 +4,12 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { me, mockApi, renderAt } from "../../test/api";
-import type { Cluster, Placement, Tenant } from "../../api/types";
+import type { Cluster, ClusterInventory, Placement, Tenant } from "../../api/types";
 import ClusterList from "./ClusterList";
 import ClusterDetail from "./ClusterDetail";
+
+const GiB = 1024 ** 3;
+const MiB = 1024 ** 2;
 
 const cluster = (over: Partial<Cluster> = {}): Cluster => ({
   id: "c-1",
@@ -27,12 +30,25 @@ const cluster = (over: Partial<Cluster> = {}): Cluster => ({
 const acme: Tenant = { id: "t-1", slug: "acme", name: "Acme", quotas: {}, createdAt: "2026-10-01T00:00:00Z" };
 const beta: Tenant = { id: "t-2", slug: "beta", name: "Beta", quotas: {}, createdAt: "2026-10-01T00:00:00Z" };
 const placed: Placement = { tenantId: "t-1", slug: "acme", project: "acme", status: "ready", statusMessage: "", createdAt: "2026-10-02T00:00:00Z" };
+const inventory = (over: Partial<ClusterInventory> = {}): ClusterInventory => ({
+  inventoryAt: new Date().toISOString(),
+  inventoryError: "",
+  members: [
+    { name: "node1", url: "https://10.0.0.11:8443", status: "Online", roles: ["control-plane", "database"], architecture: "x86_64", cpuThreads: 16, memoryTotal: 32 * GiB, memoryUsed: 8 * GiB, load1: 0.456, uptimeS: 3600 },
+    { name: "node2", url: "https://10.0.0.12:8443", status: "Offline", roles: [], architecture: "x86_64", cpuThreads: 8, memoryTotal: 16 * GiB, memoryUsed: 0, load1: null, uptimeS: null },
+  ],
+  pools: [{ member: "node1", name: "default", driver: "zfs", status: "Created", spaceTotal: GiB, spaceUsed: 512 * MiB }],
+  networks: [],
+  instances: { total: 4, running: 3 },
+  ...over,
+});
 
 const detailRoutes = (over: Record<string, Parameters<typeof mockApi>[0][string]> = {}, who = me()) =>
   mockApi({
     "GET /api/v1/me": [200, who],
     "GET /api/v1/clusters/c-1": [200, cluster()],
     "GET /api/v1/clusters/c-1/tenants": [200, [placed]],
+    "GET /api/v1/clusters/c-1/inventory": [200, inventory()],
     "GET /api/v1/tenants": [200, [acme, beta]],
     ...over,
   });
@@ -126,4 +142,34 @@ test("viewers see the cluster without operator controls", async () => {
   renderDetail();
   await screen.findByRole("link", { name: "Open console" });
   for (const b of ["Reconcile now", "Delete", "Place", "Remove", "Edit labels"]) expect(screen.queryByRole("button", { name: b })).not.toBeInTheDocument();
+});
+
+test("platform viewers see the members, storage pools and their capacity", async () => {
+  detailRoutes({}, me({ platformRole: "viewer" }));
+  renderDetail();
+  const section = await screen.findByRole("region", { name: "Members and storage" });
+  expect(await within(section).findByText("4 instances, 3 running")).toBeInTheDocument();
+  const node1 = within(section).getByText("control-plane, database").closest("tr")!;
+  expect(within(node1).getByText("0.46")).toBeInTheDocument();
+  expect(within(node1).getByRole("meter", { name: "node1 memory" })).toHaveAttribute("aria-valuenow", String(8 * GiB));
+  expect(within(node1).getByText("8.0 GiB / 32.0 GiB (25%)")).toBeInTheDocument();
+  const pool = within(section).getByText("zfs").closest("tr")!;
+  expect(within(pool).getByRole("meter", { name: "node1/default space" })).toHaveAttribute("aria-valuenow", String(512 * MiB));
+});
+
+test("tenant members never see the inventory", async () => {
+  const api = detailRoutes({}, me({ platformRole: null }));
+  renderDetail();
+  await screen.findByRole("link", { name: "Open console" });
+  expect(screen.queryByRole("heading", { name: "Members and storage" })).not.toBeInTheDocument();
+  expect(api.calls.some((c) => c.path.endsWith("/inventory"))).toBe(false);
+});
+
+test("a failed inventory read shows the error", async () => {
+  detailRoutes({ "GET /api/v1/clusters/c-1/inventory": [200, inventory({ inventoryError: "node2: connection refused", members: [], pools: [] })] }, me({ platformRole: "viewer" }));
+  renderDetail();
+  const section = await screen.findByRole("region", { name: "Members and storage" });
+  expect(await within(section).findByText("Inventory failed")).toBeInTheDocument();
+  expect(within(section).getByText("node2: connection refused")).toBeInTheDocument();
+  expect(within(section).getByText("Inventory failed").closest(".p-notification--caution")).not.toBeNull();
 });

@@ -1,12 +1,13 @@
 import type { FC, ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { Col, Row } from "@canonical/react-components";
+import { Col, MainTable, Row } from "@canonical/react-components";
 import { useQuery } from "@tanstack/react-query";
 import PageLayout from "../components/PageLayout";
+import Meter from "../components/Meter";
 import { Loaded, ago } from "../components/Status";
 import { request } from "../api/client";
 import { can, useMe } from "../api/hooks";
-import type { Cluster, Tenant, User } from "../api/types";
+import type { Cluster, FleetSummary, Tenant, User } from "../api/types";
 import ClusterStatus from "./clusters/ClusterStatus";
 
 /** Known statuses in the order they are reported, then anything else. */
@@ -22,6 +23,13 @@ const breakdown = (clusters: Cluster[]) => {
   const others = [...counts.keys()].filter((s) => !STATUS_ORDER.includes(s)).sort();
   return [...STATUS_ORDER, ...others].filter((s) => counts.has(s)).map((s) => `${counts.get(s)} ${s}`).join(" · ");
 };
+
+/** "3 Running · 1 Stopped", from the instance counts by status. */
+const instanceBreakdown = (byStatus: Record<string, number>) =>
+  Object.entries(byStatus)
+    .filter(([, n]) => n > 0)
+    .map(([s, n]) => `${n} ${s.charAt(0).toUpperCase()}${s.slice(1)}`)
+    .join(" · ");
 
 const StatCard: FC<{ id: string; title: string; to: string; children: ReactNode }> = ({ id, title, to, children }) => (
   <section className="p-card" aria-labelledby={id}>
@@ -39,7 +47,8 @@ const Dashboard: FC = () => {
   const clusters = useQuery({ queryKey: ["clusters"], queryFn: () => request<Cluster[]>("GET", "/api/v1/clusters") });
   const tenants = useQuery({ queryKey: ["tenants"], queryFn: () => request<Tenant[]>("GET", "/api/v1/tenants") });
   const users = useQuery({ queryKey: ["users"], queryFn: () => request<User[]>("GET", "/api/v1/users"), enabled: platformViewer });
-  const width = platformViewer ? 4 : 6;
+  const fleet = useQuery({ queryKey: ["fleet", "summary"], queryFn: () => request<FleetSummary>("GET", "/api/v1/fleet/summary") });
+  const width = platformViewer ? 3 : 4;
   const attention = (clusters.data ?? []).filter((c) => c.status !== "ready" && c.status !== "disabled").sort((a, b) => statusRank(a.status) - statusRank(b.status));
 
   return (
@@ -69,6 +78,21 @@ const Dashboard: FC = () => {
             </StatCard>
           </Col>
         ) : null}
+        <Col size={width}>
+          <StatCard id="dash-instances" title="Instances" to="/instances">
+            <Loaded query={fleet}>
+              {(s) => {
+                const breakdown = instanceBreakdown(s.instances.byStatus);
+                return (
+                  <>
+                    <p className="p-heading--2">{s.instances.total}</p>
+                    {breakdown ? <p className="ic-muted">{breakdown}</p> : null}
+                  </>
+                );
+              }}
+            </Loaded>
+          </StatCard>
+        </Col>
       </Row>
 
       <section aria-labelledby="dash-attention">
@@ -101,6 +125,33 @@ const Dashboard: FC = () => {
           }}
         </Loaded>
       </section>
+
+      {platformViewer ? (
+        <section aria-labelledby="dash-capacity">
+          <h2 id="dash-capacity" className="p-heading--4">
+            Capacity
+          </h2>
+          <Loaded query={fleet}>
+            {(s) => (
+              <MainTable
+                emptyStateMsg="No clusters to show."
+                headers={[{ content: "Cluster" }, { content: "Instances" }, { content: "CPU threads" }, { content: "Memory" }, { content: "Storage" }, { content: "Last read" }]}
+                rows={(s.clusters ?? []).map((c) => ({
+                  key: c.id,
+                  columns: [
+                    { content: <Link to={`/clusters/${c.id}`}>{c.name}</Link> },
+                    { content: `${c.running} / ${c.instances} running` },
+                    { content: c.cpuThreads },
+                    { content: <Meter used={c.memoryUsed} total={c.memoryTotal} label={`${c.name} memory`} /> },
+                    { content: <Meter used={c.storageUsed} total={c.storageTotal} label={`${c.name} storage`} /> },
+                    { content: c.inventoryError ? <span className="ic-negative" title={c.inventoryError}>Failed</span> : ago(c.inventoryAt) },
+                  ],
+                }))}
+              />
+            )}
+          </Loaded>
+        </section>
+      ) : null}
 
       {me?.tenants.length ? (
         <section aria-labelledby="dash-mine">

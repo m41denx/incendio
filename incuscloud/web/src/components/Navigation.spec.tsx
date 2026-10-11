@@ -19,7 +19,7 @@ test("tenant members see their tenants and clusters, not platform administration
   mockApi({ "GET /api/v1/me": [200, me({ platformRole: null, tenants: [{ id: "t1", slug: "acme", name: "Acme", role: "member" }] })] });
   renderAt(<Shell />);
   const l = await labels();
-  expect(l).toEqual(expect.arrayContaining(["Dashboard", "Clusters", "Tenants", "Profile"]));
+  expect(l).toEqual(expect.arrayContaining(["Dashboard", "Instances", "Clusters", "Tenants", "Profile"]));
   for (const hidden of ["Users", "Service accounts", "Audit log", "Gateway log"]) expect(l).not.toContain(hidden);
 });
 

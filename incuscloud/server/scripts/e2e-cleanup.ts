@@ -37,6 +37,7 @@ for (const u of (await api("GET", "/api/v1/users")) as Array<{ id: string; email
 // Projects are never deleted by the reconciler; remove the test ones (and their images) directly.
 for (const project of (await incus("project", "list", "-f", "csv", "-c", "n")).out.split("\n").map((l) => l.replace(/ \(current\)$/, "").trim())) {
   if (!project.startsWith(prefix)) continue;
+  for (const inst of (await incus("list", "--project", project, "-f", "csv", "-c", "n")).out.split("\n").filter(Boolean)) await incus("delete", "-f", inst, "--project", project);
   for (const img of (await incus("image", "list", "--project", project, "-f", "csv", "-c", "F")).out.split("\n").filter(Boolean)) await incus("image", "delete", img, "--project", project);
   const r = await incus("project", "delete", project);
   console.log(`project ${project} ${r.code === 0 ? "deleted" : "NOT deleted (not empty?)"}`);

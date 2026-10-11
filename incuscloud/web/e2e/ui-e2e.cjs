@@ -89,6 +89,15 @@ async function signIn(page, email, password) {
     check(true, "placed and ready on the cluster");
     await snap(page, "cluster");
 
+    // 5b. An instance in the tenant's project, launched through the gateway with the session (as Incendio does).
+    created.instance = `ui-${run}-c1`;
+    const launch = await page.request.post(`${base}/clusters/${clusterName}/1.0/instances?project=${slug}`, {
+      data: { name: created.instance, source: { type: "image", alias: "alpine/3.22", server: "https://images.linuxcontainers.org", protocol: "simplestreams" }, start: true },
+    });
+    const op = (await launch.json()).operation;
+    const done = await (await page.request.get(`${base}/clusters/${clusterName}${op}/wait?timeout=300`)).json();
+    check(done.metadata && done.metadata.status === "Success", `instance launched through the gateway (${done.metadata && done.metadata.status})`);
+
     // 6. The tenant page shows where it runs.
     await page.goto(`${base}/tenants/${created.tenantId}`);
     await page.getByRole("row").filter({ has: page.getByRole("link", { name: clusterName }) }).getByText("Ready").waitFor();
@@ -118,6 +127,18 @@ async function signIn(page, email, password) {
     await page.waitForFunction(() => document.title.includes("Incendio"), null, { timeout: 30000 });
     check(true, "console opens Incendio");
 
+    // 9b. The fleet: the dashboard's capacity and the cluster's members and storage.
+    await page.goto(`${base}/`);
+    await page.getByRole("heading", { name: "Capacity" }).waitFor();
+    await page.locator("table").getByRole("link", { name: clusterName }).waitFor();
+    check(true, "dashboard shows capacity per cluster");
+    await snap(page, "dashboard");
+    await page.locator("table").getByRole("link", { name: clusterName }).click();
+    await page.getByRole("heading", { name: "Members and storage" }).waitFor();
+    await page.locator("[role=meter]").first().waitFor();
+    check(true, "cluster page shows members and storage");
+    await snap(page, "cluster-capacity");
+
     // 10. Sign out.
     await page.goto(`${base}/`);
     await page.getByRole("button", { name: "Sign out" }).click();
@@ -143,6 +164,22 @@ async function signIn(page, email, password) {
     const port = new URL(base).port;
     check(!port || command.includes(`:${port} `), `member: profile shows the CLI command (${command.trim()})`);
     await snap(mp, "member-profile");
+
+    // 12. The member finds the instance in the fleet once the inventory has read it, and opens it.
+    for (let i = 0; i < 40; i++) {
+      await mp.goto(`${base}/instances?q=${created.instance}`);
+      // isVisible does not wait; give the list time to load before trying again.
+      if (await mp.getByRole("link", { name: created.instance }).waitFor({ timeout: 3000 }).then(() => true, () => false)) break;
+      await mp.waitForTimeout(2000);
+    }
+    await mp.getByRole("link", { name: created.instance }).waitFor({ timeout: 1000 });
+    check(true, "member: the instance is in the fleet search");
+    await snap(mp, "instances");
+    await mp.getByRole("link", { name: created.instance }).click();
+    await mp.getByRole("heading", { name: "Last 24 hours" }).waitFor();
+    await mp.getByRole("link", { name: "Open in console" }).waitFor();
+    check(true, "member: the instance page with its charts");
+    await snap(mp, "instance");
 
     check(errors.length === 0, `no page errors${errors.length ? `: ${errors.join(" | ")}` : ""}`);
     console.log("UI E2E OK");

@@ -111,3 +111,8 @@ test("only an unreadable instance list fails the pass", async () => {
   const c = stub({ "/1.0": { environment: { server_clustered: false, server_name: "solo" } } });
   await expect(collectInventory(c)).rejects.toThrow(/instances/);
 });
+
+test("a standalone server's location \"none\" is no location", async () => {
+  const c = stub({ ...common, "/1.0": { environment: { server_clustered: false, server_name: "solo" } }, "/1.0/instances?recursion=2&all-projects=true": [{ ...running, location: "none" }] });
+  expect((await collectInventory(c)).instances[0]!.location).toBe("");
+});
