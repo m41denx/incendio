@@ -164,3 +164,13 @@ test("relayed and refused requests are both reported", async () => {
   await Bun.sleep(20);
   expect(logged.map((r) => [r.principal?.id, r.status])).toEqual([[member.id, 200], [outsider.id, 403]]);
 });
+
+test("Incus documentation is relayed without credentials", async () => {
+  await call("/clusters/c1/documentation/index.html");
+  expect(fake.requests.at(-1)).toMatchObject({ url: "/documentation/index.html" });
+  expect(fake.requests.at(-1)!.headers.authorization).toBeUndefined();
+});
+
+test("without a UI directory, /ui is a 404", async () => {
+  expect((await call("/clusters/c1/ui/")).status).toBe(404);
+});

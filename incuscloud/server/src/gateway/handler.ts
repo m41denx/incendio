@@ -34,7 +34,9 @@ export interface GatewayDeps extends AppDeps {
   onRequest?: (r: GatewayRequest) => void;
 }
 
-const isAnonymousAllowed = (method: string, path: string) => method === "GET" && (path === "/1.0" || path.startsWith("/1.0?"));
+/** `GET /1.0` (clients learn the OIDC issuer from it) and Incus's static documentation. */
+const isAnonymousAllowed = (method: string, path: string) =>
+  (method === "GET" && (path === "/1.0" || path.startsWith("/1.0?"))) || ((method === "GET" || method === "HEAD") && path.startsWith("/documentation"));
 const ipOf = (req: IncomingMessage) => (req.socket.remoteAddress ?? "").replace(/^::ffff:/, "");
 
 /** Builds the fetch-style Request resolvePrincipal reads (headers only). */
@@ -71,7 +73,7 @@ export function createGateway(deps: GatewayDeps): GatewayHandler {
       if (e instanceof ApiError) return fail(e.status, e.message);
       throw e;
     }
-    const isUi = route.mode === "path" && !route.path.startsWith("/1.0");
+    const isUi = route.mode === "path" && /^\/ui(?:[/?]|$)/.test(route.path);
     if (!principal && !isUi && !isAnonymousAllowed(req.method ?? "", route.path)) return fail(401, "Sign in to IncusCloud first (send an access token)");
     // Upgrades are GETs, so the session's Origin rule for changes must be applied here.
     const viaSession = principal && !req.headers.authorization;

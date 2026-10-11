@@ -16,6 +16,7 @@ import { createGateway } from "./gateway/handler.ts";
 import { ClusterCache } from "./gateway/clusters-cache.ts";
 import { Upstreams } from "./gateway/relay.ts";
 import { RequestLog } from "./gateway/request-log.ts";
+import { serveUi } from "./gateway/ui.ts";
 
 /** Retries start-up steps whose dependency may still be starting (Hydra, OpenFGA). */
 async function retry<T>(what: string, fn: () => Promise<T>, attempts = 30): Promise<T> {
@@ -54,7 +55,14 @@ const appDeps = {
 };
 const app = createApp(appDeps);
 const requestLog = new RequestLog(db, { sampleReads: config.gatewaySampleReads });
-const gateway = createGateway({ ...appDeps, clusterDomain: config.clusterDomain, clusters: new ClusterCache(db), upstreams: new Upstreams(), onRequest: (r) => requestLog.record(r) });
+const gateway = createGateway({
+  ...appDeps,
+  clusterDomain: config.clusterDomain,
+  clusters: new ClusterCache(db),
+  upstreams: new Upstreams(),
+  onRequest: (r) => requestLog.record(r),
+  ui: config.uiDir ? (req, res, route, _cluster, principal) => serveUi(req, res, route, { uiDir: config.uiDir!, signedIn: !!principal }) : undefined,
+});
 const server = createFront({
   app,
   gateway,
