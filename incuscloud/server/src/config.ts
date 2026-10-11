@@ -21,6 +21,8 @@ export interface Config {
   gatewaySampleReads: number;
   /** Incendio's build (`packages/ui/build/ui`), served per cluster at /clusters/<name>/ui/. */
   uiDir?: string;
+  /** The platform UI's build (`incuscloud/web/build`), served at /. */
+  webDir?: string;
 }
 
 const url = z.url();
@@ -50,6 +52,7 @@ const schema = z
     IC_BOOTSTRAP_ADMIN_EMAIL: z.email().optional(),
     IC_BOOTSTRAP_ADMIN_PASSWORD: z.string().min(12).optional(),
     IC_UI_DIR: z.string().min(1).optional(),
+    IC_WEB_DIR: z.string().min(1).optional(),
     IC_GATEWAY_SAMPLE_READS: z.coerce.number().min(0).max(1).default(0),
     IC_LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
   })
@@ -90,5 +93,6 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
     logLevel: v.IC_LOG_LEVEL,
     gatewaySampleReads: v.IC_GATEWAY_SAMPLE_READS,
     uiDir: v.IC_UI_DIR,
+    webDir: v.IC_WEB_DIR,
   };
 }

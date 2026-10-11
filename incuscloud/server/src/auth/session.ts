@@ -79,10 +79,10 @@ export function sessionRoutes(deps: AuthDeps) {
   const { db, secretKey, secureCookies } = deps;
   const secure = secureCookies ? "; Secure" : "";
   const redirectUri = `${deps.publicUrl}/auth/callback`;
-  const redirect = (to: string, cookies: string[] = []) => {
+  const redirect = (to: string, cookies: string[] = [], status = 302) => {
     const h = new Headers({ location: to, "cache-control": "no-store" });
     for (const c of cookies) h.append("set-cookie", c);
-    return new Response(null, { status: 302, headers: h });
+    return new Response(null, { status, headers: h });
   };
 
   return new Elysia({ name: "sessions" })
@@ -130,9 +130,15 @@ export function sessionRoutes(deps: AuthDeps) {
         `${OAUTH_COOKIE}=; Path=/auth; HttpOnly; SameSite=Lax; Max-Age=0${secure}`,
       ]);
     })
-    .get("/auth/logout", async ({ query, request }) => {
-      // Hydra asks us to confirm a logout it started (RP-initiated or its own).
-      if (query.logout_challenge) return redirect(await deps.hydra.acceptLogout(String(query.logout_challenge)));
+    // Hydra asks us to confirm a logout it started (RP-initiated or its own).
+    .get("/auth/logout", async ({ query }) => {
+      if (!query.logout_challenge) throw new ApiError(400, "invalid_request", "Sign out with POST /auth/logout");
+      return redirect(await deps.hydra.acceptLogout(String(query.logout_challenge)));
+    })
+    // A POST, so other sites cannot sign users out (the session cookie is SameSite=Lax; Origin is checked).
+    .post("/auth/logout", async ({ request }) => {
+      const origin = request.headers.get("origin");
+      if (origin && origin !== new URL(deps.publicUrl).origin) throw new ApiError(403, "cross_origin", "Sign out from IncusCloud's own pages");
       const id = cookieOf(request, SESSION_COOKIE);
       let idToken: string | null = null;
       if (id) {
@@ -142,6 +148,6 @@ export function sessionRoutes(deps: AuthDeps) {
       const u = new URL(`${deps.hydraPublicUrl}/oauth2/sessions/logout`);
       u.searchParams.set("post_logout_redirect_uri", `${deps.publicUrl}/`);
       if (idToken) u.searchParams.set("id_token_hint", idToken);
-      return redirect(u.toString(), [`${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure}`]);
+      return redirect(u.toString(), [`${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure}`], 303);
     });
 }

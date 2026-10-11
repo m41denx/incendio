@@ -15,6 +15,8 @@ import { gatewayLogRoutes } from "./api/gateway-log.ts";
 /** Everything the HTTP app needs. */
 export interface AppDeps extends AuthDeps {
   authz: Authz;
+  /** Clusters are `<name>.<clusterDomain>` for API clients (spec D11). */
+  clusterDomain: string;
 }
 
 /** The platform's HTTP app: identity pages, sessions, platform API, health. */

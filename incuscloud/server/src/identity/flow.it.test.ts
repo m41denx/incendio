@@ -50,7 +50,7 @@ beforeAll(async () => {
     .use(principalPlugin(authDeps))
     .use(identityRoutes({ db, hydra, secureCookies: true }))
     .use(sessionRoutes(authDeps))
-    .use(meRoutes({ db }));
+    .use(meRoutes({ db, clusterDomain: "clusters.test", publicUrl: "https://127.0.0.1:7443" }));
   server = createFront({ app, tls: { cert: readFileSync(new URL("tls/server.crt", dev)), key: readFileSync(new URL("tls/server.key", dev)) } });
   await new Promise<void>((r) => server!.listen(7443, "127.0.0.1", r));
 });
@@ -118,7 +118,7 @@ live("browser sign-in creates a session that reaches the API", async () => {
   expect(me.url).toBe("https://127.0.0.1:7443/api/v1/me");
   expect(JSON.parse(me.body)).toMatchObject({ id: userId, kind: "user", email: "flow@example.com" });
 
-  const out = await b.go("https://127.0.0.1:7443/auth/logout");
+  const out = await b.go("https://127.0.0.1:7443/auth/logout", { method: "POST", form: {} });
   expect(out.url).toBe("https://127.0.0.1:7443/");
   const after = await b.go("https://127.0.0.1:7443/api/v1/me");
   expect(after.res.status).toBe(401);

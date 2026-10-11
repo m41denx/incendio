@@ -102,13 +102,22 @@ test("callback refuses tokens for unknown or disabled users", async () => {
 
 test("logout removes the session and goes through Hydra's logout", async () => {
   const id = valueOf(cookiesOf(await login()).ic_session!);
-  const r = await app.handle(new Request("https://cloud.test/auth/logout", { headers: { cookie: `ic_session=${id}` } }));
-  expect(r.status).toBe(302);
+  const r = await app.handle(new Request("https://cloud.test/auth/logout", { method: "POST", headers: { cookie: `ic_session=${id}`, origin: "https://cloud.test" } }));
+  expect(r.status).toBe(303);
   const loc = new URL(r.headers.get("location")!);
   expect(loc.origin + loc.pathname).toBe("https://id.test/oauth2/sessions/logout");
   expect(loc.searchParams.get("post_logout_redirect_uri")).toBe("https://cloud.test/");
   expect(cookiesOf(r).ic_session).toContain("Max-Age=0");
   expect(await db.select().from(sessions)).toEqual([]);
+});
+
+test("logout is a same-origin POST: other sites cannot sign users out, GET does not", async () => {
+  const id = valueOf(cookiesOf(await login()).ic_session!);
+  const cross = await app.handle(new Request("https://cloud.test/auth/logout", { method: "POST", headers: { cookie: `ic_session=${id}`, origin: "https://evil.test" } }));
+  expect(cross.status).toBe(403);
+  const get = await app.handle(new Request("https://cloud.test/auth/logout", { headers: { cookie: `ic_session=${id}` } }));
+  expect(get.status).toBe(400);
+  expect((await db.select().from(sessions)).length).toBe(1);
 });
 
 test("Hydra's logout challenge is accepted", async () => {

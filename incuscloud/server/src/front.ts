@@ -2,6 +2,7 @@ import { createServer, type Server } from "node:https";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { Readable, type Duplex } from "node:stream";
 import { log } from "./lib/log.ts";
+import { serveWeb } from "./web.ts";
 
 /**
  * Traffic the gateway owns (cluster API, host- or path-routed). It gets the
@@ -18,6 +19,8 @@ export interface FrontOptions {
   app: { handle(request: Request): Promise<Response> | Response };
   gateway?: GatewayHandler;
   tls: { cert: string | Buffer; key: string | Buffer };
+  /** The platform UI build, served at / (outside /api, /auth and the gateway's paths). */
+  web?: { dir: string };
 }
 
 /** Set by the front server to the peer address; never taken from the client. */
@@ -58,13 +61,14 @@ export async function writeResponse(res: ServerResponse, response: Response): Pr
 }
 
 /** The single HTTPS listener: gateway traffic to the gateway, the rest to the app. */
-export function createFront({ app, gateway, tls }: FrontOptions): Server {
+export function createFront({ app, gateway, tls, web }: FrontOptions): Server {
   const server = createServer({ cert: tls.cert, key: tls.key });
   // Node's default cuts any request after 300 s; image uploads and
   // `operations/<id>/wait` through the gateway legitimately take longer.
   server.requestTimeout = 0;
   server.on("request", (req, res) => {
     if (gateway?.match(req)) return gateway.request(req, res);
+    if (web && serveWeb(req, res, web)) return;
     const origin = `https://${req.headers.host ?? "localhost"}`;
     Promise.resolve(app.handle(toRequest(req, origin)))
       .then((response) => writeResponse(res, response))

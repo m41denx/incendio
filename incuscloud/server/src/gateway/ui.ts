@@ -1,20 +1,7 @@
-import { createReadStream, statSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { extname, resolve, sep } from "node:path";
+import { extname, resolve } from "node:path";
 import type { Route } from "./route.ts";
-
-const notFound = (res: ServerResponse) => {
-  res.writeHead(404, { "content-type": "text/plain" });
-  res.end("Not found");
-};
-
-const isFile = (p: string) => {
-  try {
-    return statSync(p).isFile();
-  } catch {
-    return false;
-  }
-};
+import { inside, isFile, notFound, sendFile } from "../lib/static.ts";
 
 /**
  * Serves Incendio for one cluster at `/clusters/<name>/ui/`. Incendio takes
@@ -28,16 +15,10 @@ export function serveUi(req: IncomingMessage, res: ServerResponse, route: Route,
     res.writeHead(301, { location: `${prefix}/ui/` });
     return res.end();
   }
-  let rel: string;
-  try {
-    rel = decodeURIComponent(pathOnly.slice("/ui/".length));
-  } catch {
-    return notFound(res);
-  }
+  const rel = pathOnly.slice("/ui/".length);
   const root = resolve(o.uiDir);
-  const file = resolve(root, rel || "index.html");
-  if (file !== root && !file.startsWith(root + sep)) return notFound(res);
-
+  const file = inside(root, rel || "index.html");
+  if (!file) return notFound(res);
   const isPage = !extname(rel) || rel.endsWith(".html");
   if (isPage && !o.signedIn) {
     res.writeHead(302, { location: `/auth/start?return_to=${encodeURIComponent(req.url ?? `${prefix}/ui/`)}` });
@@ -46,12 +27,5 @@ export function serveUi(req: IncomingMessage, res: ServerResponse, route: Route,
   const target = isFile(file) ? file : !extname(rel) ? resolve(root, "index.html") : null;
   if (!target || !isFile(target)) return notFound(res);
 
-  const asset = target.startsWith(resolve(root, "assets") + sep);
-  res.writeHead(200, {
-    "content-type": Bun.file(target).type,
-    "cache-control": asset ? "public, max-age=31536000, immutable" : "no-cache",
-    "x-content-type-options": "nosniff",
-  });
-  if (req.method === "HEAD") return res.end();
-  createReadStream(target).pipe(res);
+  sendFile(req, res, root, target);
 }

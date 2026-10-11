@@ -73,6 +73,7 @@ const appDeps = {
   publicUrl: config.publicUrl,
   hydraPublicUrl: config.hydra.publicUrl,
   secureCookies: config.publicUrl.startsWith("https://"),
+  clusterDomain: config.clusterDomain,
 };
 const app = createApp(appDeps);
 const requestLog = new RequestLog(db, { sampleReads: config.gatewaySampleReads });
@@ -89,6 +90,7 @@ const server = createFront({
   app,
   gateway,
   tls: { cert: readFileSync(config.tls.certFile), key: readFileSync(config.tls.keyFile) },
+  web: config.webDir ? { dir: config.webDir } : undefined,
 });
 if (serveApi) server.listen(config.listen.port, config.listen.host, () => log.info("listening", { ...config.listen, publicUrl: config.publicUrl }));
 

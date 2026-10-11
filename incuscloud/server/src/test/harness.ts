@@ -29,6 +29,7 @@ export async function harness() {
     publicUrl: "https://cloud.test",
     hydraPublicUrl: "https://id.test",
     secureCookies: true,
+    clusterDomain: "clusters.test",
   };
   const app = createApp(deps);
 
