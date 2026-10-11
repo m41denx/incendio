@@ -14,6 +14,8 @@ import { fleetRoutes } from "./api/fleet.ts";
 import { mobilityRoutes, type Inspect } from "./api/mobility.ts";
 import { jobsRoutes } from "./api/jobs.ts";
 import { replicationRoutes } from "./api/replication.ts";
+import { backupsRoutes } from "./api/backups.ts";
+import type { StoreFor } from "./backups/store.ts";
 import { gatewayLogRoutes } from "./api/gateway-log.ts";
 
 /** Everything the HTTP app needs. */
@@ -23,6 +25,8 @@ export interface AppDeps extends AuthDeps {
   clusterDomain: string;
   /** Reads both clusters for a migration pre-flight; tests replace it. */
   inspect?: Inspect;
+  /** Opens a backup target's store; tests replace it. */
+  storeFor?: StoreFor;
 }
 
 /** The platform's HTTP app: identity pages, sessions, platform API, health. */
@@ -43,5 +47,6 @@ export function createApp(deps: AppDeps) {
     .use(fleetRoutes(deps))
     .use(mobilityRoutes(deps))
     .use(jobsRoutes(deps))
-    .use(replicationRoutes(deps));
+    .use(replicationRoutes(deps))
+    .use(backupsRoutes(deps));
 }

@@ -23,6 +23,7 @@ import { FleetWorker } from "./fleet/worker.ts";
 import { JobRunner } from "./jobs/runner.ts";
 import { jobHandlers } from "./jobs/handlers.ts";
 import { scheduleReplication } from "./mobility/replication.ts";
+import { scheduleBackups } from "./backups/backup-job.ts";
 import { openClusterStore } from "./reconcile/cluster-store.ts";
 
 /** Retries start-up steps whose dependency may still be starting (Hydra, OpenFGA). */
@@ -71,7 +72,12 @@ const fleet =
     ? new FleetWorker({ db, secretKey: config.secretKey }, { holder: `${hostname()}/${process.pid}`, intervalMs: config.inventoryIntervalMs, retentionMs: config.metricsRetentionMs })
     : undefined;
 fleet?.start();
-const jobRunner = config.role !== "api" ? new JobRunner({ db, secretKey: config.secretKey }, { holder: `${hostname()}/${process.pid}`, handlers: jobHandlers(), concurrency: config.jobConcurrency, beforeTick: () => scheduleReplication(db) }) : undefined;
+// Schedulers queue due replication runs and backups before each pass.
+const scheduleDue = async () => {
+  await scheduleReplication(db);
+  await scheduleBackups(db);
+};
+const jobRunner = config.role !== "api" ? new JobRunner({ db, secretKey: config.secretKey }, { holder: `${hostname()}/${process.pid}`, handlers: jobHandlers(), concurrency: config.jobConcurrency, beforeTick: scheduleDue }) : undefined;
 jobRunner?.start();
 if (fleet) log.info("inventory started", { intervalMs: config.inventoryIntervalMs });
 
