@@ -9,6 +9,7 @@ import { CLIENT_IP_HEADER } from "../front.ts";
 import type { HydraAdminApi, HydraClientRef } from "./hydra-admin.ts";
 import { checkCredentials } from "./passwords.ts";
 import { devicePage, loginPage, messagePage } from "./pages.ts";
+import { LoginThrottle } from "./throttle.ts";
 
 export interface IdentityDeps {
   db: Db;
@@ -37,6 +38,9 @@ const ipOf = (req: Request) => req.headers.get(CLIENT_IP_HEADER) ?? "";
 
 /** Hydra's login, consent and device-verification pages (spec D2). */
 export function identityRoutes({ db, hydra, secureCookies }: IdentityDeps) {
+  const WINDOW_MS = 15 * 60_000;
+  const perEmail = new LoginThrottle({ limit: 10, windowMs: WINDOW_MS });
+  const perIp = new LoginThrottle({ limit: 50, windowMs: WINDOW_MS });
   const csrfCookie = (token: string) => `${CSRF_COOKIE}=${token}; Path=/auth; HttpOnly; SameSite=Strict; Max-Age=3600${secureCookies ? "; Secure" : ""}`;
   const withCsrf = (render: (csrf: string) => string, status = 200) => {
     const csrf = randomToken();
@@ -78,11 +82,22 @@ export function identityRoutes({ db, hydra, secureCookies }: IdentityDeps) {
         const challenge = String(form.challenge ?? "");
         const login = await hydra.getLogin(challenge);
         const email = String(form.email ?? "");
+        const emailKey = [email.trim().toLowerCase()];
+        const ipKey = [ipOf(request)];
+        const wait = Math.max(perEmail.retryAfterS(emailKey), perIp.retryAfterS(ipKey));
+        if (wait > 0) {
+          await audit(db, { actor: { type: "anonymous", id: email.slice(0, 200) }, action: "auth.login", result: "denied", detail: { reason: "throttled" }, ip: ipOf(request) });
+          const minutes = Math.ceil(wait / 60);
+          return html(messagePage("Too many attempts", `Too many attempts. Try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`), 429, { "retry-after": String(wait) });
+        }
         const user = await checkCredentials(db, email, String(form.password ?? ""));
         if (!user) {
+          perEmail.fail(emailKey);
+          perIp.fail(ipKey);
           await audit(db, { actor: { type: "anonymous", id: email.slice(0, 200) }, action: "auth.login", result: "denied", ip: ipOf(request) });
           return withCsrf((csrf) => loginPage({ challenge, csrf, email, error: "Wrong email or password", client: login.client.client_name }), 401);
         }
+        perEmail.clear(emailKey);
         await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
         await audit(db, { actor: { type: "user", id: user.id }, action: "auth.login", result: "success", detail: { client: login.client.client_id }, ip: ipOf(request) });
         return redirect(await hydra.acceptLogin(challenge, { subject: user.id, remember: true, remember_for: REMEMBER_S }));

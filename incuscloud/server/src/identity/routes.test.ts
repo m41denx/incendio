@@ -141,3 +141,16 @@ test("pages escape reflected input", async () => {
   const r = await app.handle(new Request(url(`/auth/device?device_challenge=D2&user_code=${encodeURIComponent('"><script>x</script>')}`)));
   expect(await r.text()).not.toContain("<script>x");
 });
+
+test("repeated failures are throttled, even with the right password afterwards", async () => {
+  const attempt = async (password: string, ip = "203.0.113.9") => {
+    const { cookie, token } = await csrfFrom(await app.handle(new Request(url("/auth/login?login_challenge=L1"))));
+    return app.handle(new Request(url("/auth/login"), { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded", cookie, "x-ic-client-ip": ip }, body: new URLSearchParams({ challenge: "L1", csrf: token, email: "ada@example.com", password }) }));
+  };
+  for (let i = 0; i < 10; i++) expect((await attempt("wrong")).status).toBe(401);
+  const blocked = await attempt("pw-good-123456");
+  expect(blocked.status).toBe(429);
+  expect(blocked.headers.get("retry-after")).toBeTruthy();
+  expect(await blocked.text()).toContain("Too many attempts");
+  expect(hydra.accepted).toEqual([]);
+});
