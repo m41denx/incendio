@@ -8,7 +8,10 @@ import type { JobHandler } from "./types.ts";
 /** Every job type the worker runs. */
 export function jobHandlers(): Record<string, JobHandler> {
   return {
-    migrate: migrateHandler(), replicate: replicateHandler(), failover: failoverHandler(), backup: backupHandler(),
+    migrate: migrateHandler(),
+    replicate: replicateHandler(),
+    failover: failoverHandler(),
+    backup: backupHandler(),
     restore: restoreHandler(),
     rebalance: rebalanceHandler(),
     evacuate: evacuateHandler(),

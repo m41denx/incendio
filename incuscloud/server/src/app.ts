@@ -15,6 +15,7 @@ import { mobilityRoutes, type Inspect } from "./api/mobility.ts";
 import { jobsRoutes } from "./api/jobs.ts";
 import { replicationRoutes } from "./api/replication.ts";
 import { backupsRoutes } from "./api/backups.ts";
+import { balancingRoutes, type ClientOf } from "./api/balancing.ts";
 import type { StoreFor } from "./backups/store.ts";
 import { gatewayLogRoutes } from "./api/gateway-log.ts";
 
@@ -27,6 +28,8 @@ export interface AppDeps extends AuthDeps {
   inspect?: Inspect;
   /** Opens a backup target's store; tests replace it. */
   storeFor?: StoreFor;
+  /** Opens a cluster's admin client (balancing plans); tests replace it. */
+  clientOf?: ClientOf;
 }
 
 /** The platform's HTTP app: identity pages, sessions, platform API, health. */
@@ -48,5 +51,6 @@ export function createApp(deps: AppDeps) {
     .use(mobilityRoutes(deps))
     .use(jobsRoutes(deps))
     .use(replicationRoutes(deps))
-    .use(backupsRoutes(deps));
+    .use(backupsRoutes(deps))
+    .use(balancingRoutes(deps));
 }
