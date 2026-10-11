@@ -140,3 +140,9 @@ test("the same input gives the same plan", () => {
   const input = { ...base, members: [member("a", 12), member("b", 2), member("c", 2)], guests: [guest("g1", "a", 2), guest("g2", "a", 2), guest("g3", "a", 2)] };
   expect(plan(input)).toEqual(plan(input));
 });
+
+test("when the busiest member has nothing it may give, the next busiest gives", () => {
+  // "a" just received "big" and keeps it (no guest moves twice): "b" gives "x" to "c".
+  const p = plan({ ...base, members: [member("a", 1), member("b", 12), member("c", 1)], guests: [guest("big", "b", 6), guest("x", "b", 2), guest("fixed", "a", 0, { hints: { balance: false } })] });
+  expect(moves(p)).toEqual(["big:b→a:balance", "x:b→c:balance"]);
+});

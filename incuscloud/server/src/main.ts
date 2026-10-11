@@ -24,6 +24,7 @@ import { JobRunner } from "./jobs/runner.ts";
 import { jobHandlers } from "./jobs/handlers.ts";
 import { scheduleReplication } from "./mobility/replication.ts";
 import { scheduleBackups } from "./backups/backup-job.ts";
+import { scheduleBalancing } from "./balancing/jobs.ts";
 import { openClusterStore } from "./reconcile/cluster-store.ts";
 
 /** Retries start-up steps whose dependency may still be starting (Hydra, OpenFGA). */
@@ -76,6 +77,7 @@ fleet?.start();
 const scheduleDue = async () => {
   await scheduleReplication(db);
   await scheduleBackups(db);
+  await scheduleBalancing(db);
 };
 const jobRunner = config.role !== "api" ? new JobRunner({ db, secretKey: config.secretKey }, { holder: `${hostname()}/${process.pid}`, handlers: jobHandlers(), concurrency: config.jobConcurrency, beforeTick: scheduleDue }) : undefined;
 jobRunner?.start();
