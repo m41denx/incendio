@@ -24,6 +24,7 @@ const detail = (who = me(), over: Parameters<typeof mockApi>[0] = {}) =>
     "GET /api/v1/tenants/t-1": [200, acme],
     "GET /api/v1/tenants/t-1/members": [200, [owner, dev]],
     "GET /api/v1/tenants/t-1/placements": [200, [where]],
+    "GET /api/v1/tenants/t-1/usage": [200, { quota: acme.quotas, used: { instances: 2, cpu: 0, memory: 0, disk: 0 }, clusters: [] }],
     ...over,
   });
 const renderDetail = () => renderAt(<TenantDetail />, { path: "/tenants/t-1", pattern: "/tenants/:id" });
@@ -81,7 +82,8 @@ test("the detail page shows members, where the tenant runs and its quotas", asyn
   renderDetail();
   expect(await screen.findByRole("link", { name: "prod" })).toHaveAttribute("href", "/clusters/c-1");
   expect(await screen.findByText("bob@example.com")).toBeInTheDocument();
-  expect(screen.getByText("10")).toBeInTheDocument();
+  // The quota with what is used of it.
+  expect(await screen.findByText(/^2 \/ 10 /)).toBeInTheDocument();
   for (const b of ["Add member", "Edit quotas", "Rename", "Delete tenant"]) expect(screen.queryByRole("button", { name: b })).not.toBeInTheDocument();
   expect(screen.queryByRole("link", { name: "Service accounts" })).not.toBeInTheDocument();
 });

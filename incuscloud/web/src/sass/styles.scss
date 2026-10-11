@@ -52,6 +52,11 @@
   width: 24rem;
 }
 
+/* A form on a page of its own: readable line lengths. */
+.ic-form-page {
+  max-width: 42rem;
+}
+
 .ic-mono {
   font-family: unquote($font-monospace);
 }

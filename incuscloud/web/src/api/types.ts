@@ -403,3 +403,49 @@ export interface BalancingSuggestion {
   toProject: string;
   reason: string;
 }
+
+/** What a project uses or may use, in Incus's units: counts, CPUs, bytes. */
+export interface ResourceUsage {
+  instances: number;
+  cpu: number;
+  memory: number;
+  disk: number;
+}
+
+/** GET /api/v1/tenants/:id/usage. `quota` is as set (memory and disk in GiB); usage and limits in bytes. */
+export interface TenantUsage {
+  quota: Quotas;
+  used: ResourceUsage;
+  clusters: Array<{
+    clusterId: string;
+    clusterName: string;
+    project: string;
+    status: string;
+    /** Null until the reconciler has read it. */
+    usage: ResourceUsage | null;
+    /** This project's share of the quota: its usage plus what the tenant has left. Null before the first pass. */
+    limits: Partial<ResourceUsage> | null;
+  }>;
+}
+
+/** GET /api/v1/images: aliases on the image server; `vm` when a VM image exists too. */
+export interface ImageChoice {
+  alias: string;
+  label: string;
+  vm: boolean;
+}
+
+/** POST /api/v1/tenants/:id/instances → a "create" Job (202). */
+export interface CreateInstanceRequest {
+  name: string;
+  image: string;
+  type?: "container" | "virtual-machine";
+  cpu: number;
+  memoryGiB: number;
+  diskGiB: number;
+  /** A cluster of the tenant; otherwise IncusCloud picks one. */
+  clusterId?: string;
+  /** Only clusters with these labels (e.g. { region: "eu" }). */
+  labels?: Record<string, string>;
+  start?: boolean;
+}

@@ -12,6 +12,7 @@ import PolicyList from "./pages/replication/PolicyList";
 import BackupList from "./pages/backups/BackupList";
 import TargetList from "./pages/backups/TargetList";
 import Suggestions from "./pages/balancing/Suggestions";
+import CreateInstance from "./pages/instances/CreateInstance";
 import ClusterList from "./pages/clusters/ClusterList";
 import ClusterDetail from "./pages/clusters/ClusterDetail";
 import TenantList from "./pages/tenants/TenantList";
@@ -27,6 +28,7 @@ export const AppRoutes: FC = () => (
     <Route element={<Shell />}>
       <Route index element={<Dashboard />} />
       <Route path="instances" element={<InstanceList />} />
+      <Route path="instances/new" element={<CreateInstance />} />
       <Route path="instances/:id" element={<InstanceDetail />} />
       <Route path="jobs" element={<JobList />} />
       <Route path="jobs/:id" element={<JobDetail />} />

@@ -11,9 +11,9 @@ const shortId = (id: string) => (id.length > 8 ? `${id.slice(0, 8)}…` : id);
 const str = (v: unknown) => (typeof v === "string" ? v : "");
 const cap = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s);
 
-const TYPE_LABELS: Record<string, string> = { migrate: "Migration", replicate: "Replication run", failover: "Failover", backup: "Backup", restore: "Restore", rebalance: "Rebalance", evacuate: "Member maintenance", "restore-member": "Member maintenance" };
+const TYPE_LABELS: Record<string, string> = { migrate: "Migration", replicate: "Replication run", failover: "Failover", backup: "Backup", restore: "Restore", create: "Create", rebalance: "Rebalance", evacuate: "Member maintenance", "restore-member": "Member maintenance" };
 /** Pages that list what a job type works on. */
-const TYPE_PAGES: Record<string, string> = { replicate: "/replication", failover: "/replication", backup: "/backups", restore: "/backups" };
+const TYPE_PAGES: Record<string, string> = { create: "/instances", replicate: "/replication", failover: "/replication", backup: "/backups", restore: "/backups" };
 /** Job types about one cluster: they link to its page. */
 const CLUSTER_TYPES = new Set(["rebalance", "evacuate", "restore-member"]);
 export const typeLabel = (type: string) => TYPE_LABELS[type] ?? type;
@@ -50,6 +50,7 @@ export function jobSummary(job: Job, clusterName: (id: string) => string | undef
   if (job.type === "backup") return `Back up ${place(p.clusterId, p.project, p.instanceName)}`;
   if (job.type === "restore") return `Restore to ${place(p.targetClusterId, p.targetProject, p.targetName)}`;
   const cluster = (id: unknown) => clusterName(str(id)) ?? shortId(str(id));
+  if (job.type === "create") return `Create ${place(p.clusterId, p.project, p.name)}`;
   if (job.type === "rebalance") return `Rebalance ${cluster(p.clusterId)}`;
   if (job.type === "evacuate") return `Evacuate ${str(p.member)} (${cluster(p.clusterId)})`;
   if (job.type === "restore-member") return `Restore ${str(p.member)} (${cluster(p.clusterId)})`;
@@ -108,6 +109,11 @@ export function resultOf(job: Job): ReactNode | null {
         <div>{`Transport: ${str(r.transport)}`}</div>
       </>
     );
+  }
+  if (job.type === "create") {
+    const p = job.payload;
+    const cpu = Number(p.cpu);
+    return <div>{`${str(p.image)}, ${cpu} CPU${cpu === 1 ? "" : "s"}, ${bytes(Number(p.memory))} memory, ${(Number(p.disk) / 1024 ** 3).toFixed(0)} GiB disk`}</div>;
   }
   if (job.type === "rebalance") {
     const n = (v: unknown) => (typeof v === "number" ? v.toFixed(1) : UNKNOWN);

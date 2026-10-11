@@ -153,3 +153,17 @@ test("an empty result with a search shows No instances match.", async () => {
   renderAt(<InstancesPage />, { path: "/instances?q=zzz" });
   expect(await screen.findByText("No instances match.")).toBeInTheDocument();
 });
+
+test("Create instance is offered to tenant members and platform operators, not to viewers", async () => {
+  const show = async (who: ReturnType<typeof me>) => {
+    mockApi({ "GET /api/v1/me": [200, who], "GET /api/v1/clusters": [200, [edge]], "GET /api/v1/tenants": [200, []], "GET /api/v1/instances": [200, list([])] });
+    const view = renderAt(<InstancesPage />, { path: "/instances" });
+    await screen.findByText(/No instances/);
+    const link = screen.queryByRole("link", { name: "Create instance" });
+    view.unmount();
+    return link?.getAttribute("href") ?? null;
+  };
+  expect(await show(me({ platformRole: null, tenants: [{ id: "t-1", slug: "acme", name: "Acme", role: "member" }] }))).toBe("/instances/new");
+  expect(await show(me({ platformRole: "operator", tenants: [] }))).toBe("/instances/new");
+  expect(await show(me({ platformRole: "viewer", tenants: [{ id: "t-1", slug: "acme", name: "Acme", role: "viewer" }] }))).toBeNull();
+});

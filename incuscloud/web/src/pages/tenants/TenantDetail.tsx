@@ -12,7 +12,8 @@ import { can, tenantRole, useMe } from "../../api/hooks";
 import type { Tenant, TenantPlacement } from "../../api/types";
 import ClusterStatus from "../clusters/ClusterStatus";
 import Members from "./Members";
-import { QUOTA_FIELDS, QuotaFields, type QuotaDraft, draftOf, draftValid, quotasOf } from "./quotas";
+import TenantUsage from "./TenantUsage";
+import { QuotaFields, type QuotaDraft, draftOf, draftValid, quotasOf } from "./quotas";
 import { roleName } from "./roles";
 
 const TenantDetail: FC = () => {
@@ -69,8 +70,8 @@ const TenantDetail: FC = () => {
                 ["Created", new Date(t.createdAt).toLocaleDateString()],
               ]}
             />
-            <h2 className="p-heading--4">Quotas</h2>
-            <KeyValues items={QUOTA_FIELDS.map((f) => [f.label, t.quotas[f.key]?.toString() ?? "No limit"])} />
+            <h2 className="p-heading--4">Quota</h2>
+            <TenantUsage tenantId={t.id} />
             {can(me, "operator") ? (
               <Button
                 onClick={() => {

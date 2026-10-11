@@ -43,6 +43,8 @@ const ClusterFilter: FC<{ value: string; onChange: (value: string) => void }> = 
 /** Every instance the caller can see, filtered by the URL parameters, a page at a time. */
 const InstancesPage: FC = () => {
   const { data: me } = useMe();
+  // Tenant members and up create in their tenants; platform operators in any.
+  const canCreate = can(me, "operator") || !!me?.tenants.some((t) => t.role !== "viewer");
   const platform = can(me, "viewer");
   const q = useUrlParam("q", 300);
   const cluster = useUrlParam("cluster");
@@ -71,7 +73,16 @@ const InstancesPage: FC = () => {
   const total = instances.data?.pages[0]?.total ?? 0;
 
   return (
-    <PageLayout title="Instances">
+    <PageLayout
+      title="Instances"
+      controls={
+        canCreate ? (
+          <Link className="p-button--positive u-no-margin--bottom" to="/instances/new">
+            Create instance
+          </Link>
+        ) : undefined
+      }
+    >
       <Row>
         <Col size={4}>
           <Input id="instances-q" type="search" label="Search" placeholder="Name, address, project…" value={q.draft} onChange={(e) => q.set(e.target.value)} />

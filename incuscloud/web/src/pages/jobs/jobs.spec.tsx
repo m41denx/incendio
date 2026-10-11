@@ -310,3 +310,15 @@ test("member evacuation and restore read as such", async () => {
   expect(await screen.findByText(/Evacuate d1 \(edge-2\)/)).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Member maintenance" })).toHaveAttribute("href", "/clusters/c-2");
 });
+
+test("a self-service create reads as such and links to the instances", async () => {
+  mockApi({
+    "GET /api/v1/me": [200, ownUser()],
+    "GET /api/v1/clusters": [200, clusters],
+    "GET /api/v1/jobs/j-9": [200, job({ id: "j-9", type: "create", state: "succeeded", finishedAt: new Date().toISOString(), payload: { tenantId: "t-1", clusterId: "c-1", project: "acme", name: "web", image: "debian/12", type: "container", cpu: 1, memory: 1073741824, disk: 10737418240, start: true }, result: { clusterId: "c-1", project: "acme", name: "web" } })],
+  });
+  renderAt(<JobDetail />, { path: "/jobs/j-9", pattern: "/jobs/:id" });
+  expect(await screen.findByText(/Create acme\/web \(edge-1\)/)).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Create" })).toHaveAttribute("href", "/instances");
+  expect(screen.getByText("debian/12, 1 CPU, 1.0 GiB memory, 10 GiB disk")).toBeInTheDocument();
+});
