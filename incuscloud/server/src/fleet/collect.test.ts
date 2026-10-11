@@ -102,9 +102,35 @@ test("instances: global addresses, summed counters, unknown disk as null, nothin
     netRx: 10,
     netTx: 20,
     addresses: ["10.0.0.5", "fd42::5"],
+    hints: {},
+    stateful: false,
   });
   expect(JSON.stringify(s)).not.toContain("never stored");
   expect(s.instances[1]).toMatchObject({ name: "db", status: "Stopped", cpuNs: null, memoryUsed: null, memoryTotal: null, diskUsed: null, netRx: null, netTx: null, addresses: [] });
+});
+
+test("balancing hints are the only config kept, and only well-formed ones", async () => {
+  const hinted = {
+    ...running,
+    type: "virtual-machine",
+    expanded_config: {
+      ...running.expanded_config,
+      "migration.stateful": "true",
+      "user.incuscloud.affinity": " web ",
+      "user.incuscloud.anti-affinity": "nodes",
+      "user.incuscloud.pin": "n1, n2,,",
+      "user.incuscloud.balance": "false",
+      "user.incuscloud.other": "dropped",
+      "user.note": "dropped",
+    },
+  };
+  const odd = { ...stopped, name: "odd", expanded_config: { "user.incuscloud.balance": "maybe", "user.incuscloud.affinity": "", "user.incuscloud.pin": " , " } };
+  const c = stub({ ...common, "/1.0/instances?recursion=2&all-projects=true": [hinted, odd], "/1.0": { environment: { server_clustered: false, server_name: "solo" } }, "/1.0/resources": { cpu: { total: 1 }, memory: { total: 1, used: 1 } } });
+  const s = await collectInventory(c);
+  expect(s.instances[0]!.hints).toEqual({ affinity: "web", antiAffinity: "nodes", pin: ["n1", "n2"], balance: false });
+  expect(s.instances[0]!.stateful).toBe(true);
+  expect(s.instances[1]!.hints).toEqual({});
+  expect(JSON.stringify(s)).not.toContain("dropped");
 });
 
 test("only an unreadable instance list fails the pass", async () => {

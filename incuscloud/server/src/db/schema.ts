@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import { bigint, bigserial, boolean, check, customType, index, integer, jsonb, pgTable, primaryKey, real, text, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import type { Hints } from "../balancing/engine.ts";
 
 const citext = customType<{ data: string }>({ dataType: () => "citext" });
 const created = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
@@ -237,6 +238,8 @@ export const instances = pgTable(
     netRxBps: real("net_rx_bps"),
     netTxBps: real("net_tx_bps"),
     addresses: jsonb("addresses").$type<string[]>().notNull().default([]),
+    /** Balancing hints from the instance's user.incuscloud.* keys. */
+    hints: jsonb("hints").$type<Hints>().notNull().default({}),
     /** Lower-case haystack for the global search. */
     search: text("search").notNull(),
     seenAt: timestamp("seen_at", { withTimezone: true }).notNull().defaultNow(),
@@ -407,6 +410,42 @@ export const backupPolicies = pgTable(
     unique("backup_policies_instance_target").on(t.clusterId, t.project, t.instanceName, t.targetId),
     check("backup_policies_interval", sql`${t.intervalS} between 3600 and 2592000`),
     check("backup_policies_keep", sql`${t.keep} between 1 and 365`),
+  ],
+);
+
+/**
+ * How one cluster's members are kept balanced (ProxLB's model). Excluded
+ * members are neither sources nor targets; instances in excluded projects
+ * never move.
+ */
+export const balancingPolicies = pgTable(
+  "balancing_policies",
+  {
+    clusterId: uuid("cluster_id")
+      .primaryKey()
+      .references(() => clusters.id, { onDelete: "cascade" }),
+    enabled: boolean("enabled").notNull().default(false),
+    method: text("method").$type<"memory" | "cpu" | "disk">().notNull().default("memory"),
+    mode: text("mode").$type<"used" | "assigned">().notNull().default("used"),
+    balanciness: integer("balanciness").notNull().default(10),
+    intervalS: integer("interval_s").notNull().default(3600),
+    maxMoves: integer("max_moves").notNull().default(5),
+    allowRestart: boolean("allow_restart").notNull().default(false),
+    excludeMembers: jsonb("exclude_members").$type<string[]>().notNull().default([]),
+    excludeProjects: jsonb("exclude_projects").$type<string[]>().notNull().default([]),
+    lastRunAt: timestamp("last_run_at", { withTimezone: true }),
+    lastSuccessAt: timestamp("last_success_at", { withTimezone: true }),
+    lastError: text("last_error").notNull().default(""),
+    lastJobId: uuid("last_job_id"),
+    updatedBy: text("updated_by").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check("balancing_policies_method", sql`${t.method} in ('memory', 'cpu', 'disk')`),
+    check("balancing_policies_mode", sql`${t.mode} in ('used', 'assigned')`),
+    check("balancing_policies_balanciness", sql`${t.balanciness} between 1 and 100`),
+    check("balancing_policies_interval", sql`${t.intervalS} between 300 and 86400`),
+    check("balancing_policies_max_moves", sql`${t.maxMoves} between 1 and 50`),
   ],
 );
 

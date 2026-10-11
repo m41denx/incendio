@@ -30,6 +30,8 @@ const inst = (project: string, name: string, over: Partial<InstanceSnapshot> = {
   netRx: 0,
   netTx: 0,
   addresses: [],
+  hints: {},
+  stateful: false,
   ...over,
 });
 const snap = (instances: InstanceSnapshot[], member = "n1"): Snapshot => ({

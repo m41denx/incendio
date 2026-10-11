@@ -59,6 +59,7 @@ export async function applySnapshot(db: Db, clusterId: string, clusterName: stri
         netRxBps: rate(i.netRx, p?.netRx, seconds),
         netTxBps: rate(i.netTx, p?.netTx, seconds),
         addresses: i.addresses,
+        hints: i.hints,
         search: searchText(clusterName, i),
         seenAt: now,
       };

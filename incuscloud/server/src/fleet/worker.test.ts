@@ -15,7 +15,7 @@ const one = (name: string): Snapshot => ({
   members: [],
   pools: [],
   networks: [],
-  instances: [{ project: "default", name, type: "container", status: "Stopped", location: "", description: "", architecture: "", createdAt: "", imageOs: "", imageRelease: "", limitsCpu: "", limitsMemory: "", cpuNs: null, memoryUsed: null, memoryTotal: null, diskUsed: null, netRx: null, netTx: null, addresses: [] }],
+  instances: [{ project: "default", name, type: "container", status: "Stopped", location: "", description: "", architecture: "", createdAt: "", imageOs: "", imageRelease: "", limitsCpu: "", limitsMemory: "", cpuNs: null, memoryUsed: null, memoryTotal: null, diskUsed: null, netRx: null, netTx: null, addresses: [], hints: {}, stateful: false }],
 });
 const collect = async (row: { name: string }) => {
   seen.push(row.name);

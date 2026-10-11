@@ -1,4 +1,5 @@
 import type { IncusAdminClient } from "../incus/admin-client.ts";
+import type { Hints } from "../balancing/engine.ts";
 import { ApiError } from "../lib/errors.ts";
 
 export interface MemberSnapshot {
@@ -34,6 +35,10 @@ export interface InstanceSnapshot {
   netRx: number | null;
   netTx: number | null;
   addresses: string[];
+  /** Balancing hints (user.incuscloud.*): the only instance config kept. */
+  hints: Hints;
+  /** A VM that can move live (migration.stateful). */
+  stateful: boolean;
 }
 
 export interface PoolSnapshot {
@@ -99,6 +104,23 @@ const maybe = <T>(c: Client, path: string): Promise<T | undefined> => get<T>(c, 
 const ACTIVE = new Set(["Running", "Frozen"]);
 const linkLocal = (a: string) => /^fe[89ab][0-9a-f]:/i.test(a);
 
+/** The balancing hints in an instance's config; malformed ones are ignored. */
+export function hintsOf(cfg: Record<string, string>): Hints {
+  const h: Hints = {};
+  const affinity = cfg["user.incuscloud.affinity"]?.trim();
+  if (affinity) h.affinity = affinity;
+  const anti = cfg["user.incuscloud.anti-affinity"]?.trim();
+  if (anti) h.antiAffinity = anti;
+  const pin = (cfg["user.incuscloud.pin"] ?? "")
+    .split(",")
+    .map((m) => m.trim())
+    .filter(Boolean);
+  if (pin.length) h.pin = pin;
+  const balance = cfg["user.incuscloud.balance"]?.trim().toLowerCase();
+  if (balance === "false" || balance === "true") h.balance = balance === "true";
+  return h;
+}
+
 function instanceOf(i: IncusInstance): InstanceSnapshot {
   const cfg = i.expanded_config ?? {};
   const st = ACTIVE.has(i.status) ? i.state : null;
@@ -127,6 +149,8 @@ function instanceOf(i: IncusInstance): InstanceSnapshot {
     netRx: st ? nics.reduce((a, n) => a + (n.counters?.bytes_received ?? 0), 0) : null,
     netTx: st ? nics.reduce((a, n) => a + (n.counters?.bytes_sent ?? 0), 0) : null,
     addresses: nics.flatMap((n) => (n.addresses ?? []).map((a) => a.address)).filter((a) => !linkLocal(a)),
+    hints: hintsOf(cfg),
+    stateful: i.type === "virtual-machine" && cfg["migration.stateful"] === "true",
   };
 }
 

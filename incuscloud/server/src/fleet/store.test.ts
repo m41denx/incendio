@@ -29,6 +29,8 @@ const inst = (over: Partial<InstanceSnapshot> = {}): InstanceSnapshot => ({
   netRx: 1000,
   netTx: 2000,
   addresses: ["10.0.0.5"],
+  hints: { affinity: "web" },
+  stateful: false,
   ...over,
 });
 const snap = (instances: InstanceSnapshot[], over: Partial<Snapshot> = {}): Snapshot => ({
@@ -50,7 +52,7 @@ test("first pass: rows written, no rates yet, the cluster marked synced", async 
   const { db, id } = await setup();
   expect(await applySnapshot(db, id, "Lab", snap([inst()]), t0, 24 * HOUR)).toEqual({ instances: 1 });
   const [i] = await db.select().from(instances);
-  expect(i).toMatchObject({ project: "acme", name: "web", cpuNs: 10e9, cpuCores: null, netRxBps: null, addresses: ["10.0.0.5"], seenAt: t0 });
+  expect(i).toMatchObject({ project: "acme", name: "web", cpuNs: 10e9, cpuCores: null, netRxBps: null, addresses: ["10.0.0.5"], hints: { affinity: "web" }, seenAt: t0 });
   expect(i!.search).toBe("web acme lab n1 front end ubuntu noble container running 10.0.0.5");
   const [c] = await db.select().from(clusters);
   expect(c).toMatchObject({ inventoryAt: t0, inventoryError: "" });
