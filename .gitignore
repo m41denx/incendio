@@ -98,3 +98,6 @@ haproxy-local.cfg
 
 # Kubernetes appliance release build output
 packages/k8s/appliance/dist/
+
+# IncusCloud: maintainer questions (local only)
+QUESTIONS.md
