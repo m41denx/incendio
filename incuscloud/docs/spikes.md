@@ -33,3 +33,41 @@ Consequences for the design:
 - Incus must trust the issuer's certificate: in production the issuer has a
   public certificate, or enrolment installs the CA on every member (Firecloud
   can do this).
+
+## B. Authenticating reverse proxy in Bun — YES, on node:https
+
+`spikes/proxy.ts`, local Incus behind it, stock `incus` 7.5.1 CLI.
+
+| Case | Result |
+|---|---|
+| REST through the proxy (bearer forwarded, no client cert) | Same answers as direct |
+| `incus remote add https://<proxy>/clusters/local` (**path prefix**) | **Fails**: the Go client drops the path and requests `/1.0`, `/` at the root |
+| `incus remote add https://local.<CLUSTER_DOMAIN>:9443` (**host routing**) + device login | Works; `incus list/query/exec/monitor/export/import/file push/pull` all work |
+| Unauthenticated `/1.0` | Passed through; Incus answers `untrusted` and sends `X-Incus-OIDC-*` on 401, which the CLI needs to start a login |
+| `incus exec` (websockets) | stdout, stdin and exit codes correct |
+| `incus file push/pull` 1 GiB | Uses **`Upgrade: sftp`** (raw TCP after 101, not a websocket). Works with a raw relay; sha256 matches; ~6 s each way; proxy peak RSS 84 MiB |
+| `incus export` 256 MB / `incus import` | Streamed both ways; peak RSS 90 MiB |
+| `incus monitor` (events websocket) | Events arrive |
+| Upgrade without a token | 401 from the proxy, nothing sent upstream |
+| Upgrade with a bad token | Incus's 401 relayed as a normal response |
+
+Findings that change the build:
+
+1. **`Bun.serve` cannot be the gateway's front.** It only supports websocket
+   upgrades; SFTP needs the raw socket after a 101. The gateway runs on
+   `node:https` (`upgrade` event → raw byte relay), which Bun implements.
+   Elysia (platform API) runs on its own listener or behind the same server.
+2. **Bun's `fetch` cannot pin Incus certificates**: with
+   `rejectUnauthorized: false` it never calls `checkServerIdentity` (both the
+   right and a wrong fingerprint were accepted), and a self-signed leaf is not
+   accepted as `ca`. Upstream connections use `node:https` with the SDK's
+   `PinnedAgent` (fingerprint checked before any byte, verified: wrong pin is
+   refused before the request is written).
+3. **The CLI sends GET bodies** (`incus query` sends `""`, `Content-Length: 3`).
+   Bun's `Request` drops GET bodies; forwarding the length without the bytes
+   hangs Incus. On node:http the body is piped as-is, so no special case.
+4. Websocket close codes 1005/1006 must not be forwarded (`ws` throws); with a
+   raw relay there is nothing to translate.
+5. **Host routing is the default for API clients** (D11): wildcard DNS
+   `*.<CLUSTER_DOMAIN>` and a wildcard certificate. Path routing stays for the
+   browser UI (Incendio derives `ROOT_PATH` from the path).
