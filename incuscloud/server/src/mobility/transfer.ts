@@ -20,17 +20,21 @@ export interface TransferOptions {
   live: boolean;
   /** Leave snapshots behind. */
   instanceOnly: boolean;
-  /** The source cluster's certificate, for the target to pin when it pulls. */
-  sourceCert: string;
-  /** auto: pull, and relay if the target cannot reach the source. */
-  transport: "auto" | "pull" | "relay";
+  /** The target cluster's certificate, for the source to pin when it connects. */
+  targetCert: string;
+  /**
+   * direct: the source connects to the target (Incus push mode; pull mode is
+   * refused in restricted projects). relay: the control plane carries the
+   * data. auto: direct, and relay when the source cannot reach the target.
+   */
+  transport: "auto" | "direct" | "relay";
   signal: AbortSignal;
   onProgress: (text: string) => Promise<void>;
 }
 
 const HIGH = 4 << 20;
 const POLL_S = 2;
-// A target that cannot reach the source says so in one of these ways.
+// A source that cannot reach the target says so in one of these ways.
 const UNREACHABLE = /unable to connect|dial tcp|connection refused|no route to host|i\/o timeout|network is unreachable|context deadline exceeded/i;
 
 /**
@@ -90,33 +94,48 @@ class TargetFailed extends ApiError {
     super(502, "migration_failed", `Target: ${reason}`);
   }
 }
+class SourceFailed extends ApiError {
+  constructor(readonly reason: string) {
+    super(502, "migration_failed", `Source: ${reason}`);
+  }
+}
 
 /**
  * Moves an instance's data from one cluster to another as Incus migration:
- * the target pulls from the source, or the control plane relays the
- * operation websockets between them (spike C). Resolves once the target has
- * the instance; the caller decides what happens to the source.
+ * the source connects to the target, or the control plane relays the
+ * operation websockets between them (spike C). The target always waits in
+ * push mode. Resolves once the target has the instance; the caller decides
+ * what happens to the source.
  */
-export async function transfer(o: TransferOptions): Promise<{ transport: "pull" | "relay" }> {
-  const startSource = async () => {
+export async function transfer(o: TransferOptions): Promise<{ transport: "direct" | "relay" }> {
+  const startSource = async (extra: Record<string, unknown> = {}) => {
     try {
-      return opOf(await o.src.request("POST", `/1.0/instances/${encodeURIComponent(o.name)}?project=${encodeURIComponent(o.srcProject)}`, { migration: true, live: o.live, instance_only: o.instanceOnly }));
+      return opOf(await o.src.request("POST", `/1.0/instances/${encodeURIComponent(o.name)}?project=${encodeURIComponent(o.srcProject)}`, { migration: true, live: o.live, instance_only: o.instanceOnly, ...extra }));
     } catch (e) {
-      throw new ApiError(502, "migration_failed", `Source: ${(e as Error).message}`);
+      throw new SourceFailed((e as Error).message);
     }
   };
-  const startTarget = async (source: Record<string, unknown>) =>
-    opOf(
-      await o.dst.request("POST", `/1.0/instances?project=${encodeURIComponent(o.dstProject)}`, {
-        ...o.request,
-        source: { type: "migration", refresh: o.refresh, live: o.live, instance_only: o.instanceOnly, ...source },
-      }),
-    );
+  const startTarget = async () => {
+    try {
+      return opOf(
+        await o.dst.request("POST", `/1.0/instances?project=${encodeURIComponent(o.dstProject)}`, {
+          ...o.request,
+          source: { type: "migration", mode: "push", refresh: o.refresh, live: o.live, instance_only: o.instanceOnly },
+        }),
+      );
+    } catch (e) {
+      throw new TargetFailed((e as Error).message);
+    }
+  };
 
-  /** Waits for the target operation, reporting progress; the callers cancel both sides when it throws. */
-  const waitTarget = async (dst: Op) => {
+  /** Waits for the target operation (and the source's, when it runs on its own), reporting progress. */
+  const waitTarget = async (dst: Op, src?: Op) => {
     for (;;) {
       if (o.signal.aborted) throw o.signal.reason;
+      if (src) {
+        const s = (await o.src.request<{ status: string; err: string }>("GET", src.path)).metadata;
+        if (s.status === "Failure" || s.status === "Cancelled") throw new SourceFailed(s.err || s.status);
+      }
       const r = await o.dst.request<{ status: string; err: string; metadata: unknown }>("GET", `${dst.path}/wait?timeout=${POLL_S}`);
       const { status, err, metadata } = r.metadata;
       if (status === "Success") return;
@@ -126,14 +145,14 @@ export async function transfer(o: TransferOptions): Promise<{ transport: "pull" 
     }
   };
 
-  const pull = async () => {
-    const src = await startSource();
-    let dst: Op | undefined;
+  const direct = async () => {
+    const dst = await startTarget();
+    let src: Op | undefined;
     try {
-      dst = await startTarget({ mode: "pull", operation: `${o.src.url}/1.0/operations/${src.id}`, certificate: o.sourceCert, secrets: src.secrets });
-      await waitTarget(dst);
+      src = await startSource({ target: { operation: `${o.dst.url}/1.0/operations/${dst.id}`, certificate: o.targetCert, secrets: dst.secrets } });
+      await waitTarget(dst, src);
     } catch (e) {
-      await Promise.allSettled([o.src.cancel(src.path), dst && !(e instanceof TargetFailed) ? o.dst.cancel(dst.path) : undefined]);
+      await Promise.allSettled([src && !(e instanceof SourceFailed) ? o.src.cancel(src.path) : undefined, e instanceof TargetFailed ? undefined : o.dst.cancel(dst.path)]);
       throw e;
     }
   };
@@ -142,7 +161,7 @@ export async function transfer(o: TransferOptions): Promise<{ transport: "pull" 
     const src = await startSource();
     let dst: Op;
     try {
-      dst = await startTarget({ mode: "push" });
+      dst = await startTarget();
     } catch (e) {
       await o.src.cancel(src.path).catch(() => {});
       throw e;
@@ -174,11 +193,11 @@ export async function transfer(o: TransferOptions): Promise<{ transport: "pull" 
     return { transport: "relay" };
   }
   try {
-    await pull();
-    return { transport: "pull" };
+    await direct();
+    return { transport: "direct" };
   } catch (e) {
-    if (o.transport === "auto" && !o.signal.aborted && e instanceof TargetFailed && UNREACHABLE.test(e.reason)) {
-      await o.onProgress("The target cannot reach the source; relaying through the control plane");
+    if (o.transport === "auto" && !o.signal.aborted && e instanceof SourceFailed && UNREACHABLE.test(e.reason)) {
+      await o.onProgress("The source cannot reach the target; relaying through the control plane");
       await relay();
       return { transport: "relay" };
     }

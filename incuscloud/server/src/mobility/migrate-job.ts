@@ -17,11 +17,11 @@ export interface MigratePayload {
   mode: "copy" | "move";
   live: boolean;
   pool?: string;
-  transport: "auto" | "pull" | "relay";
+  transport: "auto" | "direct" | "relay";
 }
 
 export interface MigrateDeps {
-  transfer?: (o: TransferOptions) => Promise<{ transport: "pull" | "relay" }>;
+  transfer?: (o: TransferOptions) => Promise<{ transport: "direct" | "relay" }>;
   sourceFacts?: typeof readSource;
   targetFacts?: typeof readTarget;
 }
@@ -67,7 +67,7 @@ export function migrateHandler(deps: MigrateDeps = {}): JobHandler {
     const wasRunning = source.status === "Running";
     let stoppedSource = false;
     let committed = false;
-    let transport: "pull" | "relay" = "pull";
+    let transport: "direct" | "relay" = "direct";
     try {
       if (p.mode === "move" && wasRunning && !p.live) {
         await ctx.progress({ stage: "stopping the source" });
@@ -85,7 +85,7 @@ export function migrateHandler(deps: MigrateDeps = {}): JobHandler {
         refresh: false,
         live: p.live,
         instanceOnly: false,
-        sourceCert: src.row.serverCert,
+        targetCert: dst.row.serverCert,
         transport: p.transport,
         signal: ctx.signal,
         onProgress: (message) => ctx.progress({ stage: "transferring", message }),

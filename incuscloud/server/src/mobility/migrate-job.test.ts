@@ -71,7 +71,7 @@ function setup(o: { status?: string; mode?: "copy" | "move"; target?: Partial<Ta
       if (o.transfer) await o.transfer(b, t.request);
       else b.instances[t.request.name] = { status: "Stopped", type: t.request.type, config: t.request.config };
       if (o.abort) throw abort.signal.reason;
-      return { transport: "pull" as const };
+      return { transport: "direct" as const };
     },
   });
   const ctx = {
@@ -94,7 +94,7 @@ beforeEach(async () => {
 
 test("move: stop, transfer, delete the source, start the target; inventories refreshed", async () => {
   const { a, b, run } = setup({});
-  expect(await run()).toEqual({ transport: "pull", targetClusterId: ids.b, targetProject: "acme", targetName: "web" });
+  expect(await run()).toEqual({ transport: "direct", targetClusterId: ids.b, targetProject: "acme", targetName: "web" });
   expect(log).toEqual(["A stop web", "transfer auto", "B start web", "A delete web"]);
   expect(a.instances.web).toBeUndefined();
   expect(b.instances.web!.status).toBe("Running");

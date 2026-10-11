@@ -32,7 +32,7 @@ const MigrationBody = t.Object({
   /** Platform operators only. */
   targetProject: t.Optional(t.String({ minLength: 1, maxLength: 63 })),
   pool: t.Optional(t.String({ minLength: 1, maxLength: 63 })),
-  transport: t.Optional(t.Union([t.Literal("auto"), t.Literal("pull"), t.Literal("relay")])),
+  transport: t.Optional(t.Union([t.Literal("auto"), t.Literal("direct"), t.Literal("relay")])),
 });
 type Body = typeof MigrationBody.static;
 
