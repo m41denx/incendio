@@ -18,6 +18,7 @@ Licensed under GPL-3.0 (see `LICENSE`).
 | P4 | Platform UI: clusters, tenants, users, service accounts, logs | done |
 | P5 | Fleet: inventory, metrics, global instance search, capacity | done |
 | P6 | Mobility: migration with pre-flight, jobs, replication, failover | done |
+| P7 | Backups: S3 targets, schedules with retention, restore anywhere | done |
 
 ## How it fits together
 
@@ -167,6 +168,33 @@ A policy keeps a stopped replica of an instance on another cluster:
 
 `server/scripts/mobility-e2e.ts` runs all of this between two live clusters.
 
+## Backups
+
+Instances are backed up to **S3 targets**: any S3-compatible store, path-style. Platform admins add targets under *Backup targets*:
+- The secret key is sealed with `IC_SECRET_KEY` and never returned.
+- *Check* writes, reads and deletes a probe object.
+
+A backup is a job: by hand from the instance page (*Back up now…*), or scheduled by a **policy** (*Backup schedule…*: every 1 h to 30 days, keeping the newest N). The cluster makes an Incus backup (a gzip tarball), which reaches the bucket one of two ways:
+- **Uploaded by the cluster** (`backup_s3_upload`). This needs the cluster to reach the S3 endpoint.
+- **Through the control plane**: streamed with backpressure, straight from the cluster with `direct_backup`, so nothing is stored on the cluster.
+
+*Automatic* tries the first and falls back to the second. A copy kept on the cluster is always removed, and expires after a day regardless.
+
+After a scheduled run succeeds, the policy's oldest ready backups beyond its count are deleted, object first. Manual backups, and those of a deleted policy, stay until deleted.
+
+**Restore** puts a backup on any cluster the caller may use, under a free name; an existing instance is never replaced. Optionally it is started.
+- Tenant owners and admins restore into the tenant's ready placements, including next to the original.
+- Platform operators restore anywhere and may pick the project and pool.
+
+Incus 7.5 cannot import a backup into a restricted project, which every tenant project is. The fix (2026-10-05) came after 7.5. So a restore into one works like this:
+1. The backup is imported into the control plane's own `incuscloud-restore` project on that cluster. Nothing there is started, and tenants have no access to it.
+2. It is migrated into the tenant project, which keeps file ownership right.
+3. The staged copy is always removed.
+
+Tenant projects get `restricted.backups=allow` from the reconciler; Incus blocks backups in restricted projects otherwise.
+
+`server/scripts/backups-e2e.ts` runs all of this against MinIO and two live clusters. A crashed upload can leave an incomplete multipart upload in the bucket; set a lifecycle rule that aborts those after a day.
+
 ## Configuration
 
 Settings are `IC_*` environment variables; `server/.env.example` lists them
@@ -239,6 +267,9 @@ All under `/api/v1`, bearer token or session cookie. Errors are
 | `POST instances/:id/migrations/preflight`, `POST instances/:id/migrations` | check, then start a move or copy to another cluster (202, a job) |
 | `GET jobs`, `GET jobs/:id`, `POST jobs/:id/cancel` | jobs: platform viewers see all, others their tenants' and their own |
 | `GET/POST replication-policies`, `GET/PATCH/DELETE replication-policies/:id`, `POST …/:id/run`, `POST …/:id/failover` | replication policies, a run now, a failover (jobs) |
+| `GET/POST backup-targets`, `PATCH/DELETE backup-targets/:id`, `POST …/:id/check` | S3 targets (platform admins; others see names) |
+| `POST instances/:id/backups`, `GET backups`, `GET/DELETE backups/:id`, `POST backups/:id/restore` | back up now, list, delete, restore (jobs) |
+| `GET/POST backup-policies`, `GET/PATCH/DELETE backup-policies/:id`, `POST …/:id/run` | backup schedules with retention |
 | `GET/POST service-accounts`, `POST service-accounts/:id/rotate`, `DELETE service-accounts/:id` | tenant admins for tenant accounts, platform admins otherwise |
 | `GET/POST clusters`, `GET/PATCH/DELETE clusters/:id` | platform admins enrol; tenants see clusters they are placed on |
 | `GET clusters/:id/tenants`, `PUT/DELETE clusters/:id/tenants/:tenantId` | platform operators place tenants |
