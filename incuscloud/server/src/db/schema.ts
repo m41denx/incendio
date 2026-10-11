@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { bigint, bigserial, boolean, check, customType, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { bigint, bigserial, boolean, check, customType, index, integer, jsonb, pgTable, primaryKey, real, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 
 const citext = customType<{ data: string }>({ dataType: () => "citext" });
 const created = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
@@ -31,6 +31,9 @@ export const clusters = pgTable("clusters", {
   /** Bumped by every request; the reconciler records the generation it served (clock-free). */
   reconcileGeneration: integer("reconcile_generation").notNull().default(0),
   reconciledGeneration: integer("reconciled_generation").notNull().default(0),
+  /** Last inventory pass (P5), successful or not; `inventoryError` is empty when it succeeded. */
+  inventoryAt: timestamp("inventory_at", { withTimezone: true }),
+  inventoryError: text("inventory_error").notNull().default(""),
 });
 
 /** Leader election between workers (one reconciler at a time). */
@@ -176,4 +179,114 @@ export const gatewayRequests = pgTable(
     ip: text("ip").notNull().default(""),
   },
   (t) => [index("gateway_requests_cluster_id_idx").on(t.clusterId, t.id), index("gateway_requests_actor_id_idx").on(t.actorId, t.id)],
+);
+
+// Fleet inventory (P5): what the worker last read from each cluster. Never written by the API.
+
+const clusterRef = () =>
+  uuid("cluster_id")
+    .notNull()
+    .references(() => clusters.id, { onDelete: "cascade" });
+const big = (name: string) => bigint(name, { mode: "number" });
+
+/** Cluster members; a standalone server is one member named after the server. */
+export const clusterMembers = pgTable(
+  "cluster_members",
+  {
+    clusterId: clusterRef(),
+    name: text("name").notNull(),
+    url: text("url").notNull().default(""),
+    status: text("status").notNull(),
+    roles: jsonb("roles").$type<string[]>().notNull().default([]),
+    architecture: text("architecture").notNull().default(""),
+    cpuThreads: integer("cpu_threads").notNull().default(0),
+    memoryTotal: big("memory_total").notNull().default(0),
+    memoryUsed: big("memory_used").notNull().default(0),
+    load1: real("load1"),
+    uptimeS: big("uptime_s"),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.clusterId, t.name] })],
+);
+
+/** Instances in every project; counters are Incus's, rates are derived between passes. */
+export const instances = pgTable(
+  "instances",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clusterId: clusterRef(),
+    project: text("project").notNull(),
+    name: text("name").notNull(),
+    type: text("type").notNull(),
+    status: text("status").notNull(),
+    location: text("location").notNull().default(""),
+    description: text("description").notNull().default(""),
+    architecture: text("architecture").notNull().default(""),
+    createdAtIncus: timestamp("created_at_incus", { withTimezone: true }),
+    imageOs: text("image_os").notNull().default(""),
+    imageRelease: text("image_release").notNull().default(""),
+    limitsCpu: text("limits_cpu").notNull().default(""),
+    limitsMemory: text("limits_memory").notNull().default(""),
+    cpuNs: big("cpu_ns"),
+    memoryUsed: big("memory_used"),
+    memoryTotal: big("memory_total"),
+    diskUsed: big("disk_used"),
+    netRx: big("net_rx"),
+    netTx: big("net_tx"),
+    cpuCores: real("cpu_cores"),
+    netRxBps: real("net_rx_bps"),
+    netTxBps: real("net_tx_bps"),
+    addresses: jsonb("addresses").$type<string[]>().notNull().default([]),
+    /** Lower-case haystack for the global search. */
+    search: text("search").notNull(),
+    seenAt: timestamp("seen_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique("instances_cluster_project_name").on(t.clusterId, t.project, t.name), index("instances_cluster_id_idx").on(t.clusterId)],
+);
+
+/** Storage pools per member (space is per member for local drivers). */
+export const storagePools = pgTable(
+  "storage_pools",
+  {
+    clusterId: clusterRef(),
+    member: text("member").notNull(),
+    name: text("name").notNull(),
+    driver: text("driver").notNull(),
+    status: text("status").notNull(),
+    spaceTotal: big("space_total"),
+    spaceUsed: big("space_used"),
+  },
+  (t) => [primaryKey({ columns: [t.clusterId, t.member, t.name] })],
+);
+
+export const networks = pgTable(
+  "networks",
+  {
+    clusterId: clusterRef(),
+    project: text("project").notNull(),
+    name: text("name").notNull(),
+    type: text("type").notNull(),
+    managed: boolean("managed").notNull(),
+    status: text("status").notNull().default(""),
+    description: text("description").notNull().default(""),
+  },
+  (t) => [primaryKey({ columns: [t.clusterId, t.project, t.name] })],
+);
+
+/** Short metrics history (pruned after IC_METRICS_RETENTION): `ref` is an instance id or a member name. */
+export const metricsSamples = pgTable(
+  "metrics_samples",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+    clusterId: clusterRef(),
+    kind: text("kind").$type<"instance" | "member">().notNull(),
+    ref: text("ref").notNull(),
+    cpuCores: real("cpu_cores"),
+    memoryUsed: big("memory_used"),
+    netRxBps: real("net_rx_bps"),
+    netTxBps: real("net_tx_bps"),
+    load1: real("load1"),
+  },
+  (t) => [index("metrics_samples_ref_idx").on(t.kind, t.ref, t.at), index("metrics_samples_at_idx").on(t.at), check("metrics_samples_kind", sql`${t.kind} in ('instance', 'member')`)],
 );
