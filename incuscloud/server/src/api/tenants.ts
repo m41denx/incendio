@@ -1,7 +1,7 @@
 import { Elysia, t } from "elysia";
 import { and, eq } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
-import { placements, serviceAccounts, tenantMembers, tenants, users } from "../db/schema.ts";
+import { clusters, placements, serviceAccounts, tenantMembers, tenants, users } from "../db/schema.ts";
 import type { Authz } from "../authz/platform.ts";
 import { tuples } from "../authz/sync.ts";
 import { can, forbidden, needVisible, notFound, platformCan } from "../authz/guards.ts";
@@ -119,6 +119,15 @@ export function tenantsRoutes({ db, authz, hydra }: { db: Db; authz: Authz; hydr
         });
       });
       return noContent(set);
+    })
+    .get("/api/v1/tenants/:id/placements", async ({ principal, params }) => {
+      await load(authed(principal), params.id, "viewer");
+      return db
+        .select({ clusterId: placements.clusterId, clusterName: clusters.name, project: placements.project, status: placements.status, statusMessage: placements.statusMessage, createdAt: placements.createdAt })
+        .from(placements)
+        .innerJoin(clusters, eq(clusters.id, placements.clusterId))
+        .where(eq(placements.tenantId, params.id))
+        .orderBy(clusters.name);
     })
     .get("/api/v1/tenants/:id/members", async ({ principal, params }) => {
       await load(authed(principal), params.id, "viewer");

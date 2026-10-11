@@ -108,3 +108,13 @@ export interface GatewayRequest {
   durationMs: number;
   ip: string;
 }
+
+/** Where a tenant runs: GET /api/v1/tenants/:id/placements. */
+export interface TenantPlacement {
+  clusterId: string;
+  clusterName: string;
+  project: string;
+  status: string;
+  statusMessage: string;
+  createdAt: string;
+}

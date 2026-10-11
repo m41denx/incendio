@@ -2,29 +2,32 @@ import type { FC } from "react";
 import { Route, Routes } from "react-router-dom";
 import Shell from "./components/Shell";
 import NotFound from "./pages/NotFound";
-import PageLayout from "./components/PageLayout";
+import Dashboard from "./pages/Dashboard";
+import Profile from "./pages/Profile";
+import ClusterList from "./pages/clusters/ClusterList";
+import ClusterDetail from "./pages/clusters/ClusterDetail";
+import TenantList from "./pages/tenants/TenantList";
+import TenantDetail from "./pages/tenants/TenantDetail";
 import UserList from "./pages/users/UserList";
 import UserDetail from "./pages/users/UserDetail";
-
-// Filled in by the following tasks of the P4 plan.
-const Pending: FC<{ title: string }> = ({ title }) => (
-  <PageLayout title={title}>
-    <p className="ic-muted">Not built yet.</p>
-  </PageLayout>
-);
+import ServiceAccountList from "./pages/service-accounts/ServiceAccountList";
+import AuditLog from "./pages/logs/AuditLog";
+import GatewayLog from "./pages/logs/GatewayLog";
 
 export const AppRoutes: FC = () => (
   <Routes>
     <Route element={<Shell />}>
-      <Route index element={<Pending title="Dashboard" />} />
-      <Route path="clusters" element={<Pending title="Clusters" />} />
-      <Route path="tenants" element={<Pending title="Tenants" />} />
+      <Route index element={<Dashboard />} />
+      <Route path="clusters" element={<ClusterList />} />
+      <Route path="clusters/:id" element={<ClusterDetail />} />
+      <Route path="tenants" element={<TenantList />} />
+      <Route path="tenants/:id" element={<TenantDetail />} />
       <Route path="users" element={<UserList />} />
       <Route path="users/:id" element={<UserDetail />} />
-      <Route path="service-accounts" element={<Pending title="Service accounts" />} />
-      <Route path="audit" element={<Pending title="Audit log" />} />
-      <Route path="gateway-log" element={<Pending title="Gateway log" />} />
-      <Route path="profile" element={<Pending title="Profile" />} />
+      <Route path="service-accounts" element={<ServiceAccountList />} />
+      <Route path="audit" element={<AuditLog />} />
+      <Route path="gateway-log" element={<GatewayLog />} />
+      <Route path="profile" element={<Profile />} />
       <Route path="*" element={<NotFound />} />
     </Route>
   </Routes>

@@ -46,9 +46,21 @@
   font-family: unquote($font-monospace);
 }
 
+// Long identifiers in table cells (paths, ids): wrap anywhere instead of clipping.
+.ic-wrap {
+  display: block;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  word-break: break-all;
+}
+
 .ic-secret {
   font-family: unquote($font-monospace);
   overflow-wrap: anywhere;
+}
+
+.ic-negative {
+  color: $color-negative;
 }
 
 .ic-muted {

@@ -20,5 +20,14 @@ const RANK: Record<PlatformRole, number> = { viewer: 1, operator: 2, admin: 3 };
 /** Whether the caller holds at least this platform role. */
 export const can = (me: Me | undefined, level: PlatformRole) => !!me?.platformRole && RANK[me.platformRole] >= RANK[level];
 
+/**
+ * A cluster's API address for API clients (`<name>.<clusterDomain>`, spec D11),
+ * on the public URL's port when it is not the default.
+ */
+export function clusterApiUrl(me: Pick<Me, "clusterDomain" | "publicUrl"> | undefined, name: string): string {
+  const port = me ? new URL(me.publicUrl).port : "";
+  return `https://${name}.${me?.clusterDomain ?? ""}${port ? `:${port}` : ""}`;
+}
+
 /** The caller's role in a tenant, if a member. */
 export const tenantRole = (me: Me | undefined, tenantId: string): TenantRole | undefined => me?.tenants.find((t) => t.id === tenantId)?.role;

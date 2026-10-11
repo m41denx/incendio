@@ -36,3 +36,9 @@ test("withQuery leaves out empty values", () => {
   expect(withQuery("/x", { a: "1", b: "", c: undefined, d: 0 })).toBe("/x?a=1&d=0");
   expect(withQuery("/x", {})).toBe("/x");
 });
+
+test("cluster API URLs carry the public URL's port when it is not the default", async () => {
+  const { clusterApiUrl } = await import("./hooks");
+  expect(clusterApiUrl({ clusterDomain: "clusters.example", publicUrl: "https://cloud.example" }, "prod")).toBe("https://prod.clusters.example");
+  expect(clusterApiUrl({ clusterDomain: "127.0.0.1.nip.io", publicUrl: "https://10.0.0.1:7443" }, "lab")).toBe("https://lab.127.0.0.1.nip.io:7443");
+});

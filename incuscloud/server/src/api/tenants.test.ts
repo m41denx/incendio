@@ -1,6 +1,7 @@
 import { beforeEach, expect, test } from "bun:test";
 import { clusters, placements } from "../db/schema.ts";
 import { harness, type Actor } from "../test/harness.ts";
+import { FakeIncus } from "../clusters/fake-incus.ts";
 
 let h: Awaited<ReturnType<typeof harness>>;
 let op: Actor;
@@ -114,4 +115,22 @@ test("tenants placed on clusters cannot be deleted", async () => {
   await h.db.delete(placements);
   expect((await h.call(admin, "DELETE", `/api/v1/tenants/${t.id}`)).status).toBe(204);
   expect(await h.authz.check(`user:${admin.id}`, "admin", `tenant:${t.id}`)).toBe(false);
+});
+
+test("a tenant's placements: where it runs, for anyone who can see the tenant", async () => {
+  const fake = await new FakeIncus().start();
+  try {
+    const admin = await h.user("pa@example.com", { platformRole: "admin" });
+    const c = (await h.call(admin, "POST", "/api/v1/clusters", { name: "c1", token: fake.token() })).body;
+    const t = await h.tenant("acme");
+    const viewer = await h.user("tv@example.com", { tenants: { [t.id]: "viewer" } });
+    const outsider = await h.user("o@example.com");
+    await h.call(admin, "PUT", `/api/v1/clusters/${c.id}/tenants/${t.id}`);
+    const r = await h.call(viewer, "GET", `/api/v1/tenants/${t.id}/placements`);
+    expect(r.status).toBe(200);
+    expect(r.body).toEqual([expect.objectContaining({ clusterId: c.id, clusterName: "c1", project: "acme", status: "pending", statusMessage: "" })]);
+    expect((await h.call(outsider, "GET", `/api/v1/tenants/${t.id}/placements`)).status).toBe(404);
+  } finally {
+    fake.stop();
+  }
 });

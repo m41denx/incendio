@@ -135,6 +135,7 @@ All under `/api/v1`, bearer token or session cookie. Errors are
 | `GET/POST users`, `GET/PATCH/DELETE users/:id` | platform admin (viewers read) |
 | `GET/POST tenants`, `GET/PATCH/DELETE tenants/:id` | operators create; tenant admins rename; operators set quotas; owners delete |
 | `GET tenants/:id/members`, `POST tenants/:id/members` (by email), `PUT/DELETE tenants/:id/members/:userId` | tenant admins; owners manage owners |
+| `GET tenants/:id/placements` | anyone who can see the tenant: its clusters, projects and their status |
 | `GET/POST service-accounts`, `POST service-accounts/:id/rotate`, `DELETE service-accounts/:id` | tenant admins for tenant accounts, platform admins otherwise |
 | `GET/POST clusters`, `GET/PATCH/DELETE clusters/:id` | platform admins enrol; tenants see clusters they are placed on |
 | `GET clusters/:id/tenants`, `PUT/DELETE clusters/:id/tenants/:tenantId` | platform operators place tenants |
