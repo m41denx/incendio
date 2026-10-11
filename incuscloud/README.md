@@ -15,6 +15,7 @@ Licensed under GPL-3.0 (see `LICENSE`).
 | P1 | Server core: config, database, identity, sessions, authorization, platform API, cluster enrolment | done |
 | P2 | Gateway: authenticated pass-through to each cluster's API, Incendio per cluster | done |
 | P3 | Reconciler: cluster OIDC/OpenFGA configuration, tenant projects | done |
+| P4 | Platform UI: clusters, tenants, users, service accounts, logs | done |
 
 ## How it fits together
 
@@ -78,6 +79,27 @@ itself:
 A tenant member's token works directly against the cluster, with the same
 limits as through the gateway.
 
+## Platform UI
+
+`incuscloud/web` (`@incuscloud/web`) is the platform's web UI: sign in at
+`https://<public>/` and manage clusters (enrol, place tenants, reconcile,
+console links), tenants (quotas, members, where they run), users, service
+accounts (the secret is shown once) and the audit and gateway logs. What
+each person sees follows their roles; the API decides every request. The
+per-cluster console remains Incendio at `/clusters/<name>/ui/`.
+
+```sh
+cd incuscloud/web
+bun run build        # → build/, served at / when IC_WEB_DIR points at it
+bun run watch        # rebuild on change while scripts/dev.sh serves it
+bun run test         # component tests (Vitest, jsdom)
+```
+
+`e2e/ui-e2e.cjs` drives a real browser (Playwright) through sign-in,
+creating a user and a tenant, placing it on a cluster, a service account,
+the console and a tenant member's view; `server/scripts/e2e-cleanup.ts`
+removes what it created.
+
 ## Configuration
 
 Settings are `IC_*` environment variables; `server/.env.example` lists them
@@ -90,6 +112,7 @@ all. The reconciler's settings:
   Default: `IC_OPENFGA_URL`.
 - `IC_OPENFGA_CLUSTER_TOKEN`: the API token clusters use. Default:
   `IC_OPENFGA_TOKEN`. See [Security notes](#security-notes).
+- `IC_WEB_DIR`: the platform UI build (`incuscloud/web/build`), served at `/`.
 - `IC_RECONCILE_INTERVAL`: seconds, 10..86400, default 60. Each cluster is
   reconciled at least this often, and right after any API change that affects it.
 
