@@ -56,7 +56,16 @@ export class FakeIncus {
   slowClosed = 0;
   /** Server config (`GET/PATCH /1.0`), projects and their profiles, pools and networks, for reconciler tests. */
   config: Record<string, string> = {};
-  projects = new Map<string, { config: Record<string, string>; description: string; profiles: Map<string, { config: Record<string, string>; devices: Record<string, Record<string, string>> }> }>([
+  projects = new Map<
+    string,
+    {
+      config: Record<string, string>;
+      description: string;
+      profiles: Map<string, { config: Record<string, string>; devices: Record<string, Record<string, string>> }>;
+      /** What `GET /1.0/projects/<p>/state` reports as used; none when unset. */
+      usage?: Record<"instances" | "cpu" | "memory" | "disk", number>;
+    }
+  >([
     ["default", { config: {}, description: "Default Incus project", profiles: new Map([["default", { config: {}, devices: { root: { type: "disk", path: "/", pool: "local" }, eth0: { type: "nic", name: "eth0", network: "incusbr0" } } }]]) }],
   ]);
   pools = [{ name: "local", driver: "dir" }];
@@ -143,6 +152,14 @@ export class FakeIncus {
           this.projects.set(b.name, { config: b.config ?? {}, description: b.description ?? "", profiles: new Map([["default", { config: {}, devices: {} }]]) });
           return sync({});
         }
+        const ps = u.pathname.match(/^\/1\.0\/projects\/([^/]+)\/state$/);
+        if (admin && ps && req.method === "GET") {
+          const p = this.projects.get(decodeURIComponent(ps[1]!));
+          if (!p) return fail(404, "Project not found");
+          const used = p.usage ?? { instances: 0, cpu: 0, memory: 0, disk: 0 };
+          const limit = (k: string) => (p.config[`limits.${k}`] ? Number(p.config[`limits.${k}`]) : -1);
+          return sync({ resources: Object.fromEntries((["instances", "cpu", "memory", "disk", "networks"] as const).map((k) => [k, { Limit: limit(k), Usage: k === "networks" ? 0 : used[k] }])) });
+        }
         const pm = u.pathname.match(/^\/1\.0\/projects\/([^/]+)$/);
         if (admin && pm) {
           const p = this.projects.get(decodeURIComponent(pm[1]!));
@@ -150,6 +167,11 @@ export class FakeIncus {
           if (req.method === "GET") return sync({ name: pm[1], config: p.config, description: p.description });
           if (req.method === "PATCH") {
             this.patches.push({ path: u.pathname, body: body() });
+            // Incus refuses a limit below what the project already uses.
+            for (const [k, v] of Object.entries(body().config ?? {})) {
+              const key = k.replace(/^limits\./, "") as "instances" | "cpu" | "memory" | "disk";
+              if (k.startsWith("limits.") && v !== "" && p.usage && key in p.usage && Number(v) < p.usage[key]) return fail(400, `Invalid limit ${k}: below current usage`);
+            }
             for (const [k, v] of Object.entries(body().config ?? {})) {
               if (v === "") delete p.config[k];
               else p.config[k] = String(v);

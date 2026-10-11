@@ -8,7 +8,8 @@ import type { Tuple } from "../authz/platform.ts";
 import type { ClusterStore, ClusterStoreConfig } from "./cluster-store.ts";
 import { desiredGrants, diffTuples, type GrantFacts } from "./grants.ts";
 import { clusterConfigFor, ensureServerConfig } from "./incus-config.ts";
-import { ensureDefaultProfile, ensureProject } from "./projects.ts";
+import { ensureDefaultProfile, ensureProject, projectUsage } from "./projects.ts";
+import { splitLimits } from "../tenants/quota.ts";
 
 export interface ReconcileDeps {
   db: Db;
@@ -98,8 +99,15 @@ async function ensurePlacements(deps: ReconcileDeps, clusterId: string, client: 
     let status = "ready";
     let message = "";
     let foreign = false;
+    const here = and(eq(placements.tenantId, p.tenantId), eq(placements.clusterId, clusterId));
     try {
-      await ensureProject(client, p.project, { id: p.tenantId, slug: p.slug, quotas: p.quotas });
+      // This project's usage now, then its share of what the tenant has left across its placements (P9).
+      const usage = await projectUsage(client, p.project);
+      await deps.db.update(placements).set({ usage }).where(here);
+      const all = await deps.db.select({ clusterId: placements.clusterId, usage: placements.usage }).from(placements).where(eq(placements.tenantId, p.tenantId));
+      const limits = splitLimits(p.quotas, all.map((x) => x.usage))[all.findIndex((x) => x.clusterId === clusterId)]!;
+      await ensureProject(client, p.project, { id: p.tenantId, slug: p.slug }, limits);
+      await deps.db.update(placements).set({ limits }).where(here);
       await ensureDefaultProfile(client, p.project, p.quotas);
     } catch (e) {
       status = "error";
@@ -109,10 +117,7 @@ async function ensurePlacements(deps: ReconcileDeps, clusterId: string, client: 
     }
     // Never grant on a project that is not this tenant's; transient failures keep existing grants.
     if (!foreign) placed.push({ tenantId: p.tenantId, project: p.project });
-    await deps.db
-      .update(placements)
-      .set({ status, statusMessage: message })
-      .where(and(eq(placements.tenantId, p.tenantId), eq(placements.clusterId, clusterId)));
+    await deps.db.update(placements).set({ status, statusMessage: message }).where(here);
   }
   return placed;
 }

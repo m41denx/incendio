@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import { bigint, bigserial, boolean, check, customType, index, integer, jsonb, pgTable, primaryKey, real, text, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import type { Hints } from "../balancing/engine.ts";
+import type { Limits, Usage } from "../tenants/quota.ts";
 
 const citext = customType<{ data: string }>({ dataType: () => "citext" });
 const created = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
@@ -127,6 +128,10 @@ export const placements = pgTable(
     project: text("project").notNull(),
     status: text("status").notNull().default("pending"),
     statusMessage: text("status_message").notNull().default(""),
+    /** What the project uses, as Incus counts it (P9); null until first read. */
+    usage: jsonb("usage").$type<Usage>(),
+    /** The share of the tenant's quota last applied to the project. */
+    limits: jsonb("limits").$type<Limits>(),
     createdAt: created(),
   },
   (t) => [primaryKey({ columns: [t.tenantId, t.clusterId] })],

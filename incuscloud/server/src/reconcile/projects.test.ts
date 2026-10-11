@@ -2,11 +2,14 @@ import { afterAll, beforeAll, beforeEach, expect, test } from "bun:test";
 import { FakeIncus } from "../clusters/fake-incus.ts";
 import { IncusAdminClient } from "../incus/admin-client.ts";
 import { generateClientCertificate } from "../incus/certs.ts";
-import { ensureDefaultProfile, ensureProject, projectConfigFor } from "./projects.ts";
+import { ensureDefaultProfile, ensureProject, projectConfigFor, projectUsage } from "./projects.ts";
 
 let fake: FakeIncus;
 let client: IncusAdminClient;
-const tenant = { id: "11111111-1111-1111-1111-111111111111", slug: "acme", quotas: { instances: 10, cpu: 8, memory: 16, disk: 100 } };
+const GiB = 1024 ** 3;
+const tenant = { id: "11111111-1111-1111-1111-111111111111", slug: "acme" };
+/** This placement's share of the quota, in Incus's units. */
+const limits = { instances: 10, cpu: 8, memory: 16 * GiB, disk: 100 * GiB };
 
 beforeAll(async () => {
   fake = await new FakeIncus().start();
@@ -19,8 +22,8 @@ beforeEach(() => {
   for (const name of [...fake.projects.keys()]) if (name !== "default") fake.projects.delete(name);
 });
 
-test("project config: restricted, own images/profiles/volumes, shared networks, marker, limits", () => {
-  expect(projectConfigFor(tenant)).toEqual({
+test("project config: restricted, own images/profiles/volumes, shared networks, marker, limits in bytes", () => {
+  expect(projectConfigFor(tenant, limits)).toEqual({
     restricted: "true",
     "restricted.backups": "allow",
     "features.images": "true",
@@ -31,37 +34,44 @@ test("project config: restricted, own images/profiles/volumes, shared networks, 
     "user.incuscloud.tenant": tenant.id,
     "limits.instances": "10",
     "limits.cpu": "8",
-    "limits.memory": "16GiB",
-    "limits.disk": "100GiB",
+    "limits.memory": String(16 * GiB),
+    "limits.disk": String(100 * GiB),
   });
-  expect(projectConfigFor({ ...tenant, quotas: {} })["limits.cpu"]).toBeUndefined();
+  expect(projectConfigFor(tenant, {})["limits.cpu"]).toBeUndefined();
 });
 
-test("creates the project, then only follows quota changes", async () => {
-  expect(await ensureProject(client, "acme", tenant)).toBe("created");
-  expect(fake.projects.get("acme")!.config["limits.memory"]).toBe("16GiB");
-  expect(await ensureProject(client, "acme", tenant)).toBe("unchanged");
-  expect(await ensureProject(client, "acme", { ...tenant, quotas: { instances: 20 } })).toBe("updated");
+test("creates the project, then only follows limit changes", async () => {
+  expect(await ensureProject(client, "acme", tenant, limits)).toBe("created");
+  expect(fake.projects.get("acme")!.config["limits.memory"]).toBe(String(16 * GiB));
+  expect(await ensureProject(client, "acme", tenant, limits)).toBe("unchanged");
+  expect(await ensureProject(client, "acme", tenant, { instances: 20 })).toBe("updated");
   const c = fake.projects.get("acme")!.config;
   expect(c["limits.instances"]).toBe("20");
   expect(c["limits.memory"]).toBeUndefined();
 });
 
 test("projects made before backups existed get restricted.backups=allow", async () => {
-  expect(await ensureProject(client, "acme", tenant)).toBe("created");
+  expect(await ensureProject(client, "acme", tenant, limits)).toBe("created");
   delete fake.projects.get("acme")!.config["restricted.backups"];
-  expect(await ensureProject(client, "acme", tenant)).toBe("updated");
+  expect(await ensureProject(client, "acme", tenant, limits)).toBe("updated");
   expect(fake.projects.get("acme")!.config["restricted.backups"]).toBe("allow");
 });
 
 test("a project that is not this tenant's is refused and untouched", async () => {
   fake.projects.set("acme", { config: { "user.owner": "someone" }, description: "", profiles: new Map() });
-  await expect(ensureProject(client, "acme", tenant)).rejects.toMatchObject({ status: 409 });
+  await expect(ensureProject(client, "acme", tenant, limits)).rejects.toMatchObject({ status: 409 });
   expect(fake.projects.get("acme")!.config).toEqual({ "user.owner": "someone" });
 });
 
+test("usage from the project's state; none for a project that does not exist yet", async () => {
+  expect(await projectUsage(client, "acme")).toBeNull();
+  await ensureProject(client, "acme", tenant, limits);
+  fake.projects.get("acme")!.usage = { instances: 2, cpu: 3, memory: 2 * GiB, disk: 20 * GiB };
+  expect(await projectUsage(client, "acme")).toEqual({ instances: 2, cpu: 3, memory: 2 * GiB, disk: 20 * GiB });
+});
+
 test("the default profile gets the default project's root disk and NIC", async () => {
-  await ensureProject(client, "acme", tenant);
+  await ensureProject(client, "acme", tenant, limits);
   await ensureDefaultProfile(client, "acme");
   expect(fake.projects.get("acme")!.profiles.get("default")!.devices).toEqual({ root: { type: "disk", path: "/", pool: "local" }, eth0: { type: "nic", name: "eth0", network: "incusbr0" } });
   const puts = fake.patches.length;
@@ -76,7 +86,7 @@ test("without devices in the default project, the first pool and managed bridge 
   fake.pools = [{ name: "fast", driver: "zfs" }];
   fake.networks = [{ name: "eth9", type: "physical", managed: false }, { name: "br1", type: "bridge", managed: true }];
   try {
-    await ensureProject(client, "acme", tenant);
+    await ensureProject(client, "acme", tenant, limits);
     await ensureDefaultProfile(client, "acme");
     expect(fake.projects.get("acme")!.profiles.get("default")!.devices).toEqual({ root: { type: "disk", path: "/", pool: "fast" }, eth0: { type: "nic", name: "eth0", network: "br1" } });
   } finally {
@@ -85,7 +95,7 @@ test("without devices in the default project, the first pool and managed bridge 
 });
 
 test("with quotas, the default profile gets per-instance limits Incus requires, capped at the quota", async () => {
-  await ensureProject(client, "acme", tenant);
+  await ensureProject(client, "acme", tenant, limits);
   await ensureDefaultProfile(client, "acme", { cpu: 8, memory: 16, disk: 5 });
   const p = fake.projects.get("acme")!.profiles.get("default")!;
   expect(p.config).toEqual({ "limits.cpu": "1", "limits.memory": "1GiB" });
@@ -93,13 +103,13 @@ test("with quotas, the default profile gets per-instance limits Incus requires, 
 });
 
 test("tenant-set profile limits are kept; no quotas, no limits", async () => {
-  await ensureProject(client, "acme", tenant);
+  await ensureProject(client, "acme", tenant, limits);
   const prof = fake.projects.get("acme")!.profiles.get("default")!;
   prof.config = { "limits.memory": "512MiB" };
   await ensureDefaultProfile(client, "acme", { memory: 16 });
   expect(prof.config).toEqual({ "limits.memory": "512MiB" });
   fake.projects.delete("acme");
-  await ensureProject(client, "acme", { ...tenant, quotas: {} });
+  await ensureProject(client, "acme", tenant, {});
   await ensureDefaultProfile(client, "acme", {});
   expect(fake.projects.get("acme")!.profiles.get("default")!.config).toEqual({});
   expect(fake.projects.get("acme")!.profiles.get("default")!.devices.root!.size).toBeUndefined();

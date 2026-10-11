@@ -148,3 +148,40 @@ test("a disabled cluster is left alone", async () => {
   expect(stores.opened.length).toBe(0);
   expect((await db.select().from(clusters).where(eq(clusters.id, clusterId)))[0]!.status).toBe("disabled");
 });
+
+const GiB = 1024 ** 3;
+/** A second cluster where the tenant already uses something (as its own reconcile recorded). */
+async function elsewhere(usage: { instances: number; cpu: number; memory: number; disk: number }) {
+  const [c2] = await db.insert(clusters).values({ name: "c2", url: "https://c2:8443", fingerprint: "ff", serverCert: "", clientCert: "", clientKeyEnc: "" }).returning();
+  await db.insert(placements).values({ tenantId: acme.id, clusterId: c2!.id, project: "acme", status: "ready", usage });
+}
+
+test("the project gets its share of the tenant's quota: its usage plus what the tenant has left across clusters", async () => {
+  await db.update(tenants).set({ quotas: { instances: 5, memory: 8 } }).where(eq(tenants.id, acme.id));
+  await elsewhere({ instances: 2, cpu: 2, memory: 2 * GiB, disk: 0 });
+  // First pass: the project is new and uses nothing.
+  await reconcileCluster(deps, clusterId);
+  expect(fake.projects.get("acme")!.config).toMatchObject({ "limits.instances": "3", "limits.memory": String(6 * GiB) });
+  // It grows; the next pass records that and shares what is left.
+  fake.projects.get("acme")!.usage = { instances: 1, cpu: 1, memory: GiB, disk: 0 };
+  expect(await reconcileCluster(deps, clusterId)).toEqual({ status: "ready", message: "" });
+  expect(fake.projects.get("acme")!.config).toMatchObject({ "limits.instances": "3", "limits.memory": String(6 * GiB) });
+  const row = (await db.select().from(placements).where(eq(placements.clusterId, clusterId)))[0]!;
+  expect(row.usage).toEqual({ instances: 1, cpu: 1, memory: GiB, disk: 0 });
+  expect(row.limits).toEqual({ instances: 3, memory: 6 * GiB });
+});
+
+test("a quota lowered below usage leaves limits at usage: nothing new, nothing refused", async () => {
+  await reconcileCluster(deps, clusterId);
+  fake.projects.get("acme")!.usage = { instances: 4, cpu: 0, memory: 0, disk: 0 };
+  await db.update(tenants).set({ quotas: { instances: 2 } }).where(eq(tenants.id, acme.id));
+  expect(await reconcileCluster(deps, clusterId)).toEqual({ status: "ready", message: "" });
+  expect(fake.projects.get("acme")!.config["limits.instances"]).toBe("4");
+});
+
+test("a quota removed unsets its limit", async () => {
+  await reconcileCluster(deps, clusterId);
+  await db.update(tenants).set({ quotas: {} }).where(eq(tenants.id, acme.id));
+  await reconcileCluster(deps, clusterId);
+  expect(fake.projects.get("acme")!.config["limits.instances"]).toBeUndefined();
+});

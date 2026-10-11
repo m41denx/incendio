@@ -1,13 +1,13 @@
 import type { IncusAdminClient } from "../incus/admin-client.ts";
 import { ClusterError } from "../incus/admin-client.ts";
 import type { Quotas } from "../db/schema.ts";
+import type { Limits, Usage } from "../tenants/quota.ts";
 import { ApiError } from "../lib/errors.ts";
 
 export const TENANT_KEY = "user.incuscloud.tenant";
 
-/** Restricted tenant project (spec D5): own images, profiles and volumes, the cluster's networks, limits from quotas. */
-export function projectConfigFor(tenant: { id: string; quotas: Quotas }): Record<string, string> {
-  const q = tenant.quotas;
+/** Restricted tenant project (spec D5): own images, profiles and volumes, the cluster's networks, and this placement's share of the quota. */
+export function projectConfigFor(tenant: { id: string }, limits: Limits): Record<string, string> {
   return {
     restricted: "true",
     // Restricted projects block backups by default, the control plane's included (P7).
@@ -18,10 +18,8 @@ export function projectConfigFor(tenant: { id: string; quotas: Quotas }): Record
     "features.storage.buckets": "true",
     "features.networks": "false",
     [TENANT_KEY]: tenant.id,
-    ...(q.instances !== undefined && { "limits.instances": String(q.instances) }),
-    ...(q.cpu !== undefined && { "limits.cpu": String(q.cpu) }),
-    ...(q.memory !== undefined && { "limits.memory": `${q.memory}GiB` }),
-    ...(q.disk !== undefined && { "limits.disk": `${q.disk}GiB` }),
+    // Counts, CPUs and bytes: Incus takes a plain number of bytes for memory and disk.
+    ...Object.fromEntries(Object.entries(limits).map(([k, v]) => [`limits.${k}`, String(v)])),
   };
 }
 
@@ -29,8 +27,8 @@ export function projectConfigFor(tenant: { id: string; quotas: Quotas }): Record
 const UPDATABLE = (k: string) => k.startsWith("restricted") || k.startsWith("limits.") || k === TENANT_KEY;
 
 /** Creates the tenant's project, or brings its limits in line. Refuses a same-named project that is not this tenant's. */
-export async function ensureProject(client: IncusAdminClient, name: string, tenant: { id: string; slug: string; quotas: Quotas }): Promise<"created" | "updated" | "unchanged"> {
-  const want = projectConfigFor(tenant);
+export async function ensureProject(client: IncusAdminClient, name: string, tenant: { id: string; slug: string }, limits: Limits): Promise<"created" | "updated" | "unchanged"> {
+  const want = projectConfigFor(tenant, limits);
   let current: Record<string, string>;
   try {
     current = (await client.request<{ config: Record<string, string> }>("GET", `/1.0/projects/${encodeURIComponent(name)}`)).metadata.config ?? {};
@@ -49,6 +47,17 @@ export async function ensureProject(client: IncusAdminClient, name: string, tena
   if (!Object.keys(patch).length) return "unchanged";
   await client.request("PATCH", `/1.0/projects/${encodeURIComponent(name)}`, { config: patch });
   return "updated";
+}
+
+/** What the project uses as Incus counts it for limits.*; null when it does not exist yet. */
+export async function projectUsage(client: Pick<IncusAdminClient, "request">, name: string): Promise<Usage | null> {
+  try {
+    const r = (await client.request<{ resources: Record<string, { Usage: number }> }>("GET", `/1.0/projects/${encodeURIComponent(name)}/state`)).metadata.resources;
+    return { instances: r.instances?.Usage ?? 0, cpu: r.cpu?.Usage ?? 0, memory: r.memory?.Usage ?? 0, disk: r.disk?.Usage ?? 0 };
+  } catch (e) {
+    if (e instanceof ClusterError && e.clusterStatus === 404) return null;
+    throw e;
+  }
 }
 
 type Devices = Record<string, Record<string, string>>;

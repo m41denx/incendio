@@ -71,6 +71,13 @@
       "when": 1791759433029,
       "tag": "0009_balancing",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791760689913,
+      "tag": "0010_tenant_usage",
+      "breakpoints": true
     }
   ]
 }
