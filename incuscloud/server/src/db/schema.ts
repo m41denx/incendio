@@ -363,3 +363,79 @@ export const replicationPolicies = pgTable(
     check("replication_policies_interval", sql`${t.intervalS} between 60 and 604800`),
   ],
 );
+
+/** S3 endpoints backups go to (P7). Platform-managed; the secret key is sealed with IC_SECRET_KEY. */
+export const backupTargets = pgTable("backup_targets", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull().unique(),
+  endpoint: text("endpoint").notNull(),
+  region: text("region").notNull().default(""),
+  bucket: text("bucket").notNull(),
+  prefix: text("prefix").notNull().default(""),
+  accessKeyId: text("access_key_id").notNull(),
+  secretKeyEnc: text("secret_key_enc").notNull(),
+  enabled: boolean("enabled").notNull().default(true),
+  createdAt: created(),
+});
+
+/** Scheduled backups of one instance to one target, keeping the newest `keep`. */
+export const backupPolicies = pgTable(
+  "backup_policies",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
+    clusterId: uuid("cluster_id")
+      .notNull()
+      .references(() => clusters.id, { onDelete: "cascade" }),
+    project: text("project").notNull(),
+    instanceName: text("instance_name").notNull(),
+    targetId: uuid("target_id")
+      .notNull()
+      .references(() => backupTargets.id, { onDelete: "restrict" }),
+    intervalS: integer("interval_s").notNull().default(86400),
+    keep: integer("keep").notNull().default(7),
+    instanceOnly: boolean("instance_only").notNull().default(false),
+    enabled: boolean("enabled").notNull().default(true),
+    lastRunAt: timestamp("last_run_at", { withTimezone: true }),
+    lastSuccessAt: timestamp("last_success_at", { withTimezone: true }),
+    lastError: text("last_error").notNull().default(""),
+    lastJobId: uuid("last_job_id"),
+    createdBy: text("created_by").notNull(),
+    createdAt: created(),
+  },
+  (t) => [
+    unique("backup_policies_instance_target").on(t.clusterId, t.project, t.instanceName, t.targetId),
+    check("backup_policies_interval", sql`${t.intervalS} between 3600 and 2592000`),
+    check("backup_policies_keep", sql`${t.keep} between 1 and 365`),
+  ],
+);
+
+export type BackupState = "creating" | "ready" | "failed";
+
+/** One backup object in a target. The source columns describe what was backed up; the cluster may be gone since. */
+export const backups = pgTable(
+  "backups",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id").references(() => tenants.id, { onDelete: "set null" }),
+    policyId: uuid("policy_id").references(() => backupPolicies.id, { onDelete: "set null" }),
+    targetId: uuid("target_id")
+      .notNull()
+      .references(() => backupTargets.id, { onDelete: "restrict" }),
+    objectKey: text("object_key").notNull(),
+    clusterId: uuid("cluster_id").references(() => clusters.id, { onDelete: "set null" }),
+    project: text("project").notNull(),
+    instanceName: text("instance_name").notNull(),
+    instanceType: text("instance_type").notNull().default(""),
+    instanceOnly: boolean("instance_only").notNull().default(false),
+    sizeBytes: bigint("size_bytes", { mode: "number" }),
+    state: text("state").$type<BackupState>().notNull().default("creating"),
+    error: text("error").notNull().default(""),
+    jobId: uuid("job_id"),
+    transport: text("transport").notNull().default(""),
+    createdBy: text("created_by").notNull(),
+    createdAt: created(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  },
+  (t) => [check("backups_state", sql`${t.state} in ('creating', 'ready', 'failed')`), index("backups_policy").on(t.policyId, t.createdAt), index("backups_tenant").on(t.tenantId, t.createdAt)],
+);

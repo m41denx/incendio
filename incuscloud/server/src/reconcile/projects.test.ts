@@ -22,6 +22,7 @@ beforeEach(() => {
 test("project config: restricted, own images/profiles/volumes, shared networks, marker, limits", () => {
   expect(projectConfigFor(tenant)).toEqual({
     restricted: "true",
+    "restricted.backups": "allow",
     "features.images": "true",
     "features.profiles": "true",
     "features.storage.volumes": "true",
@@ -44,6 +45,13 @@ test("creates the project, then only follows quota changes", async () => {
   const c = fake.projects.get("acme")!.config;
   expect(c["limits.instances"]).toBe("20");
   expect(c["limits.memory"]).toBeUndefined();
+});
+
+test("projects made before backups existed get restricted.backups=allow", async () => {
+  expect(await ensureProject(client, "acme", tenant)).toBe("created");
+  delete fake.projects.get("acme")!.config["restricted.backups"];
+  expect(await ensureProject(client, "acme", tenant)).toBe("updated");
+  expect(fake.projects.get("acme")!.config["restricted.backups"]).toBe("allow");
 });
 
 test("a project that is not this tenant's is refused and untouched", async () => {

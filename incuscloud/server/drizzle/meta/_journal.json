@@ -57,6 +57,13 @@
       "when": 1791731864063,
       "tag": "0007_replication",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791732830548,
+      "tag": "0008_backups",
+      "breakpoints": true
     }
   ]
 }

@@ -10,6 +10,8 @@ export function projectConfigFor(tenant: { id: string; quotas: Quotas }): Record
   const q = tenant.quotas;
   return {
     restricted: "true",
+    // Restricted projects block backups by default, the control plane's included (P7).
+    "restricted.backups": "allow",
     "features.images": "true",
     "features.profiles": "true",
     "features.storage.volumes": "true",
@@ -24,7 +26,7 @@ export function projectConfigFor(tenant: { id: string; quotas: Quotas }): Record
 }
 
 // Kept in line with projectConfigFor on existing projects; features.* cannot change once a project has content.
-const UPDATABLE = (k: string) => k === "restricted" || k.startsWith("limits.") || k === TENANT_KEY;
+const UPDATABLE = (k: string) => k.startsWith("restricted") || k.startsWith("limits.") || k === TENANT_KEY;
 
 /** Creates the tenant's project, or brings its limits in line. Refuses a same-named project that is not this tenant's. */
 export async function ensureProject(client: IncusAdminClient, name: string, tenant: { id: string; slug: string; quotas: Quotas }): Promise<"created" | "updated" | "unchanged"> {
