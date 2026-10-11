@@ -20,13 +20,17 @@ export interface FrontOptions {
   tls: { cert: string | Buffer; key: string | Buffer };
 }
 
+/** Set by the front server to the peer address; never taken from the client. */
+export const CLIENT_IP_HEADER = "x-ic-client-ip";
+
 /** Converts a node request into a fetch Request for the Elysia app. */
 export function toRequest(req: IncomingMessage, origin: string): Request {
   const headers = new Headers();
   for (const [k, v] of Object.entries(req.headers)) {
-    if (v === undefined) continue;
+    if (v === undefined || k === CLIENT_IP_HEADER) continue;
     for (const one of Array.isArray(v) ? v : [v]) headers.append(k, one);
   }
+  headers.set(CLIENT_IP_HEADER, (req.socket.remoteAddress ?? "").replace(/^::ffff:/, ""));
   const hasBody = req.method !== "GET" && req.method !== "HEAD";
   return new Request(origin + (req.url ?? "/"), {
     method: req.method,

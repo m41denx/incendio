@@ -16,6 +16,7 @@ const ca = tls.cert.toString();
 const app = new Elysia()
   .use(errorHandling)
   .get("/healthz", () => ({ status: "ok" }))
+  .get("/ip", ({ request }) => ({ ip: request.headers.get("x-ic-client-ip") }))
   .post("/echo-length", async ({ request }) => ({ bytes: (await request.arrayBuffer()).byteLength }));
 
 const seen: string[] = [];
@@ -81,4 +82,9 @@ test("the gateway gets upgrades it matches; others are refused", async () => {
   expect(await raw("c1.clusters.test")).toContain("101 Switching Protocols");
   expect(seen).toContain("upgrade /1.0/instances/x/sftp");
   expect(await raw("api.test")).toBe("");
+});
+
+test("the client address reaches the app and cannot be spoofed", async () => {
+  const r = await get("/ip", { headers: { "x-ic-client-ip": "6.6.6.6" } });
+  expect(await r.json()).toEqual({ ip: "127.0.0.1" });
 });
