@@ -2,6 +2,21 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { extname, resolve } from "node:path";
 import { inside, isFile, notFound, sendFile } from "./lib/static.ts";
 
+// The platform UI loads only its own files; inline styles come from react-components.
+// No form-action: signing out POSTs and is redirected to the identity provider.
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data:",
+  "font-src 'self'",
+  "connect-src 'self'",
+  "frame-ancestors 'self'",
+  "object-src 'none'",
+  "base-uri 'self'",
+].join("; ");
+const PAGE = { "content-security-policy": CSP };
+
 // Paths that belong to the server, never to the platform UI.
 const SERVER_PATHS = /^\/(?:api|auth)(?:\/|$)|^\/healthz$/;
 
@@ -20,8 +35,8 @@ export function serveWeb(req: IncomingMessage, res: ServerResponse, o: { dir: st
     notFound(res);
     return true;
   }
-  if (isFile(file)) sendFile(req, res, root, file);
-  else if (!extname(file)) sendFile(req, res, root, resolve(root, "index.html"));
+  if (isFile(file)) sendFile(req, res, root, file, file.endsWith(".html") ? PAGE : {});
+  else if (!extname(file)) sendFile(req, res, root, resolve(root, "index.html"), PAGE);
   else notFound(res);
   return true;
 }

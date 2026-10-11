@@ -28,13 +28,19 @@ export function notFound(res: ServerResponse) {
   res.end("Not found");
 }
 
-/** Sends a file: content-hashed `<root>/assets/*` cached forever, everything else revalidated. */
-export function sendFile(req: IncomingMessage, res: ServerResponse, root: string, file: string) {
+/**
+ * Sends a file: content-hashed `<root>/assets/*` cached forever, everything else revalidated.
+ * Never framed by other sites (clickjacking); `extra` adds headers (a page's CSP).
+ */
+export function sendFile(req: IncomingMessage, res: ServerResponse, root: string, file: string, extra: Record<string, string> = {}) {
   const asset = file.startsWith(resolve(root, "assets") + sep);
   res.writeHead(200, {
     "content-type": Bun.file(file).type,
     "cache-control": asset ? "public, max-age=31536000, immutable" : "no-cache",
     "x-content-type-options": "nosniff",
+    "x-frame-options": "SAMEORIGIN",
+    "referrer-policy": "same-origin",
+    ...extra,
   });
   if (req.method === "HEAD") return res.end();
   createReadStream(file).pipe(res);

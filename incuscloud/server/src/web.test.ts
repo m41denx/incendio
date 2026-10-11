@@ -42,3 +42,11 @@ test("API, sign-in and health paths, other methods and traversal are not the web
   expect((await fetch(`${base}/assets/..%2F..%2Fweb.test.ts`)).status).toBe(404);
   expect((await fetch(`${base}/..%2Fweb.ts`)).status).not.toBe(200);
 });
+
+test("pages cannot be framed by other sites and only load our own scripts", async () => {
+  const r = await fetch(`${base}/tenants`);
+  expect(r.headers.get("x-frame-options")).toBe("SAMEORIGIN");
+  expect(r.headers.get("referrer-policy")).toBe("same-origin");
+  const csp = r.headers.get("content-security-policy") ?? "";
+  for (const d of ["default-src 'self'", "script-src 'self'", "frame-ancestors 'self'", "object-src 'none'", "base-uri 'self'"]) expect(csp).toContain(d);
+});
