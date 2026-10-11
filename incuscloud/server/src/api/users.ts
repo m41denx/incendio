@@ -7,6 +7,7 @@ import { tuples } from "../authz/sync.ts";
 import { forbidden, notFound, platformCan } from "../authz/guards.ts";
 import { authed, principalContext, type Principal } from "../auth/principal.ts";
 import { hashPassword } from "../identity/passwords.ts";
+import type { HydraAdminApi } from "../identity/hydra-admin.ts";
 import { ApiError } from "../lib/errors.ts";
 import { audited, created, noContent, uuidParam } from "./common.ts";
 
@@ -25,7 +26,7 @@ const view = (u: UserRow, role: string | null | undefined) => ({
 });
 
 /** Users and their platform roles (platform admins manage, viewers read). */
-export function usersRoutes({ db, authz }: { db: Db; authz: Authz }) {
+export function usersRoutes({ db, authz, hydra }: { db: Db; authz: Authz; hydra: HydraAdminApi }) {
   const needPlatform = async (p: Principal, rel: "admin" | "viewer") => {
     if (!(await platformCan(authz, p, rel))) throw forbidden();
   };
@@ -102,7 +103,11 @@ export function usersRoutes({ db, authz }: { db: Db; authz: Authz }) {
             if (body.disabled !== undefined) patch.disabled = body.disabled;
             if (body.password !== undefined) patch.passwordHash = await hashPassword(body.password);
             const [updated] = Object.keys(patch).length ? await tx.update(users).set(patch).where(eq(users.id, u.id)).returning() : [u];
-            if (body.disabled) await tx.delete(sessions).where(eq(sessions.userId, u.id));
+            if (body.disabled) {
+              await tx.delete(sessions).where(eq(sessions.userId, u.id));
+              // Clusters accept Hydra tokens directly: end the refresh chains too.
+              await hydra.revokeSubject(u.id);
+            }
             let newRole = role;
             if (body.platformRole !== undefined && body.platformRole !== role) {
               await tx.delete(platformRoles).where(eq(platformRoles.userId, u.id));
@@ -132,6 +137,7 @@ export function usersRoutes({ db, authz }: { db: Db; authz: Authz }) {
         const memberships = await db.select().from(tenantMembers).where(eq(tenantMembers.userId, u.id));
         await db.transaction(async (tx) => {
           await tx.delete(users).where(eq(users.id, u.id));
+          await hydra.revokeSubject(u.id);
           await authz.write([], [...(role ? [tuples.platformRole(u.id, role)] : []), ...memberships.map((m) => tuples.member(m.tenantId, u.id, m.role))]);
         });
       });

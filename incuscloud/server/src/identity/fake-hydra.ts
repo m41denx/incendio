@@ -11,6 +11,7 @@ export class FakeHydra implements HydraAdminApi {
   rejected: Array<{ kind: string; challenge: string; body: unknown }> = [];
   clients = new Map<string, OAuth2Client>();
   validCodes?: Set<string>;
+  revokedSubjects: string[] = [];
 
   private need<T>(m: Map<string, T>, ch: string): T {
     const v = m.get(ch);
@@ -50,6 +51,9 @@ export class FakeHydra implements HydraAdminApi {
   async acceptLogout(ch: string) {
     if (!this.logouts.has(ch)) throw new ApiError(404, "challenge_not_found", "expired");
     return `https://hydra.test/after-logout?ch=${ch}`;
+  }
+  async revokeSubject(subject: string) {
+    this.revokedSubjects.push(subject);
   }
   async getClient(id: string) {
     return this.clients.get(id) ?? null;

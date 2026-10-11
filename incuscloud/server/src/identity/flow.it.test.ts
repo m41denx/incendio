@@ -80,6 +80,12 @@ live("device flow, as the incus CLI does it, yields an incuscloud token for the 
   expect(claims.iss).toBe(`${ISSUER}/`);
   expect(claims.email).toBe("flow@example.com");
   expect(tok.refresh_token).toBeTruthy();
+
+  // Disabling a user revokes their grants: the CLI's refresh token stops working.
+  await hydra.revokeSubject(userId);
+  const refreshed = await json(fetch(`${ISSUER}/oauth2/token`, form({ grant_type: "refresh_token", refresh_token: tok.refresh_token, client_id: CLI_CLIENT_ID })));
+  expect(refreshed.error).toBeTruthy();
+  expect(refreshed.access_token).toBeUndefined();
 });
 
 live("a wrong password keeps the device flow pending", async () => {

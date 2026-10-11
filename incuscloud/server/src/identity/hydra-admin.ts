@@ -46,6 +46,8 @@ export interface HydraAdminApi {
   rejectConsent(challenge: string, body: { error: string; error_description?: string }): Promise<string>;
   acceptDevice(challenge: string, userCode: string): Promise<string>;
   acceptLogout(challenge: string): Promise<string>;
+  /** Revokes every grant (refresh tokens) and login session of a subject. */
+  revokeSubject(subject: string): Promise<void>;
   getClient(id: string): Promise<OAuth2Client | null>;
   createClient(c: OAuth2Client): Promise<OAuth2Client>;
   updateClient(c: OAuth2Client): Promise<OAuth2Client>;
@@ -111,6 +113,11 @@ export class HydraAdmin implements HydraAdminApi {
   }
   acceptLogout(ch: string) {
     return this.redirect("PUT", this.qa("logout", "accept", ch), {});
+  }
+  async revokeSubject(subject: string) {
+    const q = `subject=${encodeURIComponent(subject)}`;
+    await this.call("DELETE", `/admin/oauth2/auth/sessions/consent?${q}&all=true`, undefined, true);
+    await this.call("DELETE", `/admin/oauth2/auth/sessions/login?${q}`, undefined, true);
   }
   getClient(id: string) {
     return this.call<OAuth2Client>("GET", `/admin/clients/${encodeURIComponent(id)}`, undefined, true);

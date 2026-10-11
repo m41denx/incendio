@@ -49,6 +49,14 @@ test("disabling a user ends their sessions and invalidates their tokens", async 
   expect((await h.call(admin, "PATCH", `/api/v1/users/${u.id}`, { disabled: true })).status).toBe(200);
   expect(await h.db.select().from(sessions)).toEqual([]);
   expect((await h.call(u, "GET", "/api/v1/me")).status).toBe(401);
+  // Clusters trust Hydra directly: its grants (refresh tokens) must go too.
+  expect(h.hydra.revokedSubjects).toEqual([u.id]);
+});
+
+test("deleting a user revokes their Hydra grants", async () => {
+  const u = await h.user("u@example.com");
+  await h.call(admin, "DELETE", `/api/v1/users/${u.id}`);
+  expect(h.hydra.revokedSubjects).toEqual([u.id]);
 });
 
 test("platform role changes reach the authorizer", async () => {
