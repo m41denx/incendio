@@ -145,6 +145,8 @@ all. The reconciler's settings:
   cluster's inventory (instances, members, storage, networks) and metrics are
   read this often by the worker.
 - `IC_METRICS_RETENTION`: hours of metrics history kept, 1..720, default 24.
+- `IC_JOB_CONCURRENCY`: jobs (migrations, replication runs, failovers) the
+  worker runs at once, 1..16, default 2.
 
 ## Development
 

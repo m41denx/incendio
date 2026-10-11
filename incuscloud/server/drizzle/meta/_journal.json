@@ -43,6 +43,13 @@
       "when": 1791729636581,
       "tag": "0005_fleet",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791731003416,
+      "tag": "0006_jobs",
+      "breakpoints": true
     }
   ]
 }

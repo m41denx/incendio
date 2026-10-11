@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { bigint, bigserial, boolean, check, customType, index, integer, jsonb, pgTable, primaryKey, real, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { bigint, bigserial, boolean, check, customType, index, integer, jsonb, pgTable, primaryKey, real, text, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 const citext = customType<{ data: string }>({ dataType: () => "citext" });
 const created = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
@@ -289,4 +289,44 @@ export const metricsSamples = pgTable(
     load1: real("load1"),
   },
   (t) => [index("metrics_samples_ref_idx").on(t.kind, t.ref, t.at), index("metrics_samples_at_idx").on(t.at), check("metrics_samples_kind", sql`${t.kind} in ('instance', 'member')`)],
+);
+
+export type JobState = "queued" | "running" | "succeeded" | "failed" | "cancelled";
+export interface JobProgress {
+  stage: string;
+  percent?: number;
+  message?: string;
+}
+
+/** Work the worker runs (P6+): migrations, replication runs, failovers. */
+export const jobs = pgTable(
+  "jobs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    type: text("type").notNull(),
+    state: text("state").$type<JobState>().notNull().default("queued"),
+    progress: jsonb("progress").$type<JobProgress>().notNull().default({ stage: "queued" }),
+    payload: jsonb("payload").$type<Record<string, unknown>>().notNull().default({}),
+    result: jsonb("result").$type<Record<string, unknown>>(),
+    error: text("error").notNull().default(""),
+    /** The tenant whose members may see the job. */
+    tenantId: uuid("tenant_id").references(() => tenants.id, { onDelete: "set null" }),
+    clusterIds: jsonb("cluster_ids").$type<string[]>().notNull().default([]),
+    /** `<clusterId>/<project>/<name>`: one active job per instance. */
+    instanceKey: text("instance_key"),
+    actorType: text("actor_type").notNull(),
+    actorId: text("actor_id").notNull(),
+    cancelRequested: boolean("cancel_requested").notNull().default(false),
+    holder: text("holder"),
+    heartbeatAt: timestamp("heartbeat_at", { withTimezone: true }),
+    createdAt: created(),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex("jobs_active_instance").on(t.instanceKey).where(sql`${t.state} in ('queued', 'running')`),
+    index("jobs_state_idx").on(t.state, t.createdAt),
+    index("jobs_tenant_idx").on(t.tenantId, t.createdAt),
+    check("jobs_state", sql`${t.state} in ('queued', 'running', 'succeeded', 'failed', 'cancelled')`),
+  ],
 );

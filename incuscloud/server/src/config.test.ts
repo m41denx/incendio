@@ -73,3 +73,9 @@ test("inventory runs every minute by default, 0 turns it off; metrics are kept a
   expect(() => loadConfig({ ...base, IC_INVENTORY_INTERVAL: "5" })).toThrow(/IC_INVENTORY_INTERVAL/);
   expect(() => loadConfig({ ...base, IC_METRICS_RETENTION: "0" })).toThrow(/IC_METRICS_RETENTION/);
 });
+
+test("jobs run two at a time by default", () => {
+  expect(loadConfig(base).jobConcurrency).toBe(2);
+  expect(loadConfig({ ...base, IC_JOB_CONCURRENCY: "8" }).jobConcurrency).toBe(8);
+  expect(() => loadConfig({ ...base, IC_JOB_CONCURRENCY: "0" })).toThrow(/IC_JOB_CONCURRENCY/);
+});

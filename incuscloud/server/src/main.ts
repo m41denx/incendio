@@ -20,6 +20,8 @@ import { RequestLog } from "./gateway/request-log.ts";
 import { serveUi } from "./gateway/ui.ts";
 import { Worker } from "./reconcile/worker.ts";
 import { FleetWorker } from "./fleet/worker.ts";
+import { JobRunner } from "./jobs/runner.ts";
+import { jobHandlers } from "./jobs/handlers.ts";
 import { openClusterStore } from "./reconcile/cluster-store.ts";
 
 /** Retries start-up steps whose dependency may still be starting (Hydra, OpenFGA). */
@@ -68,6 +70,8 @@ const fleet =
     ? new FleetWorker({ db, secretKey: config.secretKey }, { holder: `${hostname()}/${process.pid}`, intervalMs: config.inventoryIntervalMs, retentionMs: config.metricsRetentionMs })
     : undefined;
 fleet?.start();
+const jobRunner = config.role !== "api" ? new JobRunner({ db, secretKey: config.secretKey }, { holder: `${hostname()}/${process.pid}`, handlers: jobHandlers(), concurrency: config.jobConcurrency }) : undefined;
+jobRunner?.start();
 if (fleet) log.info("inventory started", { intervalMs: config.inventoryIntervalMs });
 
 const appDeps = {
@@ -106,7 +110,7 @@ for (const sig of ["SIGINT", "SIGTERM"] as const) {
     log.info("shutting down", { signal: sig });
     const closeServer = serveApi ? new Promise<void>((resolve) => server.close(() => resolve())) : Promise.resolve();
     // The worker releases its lease so another replica takes over at once.
-    Promise.all([closeServer.then(() => requestLog.stop()), worker?.stop(), fleet?.stop()]).finally(() => process.exit(0));
+    Promise.all([closeServer.then(() => requestLog.stop()), worker?.stop(), fleet?.stop(), jobRunner?.stop()]).finally(() => process.exit(0));
     setTimeout(() => process.exit(0), 10_000).unref();
   });
 }
