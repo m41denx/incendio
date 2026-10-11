@@ -30,6 +30,12 @@ type TargetRow = typeof backupTargets.$inferSelect;
 /** How long the cluster keeps its own copy if we never get to delete it. */
 const CLUSTER_COPY_TTL_MS = 24 * 3600_000;
 const POLL_S = 2;
+/**
+ * Incus releases before 2026-10 ("incusd: Wait for backup uploads to complete")
+ * report a direct upload done while its last part is still being sent, and
+ * lose its errors: the object is waited for, this long at most.
+ */
+const DIRECT_WAIT_MS = 120_000;
 const mib = (n: number) => `${(n / 1048576).toFixed(n < 10 * 1048576 ? 1 : 0)} MiB`;
 
 /** Waits for an Incus operation, cancelling it when the job is cancelled. */
@@ -75,7 +81,8 @@ export async function pruneBackups(db: Db, policyId: string, keep: number, store
  * streamed through the control plane (relay). The cluster's copy is always
  * removed. Scheduled runs then apply their policy's retention.
  */
-export function backupHandler(deps: { storeFor?: StoreFor } = {}): JobHandler {
+export function backupHandler(deps: { storeFor?: StoreFor; directWaitMs?: number } = {}): JobHandler {
+  const directWaitMs = deps.directWaitMs ?? DIRECT_WAIT_MS;
   return async (ctx) => {
     const p = ctx.job.payload as unknown as BackupPayload;
     const storeFor = deps.storeFor ?? s3StoreFor(ctx.secretKey);
@@ -91,15 +98,14 @@ export function backupHandler(deps: { storeFor?: StoreFor } = {}): JobHandler {
     const local = `incuscloud-${ctx.job.id.slice(0, 8)}`;
     const backupsPath = (sub = "") => instancePath(p.project, p.instanceName, `/backups${sub}`);
     let rowMade = false;
+    const options = { instance_only: p.instanceOnly, optimized_storage: false, compression_algorithm: "gzip" };
 
     /** Asks the cluster for a backup (uploaded by itself when `s3` is given) and waits for it. */
     const make = async (s3?: TargetRow) => {
       const r = await client.request("POST", backupsPath(), {
-        name: local,
-        expires_at: new Date(Date.now() + CLUSTER_COPY_TTL_MS).toISOString(),
-        instance_only: p.instanceOnly,
-        optimized_storage: false,
-        compression_algorithm: "gzip",
+        // Incus names nothing (and keeps nothing) when it uploads itself.
+        ...(!s3 && { name: local, expires_at: new Date(Date.now() + CLUSTER_COPY_TTL_MS).toISOString() }),
+        ...options,
         ...(s3 && { target: { protocol: "s3", url: s3.endpoint, bucket_name: s3.bucket, path: key, access_key: s3.accessKeyId, secret_key: open(ctx.secretKey, s3.secretKeyEnc) } }),
       });
       if (r.operation) await waitOp(client, r.operation, ctx.signal);
@@ -111,12 +117,30 @@ export function backupHandler(deps: { storeFor?: StoreFor } = {}): JobHandler {
         if (!(e instanceof ClusterError && e.clusterStatus === 404)) throw e;
       }
     };
-    const relay = async () => {
-      await ctx.progress({ stage: "backing up" });
-      await make();
-      await ctx.progress({ stage: "uploading" });
+    /** The size of the uploaded object, once it is in the target. */
+    const appeared = async () => {
+      const end = Date.now() + directWaitMs;
+      for (;;) {
+        if (ctx.signal.aborted) throw ctx.signal.reason;
+        const s = await store.stat(key);
+        if (s) return s.size;
+        if (Date.now() > end) throw new ApiError(502, "target_error", "The cluster reported the upload done, but the object is not in the target");
+        await Bun.sleep(Math.min(1000, directWaitMs / 4));
+      }
+    };
+    /** Streams the backup through the control plane: straight from the cluster with `direct_backup`, else made there first, then exported. */
+    const relay = async (streaming: boolean) => {
+      let stream: ReadableStream<Uint8Array>;
+      if (streaming) {
+        await ctx.progress({ stage: "backing up and uploading" });
+        stream = await client.download(backupsPath(), { method: "POST", body: options, headers: { accept: "application/octet-stream" }, signal: ctx.signal });
+      } else {
+        await ctx.progress({ stage: "backing up" });
+        await make();
+        await ctx.progress({ stage: "uploading" });
+        stream = await client.download(backupsPath(`/${local}/export`), { signal: ctx.signal });
+      }
       let last = 0;
-      const stream = await client.download(backupsPath(`/${local}/export`), { signal: ctx.signal });
       const { size } = await store.put(key, stream, {
         signal: ctx.signal,
         onBytes: (n) => {
@@ -147,7 +171,8 @@ export function backupHandler(deps: { storeFor?: StoreFor } = {}): JobHandler {
       });
       rowMade = true;
 
-      const canDirect = (await client.server()).api_extensions?.includes("backup_s3_upload") ?? false;
+      const extensions = (await client.server()).api_extensions ?? [];
+      const canDirect = extensions.includes("backup_s3_upload");
       if (p.transport === "direct" && !canDirect) throw new ApiError(409, "conflict", "The cluster cannot upload backups itself (it lacks the backup_s3_upload API extension)");
       let transport: "direct" | "relay" | undefined;
       let size: number | null = null;
@@ -155,8 +180,8 @@ export function backupHandler(deps: { storeFor?: StoreFor } = {}): JobHandler {
         try {
           await ctx.progress({ stage: "backing up and uploading" });
           await make(target);
+          size = await appeared();
           transport = "direct";
-          size = (await store.stat(key))?.size ?? null;
         } catch (e) {
           if (p.transport === "direct" || ctx.signal.aborted) throw e;
           // The cluster may not reach the target: relay instead.
@@ -166,7 +191,7 @@ export function backupHandler(deps: { storeFor?: StoreFor } = {}): JobHandler {
         }
       }
       if (!transport) {
-        size = await relay();
+        size = await relay(extensions.includes("direct_backup"));
         transport = "relay";
       }
 

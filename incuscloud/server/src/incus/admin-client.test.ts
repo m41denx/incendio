@@ -59,6 +59,16 @@ test("download streams a body larger than one chunk", async () => {
   expect(n).toBe(3_000_000);
 });
 
+test("download can POST a JSON body and ask for a raw answer (direct backups)", async () => {
+  let n = 0;
+  for await (const c of await client.download("/1.0/stream?bytes=1000", { method: "POST", body: { instance_only: true }, headers: { accept: "application/octet-stream" } })) n += c.length;
+  expect(n).toBe(1000);
+  const seen = fake.requests.findLast((r) => r.url === "/1.0/stream?bytes=1000")!;
+  expect(seen.method).toBe("POST");
+  expect(seen.headers.accept).toBe("application/octet-stream");
+  expect(seen.headers["content-type"]).toBe("application/json");
+});
+
 test("download of an error is a ClusterError with the Incus message", async () => {
   await expect(client.download("/1.0/boom")).rejects.toThrow("Cluster: kaboom");
 });

@@ -25,7 +25,7 @@ beforeEach(async () => {
   targetId = (await db.insert(backupTargets).values({ name: "s3", endpoint: "http://s3:9000", bucket: "bk", prefix: "ic", accessKeyId: "AK", secretKeyEnc: seal(KEY, "SK") }).returning())[0]!.id;
 });
 
-function run(o: StubBackups = {}, payload: Record<string, unknown> = {}, signal = new AbortController().signal) {
+function run(o: StubBackups = {}, payload: Record<string, unknown> = {}, signal = new AbortController().signal, directWaitMs = 2000) {
   const a = stubCluster("A", { web: { status: "Running", type: "container", config: {} } }, log, o);
   const ctx = {
     db,
@@ -35,7 +35,7 @@ function run(o: StubBackups = {}, payload: Record<string, unknown> = {}, signal 
     progress: async () => {},
     clientFor: async () => ({ client: a, row: { id: clusterId, name: "A" } }),
   } as unknown as JobContext;
-  return { a, result: backupHandler({ storeFor: () => store })(ctx) as Promise<{ backupId: string; transport: string; sizeBytes: number | null; pruned: number }> };
+  return { a, result: backupHandler({ storeFor: () => store, directWaitMs })(ctx) as Promise<{ backupId: string; transport: string; sizeBytes: number | null; pruned: number }> };
 }
 const rows = () => db.select().from(backups);
 
@@ -53,6 +53,14 @@ test("relay: the export streams into the target; the row is ready with its size;
   expect(a.backups.size).toBe(0);
 });
 
+test("relay with direct_backup: the backup streams straight from the cluster, nothing is stored there", async () => {
+  const { a, result } = run({ extensions: ["direct_backup"] }, { transport: "relay" });
+  expect(await result).toMatchObject({ transport: "relay", sizeBytes: 300_000 });
+  expect(log).toEqual(["A backup-stream web"]);
+  expect(a.bodies[0]).toEqual({ instance_only: false, optimized_storage: false, compression_algorithm: "gzip" });
+  expect(store.keys().length).toBe(1);
+});
+
 test("direct: the cluster uploads with the target's bucket, key and opened secret; the size comes from the store", async () => {
   const { a, result } = run({
     extensions: ["backup_s3_upload"],
@@ -61,8 +69,22 @@ test("direct: the cluster uploads with the target's bucket, key and opened secre
   const r = await result;
   expect(r).toMatchObject({ transport: "direct", sizeBytes: 1234 });
   const [b] = await rows();
+  // Incus refuses a name with a target.
+  expect((a.bodies[0] as { name?: string }).name).toBeUndefined();
   expect((a.bodies[0] as { target: unknown }).target).toEqual({ protocol: "s3", url: "http://s3:9000", bucket_name: "bk", path: b!.objectKey, access_key: "AK", secret_key: "SK" });
   expect(log).toEqual(["A backup web direct"]);
+});
+
+test("direct: an upload the cluster reports done early is waited for", async () => {
+  const { result } = run({ extensions: ["backup_s3_upload"], directLagMs: 300, onDirect: async (t) => void (await store.put(t.path!, new Blob([new Uint8Array(77)]).stream())) }, { transport: "direct" });
+  expect(await result).toMatchObject({ transport: "direct", sizeBytes: 77 });
+});
+
+test("direct: an object that never appears fails the backup; auto relays instead", async () => {
+  const never = { extensions: ["backup_s3_upload"], directLagMs: 60_000 };
+  expect(await run(never, { transport: "direct" }, undefined, 200).result.catch((e) => (e as Error).message)).toBe("The cluster reported the upload done, but the object is not in the target");
+  log.length = 0;
+  expect((await run(never, {}, undefined, 200).result).transport).toBe("relay");
 });
 
 test("auto: a failed direct upload falls back to relay", async () => {

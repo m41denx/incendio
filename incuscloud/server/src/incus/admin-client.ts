@@ -113,11 +113,16 @@ export class IncusAdminClient {
     });
   }
 
-  /** GETs a raw body (a backup export) as a stream; an error answer is a ClusterError. The signal stops it. */
-  download(path: string, opts: { project?: string; signal?: AbortSignal } = {}): Promise<ReadableStream<Uint8Array>> {
+  /**
+   * Reads a raw answer (a backup export, or a direct backup: a POST with a JSON
+   * body and `Accept: application/octet-stream`) as a stream; an error answer is
+   * a ClusterError. The signal stops it.
+   */
+  download(path: string, opts: { project?: string; signal?: AbortSignal; method?: string; body?: unknown; headers?: Record<string, string> } = {}): Promise<ReadableStream<Uint8Array>> {
     const u = this.url_(path, opts.project);
+    const headers = { ...(opts.body !== undefined && { "content-type": "application/json" }), ...opts.headers };
     return new Promise((resolve, reject) => {
-      const req = httpsRequest({ hostname: u.hostname, port: u.port, path: u.pathname + u.search, method: "GET", agent: this.agent, timeout: this.timeoutMs, signal: opts.signal }, (res) => {
+      const req = httpsRequest({ hostname: u.hostname, port: u.port, path: u.pathname + u.search, method: opts.method ?? "GET", headers, agent: this.agent, timeout: this.timeoutMs, signal: opts.signal }, (res) => {
         if ((res.statusCode ?? 0) >= 400) return envelope(res).then(() => reject(new ClusterError(res.statusCode ?? 502, `Cluster answered ${res.statusCode}`)), reject);
         // The stream errors with the signal's reason when it aborts.
         opts.signal?.addEventListener("abort", () => res.destroy(reasonOf(opts.signal!)), { once: true });
@@ -125,7 +130,7 @@ export class IncusAdminClient {
       });
       req.on("timeout", () => req.destroy(new Error("timed out")));
       req.on("error", (e) => reject(opts.signal?.aborted ? reasonOf(opts.signal) : new ApiError(502, "cluster_unreachable", `Could not reach ${this.url}: ${e.message}`)));
-      req.end();
+      req.end(opts.body === undefined ? undefined : JSON.stringify(opts.body));
     });
   }
 

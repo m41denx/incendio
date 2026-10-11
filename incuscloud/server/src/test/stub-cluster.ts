@@ -10,11 +10,14 @@ export interface StubBackups {
   /** A backup with an S3 `target` fails with this message; otherwise `onDirect` gets the target. */
   directFails?: string;
   onDirect?: (target: Record<string, string>) => Promise<void>;
+  /** Incus before 2026-10 reports a direct upload done before it is: run `onDirect` this much later. */
+  directLagMs?: number;
   exportFails?: string;
   /** The export body; 3 × 100 kB by default. */
   exportStream?: (signal?: AbortSignal) => ReadableStream<Uint8Array>;
-  /** Projects that exist (default: acme). */
+  /** Projects that exist (default: acme), with their config. */
   projects?: string[];
+  projectConfig?: Record<string, Record<string, string>>;
   /** An import (`upload` to /1.0/instances) fails with this message. */
   importFails?: string;
 }
@@ -45,14 +48,17 @@ export function stubCluster(label: string, instances: Record<string, StubInstanc
     instances,
     backups,
     bodies: [] as unknown[],
+    createdProjects: [] as string[],
     url: `https://${label}:8443`,
     reachable: true,
     async server() {
       return { api_extensions: b.extensions ?? [] };
     },
-    async download(path: string, opts: { signal?: AbortSignal } = {}) {
+    async download(path: string, opts: { signal?: AbortSignal; method?: string; body?: unknown } = {}) {
       if (!this.reachable) throw new ClusterError(502, `Cluster: ${label} is unreachable`);
-      log.push(`${label} export ${decodeURIComponent(path.split("?")[0]!.split("/")[3] ?? "")}`);
+      const name = decodeURIComponent(path.split("?")[0]!.split("/")[3] ?? "");
+      if (opts.method === "POST") this.bodies.push(opts.body);
+      log.push(`${label} ${opts.method === "POST" ? "backup-stream" : "export"} ${name}`);
       if (b.exportFails) throw new ClusterError(500, `Cluster: ${b.exportFails}`);
       return (b.exportStream ?? fixedExport)(opts.signal);
     },
@@ -78,8 +84,15 @@ export function stubCluster(label: string, instances: Record<string, StubInstanc
       const name = decodeURIComponent(parts[3] ?? "");
       const inst = instances[name];
       if (method === "GET" && parts[2] === "projects") {
-        if (!(b.projects ?? ["acme"]).includes(name)) throw new ClusterError(404, "Cluster: Project not found");
-        return { type: "sync", status_code: 200, metadata: { name, config: {} } };
+        if (!(b.projects ?? ["acme"]).includes(name) && !this.createdProjects.includes(name)) throw new ClusterError(404, "Cluster: Project not found");
+        return { type: "sync", status_code: 200, metadata: { name, config: b.projectConfig?.[name] ?? {} } };
+      }
+      if (method === "POST" && path === "/1.0/projects") {
+        const p = body as unknown as { name: string; config: Record<string, string> };
+        log.push(`${label} create-project ${p.name}`);
+        this.createdProjects.push(p.name);
+        this.bodies.push(p);
+        return { type: "sync", status_code: 200, metadata: {} };
       }
       if (method === "PATCH" && parts[2] === "instances" && inst) {
         log.push(`${label} patch ${name}`);
@@ -93,8 +106,10 @@ export function stubCluster(label: string, instances: Record<string, StubInstanc
           log.push(`${label} backup ${name}${body!.target ? " direct" : ""}`);
           if (b.backupFails) return newOp("Failure", b.backupFails);
           if (body!.target) {
+            if (body!.name) throw new ClusterError(400, "Cluster: No backup name can be set when setting a backup target");
             if (b.directFails) return newOp("Failure", b.directFails);
-            await b.onDirect?.(body!.target);
+            if (b.directLagMs) setTimeout(() => void b.onDirect?.(body!.target!), b.directLagMs);
+            else await b.onDirect?.(body!.target);
             // Incus removes its local copy once uploaded.
             return newOp("Success");
           }
