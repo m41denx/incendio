@@ -23,3 +23,12 @@ export async function ensureServerConfig(client: IncusAdminClient, want: Record<
   if (changed.length) await client.request("PATCH", "/1.0", { config: Object.fromEntries(changed.map((k) => [k, want[k]])) });
   return changed;
 }
+
+const MANAGED_KEYS = Object.keys(clusterConfigFor({ issuer: "", clientId: "", audience: "", openfgaUrl: "", openfgaToken: "x", storeId: "" }));
+
+/** Undoes clusterConfigFor when a cluster leaves the platform: it stops trusting IncusCloud's tokens and grants. */
+export async function releaseServerConfig(client: IncusAdminClient): Promise<void> {
+  const current = (await client.request<IncusServer>("GET", "/1.0")).metadata.config ?? {};
+  const set = MANAGED_KEYS.filter((k) => k in current);
+  if (set.length) await client.request("PATCH", "/1.0", { config: Object.fromEntries(set.map((k) => [k, ""])) });
+}

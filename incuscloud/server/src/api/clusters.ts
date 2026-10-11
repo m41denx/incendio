@@ -12,6 +12,7 @@ import { ApiError } from "../lib/errors.ts";
 import { log } from "../lib/log.ts";
 import { audited, created, noContent, uuidParam } from "./common.ts";
 import { requestReconcile } from "../reconcile/requests.ts";
+import { releaseServerConfig } from "../reconcile/incus-config.ts";
 
 /** Cluster names are DNS labels: `<name>.<IC_CLUSTER_DOMAIN>` routes API clients (spec D11). */
 const NAME = "^[a-z][a-z0-9-]{0,61}[a-z0-9]$";
@@ -91,9 +92,16 @@ export function clustersRoutes({ db, authz, secretKey }: { db: Db; authz: Authz;
           const row = await load(p, params.id, "admin");
           const placed = await db.select().from(placements).where(eq(placements.clusterId, row.id));
           if (placed.length && query.force !== "true") throw new ApiError(409, "cluster_in_use", `${placed.length} tenant(s) are placed on this cluster; remove them or pass force=true`);
-          // Best effort: the cluster may already be gone.
+          // Best effort: the cluster may already be gone. First stop it trusting our tokens and grants,
+          // then remove our certificate (the order matters: without it we cannot unset anything).
+          const client = clusterClient({ secretKey }, row);
           try {
-            await clusterClient({ secretKey }, row).request("DELETE", `/1.0/certificates/${fingerprintOf(row.clientCert)}`);
+            await releaseServerConfig(client);
+          } catch (e) {
+            log.warn("could not unset IncusCloud's OIDC/OpenFGA settings on the cluster", { cluster: row.name, error: (e as Error).message });
+          }
+          try {
+            await client.request("DELETE", `/1.0/certificates/${fingerprintOf(row.clientCert)}`);
           } catch (e) {
             log.warn("could not remove the control plane certificate from the cluster", { cluster: row.name, error: (e as Error).message });
           }

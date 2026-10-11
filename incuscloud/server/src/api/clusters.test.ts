@@ -66,6 +66,13 @@ test("deleting a cluster removes our certificate from it", async () => {
   expect((await h.call(admin, "GET", `/api/v1/clusters/${c1.id}`)).status).toBe(404);
 });
 
+test("a deleted cluster stops trusting IncusCloud tokens (the reconciler's oidc/authorization keys are unset)", async () => {
+  const c1 = (await enrol()).body;
+  fake.config = { "oidc.issuer": "https://id.test/", "oidc.client.id": "incus-cli", "oidc.audience": "incuscloud", "oidc.claim": "sub", "authorization.openfga.api.url": "http://fga", "authorization.openfga.api.token": "k", "authorization.openfga.store.id": "S", "authorization.client.oidc": "openfga", "authorization.client.tls": "allow", "core.https_address": ":8443" };
+  expect((await h.call(admin, "DELETE", `/api/v1/clusters/${c1.id}`)).status).toBe(204);
+  expect(fake.config).toEqual({ "core.https_address": ":8443" });
+});
+
 test("clusters with tenants need force to delete", async () => {
   const c1 = (await enrol()).body;
   const t = await h.tenant("acme");

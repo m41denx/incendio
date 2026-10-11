@@ -14,7 +14,7 @@ Licensed under GPL-3.0 (see `LICENSE`).
 | P0 | Spikes: Hydra tokens in Incus, authenticating proxy, cross-cluster moves | done ([results](docs/spikes.md)) |
 | P1 | Server core: config, database, identity, sessions, authorization, platform API, cluster enrolment | done |
 | P2 | Gateway: authenticated pass-through to each cluster's API, Incendio per cluster | done |
-| P3 | Reconciler: cluster OIDC/OpenFGA configuration, tenant projects | in progress |
+| P3 | Reconciler: cluster OIDC/OpenFGA configuration, tenant projects | done |
 
 ## How it fits together
 
