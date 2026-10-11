@@ -165,17 +165,17 @@ export class FakeIncus {
           const p = this.projects.get(decodeURIComponent(pm[1]!));
           if (!p) return fail(404, "Project not found");
           if (req.method === "GET") return sync({ name: pm[1], config: p.config, description: p.description });
-          if (req.method === "PATCH") {
+          if (req.method === "PATCH" || req.method === "PUT") {
             this.patches.push({ path: u.pathname, body: body() });
+            const sent = (body().config ?? {}) as Record<string, string>;
             // Incus refuses a limit below what the project already uses.
-            for (const [k, v] of Object.entries(body().config ?? {})) {
+            for (const [k, v] of Object.entries(sent)) {
               const key = k.replace(/^limits\./, "") as "instances" | "cpu" | "memory" | "disk";
               if (k.startsWith("limits.") && v !== "" && p.usage && key in p.usage && Number(v) < p.usage[key]) return fail(400, `Invalid limit ${k}: below current usage`);
             }
-            for (const [k, v] of Object.entries(body().config ?? {})) {
-              if (v === "") delete p.config[k];
-              else p.config[k] = String(v);
-            }
+            // As Incus 7.5 does for PATCH too (projectPatch merges into a copy it then ignores): the config sent replaces the project's.
+            p.config = Object.fromEntries(Object.entries(sent).filter(([, v]) => v !== "").map(([k, v]) => [k, String(v)]));
+            if (body().description !== undefined) p.description = body().description;
             return sync({});
           }
         }

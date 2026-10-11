@@ -50,6 +50,15 @@ test("creates the project, then only follows limit changes", async () => {
   expect(c["limits.memory"]).toBeUndefined();
 });
 
+test("a limit change keeps the rest of the project's config (Incus replaces a project's config on PATCH as on PUT)", async () => {
+  await ensureProject(client, "acme", tenant, limits);
+  fake.projects.get("acme")!.config["user.note"] = "set by an admin";
+  expect(await ensureProject(client, "acme", tenant, { ...limits, cpu: 4 })).toBe("updated");
+  const c = fake.projects.get("acme")!.config;
+  expect(c).toMatchObject({ restricted: "true", "user.incuscloud.tenant": tenant.id, "features.networks": "false", "limits.cpu": "4", "user.note": "set by an admin" });
+  expect(fake.projects.get("acme")!.description).toBe("IncusCloud tenant acme");
+});
+
 test("projects made before backups existed get restricted.backups=allow", async () => {
   expect(await ensureProject(client, "acme", tenant, limits)).toBe("created");
   delete fake.projects.get("acme")!.config["restricted.backups"];

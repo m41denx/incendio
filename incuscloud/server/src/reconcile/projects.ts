@@ -30,8 +30,11 @@ const UPDATABLE = (k: string) => k.startsWith("restricted") || k.startsWith("lim
 export async function ensureProject(client: IncusAdminClient, name: string, tenant: { id: string; slug: string }, limits: Limits): Promise<"created" | "updated" | "unchanged"> {
   const want = projectConfigFor(tenant, limits);
   let current: Record<string, string>;
+  let description: string;
   try {
-    current = (await client.request<{ config: Record<string, string> }>("GET", `/1.0/projects/${encodeURIComponent(name)}`)).metadata.config ?? {};
+    const project = (await client.request<{ config: Record<string, string>; description: string }>("GET", `/1.0/projects/${encodeURIComponent(name)}`)).metadata;
+    current = project.config ?? {};
+    description = project.description ?? "";
   } catch (e) {
     if (!(e instanceof ClusterError && e.clusterStatus === 404)) throw e;
     await client.request("POST", "/1.0/projects", { name, description: `IncusCloud tenant ${tenant.slug}`, config: want });
@@ -45,7 +48,14 @@ export async function ensureProject(client: IncusAdminClient, name: string, tena
   // Quotas removed since: unset their limits.
   for (const k of Object.keys(current)) if (k.startsWith("limits.") && !(k in want)) patch[k] = "";
   if (!Object.keys(patch).length) return "unchanged";
-  await client.request("PATCH", `/1.0/projects/${encodeURIComponent(name)}`, { config: patch });
+  // The whole config, never a PATCH: Incus (7.5, and main as of 2026-10) applies a project PATCH's
+  // config as the complete config, so a PATCH of the limits alone would drop `restricted` and the rest.
+  const next = { ...current };
+  for (const [k, v] of Object.entries(patch)) {
+    if (v === "") delete next[k];
+    else next[k] = v;
+  }
+  await client.request("PUT", `/1.0/projects/${encodeURIComponent(name)}`, { config: next, description });
   return "updated";
 }
 
