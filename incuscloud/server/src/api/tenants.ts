@@ -10,6 +10,7 @@ import type { HydraAdminApi } from "../identity/hydra-admin.ts";
 import { ApiError } from "../lib/errors.ts";
 import { log } from "../lib/log.ts";
 import { audited, created, noContent, uuidParam } from "./common.ts";
+import { requestReconcile } from "../reconcile/requests.ts";
 
 /** Tenant slugs become Incus project names (spec D5): DNS-label-like, not reserved. */
 const SLUG = "^[a-z][a-z0-9-]{1,30}[a-z0-9]$";
@@ -47,6 +48,7 @@ export function tenantsRoutes({ db, authz, hydra }: { db: Db; authz: Authz; hydr
       await tx.insert(tenantMembers).values({ tenantId, userId, role }).onConflictDoUpdate({ target: [tenantMembers.tenantId, tenantMembers.userId], set: { role } });
       await authz.write([tuples.member(tenantId, userId, role)], cur ? [tuples.member(tenantId, userId, cur.role)] : []);
     });
+    await requestReconcile(db, { tenant: tenantId });
     return { userId, role };
   };
 
@@ -94,6 +96,7 @@ export function tenantsRoutes({ db, authz, hydra }: { db: Db; authz: Authz; hydr
           if (body.name !== undefined && !(await can(authz, p, "admin", `tenant:${params.id}`))) throw forbidden();
           if (body.quotas !== undefined && !(await platformCan(authz, p, "operator"))) throw forbidden();
           const [row] = await db.update(tenants).set({ ...(body.name !== undefined && { name: body.name }), ...(body.quotas !== undefined && { quotas: body.quotas }) }).where(eq(tenants.id, params.id)).returning();
+          if (body.quotas !== undefined) await requestReconcile(db, { tenant: params.id });
           return view(row!);
         });
       },
@@ -164,6 +167,7 @@ export function tenantsRoutes({ db, authz, hydra }: { db: Db; authz: Authz; hydr
           await tx.delete(tenantMembers).where(and(eq(tenantMembers.tenantId, params.id), eq(tenantMembers.userId, params.userId)));
           await authz.write([], [tuples.member(params.id, params.userId, cur.role)]);
         });
+        await requestReconcile(db, { tenant: params.id });
       }, () => ({ userId: params.userId }));
       return noContent(set);
     });

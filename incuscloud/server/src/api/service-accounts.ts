@@ -11,6 +11,10 @@ import { AUDIENCE } from "../identity/routes.ts";
 import { ApiError } from "../lib/errors.ts";
 import { randomToken } from "../lib/secrets.ts";
 import { audited, created, noContent, uuidParam } from "./common.ts";
+import { requestReconcile } from "../reconcile/requests.ts";
+
+/** Clusters whose grants name this account. */
+const affected = (sa: { tenantId: string | null; platformRole: string | null }) => (sa.tenantId ? { tenant: sa.tenantId } : sa.platformRole ? ("all" as const) : null);
 
 type SaRow = typeof serviceAccounts.$inferSelect;
 const view = (s: SaRow) => ({ id: s.id, name: s.name, clientId: s.clientId, tenantId: s.tenantId, platformRole: s.platformRole, disabled: s.disabled, createdBy: s.createdBy, createdAt: s.createdAt });
@@ -72,7 +76,7 @@ export function serviceAccountsRoutes({ db, authz, hydra, hydraPublicUrl }: { db
           }
           const id = crypto.randomUUID();
           const secret = randomToken(32);
-          return db.transaction(async (tx) => {
+          const res = await db.transaction(async (tx) => {
             const [sa] = await tx
               .insert(serviceAccounts)
               .values({ id, name: body.name, clientId: `sa-${id}`, tenantId: body.tenantId ?? null, platformRole: body.platformRole ?? null, createdBy: p.kind === "user" ? p.id : null })
@@ -81,6 +85,9 @@ export function serviceAccountsRoutes({ db, authz, hydra, hydraPublicUrl }: { db
             await authz.write(satuples(sa!));
             return { ...view(sa!), clientSecret: secret, tokenUrl };
           });
+          const target = affected({ tenantId: body.tenantId ?? null, platformRole: body.platformRole ?? null });
+          if (target) await requestReconcile(db, target);
+          return res;
         }, (r) => ({ serviceAccountId: r.id, tenantId: r.tenantId }));
         return created(set, res);
       },
@@ -110,6 +117,8 @@ export function serviceAccountsRoutes({ db, authz, hydra, hydraPublicUrl }: { db
           await hydra.deleteClient(sa.clientId);
           await authz.write([], satuples(sa));
         });
+        const target = affected(sa);
+        if (target) await requestReconcile(db, target);
       });
       return noContent(set);
     });

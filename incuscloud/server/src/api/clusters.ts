@@ -11,6 +11,7 @@ import { fingerprintOf } from "../incus/certs.ts";
 import { ApiError } from "../lib/errors.ts";
 import { log } from "../lib/log.ts";
 import { audited, created, noContent, uuidParam } from "./common.ts";
+import { requestReconcile } from "../reconcile/requests.ts";
 
 /** Cluster names are DNS labels: `<name>.<IC_CLUSTER_DOMAIN>` routes API clients (spec D11). */
 const NAME = "^[a-z][a-z0-9-]{0,61}[a-z0-9]$";
@@ -29,6 +30,8 @@ const view = (c: ClusterRow) => ({
   createdAt: c.createdAt,
   updatedAt: c.updatedAt,
   lastSeenAt: c.lastSeenAt,
+  reconciledAt: c.reconciledAt,
+  reconcileRequestedAt: c.reconcileRequestedAt,
 });
 
 /** Cluster registry, enrolment and tenant placement. */
@@ -60,6 +63,7 @@ export function clustersRoutes({ db, authz, secretKey }: { db: Db; authz: Authz;
           if (!(await platformCan(authz, p, "admin"))) throw forbidden();
           const row = await enrollCluster({ db, secretKey }, { name: body.name, token: body.token, labels: body.labels });
           await authz.write([tuples.cluster(row.id)]);
+          await requestReconcile(db, [row.id]);
           return view(row);
         }, (c) => ({ clusterId: c.id, name: c.name, url: c.url }));
         return created(set, res);
@@ -120,6 +124,7 @@ export function clustersRoutes({ db, authz, secretKey }: { db: Db; authz: Authz;
         if (!tenant) throw notFound("No such tenant");
         await db.insert(placements).values({ tenantId: tenant.id, clusterId: params.id, project: tenant.slug }).onConflictDoNothing();
         await authz.write([tuples.placement(tenant.id, params.id)]);
+        await requestReconcile(db, [params.id]);
         const [row] = await db.select().from(placements).where(and(eq(placements.tenantId, tenant.id), eq(placements.clusterId, params.id)));
         return row!;
       }, (r) => ({ tenantId: r.tenantId }));
@@ -132,7 +137,18 @@ export function clustersRoutes({ db, authz, secretKey }: { db: Db; authz: Authz;
         const removed = await db.delete(placements).where(and(eq(placements.clusterId, params.id), eq(placements.tenantId, uuidParam(params.tenantId)))).returning();
         if (!removed.length) throw notFound("This tenant is not on this cluster");
         await authz.write([], [tuples.placement(params.tenantId, params.id)]);
+        await requestReconcile(db, [params.id]);
       }, () => ({ tenantId: params.tenantId }));
       return noContent(set);
+    })
+    .post("/api/v1/clusters/:id/reconcile", async ({ principal, request, params, set }) => {
+      const p = authed(principal);
+      await audited(db, { principal: p, request }, "cluster.reconcile", { type: "cluster", id: params.id }, async () => {
+        await load(p, params.id, "can_access");
+        await needOperator(p);
+        await requestReconcile(db, [params.id]);
+      });
+      set.status = 202;
+      return { requested: true };
     });
 }

@@ -26,6 +26,18 @@ export const clusters = pgTable("clusters", {
   reconciledAt: timestamp("reconciled_at", { withTimezone: true }),
   /** Last full scan of the cluster store for stray IncusCloud tuples. */
   grantsScannedAt: timestamp("grants_scanned_at", { withTimezone: true }),
+  /** Set by changes that affect the cluster; cleared once the reconciler has served every request. */
+  reconcileRequestedAt: timestamp("reconcile_requested_at", { withTimezone: true }),
+  /** Bumped by every request; the reconciler records the generation it served (clock-free). */
+  reconcileGeneration: integer("reconcile_generation").notNull().default(0),
+  reconciledGeneration: integer("reconciled_generation").notNull().default(0),
+});
+
+/** Leader election between workers (one reconciler at a time). */
+export const leases = pgTable("leases", {
+  name: text("name").primaryKey(),
+  holder: text("holder").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 });
 
 /** Grant tuples IncusCloud wrote to a cluster's store (OpenFGA cannot list them cheaply). */

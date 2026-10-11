@@ -10,6 +10,7 @@ import { hashPassword } from "../identity/passwords.ts";
 import type { HydraAdminApi } from "../identity/hydra-admin.ts";
 import { ApiError } from "../lib/errors.ts";
 import { audited, created, noContent, uuidParam } from "./common.ts";
+import { requestReconcile } from "../reconcile/requests.ts";
 
 const PlatformRole = t.Union([t.Literal("admin"), t.Literal("operator"), t.Literal("viewer")]);
 
@@ -68,7 +69,7 @@ export function usersRoutes({ db, authz, hydra }: { db: Db; authz: Authz; hydra:
             throw new ApiError(409, "email_taken", "A user with this email already exists");
           }
           const passwordHash = body.password ? await hashPassword(body.password) : null;
-          return db.transaction(async (tx) => {
+          const res = await db.transaction(async (tx) => {
             const [u] = await tx.insert(users).values({ email: body.email, name: body.name, passwordHash }).returning();
             if (body.platformRole) {
               await tx.insert(platformRoles).values({ userId: u!.id, role: body.platformRole });
@@ -76,6 +77,8 @@ export function usersRoutes({ db, authz, hydra }: { db: Db; authz: Authz; hydra:
             }
             return view(u!, body.platformRole);
           });
+          if (body.platformRole) await requestReconcile(db, "all");
+          return res;
         }, (u) => ({ email: u.email, platformRole: u.platformRole }));
         return created(set, res);
       },
@@ -97,7 +100,7 @@ export function usersRoutes({ db, authz, hydra }: { db: Db; authz: Authz; hydra:
           const { u, role } = await load(params.id);
           const losesAdmin = role === "admin" && ((body.platformRole !== undefined && body.platformRole !== "admin") || body.disabled === true);
           if (losesAdmin) await keepAnAdmin(u.id);
-          return db.transaction(async (tx) => {
+          const res = await db.transaction(async (tx) => {
             const patch: Partial<UserRow> = {};
             if (body.name !== undefined) patch.name = body.name;
             if (body.disabled !== undefined) patch.disabled = body.disabled;
@@ -117,6 +120,9 @@ export function usersRoutes({ db, authz, hydra }: { db: Db; authz: Authz; hydra:
             }
             return view(updated!, newRole);
           });
+          // Cluster grants follow roles and the disabled flag.
+          if (body.disabled !== undefined || body.platformRole !== undefined) await requestReconcile(db, "all");
+          return res;
         }, () => ({ fields: Object.keys(body).map((k) => (k === "password" ? "password(set)" : k)) }));
       },
       {
@@ -140,6 +146,7 @@ export function usersRoutes({ db, authz, hydra }: { db: Db; authz: Authz; hydra:
           await hydra.revokeSubject(u.id);
           await authz.write([], [...(role ? [tuples.platformRole(u.id, role)] : []), ...memberships.map((m) => tuples.member(m.tenantId, u.id, m.role))]);
         });
+        await requestReconcile(db, "all");
       });
       return noContent(set);
     });
