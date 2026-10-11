@@ -38,8 +38,10 @@ not); OVN is required only for the networking features.
 | D8 | **HA on Kubernetes**: N stateless `api` replicas (gateway + platform API + static UIs) and `worker` replicas with leader election on a Postgres advisory lock; Postgres (CloudNativePG), OpenFGA and Hydra each HA. Helm chart in `incuscloud/deploy`. | Gateway outages cut tenants off; every piece must survive a node or cluster loss. OpenFGA must be up before Incus upgrades (the 7.5 `auth_openfga_security_tags` patch stops incusd otherwise). |
 | D9 | **Two UIs, one product**: the platform UI (`@incuscloud/web`, React + Vite + Canonical react-components like Incendio) and the per-cluster console = **Incendio served by the gateway at `/clusters/<id>/ui/`**. Incendio already derives `ROOT_PATH` from the URL, so it calls `/clusters/<id>/1.0/...` unchanged. | Full per-cluster functionality for free; the platform UI only builds what spans clusters. |
 | D10 | **Browser sessions are server-side** (BFF): an httpOnly session cookie; the gateway attaches the session's access token (refreshing it) to proxied calls. API clients send `Authorization: Bearer` themselves. | Tokens never reach browser JavaScript. |
-| D11 | **Routing**: `/clusters/<cluster>/…` path prefix always; optional host routing `<cluster>.<CLUSTER_DOMAIN>` for clients that cannot use a path prefix. | Both work with stock tools; the spike decides which the docs lead with. |
+| D11 | **Routing**: host routing `<cluster>.<CLUSTER_DOMAIN>` (wildcard DNS + wildcard certificate) is the default for API clients; the `/clusters/<cluster>/…` path prefix serves the browser (platform UI, Incendio console). | Spike B: the Incus Go client (CLI, Terraform provider) drops path prefixes. |
 | D12 | **Licensing**: `incuscloud/` is AGPL-3.0 (like `firecloud/`). PegaProx (AGPL-3.0 with a Section 7(b) "Powered by PegaProx" attribution term) is a **feature reference only, no code copied**. ProxLB (GPL-3.0) algorithms are ported to TypeScript with attribution. | Copying PegaProx code would oblige us to show its branding in our UI. |
+| D14 | **Gateway front on `node:https`, upstream on `node:https` + `PinnedAgent`** (from `@incendio/api/node`); Elysia serves the platform API on the same server through `app.handle`. Upgrades (websocket and `Upgrade: sftp`) are relayed as raw byte streams after the cluster's 101. | Spike B: `Bun.serve` cannot hand over the raw socket for SFTP; Bun's `fetch` cannot pin a self-signed leaf (it skips `checkServerIdentity` when `rejectUnauthorized` is false). 1 GiB each way at constant ~85 MiB RSS. |
+| D15 | **Cross-cluster transfers relay through the worker by default** (both operation websockets piped message by message with backpressure); pull mode is tried first when the target can reach the source. | Spike C: relay needs only control plane → cluster connectivity; same speed as pull; 81 MiB peak for 512 MB with backpressure (451 MiB without). |
 | D13 | **Kubernetes centrally**: CAPI + CAPN controllers run in the control plane's own Kubernetes; per tenant and cluster, the worker issues a project-restricted Incus certificate and points CAPN directly at the cluster. The per-cluster management appliance is not needed. | The control plane already reaches every cluster and runs on Kubernetes. |
 
 ## 3. Components
@@ -93,13 +95,15 @@ inventory tables (`instances`, `storage_pools`, `networks`, `metrics_samples`),
 3. Authorize reachability: `platform` store check `can_access` on
    `cluster:<id>` → 403 otherwise.
 4. Forward to `cluster.url` + rest of path, with the caller's bearer token,
-   hop-by-hop headers stripped, `X-Forwarded-For` set; TLS verified against the
-   pinned server certificate; **no client certificate**.
-5. Stream request and response bodies (image/backup uploads of many GB);
-   upgrade websockets (exec, console, events, migration) end to end.
-6. Rewrite nothing in responses except operation and websocket URLs that
-   Incus returns as absolute paths (`/1.0/operations/…` → keep, they are
-   relative to the cluster, so the prefix-aware client resolves them).
+   hop-by-hop headers stripped, `X-Forwarded-For` set; TLS pinned to the
+   cluster certificate's SHA-256 (D14); **no client certificate**.
+5. Stream request and response bodies as they come (image/backup transfers
+   of many GB; GET bodies included, the CLI sends them); relay upgrades
+   (websockets for exec/console/events, `Upgrade: sftp` for file transfer)
+   as raw byte streams after the cluster's 101.
+6. Rewrite nothing: Incus returns cluster-relative paths (`/1.0/operations/…`),
+   which resolve against the gateway host (host routing) or ROOT_PATH
+   (Incendio, path routing).
 7. Audit: method, path, cluster, subject, status, bytes, duration (batched
    insert; reads are sampled by config, writes always logged).
 
@@ -110,7 +114,7 @@ earlier ones.
 
 | Phase | Content |
 |---|---|
-| P0 Spikes | Hydra JWT tokens accepted by Incus (code+PKCE, client credentials, device flow); Bun proxy streaming + websockets with bearer; path-prefixed `incus remote`; cross-cluster migration pull vs relay |
+| P0 Spikes | **Done** — see `incuscloud/docs/spikes.md`: Hydra tokens accepted (client credentials, device flow with the stock CLI); proxy on node:https with raw upgrade relay; host routing required for the CLI; migration pull/refresh/relay |
 | P1 Server core | config, db, logging, OpenAPI, cluster registry + enrolment, users/tenants/service accounts, Hydra login/consent/device, sessions, platform authz, audit |
 | P2 Gateway | path + host routing, streaming, websockets, Incendio served per cluster, BFF |
 | P3 Reconciler | cluster OIDC/OpenFGA configuration, per-cluster stores, tenant projects with limits, grant sync |
