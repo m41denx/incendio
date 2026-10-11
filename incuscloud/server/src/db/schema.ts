@@ -23,7 +23,24 @@ export const clusters = pgTable("clusters", {
   createdAt: created(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+  reconciledAt: timestamp("reconciled_at", { withTimezone: true }),
+  /** Last full scan of the cluster store for stray IncusCloud tuples. */
+  grantsScannedAt: timestamp("grants_scanned_at", { withTimezone: true }),
 });
+
+/** Grant tuples IncusCloud wrote to a cluster's store (OpenFGA cannot list them cheaply). */
+export const clusterGrants = pgTable(
+  "cluster_grants",
+  {
+    clusterId: uuid("cluster_id")
+      .notNull()
+      .references(() => clusters.id, { onDelete: "cascade" }),
+    user: text("user").notNull(),
+    relation: text("relation").notNull(),
+    object: text("object").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.clusterId, t.user, t.relation, t.object] })],
+);
 
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),

@@ -6,6 +6,8 @@ import { isManaged } from "./grants.ts";
 export class FakeStores {
   stores = new Map<string, { name: string; model: boolean; tuples: Map<string, Tuple> }>();
   opened: ClusterStoreConfig[] = [];
+  /** When set, every store reports Incus's model as uploaded. */
+  autoModel = false;
   private n = 0;
 
   open = async (cfg: ClusterStoreConfig): Promise<ClusterStore> => {
@@ -19,7 +21,7 @@ export class FakeStores {
     const key = (t: Tuple) => `${t.user}|${t.relation}|${t.object}`;
     return {
       storeId: id,
-      hasModel: async () => s.model,
+      hasModel: async () => this.autoModel || s.model,
       readManaged: async () => [...s.tuples.values()].filter(isManaged),
       write: async (writes, deletes) => {
         for (const t of writes) s.tuples.set(key(t), t);
