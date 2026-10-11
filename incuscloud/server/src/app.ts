@@ -16,6 +16,7 @@ import { jobsRoutes } from "./api/jobs.ts";
 import { replicationRoutes } from "./api/replication.ts";
 import { backupsRoutes } from "./api/backups.ts";
 import { balancingRoutes, type ClientOf } from "./api/balancing.ts";
+import { tenantCloudRoutes } from "./api/tenant-cloud.ts";
 import type { StoreFor } from "./backups/store.ts";
 import { gatewayLogRoutes } from "./api/gateway-log.ts";
 
@@ -52,5 +53,6 @@ export function createApp(deps: AppDeps) {
     .use(jobsRoutes(deps))
     .use(replicationRoutes(deps))
     .use(backupsRoutes(deps))
-    .use(balancingRoutes(deps));
+    .use(balancingRoutes(deps))
+    .use(tenantCloudRoutes(deps));
 }
