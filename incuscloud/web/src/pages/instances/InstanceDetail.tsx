@@ -1,4 +1,4 @@
-import type { FC } from "react";
+import { type FC, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import PageLayout from "../../components/PageLayout";
@@ -6,8 +6,11 @@ import KeyValues from "../../components/KeyValues";
 import Sparkline, { type SparkPoint } from "../../components/Sparkline";
 import { Loaded, ago } from "../../components/Status";
 import { request } from "../../api/client";
+import { can, tenantRole, useMe } from "../../api/hooks";
 import type { Instance, MetricSample } from "../../api/types";
 import { UNKNOWN, bytes, cores, rate } from "../../lib/format";
+import MigrateInstance from "./MigrateInstance";
+import CreatePolicy from "../replication/CreatePolicy";
 
 const HOURS = 24;
 const REFRESH_MS = 60_000;
@@ -28,6 +31,11 @@ const InstanceDetail: FC = () => {
     refetchInterval: REFRESH_MS,
   });
   const i = instance.data;
+  const { data: me } = useMe();
+  const [migrating, setMigrating] = useState(false);
+  const [replicating, setReplicating] = useState(false);
+  // Platform operators, and the tenant's owners and admins, may move it (the API decides).
+  const manages = !!i && (can(me, "operator") || ["owner", "admin"].includes((i.tenantId && tenantRole(me, i.tenantId)) || ""));
 
   return (
     <PageLayout
@@ -38,13 +46,27 @@ const InstanceDetail: FC = () => {
       }
       controls={
         i ? (
-          // Served by the server (Incendio for that cluster), not this app.
-          <a className="p-button" href={`/clusters/${encodeURIComponent(i.clusterName)}/ui/project/${encodeURIComponent(i.project)}/instance/${encodeURIComponent(i.name)}`}>
-            Open in console
-          </a>
+          <>
+            {manages ? (
+              <button type="button" className="p-button" onClick={() => setMigrating(true)}>
+                Move or copy…
+              </button>
+            ) : null}
+            {manages ? (
+              <button type="button" className="p-button" onClick={() => setReplicating(true)}>
+                Replicate…
+              </button>
+            ) : null}
+            {/* Served by the server (Incendio for that cluster), not this app. */}
+            <a className="p-button" href={`/clusters/${encodeURIComponent(i.clusterName)}/ui/project/${encodeURIComponent(i.project)}/instance/${encodeURIComponent(i.name)}`}>
+              Open in console
+            </a>
+          </>
         ) : null
       }
     >
+      {migrating && i ? <MigrateInstance instance={i} onClose={() => setMigrating(false)} /> : null}
+      {replicating && i ? <CreatePolicy instance={i} onClose={() => setReplicating(false)} /> : null}
       <Loaded query={instance}>
         {(i) => (
           <>

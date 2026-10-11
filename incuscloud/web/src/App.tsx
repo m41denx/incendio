@@ -6,6 +6,9 @@ import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
 import InstanceList from "./pages/instances/InstanceList";
 import InstanceDetail from "./pages/instances/InstanceDetail";
+import JobList from "./pages/jobs/JobList";
+import JobDetail from "./pages/jobs/JobDetail";
+import PolicyList from "./pages/replication/PolicyList";
 import ClusterList from "./pages/clusters/ClusterList";
 import ClusterDetail from "./pages/clusters/ClusterDetail";
 import TenantList from "./pages/tenants/TenantList";
@@ -22,6 +25,9 @@ export const AppRoutes: FC = () => (
       <Route index element={<Dashboard />} />
       <Route path="instances" element={<InstanceList />} />
       <Route path="instances/:id" element={<InstanceDetail />} />
+      <Route path="jobs" element={<JobList />} />
+      <Route path="jobs/:id" element={<JobDetail />} />
+      <Route path="replication" element={<PolicyList />} />
       <Route path="clusters" element={<ClusterList />} />
       <Route path="clusters/:id" element={<ClusterDetail />} />
       <Route path="tenants" element={<TenantList />} />

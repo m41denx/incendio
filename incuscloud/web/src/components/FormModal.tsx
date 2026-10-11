@@ -19,6 +19,8 @@ const FormModal: FC<Props> = ({ title, submitLabel, onSubmit, onClose, submitDis
   const [error, setError] = useState<unknown>(null);
   const submit = async (e: FormEvent) => {
     e.preventDefault();
+    // Enter in a field submits the form even while the button is disabled.
+    if (submitDisabled || busy) return;
     setBusy(true);
     setError(null);
     try {

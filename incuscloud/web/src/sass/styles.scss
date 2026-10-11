@@ -5,6 +5,7 @@
 @include vf-p-icon-applications;
 @include vf-p-icon-cluster-host;
 @include vf-p-icon-containers;
+@include vf-p-icon-loading-steps;
 @include vf-p-icon-copy-to-clipboard;
 @include vf-p-icon-delete;
 @include vf-p-icon-edit;
@@ -41,6 +42,11 @@
 .ic-page-controls {
   display: flex;
   gap: 0.5rem;
+}
+
+// Room for a row's buttons in fixed-layout tables.
+.ic-col-actions {
+  width: 24rem;
 }
 
 .ic-mono {

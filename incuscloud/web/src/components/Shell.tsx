@@ -17,6 +17,8 @@ export function sections(me: Me) {
     { label: "Instances", icon: "containers", to: "/instances" },
     { label: "Clusters", icon: "cluster-host", to: "/clusters" },
     { label: "Tenants", icon: "switcher-environments", to: "/tenants" },
+    { label: "Jobs", icon: "loading-steps", to: "/jobs" },
+    { label: "Replication", icon: "restart", to: "/replication" },
     platformViewer && { label: "Users", icon: "user-group", to: "/users" },
     manages && { label: "Service accounts", icon: "applications", to: "/service-accounts" },
     manages && { label: "Audit log", icon: "show", to: "/audit" },

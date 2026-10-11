@@ -74,3 +74,19 @@ test("an instance the caller cannot see is not found", async () => {
   renderAt(<InstanceDetail />, { path: "/instances/i-9", pattern: "/instances/:id" });
   expect(await screen.findByText("Not found")).toBeInTheDocument();
 });
+
+test("tenant owners and admins and platform operators get Move or copy; members do not", async () => {
+  const routes = (who: ReturnType<typeof me>) => ({
+    "GET /api/v1/me": [200, who] as [number, unknown],
+    "GET /api/v1/instances/i-1": [200, instance()] as [number, unknown],
+    "GET /api/v1/instances/i-1/metrics": [200, { samples: [] }] as [number, unknown],
+  });
+  mockApi(routes(me({ platformRole: null, tenants: [{ id: "t-1", slug: "acme", name: "Acme", role: "member" }] })));
+  const { unmount } = renderAt(<InstanceDetail />, { path: "/instances/i-1", pattern: "/instances/:id" });
+  await screen.findByText("Front end");
+  expect(screen.queryByRole("button", { name: "Move or copy…" })).not.toBeInTheDocument();
+  unmount();
+  mockApi(routes(me({ platformRole: null, tenants: [{ id: "t-1", slug: "acme", name: "Acme", role: "admin" }] })));
+  renderAt(<InstanceDetail />, { path: "/instances/i-1", pattern: "/instances/:id" });
+  expect(await screen.findByRole("button", { name: "Move or copy…" })).toBeInTheDocument();
+});
