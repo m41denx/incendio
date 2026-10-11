@@ -14,7 +14,7 @@ export interface Actor {
 }
 
 /** A full app over PGlite, the fake authorizer and a fake Hydra. */
-export async function harness() {
+export async function harness(over: Partial<AppDeps> = {}) {
   const db = await testDb();
   const authz = new FakeAuthz();
   const hydra = new FakeHydra();
@@ -30,6 +30,7 @@ export async function harness() {
     hydraPublicUrl: "https://id.test",
     secureCookies: true,
     clusterDomain: "clusters.test",
+    ...over,
   };
   const app = createApp(deps);
 

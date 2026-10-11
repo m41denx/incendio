@@ -11,6 +11,7 @@ import { serviceAccountsRoutes } from "./api/service-accounts.ts";
 import { clustersRoutes } from "./api/clusters.ts";
 import { auditRoutes } from "./api/audit.ts";
 import { fleetRoutes } from "./api/fleet.ts";
+import { mobilityRoutes, type Inspect } from "./api/mobility.ts";
 import { gatewayLogRoutes } from "./api/gateway-log.ts";
 
 /** Everything the HTTP app needs. */
@@ -18,6 +19,8 @@ export interface AppDeps extends AuthDeps {
   authz: Authz;
   /** Clusters are `<name>.<clusterDomain>` for API clients (spec D11). */
   clusterDomain: string;
+  /** Reads both clusters for a migration pre-flight; tests replace it. */
+  inspect?: Inspect;
 }
 
 /** The platform's HTTP app: identity pages, sessions, platform API, health. */
@@ -35,5 +38,6 @@ export function createApp(deps: AppDeps) {
     .use(clustersRoutes(deps))
     .use(auditRoutes(deps))
     .use(gatewayLogRoutes(deps))
-    .use(fleetRoutes(deps));
+    .use(fleetRoutes(deps))
+    .use(mobilityRoutes(deps));
 }
