@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Code under `incuscloud/` is AGPL-3.0; no code copied from PegaProx.
+- Code under `incuscloud/` is GPL-3.0 (changed from AGPL-3.0 at the owner's request); no code copied from PegaProx.
 - Incus identity = `sub` = IncusCloud user or service-account id; audience `incuscloud`; Hydra JWT access tokens.
 - Secrets at rest (cluster client keys, Hydra client secrets we keep) encrypted with AES-256-GCM using `SECRET_KEY` (32+ bytes, base64).
 - Cluster TLS: pin the SHA-256 fingerprint (never `ca`, never unpinned); never present the admin client certificate on gateway traffic.

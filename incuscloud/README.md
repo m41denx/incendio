@@ -5,7 +5,7 @@ one sign-in, one API endpoint and one UI in front of many Incus clusters,
 with tenants, service accounts and an audit log. Design:
 [`docs/superpowers/specs/2026-10-11-incuscloud-design.md`](../docs/superpowers/specs/2026-10-11-incuscloud-design.md).
 
-Licensed under AGPL-3.0 (see `LICENSE`).
+Licensed under GPL-3.0 (see `LICENSE`).
 
 ## Status
 
