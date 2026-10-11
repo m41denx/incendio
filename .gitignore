@@ -101,3 +101,4 @@ packages/k8s/appliance/dist/
 
 # IncusCloud: maintainer questions (local only)
 QUESTIONS.md
+.superpowers/
