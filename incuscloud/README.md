@@ -20,6 +20,7 @@ Licensed under GPL-3.0 (see `LICENSE`).
 | P6 | Mobility: migration with pre-flight, jobs, replication, failover | done |
 | P7 | Backups: S3 targets, schedules with retention, restore anywhere | done |
 | P8 | Balancing: ProxLB's model per cluster, member maintenance, cross-cluster suggestions | done |
+| P9 | Tenant cloud: one quota across clusters, usage, self-service create with placement | done |
 
 ## How it fits together
 
@@ -68,7 +69,7 @@ itself:
   `incuscloud-cluster-<cluster id>`, with `authorization.client.oidc=openfga`
   and `authorization.client.tls=allow`.
 - Each tenant placed on the cluster gets a restricted Incus project, with
-  `limits.*` taken from the tenant's quotas. Its default profile gets a root
+  `limits.*` set to its share of the tenant's quota (see *Tenant cloud*). Its default profile gets a root
   disk and a NIC (copied from the `default` project) and, where the project
   has quotas, per-instance defaults Incus requires (1 CPU, 1 GiB memory, a
   10 GiB root disk, each capped at the quota). The tenant owns the profile
@@ -196,6 +197,37 @@ Tenant projects get `restricted.backups=allow` from the reconciler; Incus blocks
 
 `server/scripts/backups-e2e.ts` runs all of this against MinIO and two live clusters. A crashed upload can leave an incomplete multipart upload in the bucket; set a lifecycle rule that aborts those after a day.
 
+## Tenant cloud
+
+A tenant's **quota** (instances, CPUs, memory, disk; set by platform operators) holds across all the clusters it is placed on.
+
+**Usage** is what Incus counts against `limits.*`: what the tenant's instances are given, not what they use at the moment. The reconciler reads it from each project's state. Each project's limits are then set to its own usage plus whatever the tenant has left across all its clusters. So:
+- any one cluster can take all of the remaining quota;
+- none can grow once the tenant is at its quota;
+- a limit is never set below usage. A quota lowered below usage just stops growth everywhere.
+
+Instances created through IncusCloud are checked exactly. Changes made directly through a cluster's API are held by the project limits, which follow within one reconcile pass. Between passes, the overshoot is at most what was left at that moment.
+
+The tenant page shows usage against the quota, and each cluster's usage and share.
+
+**Create instance** (members and up; platform operators for any tenant) asks for:
+- an image (any alias on `IC_IMAGE_SERVER`, with a short list offered);
+- a type and a size;
+- a placement, either automatic or on a chosen cluster.
+
+Automatic placement takes the tenant's ready placements, optionally only clusters with given labels (`region=eu`), and picks the one with the largest share of memory free after the request.
+
+The request is checked against the quota, counting creates still running. Checks are serialised per tenant, so two requests can never both use the last of the quota. Then a job creates the instance with its limits and a sized root disk on the project's default pool, records the new usage, and asks for the tenant's clusters to be reconciled.
+
+Incus applies a project PATCH's config as the whole config: its `projectPatch` merges the old keys into a copy it then ignores. So the reconciler always writes a project's full config with PUT. A PATCH of the limits alone would have dropped `restricted`.
+
+`server/scripts/tenant-cloud-e2e.ts` runs this against two live clusters:
+- the split;
+- an automatic create;
+- the other share shrinking;
+- over-quota refused, by the API and by Incus;
+- a lowered quota, with both projects still restricted.
+
 ## Balancing
 
 Balancing keeps a cluster's members evenly loaded. It follows [ProxLB](https://github.com/gyptazy/ProxLB)'s model (GPLv3, like this project), reimplemented in `server/src/balancing/engine.ts`.
@@ -271,6 +303,8 @@ all. The reconciler's settings:
 - `IC_METRICS_RETENTION`: hours of metrics history kept, 1..720, default 24.
 - `IC_JOB_CONCURRENCY`: jobs (migrations, replication runs, failovers) the
   worker runs at once, 1..16, default 2.
+- `IC_IMAGE_SERVER`: the simplestreams server self-service creates take
+  images from, default `https://images.linuxcontainers.org`.
 
 ## Development
 
@@ -327,6 +361,7 @@ All under `/api/v1`, bearer token or session cookie. Errors are
 | `GET/POST backup-policies`, `GET/PATCH/DELETE backup-policies/:id`, `POST …/:id/run` | backup schedules with retention |
 | `GET/PUT clusters/:id/balancing`, `POST …/balancing/plan`, `POST …/balancing/run` | balancing policy (viewers read, operators write), a dry run, a run (job) |
 | `POST clusters/:id/members/:name/evacuate`, `POST …/members/:name/restore` | member maintenance (platform operators; jobs) |
+| `GET tenants/:id/usage`, `POST tenants/:id/instances`, `GET images` | quota usage across clusters; self-service create (202, a job); image choices |
 | `GET balancing/suggestions` | cross-cluster moves for the caller's tenants |
 | `GET/POST service-accounts`, `POST service-accounts/:id/rotate`, `DELETE service-accounts/:id` | tenant admins for tenant accounts, platform admins otherwise |
 | `GET/POST clusters`, `GET/PATCH/DELETE clusters/:id` | platform admins enrol; tenants see clusters they are placed on |
