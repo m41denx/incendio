@@ -53,29 +53,56 @@ type Devices = Record<string, Record<string, string>>;
 const rootOf = (d: Devices) => Object.entries(d).find(([, v]) => v.type === "disk" && v.path === "/");
 const nicOf = (d: Devices) => Object.entries(d).find(([, v]) => v.type === "nic");
 
-/** Gives the project's default profile a root disk and a NIC when it lacks them, so instances can start. */
-export async function ensureDefaultProfile(client: IncusAdminClient, project: string): Promise<void> {
+// Per-instance defaults when the project has the matching quota: Incus then
+// refuses instances without their own limits.cpu / limits.memory / root size.
+const DEFAULT_CPU = 1;
+const DEFAULT_MEMORY_GIB = 1;
+const DEFAULT_DISK_GIB = 10;
+
+/**
+ * Makes the project's default profile usable: a root disk and a NIC when it lacks them, and the
+ * per-instance limits its quotas require. Only missing values are filled; the tenant owns the rest.
+ */
+export async function ensureDefaultProfile(client: IncusAdminClient, project: string, quotas: Quotas = {}): Promise<void> {
   const q = `?project=${encodeURIComponent(project)}`;
   const profile = (await client.request<{ config: Record<string, string>; devices: Devices; description?: string }>("GET", `/1.0/profiles/default${q}`)).metadata;
   const devices: Devices = { ...profile.devices };
-  if (rootOf(devices) && nicOf(devices)) return;
-  const source = (await client.request<{ devices: Devices }>("GET", "/1.0/profiles/default?project=default")).metadata.devices ?? {};
-  if (!rootOf(devices)) {
-    const root = rootOf(source);
-    if (root) devices[root[0]] = root[1];
-    else {
-      const pools = (await client.request<Array<{ name: string }>>("GET", "/1.0/storage-pools?recursion=1")).metadata;
-      if (pools[0]) devices.root = { type: "disk", path: "/", pool: pools[0].name };
+  const config: Record<string, string> = { ...profile.config };
+  let changed = false;
+  if (!rootOf(devices) || !nicOf(devices)) {
+    const source = (await client.request<{ devices: Devices }>("GET", "/1.0/profiles/default?project=default")).metadata.devices ?? {};
+    if (!rootOf(devices)) {
+      const root = rootOf(source);
+      if (root) devices[root[0]] = { ...root[1] };
+      else {
+        const pools = (await client.request<Array<{ name: string }>>("GET", "/1.0/storage-pools?recursion=1")).metadata;
+        if (pools[0]) devices.root = { type: "disk", path: "/", pool: pools[0].name };
+      }
+      changed = true;
+    }
+    if (!nicOf(devices)) {
+      const nic = nicOf(source);
+      if (nic) devices[nic[0]] = { ...nic[1] };
+      else {
+        const networks = (await client.request<Array<{ name: string; type: string; managed: boolean }>>("GET", "/1.0/networks?recursion=1")).metadata;
+        const bridge = networks.find((n) => n.managed && n.type === "bridge");
+        if (bridge) devices.eth0 = { type: "nic", name: "eth0", network: bridge.name };
+      }
+      changed = true;
     }
   }
-  if (!nicOf(devices)) {
-    const nic = nicOf(source);
-    if (nic) devices[nic[0]] = nic[1];
-    else {
-      const networks = (await client.request<Array<{ name: string; type: string; managed: boolean }>>("GET", "/1.0/networks?recursion=1")).metadata;
-      const bridge = networks.find((n) => n.managed && n.type === "bridge");
-      if (bridge) devices.eth0 = { type: "nic", name: "eth0", network: bridge.name };
-    }
+  if (quotas.cpu !== undefined && !config["limits.cpu"]) {
+    config["limits.cpu"] = String(Math.min(DEFAULT_CPU, quotas.cpu));
+    changed = true;
   }
-  await client.request("PUT", `/1.0/profiles/default${q}`, { config: profile.config ?? {}, description: profile.description ?? "", devices });
+  if (quotas.memory !== undefined && !config["limits.memory"]) {
+    config["limits.memory"] = `${Math.min(DEFAULT_MEMORY_GIB, quotas.memory)}GiB`;
+    changed = true;
+  }
+  const root = rootOf(devices);
+  if (quotas.disk !== undefined && root && !root[1].size) {
+    devices[root[0]] = { ...root[1], size: `${Math.min(DEFAULT_DISK_GIB, quotas.disk)}GiB` };
+    changed = true;
+  }
+  if (changed) await client.request("PUT", `/1.0/profiles/default${q}`, { config, description: profile.description ?? "", devices });
 }

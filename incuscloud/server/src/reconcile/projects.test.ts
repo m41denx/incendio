@@ -75,3 +75,24 @@ test("without devices in the default project, the first pool and managed bridge 
     def.devices = saved;
   }
 });
+
+test("with quotas, the default profile gets per-instance limits Incus requires, capped at the quota", async () => {
+  await ensureProject(client, "acme", tenant);
+  await ensureDefaultProfile(client, "acme", { cpu: 8, memory: 16, disk: 5 });
+  const p = fake.projects.get("acme")!.profiles.get("default")!;
+  expect(p.config).toEqual({ "limits.cpu": "1", "limits.memory": "1GiB" });
+  expect(p.devices.root).toEqual({ type: "disk", path: "/", pool: "local", size: "5GiB" });
+});
+
+test("tenant-set profile limits are kept; no quotas, no limits", async () => {
+  await ensureProject(client, "acme", tenant);
+  const prof = fake.projects.get("acme")!.profiles.get("default")!;
+  prof.config = { "limits.memory": "512MiB" };
+  await ensureDefaultProfile(client, "acme", { memory: 16 });
+  expect(prof.config).toEqual({ "limits.memory": "512MiB" });
+  fake.projects.delete("acme");
+  await ensureProject(client, "acme", { ...tenant, quotas: {} });
+  await ensureDefaultProfile(client, "acme", {});
+  expect(fake.projects.get("acme")!.profiles.get("default")!.config).toEqual({});
+  expect(fake.projects.get("acme")!.profiles.get("default")!.devices.root!.size).toBeUndefined();
+});

@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { hostname } from "node:os";
 import { loadConfig } from "./config.ts";
 import { createApp } from "./app.ts";
 import { createFront } from "./front.ts";
@@ -17,6 +18,8 @@ import { ClusterCache } from "./gateway/clusters-cache.ts";
 import { Upstreams } from "./gateway/relay.ts";
 import { RequestLog } from "./gateway/request-log.ts";
 import { serveUi } from "./gateway/ui.ts";
+import { Worker } from "./reconcile/worker.ts";
+import { openClusterStore } from "./reconcile/cluster-store.ts";
 
 /** Retries start-up steps whose dependency may still be starting (Hydra, OpenFGA). */
 async function retry<T>(what: string, fn: () => Promise<T>, attempts = 30): Promise<T> {
@@ -42,6 +45,23 @@ const issuer = await retry("Hydra discovery", () => discoverIssuer(config.hydra.
 const authz = await retry("OpenFGA", () => PlatformAuthz.init(config.openfga));
 log.info("authorization store ready", { store: authz.storeId, model: authz.modelId, tuples: await syncAll(db, authz) });
 await ensureBootstrapAdmin(db, authz, config.bootstrapAdmin);
+
+const serveApi = config.role !== "worker";
+const worker =
+  config.role !== "api"
+    ? new Worker(
+        {
+          db,
+          secretKey: config.secretKey,
+          openStore: openClusterStore,
+          oidc: { issuer, clientId: CLI_CLIENT_ID, audience: AUDIENCE },
+          openfga: { url: config.openfga.url, token: config.openfga.token, clusterUrl: config.openfga.clusterUrl, clusterToken: config.openfga.clusterToken },
+        },
+        { holder: `${hostname()}/${process.pid}`, intervalMs: config.reconcileIntervalMs },
+      )
+    : undefined;
+worker?.start();
+if (worker) log.info("reconciler started", { intervalMs: config.reconcileIntervalMs });
 
 const appDeps = {
   db,
@@ -70,12 +90,14 @@ const server = createFront({
   gateway,
   tls: { cert: readFileSync(config.tls.certFile), key: readFileSync(config.tls.keyFile) },
 });
-server.listen(config.listen.port, config.listen.host, () => log.info("listening", { ...config.listen, publicUrl: config.publicUrl }));
+if (serveApi) server.listen(config.listen.port, config.listen.host, () => log.info("listening", { ...config.listen, publicUrl: config.publicUrl }));
 
 for (const sig of ["SIGINT", "SIGTERM"] as const) {
   process.on(sig, () => {
     log.info("shutting down", { signal: sig });
-    server.close(() => requestLog.stop().finally(() => process.exit(0)));
+    const closeServer = serveApi ? new Promise<void>((resolve) => server.close(() => resolve())) : Promise.resolve();
+    // The worker releases its lease so another replica takes over at once.
+    Promise.all([closeServer.then(() => requestLog.stop()), worker?.stop()]).finally(() => process.exit(0));
     setTimeout(() => process.exit(0), 10_000).unref();
   });
 }

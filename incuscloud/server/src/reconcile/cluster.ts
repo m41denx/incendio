@@ -100,7 +100,7 @@ async function ensurePlacements(deps: ReconcileDeps, clusterId: string, client: 
     let foreign = false;
     try {
       await ensureProject(client, p.project, { id: p.tenantId, slug: p.slug, quotas: p.quotas });
-      await ensureDefaultProfile(client, p.project);
+      await ensureDefaultProfile(client, p.project, p.quotas);
     } catch (e) {
       status = "error";
       message = (e as Error).message;

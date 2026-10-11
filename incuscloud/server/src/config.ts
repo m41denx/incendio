@@ -2,13 +2,18 @@ import { z } from "zod";
 
 /** Validated server configuration, read from IC_* environment variables. */
 export interface Config {
+  /** Which parts this process runs: the HTTP API/gateway, the reconciler worker, or both. */
+  role: "api" | "worker" | "all";
   listen: { host: string; port: number };
   publicUrl: string;
   tls: { certFile: string; keyFile: string };
   databaseUrl: string;
   secretKey: Buffer;
   hydra: { publicUrl: string; adminUrl: string; caFile?: string };
-  openfga: { url: string; token?: string; storeName: string };
+  /** OpenFGA; clusterUrl and clusterToken are as the Incus clusters reach it (they connect to it themselves). */
+  openfga: { url: string; token?: string; storeName: string; clusterUrl: string; clusterToken?: string };
+  /** Every cluster is reconciled at least this often. */
+  reconcileIntervalMs: number;
   clusterDomain: string;
   bootstrapAdmin?: { email: string; password: string };
   logLevel: "debug" | "info" | "warn" | "error";
@@ -21,6 +26,7 @@ export interface Config {
 const url = z.url();
 const schema = z
   .object({
+    IC_ROLE: z.enum(["api", "worker", "all"]).default("all"),
     IC_LISTEN_HOST: z.string().default("0.0.0.0"),
     IC_LISTEN_PORT: z.coerce.number().int().min(1).max(65535).default(8443),
     IC_PUBLIC_URL: url,
@@ -36,7 +42,10 @@ const schema = z
     IC_HYDRA_CA_FILE: z.string().optional(),
     IC_OPENFGA_URL: url,
     IC_OPENFGA_TOKEN: z.string().optional(),
+    IC_OPENFGA_CLUSTER_URL: url.optional(),
+    IC_OPENFGA_CLUSTER_TOKEN: z.string().optional(),
     IC_OPENFGA_STORE: z.string().default("incuscloud-platform"),
+    IC_RECONCILE_INTERVAL: z.coerce.number().int().min(10).max(86400).default(60),
     IC_CLUSTER_DOMAIN: z.string().min(1),
     IC_BOOTSTRAP_ADMIN_EMAIL: z.email().optional(),
     IC_BOOTSTRAP_ADMIN_PASSWORD: z.string().min(12).optional(),
@@ -59,14 +68,23 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
     throw new Error(`Invalid configuration:\n${lines.join("\n")}`);
   }
   const v = r.data;
+  const openfgaUrl = v.IC_OPENFGA_URL.replace(/\/$/, "");
   return {
+    role: v.IC_ROLE,
     listen: { host: v.IC_LISTEN_HOST, port: v.IC_LISTEN_PORT },
     publicUrl: v.IC_PUBLIC_URL.replace(/\/$/, ""),
     tls: { certFile: v.IC_TLS_CERT, keyFile: v.IC_TLS_KEY },
     databaseUrl: v.IC_DATABASE_URL,
     secretKey: v.IC_SECRET_KEY,
     hydra: { publicUrl: v.IC_HYDRA_PUBLIC_URL.replace(/\/$/, ""), adminUrl: v.IC_HYDRA_ADMIN_URL.replace(/\/$/, ""), caFile: v.IC_HYDRA_CA_FILE },
-    openfga: { url: v.IC_OPENFGA_URL.replace(/\/$/, ""), token: v.IC_OPENFGA_TOKEN, storeName: v.IC_OPENFGA_STORE },
+    openfga: {
+      url: openfgaUrl,
+      token: v.IC_OPENFGA_TOKEN,
+      storeName: v.IC_OPENFGA_STORE,
+      clusterUrl: v.IC_OPENFGA_CLUSTER_URL?.replace(/\/$/, "") ?? openfgaUrl,
+      clusterToken: v.IC_OPENFGA_CLUSTER_TOKEN ?? v.IC_OPENFGA_TOKEN,
+    },
+    reconcileIntervalMs: v.IC_RECONCILE_INTERVAL * 1000,
     clusterDomain: v.IC_CLUSTER_DOMAIN,
     bootstrapAdmin: v.IC_BOOTSTRAP_ADMIN_EMAIL ? { email: v.IC_BOOTSTRAP_ADMIN_EMAIL, password: v.IC_BOOTSTRAP_ADMIN_PASSWORD! } : undefined,
     logLevel: v.IC_LOG_LEVEL,
