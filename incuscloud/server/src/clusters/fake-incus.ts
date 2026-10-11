@@ -54,6 +54,14 @@ export class FakeIncus {
   requests: SeenRequest[] = [];
   upgrades: SeenRequest[] = [];
   slowClosed = 0;
+  /** Server config (`GET/PATCH /1.0`), projects and their profiles, pools and networks, for reconciler tests. */
+  config: Record<string, string> = {};
+  projects = new Map<string, { config: Record<string, string>; description: string; profiles: Map<string, { config: Record<string, string>; devices: Record<string, Record<string, string>> }> }>([
+    ["default", { config: {}, description: "Default Incus project", profiles: new Map([["default", { config: {}, devices: { root: { type: "disk", path: "/", pool: "local" }, eth0: { type: "nic", name: "eth0", network: "incusbr0" } } }]]) }],
+  ]);
+  pools = [{ name: "local", driver: "dir" }];
+  networks = [{ name: "incusbr0", type: "bridge", managed: true }];
+  patches: Array<{ path: string; body: unknown }> = [];
 
   async start() {
     // Bun's https server exposes no peer certificate: terminate TLS here,
@@ -101,9 +109,56 @@ export class FakeIncus {
         if (req.url === "/1.0/echo") {
           return sync({ method: req.method, headers: req.headers, bodyBytes: seen.bodyBytes });
         }
+        const admin = this.trusted.has(fp);
+        const u = new URL(req.url ?? "/", "https://x");
+        const project = u.searchParams.get("project") ?? "default";
+        const body = () => JSON.parse(raw || "{}");
         if (req.method === "GET" && req.url === "/1.0") {
-          return sync({ auth: this.trusted.has(fp) || !!req.headers.authorization ? "trusted" : "untrusted", api_extensions: ["certificate_token"], environment: { certificate: fixtureCert, server_clustered: true, server_name: "m1", server_version: "7.5.1" } });
+          return sync({ auth: admin || !!req.headers.authorization ? "trusted" : "untrusted", api_extensions: ["certificate_token"], config: admin ? this.config : undefined, environment: { certificate: fixtureCert, server_clustered: true, server_name: "m1", server_version: "7.5.1" } });
         }
+        if (admin && req.method === "PATCH" && req.url === "/1.0") {
+          this.patches.push({ path: "/1.0", body: body() });
+          for (const [k, v] of Object.entries(body().config ?? {})) {
+            if (v === "") delete this.config[k];
+            else this.config[k] = String(v);
+          }
+          return sync({});
+        }
+        if (admin && u.pathname === "/1.0/projects" && req.method === "POST") {
+          const b = body();
+          if (this.projects.has(b.name)) return fail(409, "Project already exists");
+          this.projects.set(b.name, { config: b.config ?? {}, description: b.description ?? "", profiles: new Map([["default", { config: {}, devices: {} }]]) });
+          return sync({});
+        }
+        const pm = u.pathname.match(/^\/1\.0\/projects\/([^/]+)$/);
+        if (admin && pm) {
+          const p = this.projects.get(decodeURIComponent(pm[1]!));
+          if (!p) return fail(404, "Project not found");
+          if (req.method === "GET") return sync({ name: pm[1], config: p.config, description: p.description });
+          if (req.method === "PATCH") {
+            this.patches.push({ path: u.pathname, body: body() });
+            for (const [k, v] of Object.entries(body().config ?? {})) {
+              if (v === "") delete p.config[k];
+              else p.config[k] = String(v);
+            }
+            return sync({});
+          }
+        }
+        const prof = u.pathname.match(/^\/1\.0\/profiles\/([^/]+)$/);
+        if (admin && prof) {
+          const p = this.projects.get(project);
+          const profile = p?.profiles.get(decodeURIComponent(prof[1]!));
+          if (!profile) return fail(404, "Profile not found");
+          if (req.method === "GET") return sync({ name: prof[1], ...profile });
+          if (req.method === "PUT") {
+            this.patches.push({ path: `${u.pathname}?project=${project}`, body: body() });
+            const b = body();
+            p!.profiles.set(prof[1]!, { config: b.config ?? {}, devices: b.devices ?? {} });
+            return sync({});
+          }
+        }
+        if (admin && req.method === "GET" && u.pathname === "/1.0/storage-pools") return sync(this.pools);
+        if (admin && req.method === "GET" && u.pathname === "/1.0/networks") return sync(this.networks);
         if (req.method === "POST" && req.url === "/1.0/certificates") {
           const body = JSON.parse(raw || "{}");
           this.certificatesPosted.push({ body, clientFingerprint: fp });

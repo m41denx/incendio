@@ -2,6 +2,16 @@ import { request as httpsRequest } from "node:https";
 import { PinnedAgent } from "@incendio/api/node";
 import { ApiError } from "../lib/errors.ts";
 
+/** An error answer from a cluster; `clusterStatus` is Incus's HTTP status (404, 409, …). */
+export class ClusterError extends ApiError {
+  constructor(
+    readonly clusterStatus: number,
+    message: string,
+  ) {
+    super(502, "cluster_error", message);
+  }
+}
+
 export interface IncusResponse<T = unknown> {
   type: "sync" | "async" | "error";
   status_code: number;
@@ -68,7 +78,7 @@ export class IncusAdminClient {
               return reject(new ApiError(502, "cluster_error", `Cluster answered ${res.statusCode} without JSON`));
             }
             if (parsed.type === "error") {
-              return reject(new ApiError(502, "cluster_error", `Cluster: ${parsed.error}`));
+              return reject(new ClusterError(parsed.error_code ?? res.statusCode ?? 0, `Cluster: ${parsed.error}`));
             }
             resolve(parsed);
           });
