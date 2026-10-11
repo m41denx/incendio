@@ -94,6 +94,17 @@ export class FakeIncus {
         };
         return pump();
       }
+      // Uploads: answers with the size and hash of the whole body, and the headers it came with.
+      if (req.url === "/1.0/sink") {
+        const h = createHash("sha256");
+        let bytes = 0;
+        req.on("data", (d: Buffer) => {
+          h.update(d);
+          bytes += d.length;
+        });
+        req.on("end", () => sync({ bytes, sha256: h.digest("hex"), headers: req.headers }));
+        return;
+      }
       if (req.url === "/1.0/slow") {
         res.writeHead(200, { "content-type": "text/plain" });
         res.write("started");

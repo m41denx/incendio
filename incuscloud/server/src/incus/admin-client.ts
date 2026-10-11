@@ -1,6 +1,9 @@
+import type { IncomingMessage } from "node:http";
 import { request as httpsRequest } from "node:https";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import type WebSocketType from "ws";
 import { PinnedAgent } from "@incendio/api/node";
 import { ApiError } from "../lib/errors.ts";
@@ -46,6 +49,27 @@ export interface IncusServer {
   environment: { certificate: string; server_clustered: boolean; server_name: string; server_version: string; addresses?: string[] };
 }
 
+const reasonOf = (signal: AbortSignal) => (signal.reason instanceof Error ? signal.reason : new Error("aborted"));
+
+/** Reads an Incus JSON answer: the envelope, or a ClusterError with the Incus message. */
+function envelope<T>(res: IncomingMessage): Promise<IncusResponse<T>> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    res.on("data", (d: Buffer) => chunks.push(d));
+    res.on("error", reject);
+    res.on("end", () => {
+      let parsed: IncusResponse<T>;
+      try {
+        parsed = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+      } catch {
+        return reject(new ApiError(502, "cluster_error", `Cluster answered ${res.statusCode} without JSON`));
+      }
+      if (parsed.type === "error") return reject(new ClusterError(parsed.error_code ?? res.statusCode ?? 0, `Cluster: ${parsed.error}`));
+      resolve(parsed);
+    });
+  });
+}
+
 export interface AdminClientOptions {
   url: string;
   fingerprint: string;
@@ -69,33 +93,63 @@ export class IncusAdminClient {
     this.timeoutMs = opts.timeoutMs ?? 30_000;
   }
 
+  private url_(path: string, project?: string): URL {
+    const u = new URL(this.url + path);
+    if (project) u.searchParams.set("project", project);
+    return u;
+  }
+
   /** Sends a request; resolves the Incus envelope, throws ApiError(502) on Incus errors. */
   request<T = unknown>(method: string, path: string, body?: unknown, opts: { project?: string } = {}): Promise<IncusResponse<T>> {
-    const u = new URL(this.url + path);
-    if (opts.project) u.searchParams.set("project", opts.project);
+    const u = this.url_(path, opts.project);
     return new Promise((resolve, reject) => {
       const req = httpsRequest(
         { hostname: u.hostname, port: u.port, path: u.pathname + u.search, method, agent: this.agent, headers: { "content-type": "application/json" }, timeout: this.timeoutMs },
-        (res) => {
-          const chunks: Buffer[] = [];
-          res.on("data", (d: Buffer) => chunks.push(d));
-          res.on("end", () => {
-            let parsed: IncusResponse<T>;
-            try {
-              parsed = JSON.parse(Buffer.concat(chunks).toString("utf8"));
-            } catch {
-              return reject(new ApiError(502, "cluster_error", `Cluster answered ${res.statusCode} without JSON`));
-            }
-            if (parsed.type === "error") {
-              return reject(new ClusterError(parsed.error_code ?? res.statusCode ?? 0, `Cluster: ${parsed.error}`));
-            }
-            resolve(parsed);
-          });
-        },
+        (res) => envelope<T>(res).then(resolve, reject),
       );
       req.on("timeout", () => req.destroy(new Error("timed out")));
       req.on("error", (e) => reject(new ApiError(502, "cluster_unreachable", `Could not reach ${this.url}: ${e.message}`)));
       req.end(body === undefined ? undefined : JSON.stringify(body));
+    });
+  }
+
+  /** GETs a raw body (a backup export) as a stream; an error answer is a ClusterError. The signal stops it. */
+  download(path: string, opts: { project?: string; signal?: AbortSignal } = {}): Promise<ReadableStream<Uint8Array>> {
+    const u = this.url_(path, opts.project);
+    return new Promise((resolve, reject) => {
+      const req = httpsRequest({ hostname: u.hostname, port: u.port, path: u.pathname + u.search, method: "GET", agent: this.agent, timeout: this.timeoutMs, signal: opts.signal }, (res) => {
+        if ((res.statusCode ?? 0) >= 400) return envelope(res).then(() => reject(new ClusterError(res.statusCode ?? 502, `Cluster answered ${res.statusCode}`)), reject);
+        // The stream errors with the signal's reason when it aborts.
+        opts.signal?.addEventListener("abort", () => res.destroy(reasonOf(opts.signal!)), { once: true });
+        resolve(Readable.toWeb(res) as ReadableStream<Uint8Array>);
+      });
+      req.on("timeout", () => req.destroy(new Error("timed out")));
+      req.on("error", (e) => reject(opts.signal?.aborted ? reasonOf(opts.signal) : new ApiError(502, "cluster_unreachable", `Could not reach ${this.url}: ${e.message}`)));
+      req.end();
+    });
+  }
+
+  /** POSTs a raw body (a backup to import) as a stream, with backpressure; resolves the Incus envelope. */
+  upload<T = unknown>(path: string, body: ReadableStream<Uint8Array>, opts: { project?: string; headers?: Record<string, string>; signal?: AbortSignal } = {}): Promise<IncusResponse<T>> {
+    const u = this.url_(path, opts.project);
+    return new Promise((resolve, reject) => {
+      const req = httpsRequest(
+        { hostname: u.hostname, port: u.port, path: u.pathname + u.search, method: "POST", agent: this.agent, timeout: this.timeoutMs, headers: { "content-type": "application/octet-stream", ...opts.headers } },
+        (res) => envelope<T>(res).then(resolve, reject),
+      );
+      const fail = (e: unknown) => reject(opts.signal?.aborted ? reasonOf(opts.signal) : new ApiError(502, "cluster_unreachable", `Could not reach ${this.url}: ${(e as Error).message}`));
+      req.on("timeout", () => req.destroy(new Error("timed out")));
+      req.on("error", fail);
+      const source = Readable.fromWeb(body as import("node:stream/web").ReadableStream<Uint8Array>);
+      opts.signal?.addEventListener(
+        "abort",
+        () => {
+          source.destroy();
+          req.destroy(reasonOf(opts.signal!));
+        },
+        { once: true },
+      );
+      pipeline(source, req).catch(fail);
     });
   }
 
