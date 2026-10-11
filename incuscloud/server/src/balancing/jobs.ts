@@ -46,7 +46,7 @@ export async function planCluster(db: Db, client: Pick<Client, "request">, clust
   const model = modelOf(snap, policy, new Map(rates.filter((r) => r.cpuCores != null).map((r) => [`${r.project}/${r.name}`, r.cpuCores!])));
   const result: Plan = plan({ ...model, method: policy.method, mode: policy.mode, balanciness: policy.balanciness, maxMoves: policy.maxMoves });
   const restartOnly = snap.instances.filter((i) => i.status === "Running" && !i.stateful && !policy.allowRestart && !policy.excludeProjects.includes(i.project)).length;
-  if (restartOnly) result.notes.push(`${restartOnly} running instances can only move with a restart, which the policy does not allow`);
+  if (restartOnly) result.notes.push(`${restartOnly} running instance${restartOnly === 1 ? "" : "s"} can only move with a restart, which the policy does not allow`);
   return { plan: result, snapshot: snap };
 }
 

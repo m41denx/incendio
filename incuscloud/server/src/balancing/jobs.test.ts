@@ -166,3 +166,9 @@ test("the scheduler enqueues enabled policies that are due, once", async () => {
   await scheduleBalancing(db);
   expect(await db.select().from(jobs)).toEqual([]);
 });
+
+test("one running instance that needs a restart is counted in the singular", async () => {
+  const fake = fakeMembers([m("d1"), m("d2")], [i("ct1", "d1", 3)]);
+  const r = await run(fake);
+  expect(r.notes).toContain("1 running instance can only move with a restart, which the policy does not allow");
+});

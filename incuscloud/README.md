@@ -19,6 +19,7 @@ Licensed under GPL-3.0 (see `LICENSE`).
 | P5 | Fleet: inventory, metrics, global instance search, capacity | done |
 | P6 | Mobility: migration with pre-flight, jobs, replication, failover | done |
 | P7 | Backups: S3 targets, schedules with retention, restore anywhere | done |
+| P8 | Balancing: ProxLB's model per cluster, member maintenance, cross-cluster suggestions | done |
 
 ## How it fits together
 
@@ -195,6 +196,60 @@ Tenant projects get `restricted.backups=allow` from the reconciler; Incus blocks
 
 `server/scripts/backups-e2e.ts` runs all of this against MinIO and two live clusters. A crashed upload can leave an incomplete multipart upload in the bucket; set a lifecycle rule that aborts those after a day.
 
+## Balancing
+
+Balancing keeps a cluster's members evenly loaded. It follows [ProxLB](https://github.com/gyptazy/ProxLB)'s model (GPLv3, like this project), reimplemented in `server/src/balancing/engine.ts`.
+
+**Spread** is the busiest member's percentage minus the least busy one's, by **memory, CPU or disk**. It is measured either as what instances **use** (what members report) or as what they are **given** (limits).
+
+When the spread exceeds the policy's tolerance, a run plans moves:
+1. Pins are enforced.
+2. Anti-affinity groups are spread out.
+3. Split affinity groups are gathered.
+4. While the spread is too high, the busiest member that can still lower it gives up the instance, or the whole affinity group, whose move leaves the lowest spread.
+
+A move must fit its target and strictly lower the spread. No instance moves twice in one run, and a run makes at most the policy's number of moves.
+
+Each move is Incus's own same-cluster move, and the instance is checked again just before:
+- A VM with `migration.stateful` moves live.
+- A stopped instance moves as it is.
+- Another running instance is stopped, moved and started, but only if the policy allows restarts. Otherwise the plan says how many it left alone.
+- An instance that changed member or state since the plan is skipped.
+- A failed move starts the instance again where it was.
+
+Cancelling a run stops it between moves.
+
+Tenants steer placement with keys on their own instances. Groups are per project, so they never involve another tenant:
+
+| Key | Effect |
+| --- | --- |
+| `user.incuscloud.affinity=<group>` | keep the group on one member |
+| `user.incuscloud.anti-affinity=<group>` | keep the group on different members |
+| `user.incuscloud.pin=<member>[,<member>…]` | only on these members |
+| `user.incuscloud.balance=false` | never moved by balancing |
+
+Platform operators set a cluster's policy in the *Balancing* section of its page:
+- what to balance by;
+- the tolerance;
+- moves per run;
+- whether restarts are allowed;
+- excluded members and projects;
+- whether to run automatically, and how often.
+
+The same section has *Preview*, a dry run that moves nothing, and *Rebalance now*.
+
+**Member maintenance** is Incus's evacuation. *Evacuate…* moves or stops a member's instances (cluster default, move, move live, or stop), and *Restore* brings them back. Members that are evacuated, offline or excluded are never sources or targets.
+
+The *Balancing* page suggests moves across clusters for tenants placed on several. When a tenant's busiest cluster is more than 20 points of memory above its least busy one, the page lists the tenant's largest running instances there, while each move narrows the gap. *Move…* opens the migration dialog with the suggested cluster chosen. Nothing moves until someone starts it.
+
+Incus's own `cluster.rebalance.*` live-migrates VMs with no notion of these hints. Do not enable it on a cluster that IncusCloud balances, or the two will undo each other's moves.
+
+`server/scripts/balancing-e2e.ts` runs all of this against a live two-member cluster:
+- a plan and a run, including a restart;
+- a pin;
+- anti-affinity;
+- evacuating a member and restoring it.
+
 ## Configuration
 
 Settings are `IC_*` environment variables; `server/.env.example` lists them
@@ -270,6 +325,9 @@ All under `/api/v1`, bearer token or session cookie. Errors are
 | `GET/POST backup-targets`, `PATCH/DELETE backup-targets/:id`, `POST …/:id/check` | S3 targets (platform admins; others see names) |
 | `POST instances/:id/backups`, `GET backups`, `GET/DELETE backups/:id`, `POST backups/:id/restore` | back up now, list, delete, restore (jobs) |
 | `GET/POST backup-policies`, `GET/PATCH/DELETE backup-policies/:id`, `POST …/:id/run` | backup schedules with retention |
+| `GET/PUT clusters/:id/balancing`, `POST …/balancing/plan`, `POST …/balancing/run` | balancing policy (viewers read, operators write), a dry run, a run (job) |
+| `POST clusters/:id/members/:name/evacuate`, `POST …/members/:name/restore` | member maintenance (platform operators; jobs) |
+| `GET balancing/suggestions` | cross-cluster moves for the caller's tenants |
 | `GET/POST service-accounts`, `POST service-accounts/:id/rotate`, `DELETE service-accounts/:id` | tenant admins for tenant accounts, platform admins otherwise |
 | `GET/POST clusters`, `GET/PATCH/DELETE clusters/:id` | platform admins enrol; tenants see clusters they are placed on |
 | `GET clusters/:id/tenants`, `PUT/DELETE clusters/:id/tenants/:tenantId` | platform operators place tenants |
