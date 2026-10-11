@@ -77,5 +77,7 @@ test("inventory runs every minute by default, 0 turns it off; metrics are kept a
 test("jobs run two at a time by default", () => {
   expect(loadConfig(base).jobConcurrency).toBe(2);
   expect(loadConfig({ ...base, IC_JOB_CONCURRENCY: "8" }).jobConcurrency).toBe(8);
+  expect(loadConfig(base).imageServer).toBe("https://images.linuxcontainers.org");
+  expect(loadConfig({ ...base, IC_IMAGE_SERVER: "https://mirror.example/" }).imageServer).toBe("https://mirror.example");
   expect(() => loadConfig({ ...base, IC_JOB_CONCURRENCY: "0" })).toThrow(/IC_JOB_CONCURRENCY/);
 });

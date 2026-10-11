@@ -79,7 +79,7 @@ const scheduleDue = async () => {
   await scheduleBackups(db);
   await scheduleBalancing(db);
 };
-const jobRunner = config.role !== "api" ? new JobRunner({ db, secretKey: config.secretKey }, { holder: `${hostname()}/${process.pid}`, handlers: jobHandlers(), concurrency: config.jobConcurrency, beforeTick: scheduleDue }) : undefined;
+const jobRunner = config.role !== "api" ? new JobRunner({ db, secretKey: config.secretKey }, { holder: `${hostname()}/${process.pid}`, handlers: jobHandlers({ imageServer: config.imageServer }), concurrency: config.jobConcurrency, beforeTick: scheduleDue }) : undefined;
 jobRunner?.start();
 if (fleet) log.info("inventory started", { intervalMs: config.inventoryIntervalMs });
 
