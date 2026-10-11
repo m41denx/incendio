@@ -1,0 +1,26 @@
+model
+  schema 1.1
+
+type user
+
+type platform
+  relations
+    define admin: [user]
+    define operator: [user] or admin
+    define viewer: [user] or operator
+
+type tenant
+  relations
+    define platform: [platform]
+    define owner: [user]
+    define admin: [user] or owner or admin from platform
+    define member: [user] or admin
+    define viewer: [user] or member or viewer from platform
+
+type cluster
+  relations
+    define platform: [platform]
+    define tenant: [tenant]
+    define admin: admin from platform
+    define viewer: [user] or admin or viewer from platform
+    define can_access: viewer or member from tenant
