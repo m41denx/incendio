@@ -1,0 +1,71 @@
+@charset "UTF-8";
+@import "vanilla-framework/scss/build";
+
+@include vf-p-icon-add-canvas;
+@include vf-p-icon-applications;
+@include vf-p-icon-cluster-host;
+@include vf-p-icon-copy-to-clipboard;
+@include vf-p-icon-delete;
+@include vf-p-icon-edit;
+@include vf-p-icon-export;
+@include vf-p-icon-get-link;
+@include vf-p-icon-help;
+@include vf-p-icon-machines;
+@include vf-p-icon-plus;
+@include vf-p-icon-restart;
+@include vf-p-icon-settings;
+@include vf-p-icon-show;
+@include vf-p-icon-switcher-dashboard;
+@include vf-p-icon-switcher-environments;
+@include vf-p-icon-user;
+@include vf-p-icon-user-group;
+@include vf-p-icon-website;
+
+.ic-brand {
+  color: $colors--dark-theme--text-default;
+  font-weight: 550;
+  line-height: 1;
+}
+
+// Sign out is a form button styled as a navigation link.
+.ic-signout {
+  background: none;
+  border: 0;
+  justify-content: flex-start;
+  margin: 0;
+  text-align: left;
+  width: 100%;
+}
+
+.ic-page-controls {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.ic-mono {
+  font-family: unquote($font-monospace);
+}
+
+.ic-secret {
+  font-family: unquote($font-monospace);
+  overflow-wrap: anywhere;
+}
+
+.ic-muted {
+  color: $colors--light-theme--text-muted;
+}
+
+.ic-kv {
+  display: grid;
+  gap: 0.25rem 1.5rem;
+  grid-template-columns: max-content 1fr;
+  margin-bottom: $spv--large;
+
+  dt {
+    color: $colors--light-theme--text-muted;
+  }
+
+  dd {
+    margin: 0;
+  }
+}

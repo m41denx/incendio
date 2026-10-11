@@ -6,7 +6,8 @@
   "type": "module",
   "workspaces": [
     "packages/*",
-    "incuscloud/server"
+    "incuscloud/server",
+    "incuscloud/web"
   ],
   "scripts": {
     "build": "bun run --filter '@incendio/ui' build",
