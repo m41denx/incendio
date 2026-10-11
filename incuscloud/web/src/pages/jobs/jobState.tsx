@@ -11,9 +11,11 @@ const shortId = (id: string) => (id.length > 8 ? `${id.slice(0, 8)}…` : id);
 const str = (v: unknown) => (typeof v === "string" ? v : "");
 const cap = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s);
 
-const TYPE_LABELS: Record<string, string> = { migrate: "Migration", replicate: "Replication run", failover: "Failover", backup: "Backup", restore: "Restore" };
+const TYPE_LABELS: Record<string, string> = { migrate: "Migration", replicate: "Replication run", failover: "Failover", backup: "Backup", restore: "Restore", rebalance: "Rebalance", evacuate: "Member maintenance", "restore-member": "Member maintenance" };
 /** Pages that list what a job type works on. */
 const TYPE_PAGES: Record<string, string> = { replicate: "/replication", failover: "/replication", backup: "/backups", restore: "/backups" };
+/** Job types about one cluster: they link to its page. */
+const CLUSTER_TYPES = new Set(["rebalance", "evacuate", "restore-member"]);
 export const typeLabel = (type: string) => TYPE_LABELS[type] ?? type;
 
 const VARIANT: Record<JobState, string> = { queued: "information", running: "information", succeeded: "positive", failed: "negative", cancelled: "" };
@@ -30,7 +32,8 @@ export const active = (job: Job) => job.state === "queued" || job.state === "run
 /** The job's type; replication runs and failovers link to the replication policies. */
 export const JobType: FC<{ job: Job }> = ({ job }) => {
   const label = typeLabel(job.type);
-  const page = TYPE_PAGES[job.type];
+  const cluster = job.payload.clusterId;
+  const page = CLUSTER_TYPES.has(job.type) && typeof cluster === "string" ? `/clusters/${cluster}` : TYPE_PAGES[job.type];
   return page ? <Link to={page}>{label}</Link> : <>{label}</>;
 };
 
@@ -46,6 +49,10 @@ export function jobSummary(job: Job, clusterName: (id: string) => string | undef
   };
   if (job.type === "backup") return `Back up ${place(p.clusterId, p.project, p.instanceName)}`;
   if (job.type === "restore") return `Restore to ${place(p.targetClusterId, p.targetProject, p.targetName)}`;
+  const cluster = (id: unknown) => clusterName(str(id)) ?? shortId(str(id));
+  if (job.type === "rebalance") return `Rebalance ${cluster(p.clusterId)}`;
+  if (job.type === "evacuate") return `Evacuate ${str(p.member)} (${cluster(p.clusterId)})`;
+  if (job.type === "restore-member") return `Restore ${str(p.member)} (${cluster(p.clusterId)})`;
   if (job.type !== "migrate") return typeLabel(job.type);
   const verb = cap(str(p.mode)) || "Migrate";
   return `${verb} ${place(p.sourceClusterId, p.sourceProject, p.name)} → ${place(p.targetClusterId, p.targetProject, p.targetName)}`;
@@ -99,6 +106,25 @@ export function resultOf(job: Job): ReactNode | null {
       <>
         <div>{`Target: ${str(r.targetProject)}/${str(r.targetName)}`}</div>
         <div>{`Transport: ${str(r.transport)}`}</div>
+      </>
+    );
+  }
+  if (job.type === "rebalance") {
+    const n = (v: unknown) => (typeof v === "number" ? v.toFixed(1) : UNKNOWN);
+    const moves = Array.isArray(r.moves) ? (r.moves as Array<Record<string, unknown>>) : [];
+    const notes = Array.isArray(r.notes) ? r.notes.map(String) : [];
+    return (
+      <>
+        <div>{`Spread ${n(r.before)} → ${n(r.after)} points`}</div>
+        {moves.length ? null : <div>Nothing to move</div>}
+        {moves.map((m) => (
+          <div key={`${str(m.project)}/${str(m.name)}`}>{`${str(m.project)}/${str(m.name)}: ${str(m.from)} → ${str(m.to)}, ${str(m.outcome)}${m.detail ? ` (${str(m.detail)})` : ""}`}</div>
+        ))}
+        {notes.map((x) => (
+          <div key={x} className="ic-muted">
+            {x}
+          </div>
+        ))}
       </>
     );
   }

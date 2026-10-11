@@ -15,13 +15,13 @@ const placements = [
 ];
 const tenantAdmin = me({ platformRole: null, tenants: [{ id: "t-1", slug: "acme", name: "Acme", role: "admin" }] });
 
-function show(i: Instance = instance) {
+function show(i: Instance = instance, initialTarget?: string) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={["/instances/i-1"]}>
         <Routes>
-          <Route path="/instances/:id" element={<MigrateInstance instance={i} onClose={() => {}} />} />
+          <Route path="/instances/:id" element={<MigrateInstance instance={i} initialTarget={initialTarget} onClose={() => {}} />} />
           <Route path="/jobs/:id" element={<p>job page</p>} />
         </Routes>
       </MemoryRouter>
@@ -91,4 +91,12 @@ test("platform operators pick any other cluster and a transport; running VMs may
   await userEvent.click(screen.getByLabelText("Move live"));
   await userEvent.click(screen.getByRole("button", { name: "Check" }));
   await waitFor(() => expect(api.calls.find((c) => c.path.endsWith("/preflight"))!.body).toEqual({ targetClusterId: "c-3", mode: "move", targetName: "web", live: true, transport: "relay" }));
+});
+
+test("a suggested target is chosen up front", async () => {
+  const more = [...placements, { clusterId: "c-4", clusterName: "cool", project: "acme-c", status: "ready", statusMessage: "", createdAt: "" }];
+  mockApi({ "GET /api/v1/me": [200, tenantAdmin], "GET /api/v1/tenants/t-1/placements": [200, more] });
+  show(instance, "c-4");
+  await screen.findByRole("option", { name: "cool" });
+  expect(screen.getByLabelText("Target cluster")).toHaveValue("c-4");
 });

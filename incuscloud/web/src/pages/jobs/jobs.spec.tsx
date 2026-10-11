@@ -266,3 +266,47 @@ test("a backup job's summary and result", async () => {
   expect(screen.getByText("4.5 MiB, uploaded by the cluster")).toBeInTheDocument();
   expect(screen.getByText("1 older backup deleted")).toBeInTheDocument();
 });
+
+test("a rebalance reads as such, links to its cluster, and lists each move's outcome", async () => {
+  mockApi({
+    "GET /api/v1/me": [200, ownUser()],
+    "GET /api/v1/clusters": [200, clusters],
+    "GET /api/v1/jobs/j-7": [
+      200,
+      job({
+        id: "j-7",
+        type: "rebalance",
+        state: "succeeded",
+        finishedAt: new Date().toISOString(),
+        payload: { clusterId: "c-1" },
+        result: {
+          before: 37.5,
+          after: 6.25,
+          moves: [
+            { project: "acme", name: "web", from: "d1", to: "d2", reason: "balance", outcome: "moved" },
+            { project: "acme", name: "db", from: "d1", to: "d3", reason: "balance", outcome: "skipped", detail: "now on d3" },
+          ],
+          notes: ["2 running instances can only move with a restart, which the policy does not allow"],
+        },
+      }),
+    ],
+  });
+  renderAt(<JobDetail />, { path: "/jobs/j-7", pattern: "/jobs/:id" });
+  expect(await screen.findByText(/Rebalance edge-1/)).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Rebalance" })).toHaveAttribute("href", "/clusters/c-1");
+  expect(screen.getByText("Spread 37.5 → 6.3 points")).toBeInTheDocument();
+  expect(screen.getByText("acme/web: d1 → d2, moved")).toBeInTheDocument();
+  expect(screen.getByText("acme/db: d1 → d3, skipped (now on d3)")).toBeInTheDocument();
+  expect(screen.getByText(/can only move with a restart/)).toBeInTheDocument();
+});
+
+test("member evacuation and restore read as such", async () => {
+  mockApi({
+    "GET /api/v1/me": [200, ownUser()],
+    "GET /api/v1/clusters": [200, clusters],
+    "GET /api/v1/jobs/j-8": [200, job({ id: "j-8", type: "evacuate", payload: { clusterId: "c-2", member: "d1", mode: "stop" } })],
+  });
+  renderAt(<JobDetail />, { path: "/jobs/j-8", pattern: "/jobs/:id" });
+  expect(await screen.findByText(/Evacuate d1 \(edge-2\)/)).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Member maintenance" })).toHaveAttribute("href", "/clusters/c-2");
+});

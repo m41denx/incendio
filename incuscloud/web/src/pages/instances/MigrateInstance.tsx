@@ -28,7 +28,7 @@ function useTargets(instance: Instance, operator: boolean) {
  * Moving or copying an instance to another cluster: choose, check (pre-flight
  * on both clusters), then start; the job page follows it.
  */
-const MigrateInstance: FC<{ instance: Instance; onClose: () => void }> = ({ instance, onClose }) => {
+const MigrateInstance: FC<{ instance: Instance; onClose: () => void; /** A cluster to choose first (a balancing suggestion). */ initialTarget?: string }> = ({ instance, onClose, initialTarget }) => {
   const navigate = useNavigate();
   const { data: me } = useMe();
   const operator = can(me, "operator");
@@ -44,8 +44,8 @@ const MigrateInstance: FC<{ instance: Instance; onClose: () => void }> = ({ inst
   const liveAllowed = instance.type === "virtual-machine" && instance.status === "Running" && mode === "move";
 
   useEffect(() => {
-    if (!target && targets.length) setTarget(targets[0]!.id);
-  }, [target, targets]);
+    if (!target && targets.length) setTarget((targets.find((t) => t.id === initialTarget) ?? targets[0]!).id);
+  }, [target, targets, initialTarget]);
   // Any change makes the last check stale.
   useEffect(() => setCheck(null), [target, mode, name, live, transport]);
 

@@ -332,3 +332,74 @@ export interface BackupPolicy {
   createdBy: string;
   createdAt: string;
 }
+
+export type BalancingMethod = "memory" | "cpu" | "disk";
+export type BalancingMode = "used" | "assigned";
+
+/** GET/PUT /api/v1/clusters/:id/balancing (defaults until an operator saves one). */
+export interface BalancingPolicy {
+  clusterId: string;
+  enabled: boolean;
+  method: BalancingMethod;
+  mode: BalancingMode;
+  /** Percentage points of spread (busiest member minus least busy) tolerated. */
+  balanciness: number;
+  intervalS: number;
+  maxMoves: number;
+  /** Running instances that cannot move live may be stopped, moved and started. */
+  allowRestart: boolean;
+  /** Members never balanced from or to. */
+  excludeMembers: string[];
+  /** Projects whose instances never move. */
+  excludeProjects: string[];
+  lastRunAt: string | null;
+  lastSuccessAt: string | null;
+  lastError: string;
+  lastJobId: string | null;
+}
+
+/** The fields PUT takes; POST …/balancing/plan takes any of them (unsaved settings to preview). */
+export type BalancingSettings = Pick<BalancingPolicy, "enabled" | "intervalS" | "method" | "mode" | "balanciness" | "maxMoves" | "allowRestart" | "excludeMembers" | "excludeProjects">;
+
+export type BalanceReason = "pin" | "anti-affinity" | "affinity" | "balance";
+
+export interface BalanceMove {
+  project: string;
+  name: string;
+  from: string;
+  to: string;
+  reason: BalanceReason;
+}
+
+/** POST /api/v1/clusters/:id/balancing/plan: a dry run. */
+export interface BalancingPlan {
+  /** Spread before and after, in percentage points. */
+  before: number;
+  after: number;
+  moves: BalanceMove[];
+  notes: string[];
+}
+
+/** A rebalance job's result. */
+export interface RebalanceResult extends BalancingPlan {
+  moves: Array<BalanceMove & { outcome: "moved" | "skipped" | "failed"; detail?: string }>;
+}
+
+/** POST /api/v1/clusters/:id/members/:name/evacuate { mode } */
+export type EvacuateMode = "auto" | "migrate" | "live-migrate" | "stop";
+
+/** GET /api/v1/balancing/suggestions */
+export interface BalancingSuggestion {
+  tenantId: string;
+  tenantSlug: string;
+  instanceId: string;
+  project: string;
+  name: string;
+  memoryBytes: number;
+  fromClusterId: string;
+  fromClusterName: string;
+  toClusterId: string;
+  toClusterName: string;
+  toProject: string;
+  reason: string;
+}

@@ -20,6 +20,7 @@ export function sections(me: Me) {
     { label: "Jobs", icon: "loading-steps", to: "/jobs" },
     { label: "Replication", icon: "restart", to: "/replication" },
     { label: "Backups", icon: "archive", to: "/backups" },
+    { label: "Balancing", icon: "fork", to: "/balancing" },
     platformViewer && { label: "Backup targets", icon: "storage-bucket", to: "/backup-targets" },
     platformViewer && { label: "Users", icon: "user-group", to: "/users" },
     manages && { label: "Service accounts", icon: "applications", to: "/service-accounts" },

@@ -13,6 +13,7 @@ import type { Cluster } from "../../api/types";
 import ClusterStatus from "./ClusterStatus";
 import PlacedTenants from "./PlacedTenants";
 import ClusterInventory from "./ClusterInventory";
+import ClusterBalancing from "./ClusterBalancing";
 import { formatLabels, parseLabels } from "./labels";
 
 const ClusterDetail: FC = () => {
@@ -98,7 +99,8 @@ const ClusterDetail: FC = () => {
             <p>Add this cluster to the incus CLI (or any Incus API client); it signs in through IncusCloud:</p>
             <pre className="ic-mono">{`incus remote add ${c.name} ${clusterApiUrl(me, c.name)} --auth-type=oidc`}</pre>
             <PlacedTenants cluster={c} canManage={operator} />
-            {viewer ? <ClusterInventory clusterId={c.id} /> : null}
+            {viewer ? <ClusterInventory clusterId={c.id} canManage={operator} /> : null}
+            {viewer ? <ClusterBalancing clusterId={c.id} canManage={operator} /> : null}
             {admin ? (
               <>
                 <h2 className="p-heading--4">Administration</h2>
