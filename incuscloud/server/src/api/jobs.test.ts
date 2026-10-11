@@ -19,7 +19,8 @@ test("platform viewers see every job, newest first, with filters", async () => {
   const v = await h.user("v@example.com", { platformRole: "viewer" });
   const a = await job(acme.id);
   const b = await job(null, "x", "replicate");
-  await h.db.update(jobs).set({ state: "succeeded" }).where(eq(jobs.id, a.id));
+  // Created in the same millisecond otherwise: make the order unambiguous.
+  await h.db.update(jobs).set({ state: "succeeded", createdAt: new Date(Date.now() - 1000) }).where(eq(jobs.id, a.id));
   const all = await h.call(v, "GET", "/api/v1/jobs");
   expect(all.body.map((j: { id: string }) => j.id)).toEqual([b.id, a.id]);
   expect((await h.call(v, "GET", "/api/v1/jobs?state=succeeded")).body.map((j: { id: string }) => j.id)).toEqual([a.id]);
