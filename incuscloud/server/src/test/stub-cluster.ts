@@ -13,6 +13,10 @@ export interface StubBackups {
   exportFails?: string;
   /** The export body; 3 × 100 kB by default. */
   exportStream?: (signal?: AbortSignal) => ReadableStream<Uint8Array>;
+  /** Projects that exist (default: acme). */
+  projects?: string[];
+  /** An import (`upload` to /1.0/instances) fails with this message. */
+  importFails?: string;
 }
 
 const fixedExport = () =>
@@ -52,6 +56,19 @@ export function stubCluster(label: string, instances: Record<string, StubInstanc
       if (b.exportFails) throw new ClusterError(500, `Cluster: ${b.exportFails}`);
       return (b.exportStream ?? fixedExport)(opts.signal);
     },
+    /** Imports a backup: reads the whole body, then creates a stopped instance named by X-Incus-name. */
+    async upload(path: string, body: ReadableStream<Uint8Array>, opts: { headers?: Record<string, string>; signal?: AbortSignal } = {}) {
+      let n = 0;
+      for await (const c of body) {
+        if (opts.signal?.aborted) throw opts.signal.reason;
+        n += c.length;
+      }
+      const name = opts.headers?.["X-Incus-name"] ?? "";
+      log.push(`${label} import ${name} ${n}${opts.headers?.["X-Incus-pool"] ? ` pool=${opts.headers["X-Incus-pool"]}` : ""}`);
+      if (b.importFails) return newOp("Failure", b.importFails);
+      instances[name] = { status: "Stopped", type: "container", config: {} };
+      return newOp("Success");
+    },
     async cancel(op: string) {
       log.push(`${label} cancel ${op}`);
     },
@@ -60,6 +77,15 @@ export function stubCluster(label: string, instances: Record<string, StubInstanc
       const parts = path.split("?")[0]!.split("/");
       const name = decodeURIComponent(parts[3] ?? "");
       const inst = instances[name];
+      if (method === "GET" && parts[2] === "projects") {
+        if (!(b.projects ?? ["acme"]).includes(name)) throw new ClusterError(404, "Cluster: Project not found");
+        return { type: "sync", status_code: 200, metadata: { name, config: {} } };
+      }
+      if (method === "PATCH" && parts[2] === "instances" && inst) {
+        log.push(`${label} patch ${name}`);
+        Object.assign(inst.config, body!.config ?? {});
+        return { type: "sync", status_code: 200, metadata: {} };
+      }
       if (parts[2] === "operations" && parts[4] === "wait") return { type: "sync", status_code: 200, metadata: ops.get(parts[3]!) ?? { status: "Success", err: "" } };
       if (parts[2] === "instances" && parts[4] === "backups") {
         if (method === "POST") {
