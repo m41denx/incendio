@@ -10,6 +10,7 @@ import { tenantsRoutes } from "./api/tenants.ts";
 import { serviceAccountsRoutes } from "./api/service-accounts.ts";
 import { clustersRoutes } from "./api/clusters.ts";
 import { auditRoutes } from "./api/audit.ts";
+import { fleetRoutes } from "./api/fleet.ts";
 import { gatewayLogRoutes } from "./api/gateway-log.ts";
 
 /** Everything the HTTP app needs. */
@@ -33,5 +34,6 @@ export function createApp(deps: AppDeps) {
     .use(serviceAccountsRoutes(deps))
     .use(clustersRoutes(deps))
     .use(auditRoutes(deps))
-    .use(gatewayLogRoutes(deps));
+    .use(gatewayLogRoutes(deps))
+    .use(fleetRoutes(deps));
 }

@@ -163,6 +163,10 @@ All under `/api/v1`, bearer token or session cookie. Errors are
 | `GET/POST tenants`, `GET/PATCH/DELETE tenants/:id` | operators create; tenant admins rename; operators set quotas; owners delete |
 | `GET tenants/:id/members`, `POST tenants/:id/members` (by email), `PUT/DELETE tenants/:id/members/:userId` | tenant admins; owners manage owners |
 | `GET tenants/:id/placements` | anyone who can see the tenant: its clusters, projects and their status |
+| `GET instances?q&cluster&tenant&status&type&limit&offset` | the global instance search: platform viewers see all, others their tenants' projects; `q` words must all match (name, project, cluster, member, description, image, addresses) |
+| `GET instances/:id`, `GET instances/:id/metrics?hours` | one instance and its CPU (cores), memory and network history |
+| `GET clusters/:id/inventory`, `GET clusters/:id/metrics?hours` | platform viewers: members, storage pools, networks, instance counts; member memory and load history |
+| `GET fleet/summary` | instance counts by status (what the caller sees); per-cluster capacity for platform viewers |
 | `GET/POST service-accounts`, `POST service-accounts/:id/rotate`, `DELETE service-accounts/:id` | tenant admins for tenant accounts, platform admins otherwise |
 | `GET/POST clusters`, `GET/PATCH/DELETE clusters/:id` | platform admins enrol; tenants see clusters they are placed on |
 | `GET clusters/:id/tenants`, `PUT/DELETE clusters/:id/tenants/:tenantId` | platform operators place tenants |
