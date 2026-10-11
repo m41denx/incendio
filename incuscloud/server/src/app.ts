@@ -12,6 +12,7 @@ import { clustersRoutes } from "./api/clusters.ts";
 import { auditRoutes } from "./api/audit.ts";
 import { fleetRoutes } from "./api/fleet.ts";
 import { mobilityRoutes, type Inspect } from "./api/mobility.ts";
+import { jobsRoutes } from "./api/jobs.ts";
 import { gatewayLogRoutes } from "./api/gateway-log.ts";
 
 /** Everything the HTTP app needs. */
@@ -39,5 +40,6 @@ export function createApp(deps: AppDeps) {
     .use(auditRoutes(deps))
     .use(gatewayLogRoutes(deps))
     .use(fleetRoutes(deps))
-    .use(mobilityRoutes(deps));
+    .use(mobilityRoutes(deps))
+    .use(jobsRoutes(deps));
 }
