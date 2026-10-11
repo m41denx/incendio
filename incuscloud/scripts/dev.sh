@@ -37,4 +37,5 @@ export IC_BOOTSTRAP_ADMIN_EMAIL=admin@incuscloud.dev IC_BOOTSTRAP_ADMIN_PASSWORD
 export IC_LOG_LEVEL="${IC_LOG_LEVEL:-info}"
 [ -d ../packages/ui/build/ui ] && export IC_UI_DIR="$PWD/../packages/ui/build/ui"
 [ -d web/build ] && export IC_WEB_DIR="$PWD/web/build"
+export IC_INVENTORY_INTERVAL="${IC_INVENTORY_INTERVAL:-15}"
 cd server && bun src/main.ts

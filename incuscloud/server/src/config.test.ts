@@ -66,3 +66,10 @@ test("rejects an unknown role, a too-short reconcile interval and an invalid clu
   expect(() => loadConfig({ ...base, IC_RECONCILE_INTERVAL: "5" })).toThrow(/IC_RECONCILE_INTERVAL/);
   expect(() => loadConfig({ ...base, IC_OPENFGA_CLUSTER_URL: "not a url" })).toThrow(/IC_OPENFGA_CLUSTER_URL/);
 });
+
+test("inventory runs every minute by default, 0 turns it off; metrics are kept a day", () => {
+  expect(loadConfig(base)).toMatchObject({ inventoryIntervalMs: 60_000, metricsRetentionMs: 24 * 3_600_000 });
+  expect(loadConfig({ ...base, IC_INVENTORY_INTERVAL: "0", IC_METRICS_RETENTION: "168" })).toMatchObject({ inventoryIntervalMs: 0, metricsRetentionMs: 168 * 3_600_000 });
+  expect(() => loadConfig({ ...base, IC_INVENTORY_INTERVAL: "5" })).toThrow(/IC_INVENTORY_INTERVAL/);
+  expect(() => loadConfig({ ...base, IC_METRICS_RETENTION: "0" })).toThrow(/IC_METRICS_RETENTION/);
+});

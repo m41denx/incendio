@@ -14,6 +14,10 @@ export interface Config {
   openfga: { url: string; token?: string; storeName: string; clusterUrl: string; clusterToken?: string };
   /** Every cluster is reconciled at least this often. */
   reconcileIntervalMs: number;
+  /** Each cluster's inventory is read this often (P5); 0 turns inventory off. */
+  inventoryIntervalMs: number;
+  /** Metrics samples are kept this long. */
+  metricsRetentionMs: number;
   clusterDomain: string;
   bootstrapAdmin?: { email: string; password: string };
   logLevel: "debug" | "info" | "warn" | "error";
@@ -48,6 +52,13 @@ const schema = z
     IC_OPENFGA_CLUSTER_TOKEN: z.string().optional(),
     IC_OPENFGA_STORE: z.string().default("incuscloud-platform"),
     IC_RECONCILE_INTERVAL: z.coerce.number().int().min(10).max(86400).default(60),
+    IC_INVENTORY_INTERVAL: z.coerce
+      .number()
+      .int()
+      .max(86400)
+      .default(60)
+      .refine((n) => n === 0 || n >= 10, "0 (off) or at least 10 seconds"),
+    IC_METRICS_RETENTION: z.coerce.number().int().min(1).max(720).default(24),
     IC_CLUSTER_DOMAIN: z.string().min(1),
     IC_BOOTSTRAP_ADMIN_EMAIL: z.email().optional(),
     IC_BOOTSTRAP_ADMIN_PASSWORD: z.string().min(12).optional(),
@@ -88,6 +99,8 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
       clusterToken: v.IC_OPENFGA_CLUSTER_TOKEN ?? v.IC_OPENFGA_TOKEN,
     },
     reconcileIntervalMs: v.IC_RECONCILE_INTERVAL * 1000,
+    inventoryIntervalMs: v.IC_INVENTORY_INTERVAL * 1000,
+    metricsRetentionMs: v.IC_METRICS_RETENTION * 3_600_000,
     clusterDomain: v.IC_CLUSTER_DOMAIN,
     bootstrapAdmin: v.IC_BOOTSTRAP_ADMIN_EMAIL ? { email: v.IC_BOOTSTRAP_ADMIN_EMAIL, password: v.IC_BOOTSTRAP_ADMIN_PASSWORD! } : undefined,
     logLevel: v.IC_LOG_LEVEL,

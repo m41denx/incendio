@@ -115,6 +115,10 @@ all. The reconciler's settings:
 - `IC_WEB_DIR`: the platform UI build (`incuscloud/web/build`), served at `/`.
 - `IC_RECONCILE_INTERVAL`: seconds, 10..86400, default 60. Each cluster is
   reconciled at least this often, and right after any API change that affects it.
+- `IC_INVENTORY_INTERVAL`: seconds, 0 (off) or 10..86400, default 60. Each
+  cluster's inventory (instances, members, storage, networks) and metrics are
+  read this often by the worker.
+- `IC_METRICS_RETENTION`: hours of metrics history kept, 1..720, default 24.
 
 ## Development
 
