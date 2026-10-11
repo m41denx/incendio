@@ -115,6 +115,34 @@ try {
   check((await inCluster(fromName, "info", moved, "--project", slug)).code !== 0, "the partial copy was removed");
   check((await inCluster(toName, "list", moved, "--project", slug, "-f", "csv", "-c", "s")).out === "RUNNING", "the source keeps running");
 
+  // Replication back to the first cluster, then a failover to the replica.
+  await inCluster(toName, "exec", moved, "--project", slug, "--", "rm", "-f", "/root/big");
+  const dr = `${name}-dr`;
+  const policy = (await api("POST", "/api/v1/replication-policies", { instanceId: movedId, targetClusterId: from, targetName: dr, intervalS: 60 })).body;
+  type Policy = { lastSuccessAt: string | null; lastError: string; lastJobId: string | null; state: string };
+  const readPolicy = async () => (await api("GET", `/api/v1/replication-policies/${policy.id}`)).body as Policy;
+  const first = await until("the scheduler made the first replica", async () => {
+    const pol = await readPolicy();
+    if (pol.lastError) throw new Error(`replication failed: ${pol.lastError}`);
+    return pol.lastSuccessAt ? pol : undefined;
+  });
+  const replica = JSON.parse((await inCluster(fromName, "query", `/1.0/instances/${dr}?project=${slug}`)).out);
+  check(replica.status === "Stopped" && replica.config["user.incuscloud.replica-of"] === policy.id, "the replica is stopped and tagged with its policy");
+  check((await marker(fromName, dr)) === "one", "the replica has the marker");
+
+  await inCluster(toName, "exec", moved, "--project", slug, "--", "sh", "-c", "echo two > /root/marker");
+  await finish(first.lastJobId!, "first run");
+  const again = await finish((await api("POST", `/api/v1/replication-policies/${policy.id}/run`)).body.id, "refresh");
+  check(again.state === "succeeded" && again.result?.refreshed === true, `refreshed (${again.state} ${again.error})`);
+  check((await marker(fromName, dr)) === "two", "the refresh brought the change");
+
+  const fo = await finish((await api("POST", `/api/v1/replication-policies/${policy.id}/failover`, { stopSource: true })).body.id, "failover");
+  check(fo.state === "succeeded", `failed over (${fo.state} ${fo.error})`);
+  check((await inCluster(fromName, "list", dr, "--project", slug, "-f", "csv", "-c", "s")).out === "RUNNING", "the replica runs");
+  check((await inCluster(fromName, "exec", dr, "--project", slug, "--", "cat", "/root/marker")).out === "two", "with the latest data");
+  check((await inCluster(toName, "list", moved, "--project", slug, "-f", "csv", "-c", "s")).out === "STOPPED", "the source was stopped");
+  check((await readPolicy()).state === "failed-over", "the policy has failed over");
+
   console.log("MOBILITY E2E OK");
 } finally {
   for (const [cluster] of Object.entries(created.clusters)) {

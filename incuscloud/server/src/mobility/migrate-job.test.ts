@@ -2,46 +2,16 @@ import { beforeEach, expect, test } from "bun:test";
 import { testDb } from "../db/test-db.ts";
 import type { Db } from "../db/index.ts";
 import { clusters } from "../db/schema.ts";
-import { ClusterError } from "../incus/admin-client.ts";
+import { stubCluster, type StubInstance } from "../test/stub-cluster.ts";
 import type { JobContext } from "../jobs/types.ts";
 import type { SourceInstance, TargetFacts } from "./preflight.ts";
 import { migrateHandler, type MigratePayload } from "./migrate-job.ts";
 
-type Inst = { status: string; type: string; config: Record<string, string> };
 let db: Db;
 let log: string[];
 let ids: { a: string; b: string };
 
-/** A stub cluster: an instance table and the state/delete calls the handler makes. */
-function cluster(label: string, instances: Record<string, Inst>) {
-  const asyncOp = { type: "async", status_code: 100, operation: "/1.0/operations/x", metadata: { id: "x", metadata: {} } };
-  return {
-    instances,
-    url: `https://${label}:8443`,
-    async request(method: string, path: string, body?: { action?: string }) {
-      const name = decodeURIComponent(path.split("?")[0]!.split("/")[3] ?? "");
-      const inst = instances[name];
-      if (method === "GET" && path.startsWith("/1.0/instances/")) {
-        if (!inst) throw new ClusterError(404, "Cluster: Instance not found");
-        return { type: "sync", status_code: 200, metadata: { name, ...inst } };
-      }
-      if (method === "PUT" && path.includes("/state")) {
-        log.push(`${label} ${body!.action} ${name}`);
-        inst!.status = body!.action === "start" ? "Running" : "Stopped";
-        return asyncOp;
-      }
-      if (method === "DELETE") {
-        log.push(`${label} delete ${name}`);
-        delete instances[name];
-        return asyncOp;
-      }
-      throw new Error(`unexpected ${method} ${path}`);
-    },
-    async wait() {
-      return {};
-    },
-  };
-}
+const cluster = (label: string, instances: Record<string, StubInstance>) => stubCluster(label, instances, log);
 
 const source = (status = "Running", type: "container" | "virtual-machine" = "container"): SourceInstance => ({
   name: "web",

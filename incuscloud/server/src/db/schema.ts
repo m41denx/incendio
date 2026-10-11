@@ -330,3 +330,36 @@ export const jobs = pgTable(
     check("jobs_state", sql`${t.state} in ('queued', 'running', 'succeeded', 'failed', 'cancelled')`),
   ],
 );
+
+/** A scheduled replica of an instance on another cluster (P6). */
+export const replicationPolicies = pgTable(
+  "replication_policies",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
+    sourceClusterId: uuid("source_cluster_id")
+      .notNull()
+      .references(() => clusters.id, { onDelete: "cascade" }),
+    sourceProject: text("source_project").notNull(),
+    instanceName: text("instance_name").notNull(),
+    targetClusterId: uuid("target_cluster_id")
+      .notNull()
+      .references(() => clusters.id, { onDelete: "cascade" }),
+    targetProject: text("target_project").notNull(),
+    targetName: text("target_name").notNull(),
+    intervalS: integer("interval_s").notNull().default(3600),
+    enabled: boolean("enabled").notNull().default(true),
+    state: text("state").$type<"active" | "failed-over">().notNull().default("active"),
+    lastRunAt: timestamp("last_run_at", { withTimezone: true }),
+    lastSuccessAt: timestamp("last_success_at", { withTimezone: true }),
+    lastError: text("last_error").notNull().default(""),
+    lastJobId: uuid("last_job_id"),
+    createdBy: text("created_by").notNull(),
+    createdAt: created(),
+  },
+  (t) => [
+    unique("replication_policies_instance_target").on(t.sourceClusterId, t.sourceProject, t.instanceName, t.targetClusterId),
+    check("replication_policies_state", sql`${t.state} in ('active', 'failed-over')`),
+    check("replication_policies_interval", sql`${t.intervalS} between 60 and 604800`),
+  ],
+);

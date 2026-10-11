@@ -54,7 +54,7 @@ export async function visibleInventoryInstance(db: Db, authz: Authz, p: Principa
  * project); tenant owners and admins to their tenant's ready placement on
  * another cluster, with the defaults for pool and transport.
  */
-async function resolveTarget(db: Db, authz: Authz, p: Principal, inst: Awaited<ReturnType<typeof visibleInventoryInstance>>, body: Body) {
+export async function resolveTarget(db: Db, authz: Authz, p: Principal, inst: Awaited<ReturnType<typeof visibleInventoryInstance>>, body: Body) {
   const targetClusterId = uuidParam(body.targetClusterId, "Target cluster not found");
   if (targetClusterId === inst.clusterId) throw new ApiError(400, "invalid_request", "The instance is already on that cluster");
   const [dst] = await db.select().from(clusters).where(eq(clusters.id, targetClusterId));

@@ -1,7 +1,8 @@
 import { migrateHandler } from "../mobility/migrate-job.ts";
+import { failoverHandler, replicateHandler } from "../mobility/replication.ts";
 import type { JobHandler } from "./types.ts";
 
 /** Every job type the worker runs. */
 export function jobHandlers(): Record<string, JobHandler> {
-  return { migrate: migrateHandler() };
+  return { migrate: migrateHandler(), replicate: replicateHandler(), failover: failoverHandler() };
 }
