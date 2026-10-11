@@ -25,6 +25,7 @@ let clusterId: string;
 let member: Actor;
 let outsider: Actor;
 let logged: GatewayRequest[];
+const OIDC = { issuer: "https://id.test/", clientId: "incus-cli", audience: "incuscloud", scopes: "openid,offline_access,email,profile" };
 
 beforeAll(async () => {
   fake = await new FakeIncus().start();
@@ -42,24 +43,25 @@ beforeEach(async () => {
   await syncAll(h.db, h.authz);
   cache = new ClusterCache(h.db, 0);
   logged = [];
-  const gateway = createGateway({ ...h.deps, clusterDomain: "clusters.test", clusters: cache, upstreams: new Upstreams(), onRequest: (r) => logged.push(r) });
+  const gateway = createGateway({ ...h.deps, clusterDomain: "clusters.test", clusters: cache, upstreams: new Upstreams(), onRequest: (r) => logged.push(r), oidc: OIDC });
   server = createFront({ app: h.app, gateway, tls });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   port = (server.address() as AddressInfo).port;
 });
 
-const call = async (path: string, o: { host?: string; token?: string; cookie?: string; method?: string; origin?: string } = {}) => {
+const call = async (path: string, o: { host?: string; token?: string; cookie?: string; method?: string; origin?: string; authorization?: string } = {}) => {
   const headers: Record<string, string> = { host: o.host ?? "cloud.test" };
   if (o.token) headers.authorization = `Bearer ${o.token}`;
   if (o.cookie) headers.cookie = o.cookie;
   if (o.origin) headers.origin = o.origin;
+  if (o.authorization !== undefined) headers.authorization = o.authorization;
   const r = await fetch(`https://127.0.0.1:${port}${path}`, { method: o.method ?? "GET", headers, tls: { ca, checkServerIdentity: () => undefined } } as RequestInit);
   const text = await r.text();
   let body: any = null;
   try {
     body = JSON.parse(text);
   } catch {}
-  return { status: r.status, body };
+  return { status: r.status, body, headers: r.headers };
 };
 
 async function sessionCookie(userId: string) {
@@ -173,4 +175,14 @@ test("Incus documentation is relayed without credentials", async () => {
 
 test("without a UI directory, /ui is a 404", async () => {
   expect((await call("/clusters/c1/ui/")).status).toBe(404);
+});
+
+test("401s tell Incus clients where to log in (an empty bearer is the CLI asking)", async () => {
+  for (const r of [await call("/1.0", { host: "c1.clusters.test", authorization: "Bearer " }), await call("/1.0/instances", { host: "c1.clusters.test", token: "garbage" }), await call("/1.0/instances", { host: "c1.clusters.test" })]) {
+    expect(r.status).toBe(401);
+    expect(r.headers.get("x-incus-oidc-issuer")).toBe("https://id.test/");
+    expect(r.headers.get("x-incus-oidc-clientid")).toBe("incus-cli");
+    expect(r.headers.get("x-incus-oidc-audience")).toBe("incuscloud");
+    expect(r.headers.get("x-incus-oidc-scopes")).toBe("openid,offline_access,email,profile");
+  }
 });

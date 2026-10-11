@@ -13,7 +13,8 @@ Licensed under GPL-3.0 (see `LICENSE`).
 | --- | --- | --- |
 | P0 | Spikes: Hydra tokens in Incus, authenticating proxy, cross-cluster moves | done ([results](docs/spikes.md)) |
 | P1 | Server core: config, database, identity, sessions, authorization, platform API, cluster enrolment | done |
-| P2 | Gateway: authenticated pass-through to each cluster's API | next |
+| P2 | Gateway: authenticated pass-through to each cluster's API, Incendio per cluster | done |
+| P3 | Reconciler: cluster OIDC/OpenFGA configuration, tenant projects | next |
 
 ## How it fits together
 
@@ -31,6 +32,30 @@ Licensed under GPL-3.0 (see `LICENSE`).
   token; `POST /api/v1/clusters` redeems it with a client certificate
   generated for that cluster, pinned by fingerprint.
 
+## Using clusters through IncusCloud
+
+Every enrolled cluster is reachable two ways, always as yourself (your token
+is forwarded; IncusCloud never adds credentials and never uses its own
+cluster certificate for your requests):
+
+- **API clients** (`incus` CLI, Terraform): `https://<cluster>.<IC_CLUSTER_DOMAIN>`.
+  ```sh
+  incus remote add prod https://prod.clusters.example.com --auth-type=oidc
+  ```
+  The CLI follows the device flow: open the printed URL, sign in to
+  IncusCloud, done. Tokens refresh by themselves.
+- **Browsers**: `https://<public>/clusters/<cluster>/ui/` serves Incendio for
+  that cluster with your IncusCloud session; its API calls go to
+  `/clusters/<cluster>/1.0`.
+
+Access needs `can_access` on the cluster (platform viewers and up, or
+membership in a tenant placed on it). Requests that change something, and
+every websocket/file transfer, are logged (`GET /api/v1/gateway-requests`);
+reads are sampled with `IC_GATEWAY_SAMPLE_READS`.
+
+Until P3 configures each cluster's OpenFGA, a user Incus accepts through
+OIDC has full access to that cluster. Use only test clusters until then.
+
 ## Development
 
 ```sh
@@ -39,6 +64,11 @@ scripts/dev.sh             # Hydra + OpenFGA (in memory) + server on https://127
 ```
 
 Sign in as `admin@incuscloud.dev` with the password in `.dev/admin-password`.
+
+To use a dev cluster through the gateway, Hydra must be reachable from it:
+start with `IC_DEV_HOST=<host address on the cluster's network> scripts/dev.sh`,
+enrol the cluster (`bun scripts/smoke.ts "$(incus config trust add incuscloud --quiet)"`
+on that cluster) and run `scripts/dev-cluster-oidc.sh <project> <instance> https://<IC_DEV_HOST>:4444/`.
 Trust `.dev/tls/ca.crt` or use `curl --cacert`.
 
 ```sh
@@ -48,6 +78,7 @@ IC_IT_HYDRA=1 IC_IT_OPENFGA=http://127.0.0.1:18080 bun test   # plus live Hydra/
 IC_IT_POSTGRES=postgres://… bun test src/db     # migrations on real Postgres
 IC_IT_TRUST_TOKEN=$(incus config trust add it --quiet) bun test src/clusters
 bun scripts/smoke.ts [trust-token]              # end to end against scripts/dev.sh
+bun scripts/cli-e2e.ts [cluster]                # stock incus CLI through the gateway
 ```
 
 The server tests import `@incendio/api/node`; build it first
@@ -68,6 +99,7 @@ All under `/api/v1`, bearer token or session cookie. Errors are
 | `GET/POST clusters`, `GET/PATCH/DELETE clusters/:id` | platform admins enrol; tenants see clusters they are placed on |
 | `GET clusters/:id/tenants`, `PUT/DELETE clusters/:id/tenants/:tenantId` | platform operators place tenants |
 | `GET audit` | platform viewers; tenant admins with `?tenant=` |
+| `GET gateway-requests` | platform viewers; tenant admins with `?tenant=` |
 
 Browser: `/auth/start?return_to=/…`, `/auth/callback`, `/auth/logout`.
 Hydra pages: `/auth/login`, `/auth/consent`, `/auth/device`.

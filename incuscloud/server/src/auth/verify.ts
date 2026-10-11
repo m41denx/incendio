@@ -24,3 +24,12 @@ export function remoteJwks(hydraPublicUrl: string, ca?: string): JWTVerifyGetKey
     [customFetch]: (url: string, init: RequestInit) => fetch(url, { ...init, tls: ca ? { ca } : undefined } as RequestInit),
   });
 }
+
+/** The issuer exactly as Hydra spells it (Incus clients compare it byte for byte). */
+export async function discoverIssuer(hydraPublicUrl: string, ca?: string): Promise<string> {
+  const res = await fetch(`${hydraPublicUrl.replace(/\/$/, "")}/.well-known/openid-configuration`, { tls: ca ? { ca } : undefined } as RequestInit);
+  if (!res.ok) throw new Error(`OIDC discovery answered ${res.status}`);
+  const issuer = ((await res.json()) as { issuer?: string }).issuer;
+  if (!issuer) throw new Error("OIDC discovery has no issuer");
+  return issuer;
+}

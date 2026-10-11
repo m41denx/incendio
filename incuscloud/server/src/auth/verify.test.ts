@@ -24,3 +24,13 @@ test("rejects another audience, an expired token, another issuer and garbage", a
 test("rejects tokens without a subject", async () => {
   await expect(verify(await sign({}))).rejects.toMatchObject({ status: 401 });
 });
+
+test("the issuer is taken verbatim from the discovery document", async () => {
+  const { discoverIssuer } = await import("./verify.ts");
+  const server = Bun.serve({ port: 0, fetch: (r) => (new URL(r.url).pathname === "/.well-known/openid-configuration" ? Response.json({ issuer: "https://id.example/" }) : new Response("", { status: 404 })) });
+  try {
+    expect(await discoverIssuer(`http://127.0.0.1:${server.port}`)).toBe("https://id.example/");
+  } finally {
+    server.stop();
+  }
+});

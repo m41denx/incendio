@@ -32,6 +32,8 @@ export interface GatewayDeps extends AppDeps {
   /** Serves `/clusters/<name>/ui/…` (Incendio); 404 when absent. */
   ui?: (req: IncomingMessage, res: ServerResponse, route: Route, cluster: ClusterRow, principal: Principal | null) => void;
   onRequest?: (r: GatewayRequest) => void;
+  /** Sent with every 401 so Incus clients start (or refresh) their OIDC login against the platform's issuer. */
+  oidc: { issuer: string; clientId: string; audience: string; scopes: string };
 }
 
 /** `GET /1.0` (clients learn the OIDC issuer from it) and Incus's static documentation. */
@@ -54,12 +56,18 @@ function authRequest(req: IncomingMessage, route: Route, publicUrl: string): Req
 /** The cluster API gateway (spec §3.3): route, authenticate, authorize, relay. */
 export function createGateway(deps: GatewayDeps): GatewayHandler {
   const publicOrigin = new URL(deps.publicUrl).origin;
+  const oidcHeaders = {
+    "x-incus-oidc-issuer": deps.oidc.issuer,
+    "x-incus-oidc-clientid": deps.oidc.clientId,
+    "x-incus-oidc-audience": deps.oidc.audience,
+    "x-incus-oidc-scopes": deps.oidc.scopes,
+  };
 
   /** Everything before relaying; returns what to relay with, or writes the refusal. */
   async function admit(req: IncomingMessage, out: ServerResponse | Duplex, upgrade: boolean) {
     const route = routeRequest({ host: req.headers.host, url: req.url }, deps.clusterDomain)!;
     const fail = (status: number, msg: string) => {
-      writeIncusError(out, status, msg);
+      writeIncusError(out, status, msg, status === 401 ? oidcHeaders : {});
       return null;
     };
     const cluster = await deps.clusters.get(route.name);
@@ -74,7 +82,9 @@ export function createGateway(deps: GatewayDeps): GatewayHandler {
       throw e;
     }
     const isUi = route.mode === "path" && /^\/ui(?:[/?]|$)/.test(route.path);
-    if (!principal && !isUi && !isAnonymousAllowed(req.method ?? "", route.path)) return fail(401, "Sign in to IncusCloud first (send an access token)");
+    // The incus CLI sends an empty bearer until it has logged in: that is a request to log in, not an anonymous call.
+    const askedToAuthenticate = req.headers.authorization !== undefined;
+    if (!principal && !isUi && (askedToAuthenticate || !isAnonymousAllowed(req.method ?? "", route.path))) return fail(401, "Sign in to IncusCloud first (send an access token)");
     // Upgrades are GETs, so the session's Origin rule for changes must be applied here.
     const viaSession = principal && !req.headers.authorization;
     if (upgrade && viaSession && req.headers.origin && req.headers.origin !== publicOrigin) {

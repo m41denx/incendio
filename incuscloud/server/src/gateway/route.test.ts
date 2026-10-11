@@ -24,6 +24,8 @@ test("path routing for the Incus API, Incendio and its documentation", () => {
   expect(r("cloud.example.com", "/clusters/c1/ui/")).toEqual({ name: "c1", path: "/ui/", mode: "path" });
   expect(r("cloud.example.com", "/clusters/c1/ui")).toEqual({ name: "c1", path: "/ui", mode: "path" });
   expect(r("cloud.example.com", "/clusters/c1/documentation/x.html")).toEqual({ name: "c1", path: "/documentation/x.html", mode: "path" });
+  // IncusOS hosts serve their API next to /1.0; Incendio probes it.
+  expect(r("cloud.example.com", "/clusters/c1/os/1.0")).toEqual({ name: "c1", path: "/os/1.0", mode: "path" });
 });
 
 test("other /clusters paths belong to the platform UI", () => {

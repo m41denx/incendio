@@ -47,4 +47,21 @@ export class TestBrowser {
     const hidden = Object.fromEntries([...page.body.matchAll(/<input type="hidden" name="([^"]+)" value="([^"]*)"/g)].map((m) => [m[1]!, m[2]!]));
     return this.go(new URL(action, page.url).toString(), { method: "POST", form: { ...hidden, ...fields } });
   }
+
+  /** A JSON API call carrying this browser's cookies (same-origin, like the platform UI). */
+  async api(base: string, method: string, path: string, body?: unknown): Promise<{ status: number; body: any }> {
+    const url = new URL(path, base);
+    const res = await fetch(url, {
+      method,
+      headers: { cookie: this.cookies(url), "content-type": "application/json", origin: url.origin },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      tls: { ca: this.ca },
+    } as RequestInit);
+    const text = await res.text();
+    try {
+      return { status: res.status, body: JSON.parse(text) };
+    } catch {
+      return { status: res.status, body: text };
+    }
+  }
 }

@@ -34,8 +34,9 @@ afterAll(() => {
 });
 
 test("the cluster gets the caller's token and none of our headers or certificates", async () => {
-  const r = await fetch(`${base}/1.0/echo`, { headers: { cookie: "ic_session=secret", "x-ic-client-ip": "6.6.6.6", authorization: "Bearer client-sent", "x-forwarded-for": "1.2.3.4" } });
+  const r = await fetch(`${base}/1.0/echo`, { headers: { cookie: "ic_session=secret", "x-ic-client-ip": "6.6.6.6", authorization: "Bearer client-sent", "x-forwarded-for": "1.2.3.4", origin: "https://cloud.test" } });
   const h = (await json(r)).metadata.headers;
+  expect(h.origin).toBeUndefined();
   expect(h.cookie).toBeUndefined();
   expect(h["x-ic-client-ip"]).toBeUndefined();
   expect(h.authorization).toBe("Bearer tok-123");
@@ -115,12 +116,14 @@ test("a client that goes away closes the upstream request", async () => {
 });
 
 test("websockets are relayed", async () => {
-  const ws = new WebSocket(`ws://127.0.0.1:${port}/1.0/ws`);
+  // Origin is the gateway's business (checked before relaying): Incus rejects one that does not match its Host.
+  const ws = new WebSocket(`ws://127.0.0.1:${port}/1.0/ws`, { headers: { origin: "https://cloud.test" } });
   await new Promise((r, j) => (ws.once("open", r), ws.once("error", j)));
   const echo = new Promise<string>((r) => ws.once("message", (m) => r(m.toString())));
   ws.send("ping");
   expect(await echo).toBe("ping");
   expect(fake.upgrades.at(-1)!.headers.authorization).toBe("Bearer tok-123");
+  expect(fake.upgrades.at(-1)!.headers.origin).toBeUndefined();
   ws.close();
 });
 

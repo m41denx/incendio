@@ -6,10 +6,10 @@ import { openDb } from "./db/index.ts";
 import { PlatformAuthz } from "./authz/platform.ts";
 import { syncAll } from "./authz/sync.ts";
 import { HydraAdmin } from "./identity/hydra-admin.ts";
-import { ensureClients, webClientSecret } from "./identity/bootstrap.ts";
+import { CLI_CLIENT_ID, ensureClients, webClientSecret } from "./identity/bootstrap.ts";
 import { AUDIENCE } from "./identity/routes.ts";
 import { HydraTokens } from "./auth/session.ts";
-import { createVerifier, remoteJwks } from "./auth/verify.ts";
+import { createVerifier, discoverIssuer, remoteJwks } from "./auth/verify.ts";
 import { ensureBootstrapAdmin } from "./bootstrap/admin.ts";
 import { log, setLogLevel } from "./lib/log.ts";
 import { createGateway } from "./gateway/handler.ts";
@@ -38,6 +38,7 @@ const hydraCa = config.hydra.caFile ? readFileSync(config.hydra.caFile, "utf8") 
 const db = await openDb(config.databaseUrl);
 const hydra = new HydraAdmin(config.hydra.adminUrl, { ca: hydraCa });
 await retry("Hydra", () => ensureClients(hydra, { publicUrl: config.publicUrl, secretKey: config.secretKey }));
+const issuer = await retry("Hydra discovery", () => discoverIssuer(config.hydra.publicUrl, hydraCa));
 const authz = await retry("OpenFGA", () => PlatformAuthz.init(config.openfga));
 log.info("authorization store ready", { store: authz.storeId, model: authz.modelId, tuples: await syncAll(db, authz) });
 await ensureBootstrapAdmin(db, authz, config.bootstrapAdmin);
@@ -47,7 +48,7 @@ const appDeps = {
   authz,
   hydra,
   tokens: new HydraTokens({ hydraPublicUrl: config.hydra.publicUrl, clientSecret: webClientSecret(config.secretKey), ca: hydraCa }),
-  verify: createVerifier({ issuer: config.hydra.publicUrl, audience: AUDIENCE, jwks: remoteJwks(config.hydra.publicUrl, hydraCa) }),
+  verify: createVerifier({ issuer, audience: AUDIENCE, jwks: remoteJwks(config.hydra.publicUrl, hydraCa) }),
   secretKey: config.secretKey,
   publicUrl: config.publicUrl,
   hydraPublicUrl: config.hydra.publicUrl,
@@ -61,6 +62,7 @@ const gateway = createGateway({
   clusters: new ClusterCache(db),
   upstreams: new Upstreams(),
   onRequest: (r) => requestLog.record(r),
+  oidc: { issuer, clientId: CLI_CLIENT_ID, audience: AUDIENCE, scopes: "openid,offline_access,email,profile" },
   ui: config.uiDir ? (req, res, route, _cluster, principal) => serveUi(req, res, route, { uiDir: config.uiDir!, signedIn: !!principal }) : undefined,
 });
 const server = createFront({

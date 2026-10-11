@@ -9,7 +9,7 @@ export interface Route {
 }
 
 // Only these belong to a cluster under /clusters/<name>/; the rest is the platform UI's.
-const PATH_ROUTE = /^\/clusters\/([^/?#]+)(\/(?:1\.0|ui|documentation)(?:[/?].*)?)$/;
+const PATH_ROUTE = /^\/clusters\/([^/?#]+)(\/(?:1\.0|os\/1\.0|ui|documentation)(?:[/?].*)?)$/;
 
 /** Which cluster a request is for, from its host (API clients) or path prefix (browsers); null if not the gateway's. */
 export function routeRequest(req: { host?: string; url?: string }, clusterDomain: string): Route | null {
