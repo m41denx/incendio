@@ -75,9 +75,29 @@ export const serviceAccounts = pgTable("service_accounts", {
   tenantId: uuid("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
   clientId: text("client_id").notNull().unique(),
   createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  /** Platform-wide role for platform-level accounts (no tenant). */
+  platformRole: text("platform_role"),
   disabled: boolean("disabled").notNull().default(false),
   createdAt: created(),
 });
+
+/** A tenant placed on a cluster: the reconciler (P3) creates its Incus project there. */
+export const placements = pgTable(
+  "placements",
+  {
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    clusterId: uuid("cluster_id")
+      .notNull()
+      .references(() => clusters.id, { onDelete: "cascade" }),
+    project: text("project").notNull(),
+    status: text("status").notNull().default("pending"),
+    statusMessage: text("status_message").notNull().default(""),
+    createdAt: created(),
+  },
+  (t) => [primaryKey({ columns: [t.tenantId, t.clusterId] })],
+);
 
 /** Browser sessions (BFF): tokens stay server-side. */
 export const sessions = pgTable("sessions", {

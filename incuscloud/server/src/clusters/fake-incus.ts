@@ -14,6 +14,7 @@ export class FakeIncus {
   trusted = new Set<string>();
   tokenSecret = "s3cret";
   certificatesPosted: Array<{ body: Record<string, unknown>; clientFingerprint: string }> = [];
+  deletedCertificates: string[] = [];
 
   async start() {
     // Bun's https server exposes no peer certificate: terminate TLS here,
@@ -43,6 +44,12 @@ export class FakeIncus {
           } catch {}
           if (secret !== this.tokenSecret) return fail(403, "No matching certificate add operation found");
           this.trusted.add(fp);
+          return sync({});
+        }
+        if (req.method === "DELETE" && req.url?.startsWith("/1.0/certificates/")) {
+          if (!this.trusted.has(fp)) return fail(403, "not authorized");
+          this.deletedCertificates.push(req.url.slice("/1.0/certificates/".length));
+          this.trusted.delete(fp);
           return sync({});
         }
         if (req.method === "GET" && req.url === "/1.0/boom") return fail(500, "kaboom");

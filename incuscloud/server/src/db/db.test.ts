@@ -32,3 +32,10 @@ test("clusters, audit rows and defaults", async () => {
   const rows = await db.select().from(auditLog);
   expect(rows[0]!.at).toBeInstanceOf(Date);
 });
+
+test("openDb understands pglite: URLs (development) and migrates", async () => {
+  const { openDb } = await import("./index.ts");
+  const db = await openDb("pglite:memory");
+  await db.insert(users).values({ email: "dev@example.com", name: "Dev" });
+  expect((await db.select().from(users)).length).toBe(1);
+});
