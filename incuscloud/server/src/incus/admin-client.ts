@@ -1,6 +1,15 @@
 import { request as httpsRequest } from "node:https";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
+import type WebSocketType from "ws";
 import { PinnedAgent } from "@incendio/api/node";
 import { ApiError } from "../lib/errors.ts";
+
+// The ws package itself, loaded by path: a bare "ws" import is Bun's built-in
+// client, which ignores the pinned agent (no pin, no client certificate).
+const require_ = createRequire(import.meta.url);
+const WebSocket = require_(join(dirname(require_.resolve("ws/package.json")), "index.js")) as typeof WebSocketType;
+type WebSocket = WebSocketType;
 
 /** An error answer from a cluster; `clusterStatus` is Incus's HTTP status (404, 409, …). */
 export class ClusterError extends ApiError {
@@ -88,6 +97,24 @@ export class IncusAdminClient {
       req.on("error", (e) => reject(new ApiError(502, "cluster_unreachable", `Could not reach ${this.url}: ${e.message}`)));
       req.end(body === undefined ? undefined : JSON.stringify(body));
     });
+  }
+
+  /** Opens an operation websocket (`/1.0/operations/<id>/websocket?secret=…`), pinned like every request. */
+  websocket(path: string): Promise<WebSocket> {
+    return new Promise((resolve, reject) => {
+      const ws = new WebSocket(this.url.replace(/^https:/, "wss:") + path, { agent: this.agent, handshakeTimeout: this.timeoutMs, maxPayload: 0 });
+      ws.once("open", () => resolve(ws));
+      ws.once("error", (e) => reject(new ApiError(502, "cluster_unreachable", `Websocket to ${this.url}: ${e.message}`)));
+    });
+  }
+
+  /** Cancels an operation (its path or id); one already gone is fine. */
+  async cancel(op: string): Promise<void> {
+    try {
+      await this.request("DELETE", op.startsWith("/") ? op : `/1.0/operations/${op}`);
+    } catch (e) {
+      if (!(e instanceof ClusterError && e.clusterStatus === 404)) throw e;
+    }
   }
 
   /** GET /1.0 */

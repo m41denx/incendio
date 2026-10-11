@@ -62,6 +62,8 @@ export class FakeIncus {
   pools = [{ name: "local", driver: "dir" }];
   networks = [{ name: "incusbr0", type: "bridge", managed: true }];
   patches: Array<{ path: string; body: unknown }> = [];
+  /** Operation id → websocket secret: `/1.0/operations/<id>/websocket?secret=` echoes when it matches. */
+  operationSockets = new Map<string, string>();
 
   async start() {
     // Bun's https server exposes no peer certificate: terminate TLS here,
@@ -177,6 +179,11 @@ export class FakeIncus {
           this.trusted.delete(fp);
           return sync({});
         }
+        const opm = u.pathname.match(/^\/1\.0\/operations\/([^/]+)$/);
+        if (admin && opm && req.method === "DELETE") {
+          if (!this.operationSockets.delete(opm[1]!)) return fail(404, "Operation not found");
+          return sync({});
+        }
         if (req.method === "GET" && req.url === "/1.0/boom") return fail(500, "kaboom");
         return fail(404, "not found");
       });
@@ -185,6 +192,12 @@ export class FakeIncus {
       this.upgrades.push({ method: req.method ?? "", url: req.url ?? "", headers: req.headers, bodyBytes: 0, clientFingerprint: peers.get(req.socket) ?? "" });
       if (req.url === "/1.0/ws") {
         return websocketEcho(req, socket);
+      }
+      const opws = new URL(req.url ?? "/", "https://x");
+      const opid = opws.pathname.match(/^\/1\.0\/operations\/([^/]+)\/websocket$/)?.[1];
+      if (opid) {
+        if (this.operationSockets.get(opid) === opws.searchParams.get("secret")) return websocketEcho(req, socket);
+        return socket.end("HTTP/1.1 403 Forbidden\r\ncontent-length: 0\r\nconnection: close\r\n\r\n");
       }
       if (req.url === "/1.0/sftp" && req.headers.upgrade === "sftp") {
         socket.write("HTTP/1.1 101 Switching Protocols\r\nUpgrade: sftp\r\nConnection: Upgrade\r\n\r\n");
