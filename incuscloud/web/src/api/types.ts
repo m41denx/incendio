@@ -218,3 +218,56 @@ export interface FleetSummary {
   instances: { total: number; byStatus: Record<string, number> };
   clusters?: ClusterCapacity[];
 }
+
+export type JobState = "queued" | "running" | "succeeded" | "failed" | "cancelled";
+
+/** Work the platform runs: GET /api/v1/jobs[/:id]. */
+export interface Job {
+  id: string;
+  /** migrate, replicate or failover. */
+  type: string;
+  state: JobState;
+  progress: { stage: string; percent?: number; message?: string };
+  payload: Record<string, unknown>;
+  result: Record<string, unknown> | null;
+  error: string;
+  tenantId: string | null;
+  clusterIds: string[];
+  instanceKey: string | null;
+  actorType: string;
+  actorId: string;
+  cancelRequested: boolean;
+  createdAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+}
+
+/** POST /api/v1/instances/:id/migrations/preflight */
+export interface MigrationCheck {
+  ok: boolean;
+  problems: string[];
+  warnings: string[];
+  targetProject: string;
+  targetName: string;
+}
+
+/** A scheduled replica of an instance on another cluster: /api/v1/replication-policies. */
+export interface ReplicationPolicy {
+  id: string;
+  tenantId: string | null;
+  sourceClusterId: string;
+  sourceProject: string;
+  instanceName: string;
+  targetClusterId: string;
+  targetProject: string;
+  targetName: string;
+  intervalS: number;
+  enabled: boolean;
+  state: "active" | "failed-over";
+  lastRunAt: string | null;
+  lastSuccessAt: string | null;
+  lastError: string;
+  lastJobId: string | null;
+  createdBy: string;
+  createdAt: string;
+}
