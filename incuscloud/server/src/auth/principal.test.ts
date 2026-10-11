@@ -93,3 +93,19 @@ test("parallel requests on an expiring session refresh it once", async () => {
   expect(results.every((p) => p?.id === userId)).toBe(true);
   expect((await db.select().from(sessions)).length).toBe(1);
 });
+
+test("cookie-authenticated changes from another origin are refused", async () => {
+  const { principalPlugin } = await import("./principal.ts");
+  const { Elysia } = await import("elysia");
+  const { errorHandling } = await import("../lib/errors.ts");
+  const app = new Elysia().use(errorHandling).use(principalPlugin(deps)).post("/api/v1/x", ({ principal }) => ({ id: principal?.id }));
+  const cookie = (await session(3600)).headers.get("cookie")!;
+  const post = (headers: Record<string, string>) => app.handle(new Request("https://cloud.test/api/v1/x", { method: "POST", headers: { cookie, ...headers } }));
+  expect((await post({ origin: "https://evil.test" })).status).toBe(403);
+  expect((await post({ origin: "https://c1.cloud.test" })).status).toBe(403);
+  expect((await post({ origin: "https://cloud.test" })).status).toBe(200);
+  expect((await post({})).status).toBe(200); // non-browser clients send no Origin
+  // Bearer tokens are not ambient credentials: no Origin rule.
+  const bearer = await app.handle(new Request("https://cloud.test/api/v1/x", { method: "POST", headers: { authorization: `Bearer ${await sign({ sub: userId })}`, origin: "https://evil.test" } }));
+  expect(bearer.status).toBe(200);
+});

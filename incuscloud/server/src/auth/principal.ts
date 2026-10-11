@@ -22,6 +22,7 @@ export interface Principal {
 }
 
 const REFRESH_BEFORE_MS = 60_000;
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 const isUuid = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
 
 async function userPrincipal(deps: AuthDeps, userId: string, token: string): Promise<Principal | null> {
@@ -73,6 +74,12 @@ export async function resolvePrincipal(deps: AuthDeps, request: Request): Promis
   }
   const sid = cookieOf(request, SESSION_COOKIE);
   if (!sid) return null;
+  // Cookies are ambient: changes must come from our own pages. Browsers always
+  // send Origin on non-GET requests; non-browser clients send none.
+  const origin = request.headers.get("origin");
+  if (!SAFE_METHODS.has(request.method) && origin && origin !== new URL(deps.publicUrl).origin) {
+    throw new ApiError(403, "cross_origin", "Cross-origin requests cannot use the session cookie");
+  }
   const row = await freshSession(deps, hashSessionId(sid));
   return row ? userPrincipal(deps, row.userId, row.accessToken) : null;
 }
