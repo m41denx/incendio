@@ -92,11 +92,51 @@ limits as through the gateway.
 ## Platform UI
 
 `incuscloud/web` (`@incuscloud/web`) is the platform's web UI: sign in at
-`https://<public>/` and manage clusters (enrol, place tenants, reconcile,
-console links), tenants (quotas, members, where they run), users, service
-accounts (the secret is shown once) and the audit and gateway logs. What
-each person sees follows their roles; the API decides every request. The
-per-cluster console remains Incendio at `/clusters/<name>/ui/`.
+`https://<public>/`. It is one console over every cluster, laid out as an
+inventory (as vSphere's), in Incendio's look; Incendio's own pages run
+inside it through the federation facade. What each person sees follows
+their roles; the API (and Incus) decides every request.
+
+- **Sidebar.** View buttons (Instances, Projects, Members, Networks,
+  Storage), then the inventory tree: All clusters → each cluster → what the
+  view lists (members and their instances, projects with their instances
+  and Kubernetes clusters, networks, pools). Each row has its kind's icon
+  tinted by status, and running/total counts. Below the tree: the
+  platform's pages (Tenants, Jobs, Replication, Backups, Balancing, and for
+  managers Users, Service accounts and the logs) and the account. It can be
+  dragged 240–360 px wide; the view and width are remembered.
+- **Selection.** The URL is the selection. Above the page: a breadcrumb
+  back up the tree, and the object's one row of tabs (what does not fit
+  goes into More). Objects whose Incendio page has its own tabs (member,
+  instance, network, pool, profile) get only the breadcrumb.
+  - All clusters (`/`, `/all/…`): Summary (the dashboard), Clusters
+    (operators), Instances, Kubernetes, Warnings (with a Cluster column).
+  - A cluster (`/inventory/<cluster>/<tab>[/<page>]`): Summary, Members,
+    Groups, Projects, Networks, Storage, Kubernetes, Operations, Access,
+    Configure. Tabs with several pages list them in a side menu: cluster and
+    placement groups; networks, ACLs, address sets, zones, IPAM,
+    integrations; pools, volumes, buckets, custom ISOs; who has access,
+    identities, groups, IdP groups, OpenFGA grants and check; IncusCloud's
+    settings for it, server and cluster settings, links, replicators,
+    certificates, logging, ACME, warnings. Server-wide pages are for
+    platform viewers only.
+  - A project (`/ui/project/<project@cluster>/…`): Instances, Profiles,
+    Networks, Storage, Images, Kubernetes, Usage, Access, Configure. Projects
+    are never merged across clusters: a project is one cluster's.
+  - A Kubernetes cluster (`/ui/project/<project@cluster>/kubernetes/<name>`):
+    Summary, Nodes (each machine and the Incus instance and member it runs
+    on), Activity (its jobs), Kubeconfig; Scale, Upgrade, Download
+    kubeconfig and Delete above them.
+- **Access tabs** show who has access to a cluster or project from
+  IncusCloud's roles, and what each gives in Incus (what the reconciler
+  grants): platform roles on the server, tenant roles on the tenant's
+  project.
+- **The facade's scope.** A request is one cluster's when it names the
+  cluster (a qualified name), else when the console sends
+  `X-IncusCloud-Scope` (`all` or a cluster), else when the page it comes
+  from is a cluster's (its Referer); otherwise it is every cluster's.
+
+The per-cluster console remains Incendio at `/clusters/<name>/ui/`.
 
 ```sh
 cd incuscloud/web
@@ -398,6 +438,8 @@ All under `/api/v1`, bearer token or session cookie. Errors are
 | `GET tenants/:id/placements` | anyone who can see the tenant: its clusters, projects and their status |
 | `GET instances?q&cluster&tenant&status&type&limit&offset` | the global instance search: platform viewers see all, others their tenants' projects; `q` words must all match (name, project, cluster, member, description, image, addresses) |
 | `GET instances/:id`, `GET instances/:id/metrics?hours` | one instance and its CPU (cores), memory and network history |
+| `GET access?cluster&project` | who has access to a cluster (or one project on it): platform roles (platform viewers only) and each visible tenant's members, each with the Incus relation it gives |
+| `GET kubernetes/:id/nodes` | anyone who can see the tenant: the cluster's machines, their Incus instances, phase, version and readiness |
 | `GET clusters/:id/inventory`, `GET clusters/:id/metrics?hours` | platform viewers: members, storage pools, networks, instance counts; member memory and load history |
 | `GET fleet/summary` | instance counts by status (what the caller sees); per-cluster capacity for platform viewers |
 | `POST instances/:id/migrations/preflight`, `POST instances/:id/migrations` | check, then start a move or copy to another cluster (202, a job) |
