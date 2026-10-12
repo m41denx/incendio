@@ -1,18 +1,11 @@
 import type { IncomingMessage } from "node:http";
 import { request as httpsRequest } from "node:https";
-import { createRequire } from "node:module";
-import { dirname, join } from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
-import type WebSocketType from "ws";
 import { PinnedAgent } from "@incendio/api/node";
 import { ApiError } from "../lib/errors.ts";
 
-// The ws package itself, loaded by path: a bare "ws" import is Bun's built-in
-// client, which ignores the pinned agent (no pin, no client certificate).
-const require_ = createRequire(import.meta.url);
-const WebSocket = require_(join(dirname(require_.resolve("ws/package.json")), "index.js")) as typeof WebSocketType;
-type WebSocket = WebSocketType;
+import { WebSocket } from "../lib/ws.ts";
 
 /** An error answer from a cluster; `clusterStatus` is Incus's HTTP status (404, 409, …). */
 export class ClusterError extends ApiError {

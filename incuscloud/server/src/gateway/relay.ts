@@ -35,7 +35,7 @@ const HOP = new Set(["connection", "keep-alive", "transfer-encoding", "upgrade",
 // reject one that does not match the Host we send): never forwarded.
 const PRIVATE = (k: string) => k === "host" || k === "cookie" || k === "authorization" || k === "origin" || k.startsWith("x-ic-") || k.startsWith("x-forwarded-") || k === "forwarded";
 
-function upstreamHeaders(req: IncomingMessage, t: RelayTarget, upgrade: boolean) {
+export function upstreamHeaders(req: IncomingMessage, t: RelayTarget, upgrade: boolean) {
   const h: Record<string, string | string[]> = {};
   for (const [k, v] of Object.entries(req.headers)) {
     if (v === undefined || PRIVATE(k)) continue;
@@ -49,7 +49,7 @@ function upstreamHeaders(req: IncomingMessage, t: RelayTarget, upgrade: boolean)
   return h;
 }
 
-const describe = (e: Error) => (/does not match the pinned/.test(e.message) ? `The cluster presented an unexpected certificate (${e.message})` : `Cluster unreachable: ${e.message}`);
+export const describe = (e: Error) => (/does not match the pinned/.test(e.message) ? `The cluster presented an unexpected certificate (${e.message})` : `Cluster unreachable: ${e.message}`);
 
 function upstreamRequest(req: IncomingMessage, t: RelayTarget, upgrade: boolean) {
   const u = new URL(t.url);

@@ -25,6 +25,7 @@ import { ClusterCache } from "./gateway/clusters-cache.ts";
 import { Upstreams } from "./gateway/relay.ts";
 import { RequestLog } from "./gateway/request-log.ts";
 import { serveUi } from "./gateway/ui.ts";
+import { createFacade } from "./federation/handler.ts";
 import { Worker } from "./reconcile/worker.ts";
 import { FleetWorker } from "./fleet/worker.ts";
 import { JobRunner } from "./jobs/runner.ts";
@@ -130,18 +131,23 @@ const appDeps = {
 };
 const app = createApp(appDeps);
 const requestLog = new RequestLog(db, { sampleReads: config.gatewaySampleReads });
+const clusterCache = new ClusterCache(db);
+const upstreams = new Upstreams();
 const gateway = createGateway({
   ...appDeps,
   clusterDomain: config.clusterDomain,
-  clusters: new ClusterCache(db),
-  upstreams: new Upstreams(),
+  clusters: clusterCache,
+  upstreams,
   onRequest: (r) => requestLog.record(r),
   oidc: { issuer, clientId: CLI_CLIENT_ID, audience: AUDIENCE, scopes: "openid,offline_access,email,profile" },
   ui: config.uiDir ? (req, res, route, _cluster, principal) => serveUi(req, res, route, { uiDir: config.uiDir!, signedIn: !!principal }) : undefined,
 });
+// Incendio's API on the public origin: every cluster as one (the console).
+const facade = createFacade({ ...appDeps, clusters: clusterCache, upstreams, onRequest: (r) => requestLog.record(r) });
 const server = createFront({
   app,
   gateway,
+  facade,
   tls: { cert: readFileSync(config.tls.certFile), key: readFileSync(config.tls.keyFile) },
   web: config.webDir ? { dir: config.webDir } : undefined,
   oidc: oidcAtPublicUrl ? oidcProxy({ upstream: config.hydra.publicUrl, ca: hydraCa }) : undefined,

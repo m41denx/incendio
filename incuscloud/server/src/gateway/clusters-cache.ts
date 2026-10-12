@@ -19,7 +19,18 @@ export class ClusterCache {
     return row ?? null;
   }
 
+  private list: { rows: ClusterRow[]; at: number } | null = null;
+
+  /** Every enrolled cluster, by name (the federation facade fans out to them). */
+  async all(): Promise<ClusterRow[]> {
+    if (this.list && Date.now() - this.list.at < this.ttlMs) return this.list.rows;
+    const rows = (await this.db.select().from(clusters)).sort((a, b) => a.name.localeCompare(b.name));
+    this.list = { rows, at: Date.now() };
+    return rows;
+  }
+
   invalidate(name?: string) {
+    this.list = null;
     if (name) this.entries.delete(name);
     else this.entries.clear();
   }

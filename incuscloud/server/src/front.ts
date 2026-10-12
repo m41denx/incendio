@@ -19,6 +19,8 @@ export interface GatewayHandler {
 export interface FrontOptions {
   app: { handle(request: Request): Promise<Response> | Response };
   gateway?: GatewayHandler;
+  /** The federation facade: `/1.0/…` on the public origin, every cluster as one (Incendio's API). */
+  facade?: GatewayHandler;
   tls: { cert: string | Buffer; key: string | Buffer };
   /** The platform UI build, served at / (outside /api, /auth and the gateway's paths). */
   web?: { dir: string };
@@ -64,13 +66,14 @@ export async function writeResponse(res: ServerResponse, response: Response): Pr
 }
 
 /** The single HTTPS listener: gateway traffic to the gateway, the rest to the app. */
-export function createFront({ app, gateway, tls, web, oidc }: FrontOptions): Server {
+export function createFront({ app, gateway, facade, tls, web, oidc }: FrontOptions): Server {
   const server = createServer({ cert: tls.cert, key: tls.key });
   // Node's default cuts any request after 300 s; image uploads and
   // `operations/<id>/wait` through the gateway legitimately take longer.
   server.requestTimeout = 0;
   server.on("request", (req, res) => {
     if (gateway?.match(req)) return gateway.request(req, res);
+    if (facade?.match(req)) return facade.request(req, res);
     const origin = `https://${req.headers.host ?? "localhost"}`;
     const toOidc = oidc && isOidcPath((req.url ?? "/").split("?")[0]!);
     if (!toOidc && web && serveWeb(req, res, web)) return;
@@ -84,6 +87,7 @@ export function createFront({ app, gateway, tls, web, oidc }: FrontOptions): Ser
   });
   server.on("upgrade", (req, socket: Duplex, head: Buffer) => {
     if (gateway?.match(req)) return gateway.upgrade(req, socket, head);
+    if (facade?.match(req)) return facade.upgrade(req, socket, head);
     socket.destroy();
   });
   return server;

@@ -4,6 +4,7 @@ import type { AddressInfo } from "node:net";
 import type { Duplex } from "node:stream";
 import { createServer as createTlsServer, type Server } from "node:tls";
 import { X509Certificate, createHash } from "node:crypto";
+import { WebSocketServer, type WebSocket } from "../lib/ws.ts";
 
 /**
  * Minimal websocket echo (small frames only): Bun's `ws` server shim cannot
@@ -71,6 +72,11 @@ export class FakeIncus {
   pools = [{ name: "local", driver: "dir" }];
   networks = [{ name: "incusbr0", type: "bridge", managed: true }];
   patches: Array<{ path: string; body: unknown }> = [];
+  /** Answers first when set: tests' own endpoints (status, JSON body, content type). */
+  respond?: (r: { method: string; url: string; body: string; headers: IncomingMessage["headers"] }) => { status?: number; body: unknown; type?: string } | undefined;
+  /** Open `/1.0/events` sockets; `emit` sends to all of them. */
+  eventSockets: WebSocket[] = [];
+  private wss = new WebSocketServer({ noServer: true });
   /** Operation id → websocket secret: `/1.0/operations/<id>/websocket?secret=` echoes when it matches. */
   operationSockets = new Map<string, string>();
 
@@ -130,6 +136,12 @@ export class FakeIncus {
         const raw = Buffer.concat(chunks).toString();
         if (req.url === "/1.0/echo") {
           return sync({ method: req.method, headers: req.headers, bodyBytes: seen.bodyBytes });
+        }
+        const own = this.respond?.({ method: req.method ?? "", url: req.url ?? "", body: raw, headers: req.headers });
+        if (own) {
+          const type = own.type ?? "application/json";
+          res.writeHead(own.status ?? 200, { "content-type": type });
+          return res.end(type === "application/json" ? JSON.stringify(own.body) : (own.body as string));
         }
         const admin = this.trusted.has(fp);
         const u = new URL(req.url ?? "/", "https://x");
@@ -226,6 +238,12 @@ export class FakeIncus {
       if (req.url === "/1.0/ws") {
         return websocketEcho(req, socket);
       }
+      if (req.url?.startsWith("/1.0/events")) {
+        return this.wss.handleUpgrade(req, socket, head, (ws) => {
+          this.eventSockets.push(ws);
+          ws.on("close", () => (this.eventSockets = this.eventSockets.filter((x) => x !== ws)));
+        });
+      }
       const opws = new URL(req.url ?? "/", "https://x");
       const opid = opws.pathname.match(/^\/1\.0\/operations\/([^/]+)\/websocket$/)?.[1];
       if (opid) {
@@ -261,7 +279,12 @@ export class FakeIncus {
     return Buffer.from(JSON.stringify({ client_name: "incuscloud", fingerprint: this.fingerprint, addresses: [`127.0.0.1:${this.port}`], secret: this.tokenSecret, expires_at: "2099-01-01T00:00:00Z", ...overrides })).toString("base64");
   }
 
+  emit(event: unknown) {
+    for (const ws of this.eventSockets) ws.send(JSON.stringify(event));
+  }
+
   stop() {
+    for (const ws of this.eventSockets) ws.terminate();
     this.server.close();
   }
 }
