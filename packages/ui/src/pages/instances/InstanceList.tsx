@@ -763,7 +763,8 @@ const InstanceList: FC = () => {
                   className="u-float-right u-no-margin--bottom"
                   onClick={async () =>
                     navigate(
-                      `${ROOT_PATH}/ui/project/${encodeURIComponent(projectForCreationName)}/instances/create`,
+                      extension.createPath?.(projectForCreationName) ??
+                        `${ROOT_PATH}/ui/project/${encodeURIComponent(projectForCreationName)}/instances/create`,
                     )
                   }
                   hasIcon={!isSmallScreen}
@@ -914,7 +915,8 @@ const InstanceList: FC = () => {
                       appearance="positive"
                       onClick={async () =>
                         navigate(
-                          `${ROOT_PATH}/ui/project/${encodeURIComponent(projectForCreationName)}/instances/create`,
+                          extension.createPath?.(projectForCreationName) ??
+                            `${ROOT_PATH}/ui/project/${encodeURIComponent(projectForCreationName)}/instances/create`,
                         )
                       }
                       disabled={!!createInstanceRestriction}

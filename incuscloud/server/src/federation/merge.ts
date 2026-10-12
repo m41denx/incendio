@@ -51,12 +51,15 @@ function federatedServer(servers: Obj[]): Obj {
  * views: `/1.0`, projects (with a merged entry per name on several
  * clusters), project state (summed) and `/1.0/cluster`.
  */
-export function merge(path: string, answers: Array<Answer | null>, o: { clusters: number }): Merged {
+export function merge(path: string, answers: Array<Answer | null>, o: { clusters: number; config?: Record<string, string> }): Merged {
   const segs = path.split("/");
   const ok = answers.filter((a): a is Answer => !!a && a.status === 200 && a.json?.type === "sync");
   const metas = ok.map((a) => a.json!.metadata);
 
-  if (path === "/1.0") return ok.length ? sync(federatedServer(metas as Obj[])) : sync({ api_extensions: [], api_status: "stable", api_version: "1.0", auth: "trusted", public: false, config: {}, environment: { server_clustered: true, server_name: "incuscloud" } });
+  if (path === "/1.0") {
+    const server = ok.length ? federatedServer(metas as Obj[]) : { api_extensions: [], api_status: "stable", api_version: "1.0", auth: "trusted", public: false, environment: { server_clustered: true, server_name: "incuscloud" } };
+    return sync({ ...server, config: o.config ?? {} });
+  }
   if (path === "/1.0/cluster") return sync({ server_name: "", enabled: true, member_config: [] });
 
   if (!ok.length) {

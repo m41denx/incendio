@@ -23,7 +23,7 @@ export interface FrontOptions {
   facade?: GatewayHandler;
   tls: { cert: string | Buffer; key: string | Buffer };
   /** The platform UI build, served at / (outside /api, /auth and the gateway's paths). */
-  web?: { dir: string };
+  web?: { dir: string; imageServers?: string[] };
   /** Hydra's public endpoints (`/oauth2/*`, discovery, JWKS, userinfo) when the issuer is the public URL. */
   oidc?: (request: Request) => Promise<Response>;
 }

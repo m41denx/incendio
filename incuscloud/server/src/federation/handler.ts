@@ -20,6 +20,8 @@ import { type Call, fetchCluster, forward, isJson, readBody } from "./upstream.t
 
 export interface FacadeDeps extends AppDeps {
   clusters: ClusterCache;
+  /** Simplestreams servers Incendio's image picker lists, beyond its own default. */
+  imageServers?: string[];
   upstreams: Upstreams;
   onRequest?: (r: GatewayRequest) => void;
 }
@@ -71,6 +73,11 @@ function memoryOf(body: unknown): number {
 export function createFacade(deps: FacadeDeps): GatewayHandler {
   const publicOrigin = new URL(deps.publicUrl).origin;
   const servers = new Map<string, { at: number; env: Obj; clustered: boolean }>();
+  // What the federated /1.0 says as server config: the console's, never one cluster's.
+  const extraImageServers = (deps.imageServers ?? []).filter((u) => u.replace(/\/$/, "") !== "https://images.linuxcontainers.org");
+  const consoleConfig: Record<string, string> = extraImageServers.length
+    ? { "user.ui.image_servers": JSON.stringify(extraImageServers.map((u) => ({ name: new URL(u).host, url: u }))) }
+    : {};
 
   async function admit(req: IncomingMessage, out: ServerResponse | Duplex, upgrade: boolean): Promise<Admitted | null | "anonymous"> {
     const headers = new Headers();
@@ -238,7 +245,7 @@ export function createFacade(deps: FacadeDeps): GatewayHandler {
       return one(req, res, a, c);
     }
     if (method === "GET" || method === "HEAD") {
-      return sendJson(res, merge(path, await fanOut(req, a, url), { clusters: a.reachable.length }));
+      return sendJson(res, merge(path, await fanOut(req, a, url), { clusters: a.reachable.length, config: path === "/1.0" ? consoleConfig : undefined }));
     }
     if (method === "POST" && path === "/1.0/instances") return place(req, res, a);
     return writeIncusError(res, 400, "Choose a cluster: this change names none (open the project on one cluster, as name@cluster)");

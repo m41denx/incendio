@@ -22,6 +22,8 @@ export interface Config {
   jobConcurrency: number;
   /** Simplestreams server self-service creates take images from. */
   imageServer: string;
+  /** Simplestreams servers the console's image picker lists (the image server first). */
+  imageServers: string[];
   /** The management cluster CAPI and CAPN run in (P10); absent turns Kubernetes off. */
   k8s?: { kubeconfig: string; ports: [number, number] };
   clusterDomain: string;
@@ -67,6 +69,11 @@ const schema = z
     IC_METRICS_RETENTION: z.coerce.number().int().min(1).max(720).default(24),
     IC_JOB_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(2),
     IC_IMAGE_SERVER: url.default("https://images.linuxcontainers.org"),
+    IC_IMAGE_SERVERS: z
+      .string()
+      .default("")
+      .transform((s) => s.split(",").map((x) => x.trim()).filter(Boolean))
+      .pipe(z.array(url)),
     IC_K8S_KUBECONFIG: z.string().min(1).optional(),
     IC_K8S_PORTS: z
       .string()
@@ -121,6 +128,7 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
     metricsRetentionMs: v.IC_METRICS_RETENTION * 3_600_000,
     jobConcurrency: v.IC_JOB_CONCURRENCY,
     imageServer: v.IC_IMAGE_SERVER.replace(/\/$/, ""),
+    imageServers: [...new Set([v.IC_IMAGE_SERVER, ...v.IC_IMAGE_SERVERS].map((u) => u.replace(/\/$/, "")))],
     k8s: v.IC_K8S_KUBECONFIG ? { kubeconfig: v.IC_K8S_KUBECONFIG, ports: v.IC_K8S_PORTS } : undefined,
     clusterDomain: v.IC_CLUSTER_DOMAIN,
     bootstrapAdmin: v.IC_BOOTSTRAP_ADMIN_EMAIL ? { email: v.IC_BOOTSTRAP_ADMIN_EMAIL, password: v.IC_BOOTSTRAP_ADMIN_PASSWORD! } : undefined,

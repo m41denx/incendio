@@ -8,7 +8,7 @@ let server: Server;
 let base: string;
 beforeAll(async () => {
   server = createServer((req, res) => {
-    if (!serveWeb(req, res, { dir })) {
+    if (!serveWeb(req, res, { dir, imageServers: ["https://images.example", "https://mirror.example:8443/streams"] })) {
       res.writeHead(599);
       res.end("not handled");
     }
@@ -49,4 +49,9 @@ test("pages cannot be framed by other sites and only load our own scripts", asyn
   expect(r.headers.get("referrer-policy")).toBe("same-origin");
   const csp = r.headers.get("content-security-policy") ?? "";
   for (const d of ["default-src 'self'", "script-src 'self'", "frame-ancestors 'self'", "object-src 'none'", "base-uri 'self'"]) expect(csp).toContain(d);
+});
+
+test("pages may read the image servers' catalogues (Incendio's image picker) and nothing else outside", async () => {
+  const csp = (await fetch(`${base}/ui/project/acme@c1/instances/create`)).headers.get("content-security-policy") ?? "";
+  expect(csp).toContain("connect-src 'self' https://images.example https://mirror.example:8443;");
 });

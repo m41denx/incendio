@@ -1,4 +1,4 @@
-import { useMemo, useRef, type FC, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, type FC, type ReactNode } from "react";
 import { Link, Outlet, useLocation, useSearchParams } from "react-router-dom";
 import { Application, CustomLayout, Icon, SideNavigationItem, SkipLink } from "@canonical/react-components";
 import Navigation from "@incendio/ui/components/Navigation";
@@ -6,13 +6,34 @@ import Events from "@incendio/ui/Events";
 import StatusBar from "@incendio/ui/components/StatusBar";
 import { NavigationExtensionContext, type NavigationExtension } from "@incendio/ui/context/navigationExtension";
 import { InstanceListExtensionContext } from "@incendio/ui/context/instanceListExtension";
+import { CreateInstanceExtensionContext } from "@incendio/ui/context/createInstanceExtension";
+import { useQueryClient } from "@tanstack/react-query";
 import { can, useMe } from "../api/hooks";
 import type { Me } from "../api/types";
 import Logo from "./Logo";
 import { ErrorMessage, Loading } from "./Status";
 import InventoryTree from "../pages/inventory/InventoryTree";
 import InventorySummary from "../pages/inventory/InventorySummary";
-import { inScope, selectionOf } from "../pages/inventory/tree";
+import CreateWhere from "../pages/inventory/CreateWhere";
+import { clusterOf, inScope, nameOf, selectionOf } from "../pages/inventory/tree";
+
+/** The cluster a page belongs to: its first qualified path segment (`/ui/project/acme@cluster-b/…`), if any. */
+export const pageCluster = (pathname: string) => {
+  for (const seg of pathname.split("/")) {
+    let s = seg;
+    try {
+      s = decodeURIComponent(seg);
+    } catch {
+      // Not encoded: as it is.
+    }
+    const c = clusterOf(s);
+    if (c) return c;
+  }
+  return "";
+};
+
+// Incendio's caches of global lists (members, pools, groups…): the facade answers them for the page's cluster.
+const GLOBAL_KEYS = new Set(["cluster", "storage", "network-integrations", "certificates", "resources"]);
 
 const tenantAdmin = (me: Me) => me.tenants.some((t) => t.role === "owner" || t.role === "admin");
 
@@ -83,6 +104,17 @@ const Shell: FC = () => {
   const logout = useRef<HTMLFormElement>(null);
   const [params] = useSearchParams();
   const selection = selectionOf(params);
+  const { pathname } = useLocation();
+  const queryClient = useQueryClient();
+  const cluster = pageCluster(pathname);
+  const lastCluster = useRef(cluster);
+
+  // Another cluster's page: global lists cached for the last one (or for all) are not this one's.
+  useEffect(() => {
+    if (lastCluster.current === cluster) return;
+    lastCluster.current = cluster;
+    queryClient.removeQueries({ predicate: (q) => GLOBAL_KEYS.has(String(q.queryKey[0])) });
+  }, [cluster]);
 
   const navigation = useMemo<NavigationExtension>(() => {
     const s = me.data ? sections(me.data) : { top: [], platform: [] };
@@ -125,11 +157,28 @@ const Shell: FC = () => {
   }, [me.data]);
 
   // The instance list is the inventory: the tree beside it, the selection's summary above it.
-  const inventory = useMemo(() => ({ aside: <InventoryTree />, above: <InventorySummary />, scope: inScope(selection) }), [selection.cluster, selection.node]);
+  const inventory = useMemo(
+    () => ({
+      aside: <InventoryTree />,
+      above: <InventorySummary />,
+      scope: inScope(selection),
+      // "Create instance" on a selected cluster (and node) creates there.
+      createPath: (project: string) => {
+        if (!selection.cluster) return `/ui/project/${encodeURIComponent(project)}/instances/create`;
+        const base = clusterOf(project) ? nameOf(project) : project;
+        const target = selection.node ? `?target=${encodeURIComponent(selection.node)}` : "";
+        return `/ui/project/${encodeURIComponent(`${base}@${selection.cluster}`)}/instances/create${target}`;
+      },
+    }),
+    [selection.cluster, selection.node],
+  );
+  const target = params.get("target");
+  const create = useMemo(() => ({ header: <CreateWhere />, initialValues: target ? { target } : undefined }), [target]);
 
   return (
     <NavigationExtensionContext.Provider value={navigation}>
       <InstanceListExtensionContext.Provider value={inventory}>
+        <CreateInstanceExtensionContext.Provider value={create}>
         <Application id="l-application">
           <SkipLink mainId="main-content" />
           <Navigation />
@@ -147,6 +196,7 @@ const Shell: FC = () => {
           <Events />
           <StatusBar />
         </Application>
+        </CreateInstanceExtensionContext.Provider>
       </InstanceListExtensionContext.Provider>
     </NavigationExtensionContext.Provider>
   );

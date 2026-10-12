@@ -10,6 +10,8 @@ export interface InstanceListExtension {
   aside?: ReactNode;
   above?: ReactNode;
   scope?: (instance: LxdInstance) => boolean;
+  /** Where "Create instance" leads for the project instances would be created in. */
+  createPath?: (project: string) => string;
 }
 
 export const InstanceListExtensionContext =

@@ -1,4 +1,5 @@
 import { PLACEMENT_GROUP_KEY } from "util/placementGroups";
+import { useCreateInstanceExtension } from "context/createInstanceExtension";
 import { useEffect, useState, type FC, type ReactNode } from "react";
 import {
   ActionButton,
@@ -118,6 +119,7 @@ const CreateInstance: FC = () => {
   const toastNotify = useToastNotification();
   const notify = useNotify();
   const { project } = useParams<{ project: string }>();
+  const extension = useCreateInstanceExtension();
   const queryClient = useQueryClient();
   const controllerState = useState<AbortController | null>(null);
   const [section, setSection] = useState(MAIN_CONFIGURATION);
@@ -349,6 +351,7 @@ const CreateInstance: FC = () => {
       readOnly: false,
       entityType: "instance",
       isCreating: true,
+      ...extension.initialValues,
     },
     validationSchema: InstanceSchema,
     onSubmit: (values) => {

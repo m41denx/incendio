@@ -143,13 +143,13 @@ const gateway = createGateway({
   ui: config.uiDir ? (req, res, route, _cluster, principal) => serveUi(req, res, route, { uiDir: config.uiDir!, signedIn: !!principal }) : undefined,
 });
 // Incendio's API on the public origin: every cluster as one (the console).
-const facade = createFacade({ ...appDeps, clusters: clusterCache, upstreams, onRequest: (r) => requestLog.record(r) });
+const facade = createFacade({ ...appDeps, clusters: clusterCache, upstreams, imageServers: config.imageServers, onRequest: (r) => requestLog.record(r) });
 const server = createFront({
   app,
   gateway,
   facade,
   tls: { cert: readFileSync(config.tls.certFile), key: readFileSync(config.tls.keyFile) },
-  web: config.webDir ? { dir: config.webDir } : undefined,
+  web: config.webDir ? { dir: config.webDir, imageServers: config.imageServers } : undefined,
   oidc: oidcAtPublicUrl ? oidcProxy({ upstream: config.hydra.publicUrl, ca: hydraCa }) : undefined,
 });
 if (serveApi) server.listen(config.listen.port, config.listen.host, () => log.info("listening", { ...config.listen, publicUrl: config.publicUrl }));

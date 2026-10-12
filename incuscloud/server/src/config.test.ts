@@ -82,6 +82,16 @@ test("jobs run two at a time by default", () => {
   expect(() => loadConfig({ ...base, IC_JOB_CONCURRENCY: "0" })).toThrow(/IC_JOB_CONCURRENCY/);
 });
 
+test("the console's image catalogue: the image server and any extra simplestreams servers", () => {
+  expect(loadConfig(base).imageServers).toEqual(["https://images.linuxcontainers.org"]);
+  expect(loadConfig({ ...base, IC_IMAGE_SERVER: "https://mirror.example/", IC_IMAGE_SERVERS: "https://a.example/, https://mirror.example,https://b.example" }).imageServers).toEqual([
+    "https://mirror.example",
+    "https://a.example",
+    "https://b.example",
+  ]);
+  expect(() => loadConfig({ ...base, IC_IMAGE_SERVERS: "not a url" })).toThrow(/IC_IMAGE_SERVERS/);
+});
+
 test("Kubernetes is off without a management kubeconfig; ports default to 16443-16999", () => {
   expect(loadConfig(base).k8s).toBeUndefined();
   expect(loadConfig({ ...base, IC_K8S_KUBECONFIG: "/etc/ic/mgmt.kubeconfig" }).k8s).toEqual({ kubeconfig: "/etc/ic/mgmt.kubeconfig", ports: [16443, 16999] });

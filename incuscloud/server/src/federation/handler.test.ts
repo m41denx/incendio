@@ -70,7 +70,7 @@ beforeEach(async () => {
   alice = await h.user("alice@example.com", { tenants: { [acme.id]: "member" } });
   bob = await h.user("bob@example.com", { tenants: { [beta.id]: "member" } });
   await syncAll(h.db, h.authz);
-  const facade = createFacade({ ...h.deps, clusters: new ClusterCache(h.db, 0), upstreams: new Upstreams() });
+  const facade = createFacade({ ...h.deps, clusters: new ClusterCache(h.db, 0), upstreams: new Upstreams(), imageServers: ["https://images.linuxcontainers.org", "https://mirror.example"] });
   server = createFront({ app: h.app, facade, tls });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   port = (server.address() as AddressInfo).port;
@@ -113,7 +113,14 @@ test("anonymous callers see an untrusted server and nothing else", async () => {
 
 test("the server is one federated cluster: extensions every cluster has, no single cluster's config", async () => {
   const s = await call(admin, "/1.0");
-  expect(s.body.metadata).toMatchObject({ auth: "trusted", api_extensions: ["a", "c"], config: {}, environment: { server_clustered: true } });
+  expect(s.body.metadata).toMatchObject({ auth: "trusted", api_extensions: ["a", "c"], environment: { server_clustered: true } });
+  // No one cluster's config: only what the console itself sets.
+  expect(Object.keys(s.body.metadata.config)).toEqual(["user.ui.image_servers"]);
+});
+
+test("Incendio's image picker learns the extra image servers from the server config", async () => {
+  const s = await call(alice, "/1.0");
+  expect(JSON.parse(s.body.metadata.config["user.ui.image_servers"])).toEqual([{ name: "mirror.example", url: "https://mirror.example" }]);
 });
 
 test("projects: every cluster's, qualified, and one merged entry per name on several clusters", async () => {
