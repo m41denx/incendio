@@ -37,13 +37,13 @@ if [ ! -f "$tls/ca.crt" ]; then
 		-subj "/CN=IncusCloud development CA" 2>/dev/null
 fi
 
-# Regenerate certificates made before cluster host names were added.
-if [ -f "$tls/server.crt" ] && ! openssl x509 -in "$tls/server.crt" -noout -ext subjectAltName | grep -q nip.io; then
+# Regenerate certificates made before cluster host names (nip.io) or the OrbStack name were added.
+if [ -f "$tls/server.crt" ] && ! openssl x509 -in "$tls/server.crt" -noout -ext subjectAltName | grep -q "$(hostname).orb.local"; then
 	mv "$tls/server.crt" "$tls/server.crt.old"
 fi
 if [ ! -f "$tls/server.crt" ]; then
-	# Cluster host routing in development: <cluster>.127.0.0.1.nip.io
-	sans="DNS:localhost,DNS:$(hostname),IP:127.0.0.1,DNS:127.0.0.1.nip.io,DNS:*.127.0.0.1.nip.io"
+	# Cluster host routing in development: <cluster>.127.0.0.1.nip.io; <host>.orb.local reaches an OrbStack machine from the Mac.
+	sans="DNS:localhost,DNS:$(hostname),DNS:$(hostname).orb.local,IP:127.0.0.1,DNS:127.0.0.1.nip.io,DNS:*.127.0.0.1.nip.io"
 	for ip in $(ip -4 -o addr show scope global | awk '{print $4}' | cut -d/ -f1); do
 		sans="$sans,IP:$ip"
 	done
