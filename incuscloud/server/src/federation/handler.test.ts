@@ -123,6 +123,12 @@ test("Incendio's image picker learns the extra image servers from the server con
   expect(JSON.parse(s.body.metadata.config["user.ui.image_servers"])).toEqual([{ name: "mirror.example", url: "https://mirror.example" }]);
 });
 
+test("on a cluster's page (create instance there), the image picker still learns the extra image servers", async () => {
+  const s = await call(alice, "/1.0", { referer: "https://cloud.test/ui/project/acme@c1/instances/create" });
+  expect(s.status).toBe(200);
+  expect(JSON.parse(s.body.metadata.config["user.ui.image_servers"])).toEqual([{ name: "mirror.example", url: "https://mirror.example" }]);
+});
+
 test("projects are never merged: each cluster's, qualified; from a cluster's page, that cluster's", async () => {
   const r = await call(admin, "/1.0/projects?recursion=1");
   expect(names(r.body.metadata)).toEqual(["acme@c1", "acme@c2", "beta@c1", "default@c1", "default@c2"]);

@@ -151,9 +151,11 @@ export function createFacade(deps: FacadeDeps): GatewayHandler {
     const qualify = (json: unknown) => {
       const out = qualifyResponse(path, json, c.name, { standalone });
       // A standalone server's member and group views are synthesized as one member's cluster: it says so too.
-      if (standalone && path === "/1.0") {
-        const env = (out as { metadata?: { environment?: Record<string, unknown> } })?.metadata?.environment;
-        if (env) env.server_clustered = true;
+      if (path === "/1.0") {
+        const meta = (out as { metadata?: { environment?: Record<string, unknown>; config?: Record<string, unknown> } })?.metadata;
+        if (standalone && meta?.environment) meta.environment.server_clustered = true;
+        // The console's image servers, for Incendio's image picker on this cluster's pages too (unless it sets its own).
+        if (meta && method === "GET") meta.config = { ...consoleConfig, ...meta.config };
       }
       return out;
     };
