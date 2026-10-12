@@ -65,10 +65,12 @@ The URL is the selection: reloading or sharing a URL restores the same object an
 |---|---|---|
 | **All clusters** (root) | `/` and `/all/<tab>` | Summary (today's Dashboard, `/`) · Clusters (`/all/clusters`, today's Clusters list) · Instances (`/all/instances`, Incendio's list over every cluster and project) · Warnings (`/all/warnings`, every cluster's, with a Cluster column) |
 | **Cluster** | `/inventory/<cluster>/<tab>` | Summary (capacity and status; today's cluster detail page) · Nodes (Incendio's members list) · Projects (that cluster's projects) · Networks (Incendio's networks of its `default` project) · Storage (Incendio's pools) · Operations (Incendio's) · Configure |
-| **Node** | `/ui/cluster/member/<node@cluster>[/<tab>]`, and `/inventory/<cluster>/node/<node>/instances` | Overview · Hardware (Incendio's member page tabs) · Instances (Incendio's every-project instance list, limited to the node through the existing instance-list `scope` hook) |
+| **Node** | `/ui/cluster/member/<node@cluster>[/<tab>]` | Overview · Hardware: Incendio's member page and its own tab row. The node's instances are in the tree (Instances view). |
 | **Project** | `/ui/project/<p@cluster>/<section>` | Instances · Profiles · Networks · Storage · Images (`local-images`) · Usage · Configure (`configuration`, plus Access) |
 | **Instance** | `/ui/project/<p@cluster>/instance/<name>[/<tab>]` | Incendio's instance page, with its own tabs |
 | Network, pool | Incendio's detail routes under the owning project | Incendio's own tabs |
+
+**Objects with their own tab row.** Node, instance, network, pool and profile are Incendio detail pages that already have a tab row. The console adds only the breadcrumb above them and no second row, which keeps the one-tab-row rule.
 
 **Cluster Configure** has a second side menu:
 - IncusCloud's cluster settings: labels, tenants placed here, enrolment.
