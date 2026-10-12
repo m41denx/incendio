@@ -170,13 +170,13 @@ const Sidebar: FC = () => {
                 <ul className="p-side-navigation__list">
                   {me ? (
                     <>
-                      <li className="navigation-section-label ic-section-label">Platform</li>
+                      <li className="ic-section-label">Platform</li>
                       {platformSections(me).map((s) => (
                         <NavItem key={s.to} to={s.to} title={s.label} icon={s.icon} onClick={close}>
                           {s.label}
                         </NavItem>
                       ))}
-                      <li className="navigation-section-label ic-section-label">Account</li>
+                      <li className="ic-section-label">Account</li>
                       <NavItem to="/profile" title="Profile" icon="user" onClick={close}>
                         <span className="u-truncate">{me.name || me.email || "Profile"}</span>
                       </NavItem>

@@ -122,25 +122,3 @@
     }
   }
 }
-
-// A host application's pane beside the list (an inventory tree): see context/instanceListExtension.
-.instance-list-with-aside {
-  display: grid;
-  gap: $sph--large;
-  grid-template-columns: minmax(14rem, 18rem) minmax(0, 1fr);
-
-  @media screen and (width < $breakpoint-small) {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .instance-list-aside {
-    border-right: 1px solid $color-mid-light;
-    max-height: calc(100vh - 10rem);
-    overflow-y: auto;
-    padding-right: $sph--small;
-  }
-
-  .instance-list-main {
-    min-width: 0;
-  }
-}

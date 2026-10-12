@@ -1,5 +1,4 @@
 import { clusterOf, nameOf } from "../pages/inventory/tree";
-import { statusIcon } from "../pages/inventory/InventoryTree";
 import { projectPath } from "./object";
 
 /** What the sidebar's tree lists below each cluster. */
@@ -32,6 +31,19 @@ export interface InventoryData {
   networks: Record<string, Array<{ name: string; managed: boolean }>>;
   pools: Array<{ name: string; status: string }>;
 }
+
+/** An Incus status as a small status icon. */
+export const statusIcon = (status: string) =>
+  ({
+    Online: "status-succeeded-small",
+    Running: "status-succeeded-small",
+    Ready: "status-waiting-small",
+    Evacuated: "status-waiting-small",
+    Frozen: "status-in-progress-small",
+    Stopped: "status-queued-small",
+    Offline: "status-failed-small",
+    Error: "status-failed-small",
+  })[status] ?? "status-queued-small";
 
 const enc = encodeURIComponent;
 const byLabel = (a: TreeItem, b: TreeItem) => a.label.localeCompare(b.label);

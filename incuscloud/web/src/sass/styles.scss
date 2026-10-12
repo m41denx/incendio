@@ -323,6 +323,19 @@
     padding: 0 $sph--large;
   }
 
+  // "Platform", "Account": above their group of links, as Incendio labels its project selector.
+  .ic-section-label {
+    color: $color-mid-light;
+    font-size: 0.875rem;
+    list-style: none;
+    margin-left: $sph--large;
+    padding-top: $spv--small;
+
+    @include desktop {
+      margin-left: $sph--x-large;
+    }
+  }
+
   .ic-sidebar__bottom {
     border-top: 1px solid $colors--dark-theme--border-default;
     flex: 0 1 auto;

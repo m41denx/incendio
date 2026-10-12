@@ -11,7 +11,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "context/auth";
 import classnames from "classnames";
 import Logo from "./Logo";
-import { useNavigationExtension } from "context/navigationExtension";
 import NavigationProjectSelector from "pages/projects/NavigationProjectSelector";
 import {
   capitalizeFirstLetter,
@@ -80,9 +79,6 @@ const initialiseOpenNavMenus = (location: Location) => {
 
 const Navigation: FC = () => {
   const { isRestricted, authMethod, isAuthenticated } = useAuth();
-  const ext = useNavigationExtension();
-  const shown = (section: NonNullable<typeof ext.hide>[number]) =>
-    !ext.hide?.includes(section);
   const { menuCollapsed, updateMenuCollapsed } = useMenuCollapsed();
   const {
     project,
@@ -239,7 +235,7 @@ const Navigation: FC = () => {
           })}
         >
           <div className="p-panel__header">
-            {ext.logo ?? <Logo light={isLight} />}
+            <Logo light={isLight} />
             <div className="p-panel__controls">
               <Button
                 dense
@@ -268,7 +264,7 @@ const Navigation: FC = () => {
             })}
           >
             <div className="p-panel__header is-sticky">
-              {ext.logo ?? <Logo light={isLight} />}
+              <Logo light={isLight} />
               <div className="p-panel__controls u-hide--medium u-hide--large">
                 <Button
                   appearance="base"
@@ -289,7 +285,6 @@ const Navigation: FC = () => {
                 )}
               >
                 <ul className="p-side-navigation__list sidenav-top-ul">
-                  {ext.before?.(softToggleMenu)}
                   {isAuthenticated && (
                     <>
                       <li
@@ -302,15 +297,12 @@ const Navigation: FC = () => {
                           activeProject={projectName}
                         />
                       </li>
-                      {ext.afterProjectSelector?.(softToggleMenu)}
                       <SideNavigationItem>
                         <NavLink
                           to={
-                            ext.instancesPath
-                              ? ext.instancesPath(projectName)
-                              : isAllProjects
-                                ? `${ROOT_PATH}/ui/all-projects/instances`
-                                : `${ROOT_PATH}/ui/project/${encodeURIComponent(projectName)}/instances`
+                            isAllProjects
+                              ? `${ROOT_PATH}/ui/all-projects/instances`
+                              : `${ROOT_PATH}/ui/project/${encodeURIComponent(projectName)}/instances`
                           }
                           title={`Instances (${projectName})`}
                           onClick={softToggleMenu}
@@ -609,11 +601,6 @@ const Navigation: FC = () => {
                           "is-light": isLight,
                         })}
                       />
-                      {ext.serverLabel && (
-                        <li className="navigation-section-label">
-                          {ext.serverLabel}
-                        </li>
-                      )}
                       {isClustered && (
                         <SideNavigationItem>
                           <NavAccordion
@@ -655,20 +642,16 @@ const Navigation: FC = () => {
                                   Groups
                                 </NavLink>
                               </SideNavigationItem>,
-                              ...(shown("kubernetes")
-                                ? [
-                                    <SideNavigationItem key="kubernetes">
-                                      <NavLink
-                                        to={`${ROOT_PATH}/ui/kubernetes`}
-                                        title="Kubernetes"
-                                        onClick={softToggleMenu}
-                                        className="accordion-nav-secondary"
-                                      >
-                                        Kubernetes
-                                      </NavLink>
-                                    </SideNavigationItem>,
-                                  ]
-                                : []),
+                              <SideNavigationItem key="kubernetes">
+                                <NavLink
+                                  to={`${ROOT_PATH}/ui/kubernetes`}
+                                  title="Kubernetes"
+                                  onClick={softToggleMenu}
+                                  className="accordion-nav-secondary"
+                                >
+                                  Kubernetes
+                                </NavLink>
+                              </SideNavigationItem>,
                               ...(hasClusterLinks
                                 ? [
                                     <SideNavigationItem key="links">
@@ -792,7 +775,7 @@ const Navigation: FC = () => {
                           </NavLink>
                         </SideNavigationItem>
                       )}
-                      {shown("permissions") && hasAccessManagement && (
+                      {hasAccessManagement && (
                         <SideNavigationItem>
                           <NavAccordion
                             baseUrls={[`${ROOT_PATH}/ui/permissions`]}
@@ -845,146 +828,139 @@ const Navigation: FC = () => {
                           </NavAccordion>
                         </SideNavigationItem>
                       )}
-                      {shown("permissions") &&
-                        !hasAccessManagement &&
-                        hasAdminPermissions && (
-                          <SideNavigationItem>
-                            <NavAccordion
-                              baseUrls={[`${ROOT_PATH}/ui/authorization`]}
-                              title="Permissions (OpenFGA)"
-                              iconName="user"
-                              label="Permissions"
-                              onOpen={() => {
-                                toggleAccordionNav("permissions");
-                              }}
-                              open={
-                                openNavMenus.includes("permissions") &&
-                                !menuCollapsed
-                              }
-                            >
-                              {[
-                                <SideNavigationItem key="/ui/authorization/grants">
-                                  <NavLink
-                                    to={`${ROOT_PATH}/ui/authorization/grants`}
-                                    title="Who can access what"
-                                    onClick={softToggleMenu}
-                                    className="accordion-nav-secondary"
-                                  >
-                                    Grants
-                                  </NavLink>
-                                </SideNavigationItem>,
-                                <SideNavigationItem key="/ui/authorization/groups">
-                                  <NavLink
-                                    to={`${ROOT_PATH}/ui/authorization/groups`}
-                                    title="Groups of users"
-                                    onClick={softToggleMenu}
-                                    className="accordion-nav-secondary"
-                                  >
-                                    Groups
-                                  </NavLink>
-                                </SideNavigationItem>,
-                                <SideNavigationItem key="/ui/authorization/check">
-                                  <NavLink
-                                    to={`${ROOT_PATH}/ui/authorization/check`}
-                                    title="Check what a user can do"
-                                    onClick={softToggleMenu}
-                                    className="accordion-nav-secondary"
-                                  >
-                                    Check access
-                                  </NavLink>
-                                </SideNavigationItem>,
-                                <SideNavigationItem key="/ui/authorization/setup">
-                                  <NavLink
-                                    to={`${ROOT_PATH}/ui/authorization/setup`}
-                                    title="OpenFGA connection and client routing"
-                                    onClick={softToggleMenu}
-                                    className="accordion-nav-secondary"
-                                  >
-                                    Setup
-                                  </NavLink>
-                                </SideNavigationItem>,
-                              ]}
-                            </NavAccordion>
-                          </SideNavigationItem>
-                        )}
-                      {shown("settings") && (
+                      {!hasAccessManagement && hasAdminPermissions && (
                         <SideNavigationItem>
                           <NavAccordion
-                            baseUrls={[`${ROOT_PATH}/ui/settings`]}
-                            title="Settings"
-                            iconName="settings"
-                            label="Settings"
+                            baseUrls={[`${ROOT_PATH}/ui/authorization`]}
+                            title="Permissions (OpenFGA)"
+                            iconName="user"
+                            label="Permissions"
                             onOpen={() => {
-                              toggleAccordionNav("settings");
+                              toggleAccordionNav("permissions");
                             }}
                             open={
-                              openNavMenus.includes("settings") &&
+                              openNavMenus.includes("permissions") &&
                               !menuCollapsed
                             }
                           >
                             {[
-                              <SideNavigationItem key="certificates">
+                              <SideNavigationItem key="/ui/authorization/grants">
                                 <NavLink
-                                  to={`${ROOT_PATH}/ui/settings/certificates`}
-                                  title="Trusted certificates"
+                                  to={`${ROOT_PATH}/ui/authorization/grants`}
+                                  title="Who can access what"
                                   onClick={softToggleMenu}
                                   className="accordion-nav-secondary"
                                 >
-                                  Certificates
+                                  Grants
                                 </NavLink>
                               </SideNavigationItem>,
-                              ...(hasServerLogging
-                                ? [
-                                    <SideNavigationItem key="logging">
-                                      <NavLink
-                                        to={`${ROOT_PATH}/ui/settings/logging`}
-                                        title="Logging targets"
-                                        onClick={softToggleMenu}
-                                        className="accordion-nav-secondary"
-                                      >
-                                        Logging
-                                      </NavLink>
-                                    </SideNavigationItem>,
-                                  ]
-                                : []),
-                              ...(hasAcme
-                                ? [
-                                    <SideNavigationItem key="acme">
-                                      <NavLink
-                                        to={`${ROOT_PATH}/ui/settings/acme`}
-                                        title="ACME certificates"
-                                        onClick={softToggleMenu}
-                                        className="accordion-nav-secondary"
-                                      >
-                                        ACME
-                                      </NavLink>
-                                    </SideNavigationItem>,
-                                  ]
-                                : []),
-                              <SideNavigationItem key="advanced">
+                              <SideNavigationItem key="/ui/authorization/groups">
                                 <NavLink
-                                  to={`${ROOT_PATH}/ui/settings`}
-                                  title="Advanced settings"
+                                  to={`${ROOT_PATH}/ui/authorization/groups`}
+                                  title="Groups of users"
                                   onClick={softToggleMenu}
                                   className="accordion-nav-secondary"
-                                  ignoreUrlMatches={[
-                                    "settings/certificates",
-                                    "settings/logging",
-                                    "settings/acme",
-                                  ]}
                                 >
-                                  Advanced
+                                  Groups
+                                </NavLink>
+                              </SideNavigationItem>,
+                              <SideNavigationItem key="/ui/authorization/check">
+                                <NavLink
+                                  to={`${ROOT_PATH}/ui/authorization/check`}
+                                  title="Check what a user can do"
+                                  onClick={softToggleMenu}
+                                  className="accordion-nav-secondary"
+                                >
+                                  Check access
+                                </NavLink>
+                              </SideNavigationItem>,
+                              <SideNavigationItem key="/ui/authorization/setup">
+                                <NavLink
+                                  to={`${ROOT_PATH}/ui/authorization/setup`}
+                                  title="OpenFGA connection and client routing"
+                                  onClick={softToggleMenu}
+                                  className="accordion-nav-secondary"
+                                >
+                                  Setup
                                 </NavLink>
                               </SideNavigationItem>,
                             ]}
                           </NavAccordion>
                         </SideNavigationItem>
                       )}
+                      <SideNavigationItem>
+                        <NavAccordion
+                          baseUrls={[`${ROOT_PATH}/ui/settings`]}
+                          title="Settings"
+                          iconName="settings"
+                          label="Settings"
+                          onOpen={() => {
+                            toggleAccordionNav("settings");
+                          }}
+                          open={
+                            openNavMenus.includes("settings") && !menuCollapsed
+                          }
+                        >
+                          {[
+                            <SideNavigationItem key="certificates">
+                              <NavLink
+                                to={`${ROOT_PATH}/ui/settings/certificates`}
+                                title="Trusted certificates"
+                                onClick={softToggleMenu}
+                                className="accordion-nav-secondary"
+                              >
+                                Certificates
+                              </NavLink>
+                            </SideNavigationItem>,
+                            ...(hasServerLogging
+                              ? [
+                                  <SideNavigationItem key="logging">
+                                    <NavLink
+                                      to={`${ROOT_PATH}/ui/settings/logging`}
+                                      title="Logging targets"
+                                      onClick={softToggleMenu}
+                                      className="accordion-nav-secondary"
+                                    >
+                                      Logging
+                                    </NavLink>
+                                  </SideNavigationItem>,
+                                ]
+                              : []),
+                            ...(hasAcme
+                              ? [
+                                  <SideNavigationItem key="acme">
+                                    <NavLink
+                                      to={`${ROOT_PATH}/ui/settings/acme`}
+                                      title="ACME certificates"
+                                      onClick={softToggleMenu}
+                                      className="accordion-nav-secondary"
+                                    >
+                                      ACME
+                                    </NavLink>
+                                  </SideNavigationItem>,
+                                ]
+                              : []),
+                            <SideNavigationItem key="advanced">
+                              <NavLink
+                                to={`${ROOT_PATH}/ui/settings`}
+                                title="Advanced settings"
+                                onClick={softToggleMenu}
+                                className="accordion-nav-secondary"
+                                ignoreUrlMatches={[
+                                  "settings/certificates",
+                                  "settings/logging",
+                                  "settings/acme",
+                                ]}
+                              >
+                                Advanced
+                              </NavLink>
+                            </SideNavigationItem>,
+                          ]}
+                        </NavAccordion>
+                      </SideNavigationItem>
                     </>
                   )}
-                  {ext.after?.(softToggleMenu)}
                   {isAuthenticated &&
-                    shown("os") &&
                     isRunningIncusOS &&
                     hasAdminPermissions && (
                       <>
@@ -1048,97 +1024,91 @@ const Navigation: FC = () => {
                       "is-light": isLight,
                     })}
                   />
-                  {ext.account ? (
-                    ext.account(softToggleMenu)
-                  ) : (
-                    <>
-                      {isAuthenticated && (
-                        <SideNavigationItem>
-                          <div
-                            className="p-side-navigation__link"
-                            title={`${loggedInUserName}`}
-                          >
-                            <Icon
-                              className="p-side-navigation__icon is-dark"
-                              name={authIcon(authMethod)}
-                            />
-                            <div className="u-truncate">{loggedInUserName}</div>
-                          </div>
-                        </SideNavigationItem>
-                      )}
-                      <SideNavigationItem>
-                        <DocLink
-                          className="p-side-navigation__link"
-                          title="Documentation"
-                          docPath="/"
-                        >
-                          <Icon
-                            className={classnames("p-side-navigation__icon", {
-                              "is-light": isAuthenticated,
-                            })}
-                            name="book"
-                          />
-                          Documentation
-                        </DocLink>
-                      </SideNavigationItem>
-                      <SideNavigationItem>
-                        <a
-                          className="p-side-navigation__link"
-                          href="https://discuss.linuxcontainers.org"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          title="Discussion"
-                        >
-                          <Icon
-                            className={classnames("p-side-navigation__icon", {
-                              "is-light": isAuthenticated,
-                            })}
-                            name="share"
-                          />
-                          Discussion
-                        </a>
-                      </SideNavigationItem>
-                      <SideNavigationItem>
-                        <a
-                          className="p-side-navigation__link"
-                          href={getReportBugURL()}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          title="Report a bug"
-                        >
-                          <Icon
-                            className={classnames("p-side-navigation__icon", {
-                              "is-light": isAuthenticated,
-                            })}
-                            name="submit-bug"
-                          />
-                          Report a bug
-                        </a>
-                      </SideNavigationItem>
-                      {(isOidc || isBearerToken) && (
-                        <SideNavigationItem>
-                          <a
-                            className="p-side-navigation__link"
-                            title="Log out"
-                            onClick={() => {
-                              if (isBearerToken) {
-                                logoutBearerToken();
-                              } else {
-                                logoutOidc();
-                              }
+                  {isAuthenticated && (
+                    <SideNavigationItem>
+                      <div
+                        className="p-side-navigation__link"
+                        title={`${loggedInUserName}`}
+                      >
+                        <Icon
+                          className="p-side-navigation__icon is-dark"
+                          name={authIcon(authMethod)}
+                        />
+                        <div className="u-truncate">{loggedInUserName}</div>
+                      </div>
+                    </SideNavigationItem>
+                  )}
+                  <SideNavigationItem>
+                    <DocLink
+                      className="p-side-navigation__link"
+                      title="Documentation"
+                      docPath="/"
+                    >
+                      <Icon
+                        className={classnames("p-side-navigation__icon", {
+                          "is-light": isAuthenticated,
+                        })}
+                        name="book"
+                      />
+                      Documentation
+                    </DocLink>
+                  </SideNavigationItem>
+                  <SideNavigationItem>
+                    <a
+                      className="p-side-navigation__link"
+                      href="https://discuss.linuxcontainers.org"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Discussion"
+                    >
+                      <Icon
+                        className={classnames("p-side-navigation__icon", {
+                          "is-light": isAuthenticated,
+                        })}
+                        name="share"
+                      />
+                      Discussion
+                    </a>
+                  </SideNavigationItem>
+                  <SideNavigationItem>
+                    <a
+                      className="p-side-navigation__link"
+                      href={getReportBugURL()}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Report a bug"
+                    >
+                      <Icon
+                        className={classnames("p-side-navigation__icon", {
+                          "is-light": isAuthenticated,
+                        })}
+                        name="submit-bug"
+                      />
+                      Report a bug
+                    </a>
+                  </SideNavigationItem>
+                  {(isOidc || isBearerToken) && (
+                    <SideNavigationItem>
+                      <a
+                        className="p-side-navigation__link"
+                        title="Log out"
+                        onClick={() => {
+                          if (isBearerToken) {
+                            logoutBearerToken();
+                          } else {
+                            logoutOidc();
+                          }
 
-                              softToggleMenu();
-                            }}
-                          >
-                            <Icon
-                              className="is-light p-side-navigation__icon p-side-logout"
-                              name="export"
-                            />
-                            Log out
-                          </a>
-                        </SideNavigationItem>
-                      )}
-                    </>
+                          softToggleMenu();
+                        }}
+                      >
+                        <Icon
+                          className="is-light p-side-navigation__icon p-side-logout"
+                          name="export"
+                        />
+                        Log out
+                      </a>
+                    </SideNavigationItem>
                   )}
                 </ul>
                 <div
