@@ -59,7 +59,7 @@ test("viewers read but get no controls", async () => {
   await screen.findByRole("link", { name: "Ada" });
   expect(screen.queryByRole("button", { name: "Create user" })).not.toBeInTheDocument();
   renderAt(<UserDetail />, { path: "/users/u-1", pattern: "/users/:id" });
-  await screen.findByText("ada@example.com", { selector: "dd" });
+  await screen.findByText("ada@example.com", { selector: "td" });
   expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Disable" })).not.toBeInTheDocument();
 });

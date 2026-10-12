@@ -15,6 +15,7 @@ import Members from "./Members";
 import TenantUsage from "./TenantUsage";
 import { QuotaFields, type QuotaDraft, draftOf, draftValid, quotasOf } from "./quotas";
 import { roleName } from "./roles";
+import Section from "../../components/Section";
 
 const TenantDetail: FC = () => {
   const { id = "" } = useParams();
@@ -63,14 +64,16 @@ const TenantDetail: FC = () => {
       <Loaded query={tenant}>
         {(t) => (
           <>
-            <KeyValues
-              items={[
-                ["Slug", <span className="ic-mono">{t.slug}</span>],
-                ["Your role", role ? roleName(role) : me?.platformRole ? `Platform ${me.platformRole}` : "—"],
-                ["Created", new Date(t.createdAt).toLocaleDateString()],
-              ]}
-            />
-            <h2 className="p-heading--4">Quota</h2>
+            <Section title="General" id="tenant-general">
+              <KeyValues
+                items={[
+                  ["Slug", <span className="mono-font">{t.slug}</span>],
+                  ["Your role", role ? roleName(role) : me?.platformRole ? `Platform ${me.platformRole}` : "—"],
+                  ["Created", new Date(t.createdAt).toLocaleDateString()],
+                ]}
+              />
+            </Section>
+            <Section title="Quota" id="tenant-quota">
             <TenantUsage tenantId={t.id} />
             {can(me, "operator") ? (
               <Button
@@ -82,8 +85,9 @@ const TenantDetail: FC = () => {
                 Edit quotas
               </Button>
             ) : null}
+            </Section>
 
-            <h2 className="p-heading--4">Where it runs</h2>
+            <Section title="Where it runs" id="tenant-placements">
             <Loaded query={placements}>
               {(list) => (
                 <MainTable
@@ -93,7 +97,7 @@ const TenantDetail: FC = () => {
                     key: p.clusterId,
                     columns: [
                       { content: <Link to={`/clusters/${p.clusterId}`}>{p.clusterName}</Link> },
-                      { content: <span className="ic-mono">{p.project}</span> },
+                      { content: <span className="mono-font">{p.project}</span> },
                       { content: <ClusterStatus status={p.status} message={p.statusMessage} /> },
                       { content: new Date(p.createdAt).toLocaleDateString() },
                     ],
@@ -101,13 +105,13 @@ const TenantDetail: FC = () => {
                 />
               )}
             </Loaded>
+            </Section>
 
             <Members tenant={t} canManage={canManage} ownerPower={ownerPower} />
 
             {canManage ? (
-              <>
-                <h2 className="p-heading--4">Administration</h2>
-                <div className="ic-page-controls">
+              <Section title="Administration" id="tenant-admin">
+                <div className="ic-actions">
                   <Button
                     onClick={() => {
                       setName(t.name);
@@ -131,7 +135,7 @@ const TenantDetail: FC = () => {
                     </ConfirmAction>
                   ) : null}
                 </div>
-              </>
+              </Section>
             ) : null}
           </>
         )}

@@ -127,7 +127,7 @@ export function resultOf(job: Job): ReactNode | null {
           <div key={`${str(m.project)}/${str(m.name)}`}>{`${str(m.project)}/${str(m.name)}: ${str(m.from)} → ${str(m.to)}, ${str(m.outcome)}${m.detail ? ` (${str(m.detail)})` : ""}`}</div>
         ))}
         {notes.map((x) => (
-          <div key={x} className="ic-muted">
+          <div key={x} className="u-text--muted">
             {x}
           </div>
         ))}

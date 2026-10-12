@@ -7,6 +7,7 @@ import { ErrorMessage, Loaded } from "../../components/Status";
 import { request } from "../../api/client";
 import type { Cluster, Placement, Tenant } from "../../api/types";
 import ClusterStatus from "./ClusterStatus";
+import Section from "../../components/Section";
 
 /** Tenants on this cluster; operators place and remove them. */
 const PlacedTenants: FC<{ cluster: Cluster; canManage: boolean }> = ({ cluster, canManage }) => {
@@ -38,8 +39,7 @@ const PlacedTenants: FC<{ cluster: Cluster; canManage: boolean }> = ({ cluster, 
   };
 
   return (
-    <>
-      <h2 className="p-heading--4">Tenants</h2>
+    <Section title="Tenants" id="cluster-tenants">
       {error ? <ErrorMessage error={error} title="Not changed" /> : null}
       <Loaded query={placements}>
         {(list) => {
@@ -53,7 +53,7 @@ const PlacedTenants: FC<{ cluster: Cluster; canManage: boolean }> = ({ cluster, 
                   key: p.tenantId,
                   columns: [
                     { content: <Link to={`/tenants/${p.tenantId}`}>{p.slug}</Link> },
-                    { content: <span className="ic-mono">{p.project}</span> },
+                    { content: <span className="mono-font">{p.project}</span> },
                     { content: <ClusterStatus status={p.status} message={p.statusMessage} /> },
                     { content: new Date(p.createdAt).toLocaleDateString() },
                     ...(canManage
@@ -83,7 +83,7 @@ const PlacedTenants: FC<{ cluster: Cluster; canManage: boolean }> = ({ cluster, 
                 }))}
               />
               {canManage && free.length ? (
-                <div className="ic-page-controls" style={{ alignItems: "flex-end", maxWidth: "36rem" }}>
+                <div className="ic-actions" style={{ alignItems: "flex-end", maxWidth: "36rem" }}>
                   <Select
                     id="place-tenant"
                     label="Tenant"
@@ -102,7 +102,7 @@ const PlacedTenants: FC<{ cluster: Cluster; canManage: boolean }> = ({ cluster, 
           );
         }}
       </Loaded>
-    </>
+    </Section>
   );
 };
 

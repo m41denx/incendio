@@ -9,6 +9,7 @@ import { request } from "../api/client";
 import { can, useMe } from "../api/hooks";
 import type { Cluster, FleetSummary, Tenant, User } from "../api/types";
 import ClusterStatus from "./clusters/ClusterStatus";
+import Failed from "../components/Failed";
 
 /** Known statuses in the order they are reported, then anything else. */
 const STATUS_ORDER = ["ready", "degraded", "error", "pending", "disabled"];
@@ -60,7 +61,7 @@ const Dashboard: FC = () => {
               {(list) => (
                 <>
                   <p className="p-heading--2">{list.length}</p>
-                  {list.length ? <p className="ic-muted">{breakdown(list)}</p> : null}
+                  {list.length ? <p className="u-text--muted">{breakdown(list)}</p> : null}
                 </>
               )}
             </Loaded>
@@ -86,7 +87,7 @@ const Dashboard: FC = () => {
                 return (
                   <>
                     <p className="p-heading--2">{s.instances.total}</p>
-                    {breakdown ? <p className="ic-muted">{breakdown}</p> : null}
+                    {breakdown ? <p className="u-text--muted">{breakdown}</p> : null}
                   </>
                 );
               }}
@@ -107,7 +108,7 @@ const Dashboard: FC = () => {
                   No clusters yet. <Link to="/clusters">Enrol a cluster</Link>
                 </p>
               ) : (
-                <p className="ic-muted">No clusters are available to you yet.</p>
+                <p className="u-text--muted">No clusters are available to you yet.</p>
               );
             }
             if (!attention.length) return <p>All clusters are healthy.</p>;
@@ -117,7 +118,7 @@ const Dashboard: FC = () => {
                   <li key={c.id} className="p-list__item">
                     <Link to={`/clusters/${c.id}`}>{c.name}</Link> <ClusterStatus status={c.status} />
                     {c.statusMessage ? <span> {c.statusMessage}</span> : null}
-                    <span className="ic-muted"> · Last reconciled: {ago(c.reconciledAt)}</span>
+                    <span className="u-text--muted"> · Last reconciled: {ago(c.reconciledAt)}</span>
                   </li>
                 ))}
               </ul>
@@ -144,7 +145,7 @@ const Dashboard: FC = () => {
                     { content: c.cpuThreads },
                     { content: <Meter used={c.memoryUsed} total={c.memoryTotal} label={`${c.name} memory`} /> },
                     { content: <Meter used={c.storageUsed} total={c.storageTotal} label={`${c.name} storage`} /> },
-                    { content: c.inventoryError ? <span className="ic-negative" title={c.inventoryError}>Failed</span> : ago(c.inventoryAt) },
+                    { content: c.inventoryError ? <Failed title={c.inventoryError}>Failed</Failed> : ago(c.inventoryAt) },
                   ],
                 }))}
               />
@@ -161,7 +162,7 @@ const Dashboard: FC = () => {
           <ul className="p-list">
             {me.tenants.map((t) => (
               <li key={t.id} className="p-list__item">
-                <Link to={`/tenants/${t.id}`}>{t.name}</Link> <span className="ic-muted">{t.role}</span>
+                <Link to={`/tenants/${t.id}`}>{t.name}</Link> <span className="u-text--muted">{t.role}</span>
               </li>
             ))}
           </ul>

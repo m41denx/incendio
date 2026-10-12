@@ -11,6 +11,7 @@ import { request } from "../../api/client";
 import { can, useMe } from "../../api/hooks";
 import type { User } from "../../api/types";
 import { PLATFORM_ROLE_OPTIONS, roleLabel, toRole } from "./roles";
+import Section from "../../components/Section";
 
 const UserDetail: FC = () => {
   const { id = "" } = useParams();
@@ -59,6 +60,7 @@ const UserDetail: FC = () => {
       <Loaded query={user}>
         {(u) => (
           <>
+            <Section title="General" id="user-general">
             <KeyValues
               items={[
                 ["Email", u.email],
@@ -69,9 +71,10 @@ const UserDetail: FC = () => {
                 ["Last sign-in", ago(u.lastLoginAt)],
               ]}
             />
+            </Section>
             {admin ? (
               <>
-                <h2 className="p-heading--4">Edit</h2>
+                <Section title="Edit" id="user-edit">
                 <Form onSubmit={save} style={{ maxWidth: "36rem" }}>
                   <Input id="edit-name" label="Name" type="text" value={name} onChange={(e) => setName(e.target.value)} required />
                   <Select id="edit-role" label="Platform role" options={PLATFORM_ROLE_OPTIONS} value={role} onChange={(e) => setRole(e.target.value)} />
@@ -79,8 +82,9 @@ const UserDetail: FC = () => {
                     Save
                   </ActionButton>
                 </Form>
-                <h2 className="p-heading--4">Access</h2>
-                <div className="ic-page-controls">
+                </Section>
+                <Section title="Access" id="user-access">
+                <div className="ic-actions">
                   {u.disabled ? (
                     <Button onClick={() => patch({ disabled: false }).catch(setError)}>Enable</Button>
                   ) : (
@@ -104,6 +108,7 @@ const UserDetail: FC = () => {
                     </p>
                   </ConfirmAction>
                 </div>
+                </Section>
               </>
             ) : null}
           </>

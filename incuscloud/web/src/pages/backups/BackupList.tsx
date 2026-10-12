@@ -11,6 +11,7 @@ import type { Backup, BackupPolicy, BackupTarget, Job, Me } from "../../api/type
 import { bytes, UNKNOWN } from "../../lib/format";
 import { useUrlParam } from "../logs/TenantScope";
 import RestoreBackup from "./RestoreBackup";
+import Failed from "../../components/Failed";
 
 const BACKUPS = "/api/v1/backups";
 const POLICIES = "/api/v1/backup-policies";
@@ -94,7 +95,7 @@ const BackupList: FC = () => {
 
       <h2 className="p-heading--4">Backups</h2>
       {instance.value ? (
-        <p className="ic-muted">
+        <p className="u-text--muted">
           Backups of one instance · <Link to="/backups">show all</Link>
         </p>
       ) : null}
@@ -120,9 +121,9 @@ const BackupList: FC = () => {
                     {
                       content: (
                         <>
-                          <span className="ic-mono">{`${b.project}/${b.instanceName}`}</span>
+                          <span className="mono-font">{`${b.project}/${b.instanceName}`}</span>
                           <br />
-                          <span className="ic-muted">{b.clusterName ?? "removed cluster"}</span>
+                          <span className="u-text--muted">{b.clusterName ?? "removed cluster"}</span>
                         </>
                       ),
                     },
@@ -131,7 +132,7 @@ const BackupList: FC = () => {
                         <>
                           <span>{ago(b.createdAt)}</span>
                           <br />
-                          <span className="ic-muted">{b.policyId ? "scheduled" : "by hand"}</span>
+                          <span className="u-text--muted">{b.policyId ? "scheduled" : "by hand"}</span>
                         </>
                       ),
                     },
@@ -143,7 +144,7 @@ const BackupList: FC = () => {
                           {
                             className: "u-align--right",
                             content: canManage ? (
-                              <div className="ic-page-controls" style={{ justifyContent: "flex-end" }}>
+                              <div className="ic-actions" style={{ justifyContent: "flex-end" }}>
                                 {b.state === "ready" ? (
                                   <Button className="is-small u-no-margin--bottom" onClick={() => setRestoring(b)}>
                                     Restore…
@@ -197,7 +198,7 @@ const BackupList: FC = () => {
                 return {
                   key: p.id,
                   columns: [
-                    { content: <span className="ic-mono">{`${p.project}/${p.instanceName}`}</span> },
+                    { content: <span className="mono-font">{`${p.project}/${p.instanceName}`}</span> },
                     { content: targetName(p.targetId) },
                     { content: every(p.intervalS) },
                     { content: p.keep },
@@ -208,9 +209,9 @@ const BackupList: FC = () => {
                           {p.lastError ? (
                             <>
                               {" "}
-                              <span className="ic-negative" title={p.lastError}>
+                              <Failed title={p.lastError}>
                                 Failed
-                              </span>
+                              </Failed>
                             </>
                           ) : null}
                         </>
@@ -222,7 +223,7 @@ const BackupList: FC = () => {
                           {
                             className: "u-align--right",
                             content: canManage ? (
-                              <div className="ic-page-controls" style={{ justifyContent: "flex-end" }}>
+                              <div className="ic-actions" style={{ justifyContent: "flex-end" }}>
                                 <ActionButton
                                   className="is-small u-no-margin--bottom"
                                   loading={busy === `run:${p.id}`}

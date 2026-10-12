@@ -37,6 +37,6 @@ export const QuotaFields: FC<{ value: QuotaDraft; onChange: (d: QuotaDraft) => v
         error={value[f.key] && !/^\d+$/.test(value[f.key]) ? "A whole number" : undefined}
       />
     ))}
-    <p className="ic-muted">Empty means no limit. Each cluster the tenant is placed on enforces these on the tenant's project.</p>
+    <p className="u-text--muted">Empty means no limit. Each cluster the tenant is placed on enforces these on the tenant's project.</p>
   </>
 );

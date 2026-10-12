@@ -54,7 +54,7 @@ function renderList() {
 }
 
 /** The row of a replica, found by its target name (in the replica column's path). */
-const rowOf = async (name: string) => (await screen.findByText(name, { exact: false, selector: "span.ic-mono" })).closest("tr")!;
+const rowOf = async (name: string) => (await screen.findByText(name, { exact: false, selector: "span.mono-font" })).closest("tr")!;
 
 test("rows show the interval, the last copy's failure and the state", async () => {
   mockApi({

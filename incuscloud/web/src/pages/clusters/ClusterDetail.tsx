@@ -15,6 +15,7 @@ import PlacedTenants from "./PlacedTenants";
 import ClusterInventory from "./ClusterInventory";
 import ClusterBalancing from "./ClusterBalancing";
 import { formatLabels, parseLabels } from "./labels";
+import Section from "../../components/Section";
 
 const ClusterDetail: FC = () => {
   const { id = "" } = useParams();
@@ -85,26 +86,28 @@ const ClusterDetail: FC = () => {
       <Loaded query={cluster}>
         {(c) => (
           <>
+            <Section title="General" id="cluster-general">
             <KeyValues
               items={[
-                ["Status", <><ClusterStatus status={c.status} />{c.statusMessage ? <span className="ic-muted"> {c.statusMessage}</span> : null}</>],
-                ["Address", <span className="ic-mono">{c.url}</span>],
-                ["Certificate", <span className="ic-mono" title={c.fingerprint}>{c.fingerprint.slice(0, 16)}…</span>],
+                ["Status", <><ClusterStatus status={c.status} />{c.statusMessage ? <span className="u-text--muted"> {c.statusMessage}</span> : null}</>],
+                ["Address", <span className="mono-font">{c.url}</span>],
+                ["Certificate", <span className="mono-font" title={c.fingerprint}>{c.fingerprint.slice(0, 16)}…</span>],
                 ["Last seen", ago(c.lastSeenAt)],
-                ["Reconciled", <>{ago(c.reconciledAt)}{c.reconcileRequestedAt ? <span className="ic-muted"> · a new pass is requested</span> : null}</>],
+                ["Reconciled", <>{ago(c.reconciledAt)}{c.reconcileRequestedAt ? <span className="u-text--muted"> · a new pass is requested</span> : null}</>],
                 ["Labels", Object.keys(c.labels).length ? Object.entries(c.labels).map(([k, v]) => `${k}=${v}`).join(", ") : "—"],
               ]}
             />
-            <h2 className="p-heading--4">Command line</h2>
+            </Section>
+            <Section title="Command line" id="cluster-cli">
             <p>Add this cluster to the incus CLI (or any Incus API client); it signs in through IncusCloud:</p>
-            <pre className="ic-mono">{`incus remote add ${c.name} ${clusterApiUrl(me, c.name)} --auth-type=oidc`}</pre>
+            <pre className="mono-font">{`incus remote add ${c.name} ${clusterApiUrl(me, c.name)} --auth-type=oidc`}</pre>
+            </Section>
             <PlacedTenants cluster={c} canManage={operator} />
             {viewer ? <ClusterInventory clusterId={c.id} canManage={operator} /> : null}
             {viewer ? <ClusterBalancing clusterId={c.id} canManage={operator} /> : null}
             {admin ? (
-              <>
-                <h2 className="p-heading--4">Administration</h2>
-                <div className="ic-page-controls">
+              <Section title="Administration" id="cluster-admin">
+                <div className="ic-actions">
                   <ActionButton
                     onClick={() => {
                       setLabels(formatLabels(c.labels));
@@ -122,7 +125,7 @@ const ClusterDetail: FC = () => {
                     </ConfirmAction>
                   ) : null}
                 </div>
-              </>
+              </Section>
             ) : null}
             {editingLabels ? (
               <FormModal

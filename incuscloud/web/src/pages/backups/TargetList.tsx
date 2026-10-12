@@ -8,6 +8,7 @@ import { request } from "../../api/client";
 import { can, useMe } from "../../api/hooks";
 import type { BackupTarget } from "../../api/types";
 import TargetForm from "./TargetForm";
+import EmptyList from "../../components/EmptyList";
 
 interface Check {
   name: string;
@@ -71,7 +72,7 @@ const TargetList: FC = () => {
         ) : undefined
       }
     >
-      <p className="ic-muted">S3 buckets that backups are stored in. Tenants choose among the enabled ones.</p>
+      <p className="u-text--muted">S3 buckets that backups are stored in. Tenants choose among the enabled ones.</p>
       {!me ? <Loading /> : null}
       {me && !viewer ? <p>Only platform staff see backup targets.</p> : null}
       {viewer ? (
@@ -87,9 +88,11 @@ const TargetList: FC = () => {
             </Notification>
           ) : null}
           <Loaded query={targets}>
-            {(list) => (
+            {(list) =>
+              list.length === 0 ? (
+                <EmptyList icon="storage-bucket" title="No backup targets found">No backup targets yet.</EmptyList>
+              ) : (
               <MainTable
-                emptyStateMsg="No backup targets yet."
                 headers={[
                   { content: "Name" },
                   { content: "Endpoint" },
@@ -102,16 +105,16 @@ const TargetList: FC = () => {
                   key: t.id,
                   columns: [
                     { content: t.name },
-                    { content: <span className="ic-mono">{t.endpoint}</span> },
+                    { content: <span className="mono-font">{t.endpoint}</span> },
                     { content: t.prefix ? `${t.bucket}/${t.prefix}` : t.bucket },
-                    { content: <span className="ic-mono">{t.accessKeyId}</span> },
+                    { content: <span className="mono-font">{t.accessKeyId}</span> },
                     { content: t.enabled ? <span className="p-status-label--positive">Enabled</span> : <span className="p-status-label">Disabled</span> },
                     ...(admin
                       ? [
                           {
                             className: "u-align--right",
                             content: (
-                              <div className="ic-page-controls">
+                              <div className="ic-actions">
                                 <ActionButton className="is-small u-no-margin--bottom" loading={checking === t.id} disabled={checking !== null} onClick={() => runCheck(t)}>
                                   Check
                                 </ActionButton>

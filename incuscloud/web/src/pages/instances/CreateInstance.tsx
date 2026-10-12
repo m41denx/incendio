@@ -225,8 +225,8 @@ const CreateInstance: FC = () => {
       <CheckboxInput label="Start it once created" checked={start} onChange={() => setStart(!start)} />
 
       {usage.error ? <ErrorMessage error={usage.error} title="Quota not loaded" /> : null}
-      {usage.data && Object.keys(quota).length === 0 ? <p className="ic-muted">The tenant has no quota.</p> : null}
-      {left.length ? <p className="ic-muted">{`Left in the tenant's quota: ${left.join(", ")}`}</p> : null}
+      {usage.data && Object.keys(quota).length === 0 ? <p className="u-text--muted">The tenant has no quota.</p> : null}
+      {left.length ? <p className="u-text--muted">{`Left in the tenant's quota: ${left.join(", ")}`}</p> : null}
       {error ? <ErrorMessage error={error} title="Not created" /> : null}
       <div>
         <ActionButton type="submit" appearance="positive" loading={busy} disabled={!valid || busy}>

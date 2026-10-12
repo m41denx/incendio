@@ -50,7 +50,7 @@ const Sparkline: FC<{ label: string; points: SparkPoint[]; format: (n: number) =
         {latest != null ? <span className="ic-spark__value">{format(latest)}</span> : null}
       </figcaption>
       {latest == null ? (
-        <p className="ic-muted">No data yet</p>
+        <p className="u-text--muted">No data yet</p>
       ) : (
         <svg className="ic-spark__chart" role="img" aria-label={`${label}: ${format(latest)} now, at most ${format(top)}`} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
           <path d={sparkPath(points, W, H, max ?? top)} fill="none" vectorEffect="non-scaling-stroke" />

@@ -92,7 +92,7 @@ test("job rows show the summary, state badge and progress", async () => {
   const failed = await jobRow("j-3");
   expect(within(failed).getByText("Failed")).toHaveClass("p-status-label--negative");
   const error = within(failed).getByTitle(FAILED_ERROR);
-  expect(error).toHaveClass("ic-negative");
+  expect(error.querySelector(".p-icon--status-failed-small")).not.toBeNull();
   expect(error).toHaveTextContent(FAILED_ERROR.slice(0, 80) + "…");
 });
 
@@ -213,7 +213,7 @@ test("the detail shows a failed job's error", async () => {
     "GET /api/v1/jobs/j-3": [200, job({ id: "j-3", state: "failed", progress: { stage: "transfer" }, error: FAILED_ERROR, finishedAt: new Date().toISOString() })],
   });
   renderAt(<JobDetail />, { path: "/jobs/j-3", pattern: "/jobs/:id" });
-  expect(await screen.findByText(FAILED_ERROR)).toHaveClass("ic-negative");
+  expect((await screen.findByText(FAILED_ERROR)).querySelector(".p-icon--status-failed-small")).not.toBeNull();
   expect(screen.getByText("Failed")).toHaveClass("p-status-label--negative");
   expect(screen.getByText("Stopped at")).toBeInTheDocument();
   expect(screen.getByText("transfer")).toBeInTheDocument();

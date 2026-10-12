@@ -9,6 +9,7 @@ import { can, useMe } from "../../api/hooks";
 import type { Cluster } from "../../api/types";
 import ClusterStatus from "./ClusterStatus";
 import EnrolCluster from "./EnrolCluster";
+import EmptyList from "../../components/EmptyList";
 
 export const useClusters = () => useQuery({ queryKey: ["clusters"], queryFn: () => request<Cluster[]>("GET", "/api/v1/clusters") });
 
@@ -28,10 +29,12 @@ const ClusterList: FC = () => {
       }
     >
       <Loaded query={clusters}>
-        {(list) => (
+        {(list) =>
+          list.length === 0 ? (
+            <EmptyList icon="cluster-host" title="No clusters found">{can(me, "admin") ? "No clusters yet. Enrol one to start." : "No clusters are available to you yet."}</EmptyList>
+          ) : (
           <MainTable
             sortable
-            emptyStateMsg={can(me, "admin") ? "No clusters yet. Enrol one to start." : "No clusters are available to you yet."}
             headers={[
               { content: "Name", sortKey: "name" },
               { content: "Status", sortKey: "status" },
@@ -45,7 +48,7 @@ const ClusterList: FC = () => {
               columns: [
                 { content: <Link to={`/clusters/${c.id}`}>{c.name}</Link> },
                 { content: <ClusterStatus status={c.status} message={c.statusMessage} /> },
-                { content: <span className="ic-mono">{c.url.replace(/^https:\/\//, "")}</span> },
+                { content: <span className="mono-font">{c.url.replace(/^https:\/\//, "")}</span> },
                 { content: ago(c.lastSeenAt) },
                 { content: ago(c.reconciledAt) },
                 { content: Object.entries(c.labels).map(([k, v]) => <span key={k} className="p-chip is-dense"><span className="p-chip__value">{`${k}=${v}`}</span></span>) },

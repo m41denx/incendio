@@ -7,6 +7,7 @@ import { ErrorMessage, Loaded } from "../../components/Status";
 import { request } from "../../api/client";
 import type { Member, Tenant, TenantRole } from "../../api/types";
 import { TENANT_ROLE_HELP, assignableRoles, roleName } from "./roles";
+import Section from "../../components/Section";
 
 interface Props {
   tenant: Tenant;
@@ -37,8 +38,7 @@ const Members: FC<Props> = ({ tenant, canManage, ownerPower }) => {
   const roles = assignableRoles(ownerPower);
 
   return (
-    <>
-      <h2 className="p-heading--4">Members</h2>
+    <Section title="Members" id="tenant-members">
       {error ? <ErrorMessage error={error} title="Not changed" /> : null}
       <Loaded query={members}>
         {(list) => (
@@ -113,7 +113,7 @@ const Members: FC<Props> = ({ tenant, canManage, ownerPower }) => {
           <Select id="member-role" label="Role" value={role} onChange={(e) => setRole(e.target.value as TenantRole)} options={roles.map((r) => ({ value: r, label: TENANT_ROLE_HELP[r] }))} />
         </FormModal>
       ) : null}
-    </>
+    </Section>
   );
 };
 

@@ -10,6 +10,7 @@ import type { Job } from "../../api/types";
 import { UNKNOWN } from "../../lib/format";
 import { useClusters } from "../clusters/ClusterList";
 import { active, canCancel, CancelJobButton, JobStateLabel, JobType, jobSummary, progressText, resultOf } from "./jobState";
+import Failed from "../../components/Failed";
 
 const POLL_MS = 2_000;
 
@@ -50,7 +51,7 @@ const JobDetail: FC = () => {
                   ...(j.state === "succeeded" ? [] : [[active(j) ? "Progress" : "Stopped at", progressText(j) || UNKNOWN] as [string, ReactNode]]),
                   ["Started", j.startedAt ? new Date(j.startedAt).toLocaleString() : UNKNOWN],
                   ["Finished", j.finishedAt ? new Date(j.finishedAt).toLocaleString() : UNKNOWN],
-                  ...(j.state === "failed" ? [["Error", <span className="ic-negative">{j.error || UNKNOWN}</span>] as [string, ReactNode]] : []),
+                  ...(j.state === "failed" ? [["Error", <Failed>{j.error || UNKNOWN}</Failed>] as [string, ReactNode]] : []),
                   ...(result ? [["Result", result] as [string, ReactNode]] : []),
                 ]}
               />

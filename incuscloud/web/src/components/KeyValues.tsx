@@ -1,15 +1,19 @@
 import type { FC, ReactNode } from "react";
 
-/** A two-column list of facts. */
+/** Facts as Incendio's detail pages show them: a table with muted headings. */
 const KeyValues: FC<{ items: Array<[string, ReactNode]> }> = ({ items }) => (
-  <dl className="ic-kv">
-    {items.map(([k, v]) => (
-      <div key={k} style={{ display: "contents" }}>
-        <dt>{k}</dt>
-        <dd>{v}</dd>
-      </div>
-    ))}
-  </dl>
+  <table className="u-no-margin--bottom">
+    <tbody>
+      {items.map(([k, v]) => (
+        <tr key={k}>
+          <th scope="row" className="u-text--muted">
+            {k}
+          </th>
+          <td>{v}</td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
 );
 
 export default KeyValues;

@@ -35,8 +35,8 @@ const SecretOnce: FC<{ secret: ServiceAccountSecret; onDone: () => void }> = ({ 
     <p>The client secret is shown only once and cannot be retrieved later. To get a new one, rotate the secret from the list.</p>
     <KeyValues
       items={[
-        ["Client ID", withCopy(<span className="ic-mono">{secret.clientId}</span>, "client ID", secret.clientId)],
-        ["Client secret", withCopy(<span className="ic-secret">{secret.clientSecret}</span>, "client secret", secret.clientSecret)],
+        ["Client ID", withCopy(<span className="mono-font">{secret.clientId}</span>, "client ID", secret.clientId)],
+        ["Client secret", withCopy(<span className="mono-font ic-wrap">{secret.clientSecret}</span>, "client secret", secret.clientSecret)],
         ["Token URL", withCopy(secret.tokenUrl, "token URL", secret.tokenUrl)],
       ]}
     />

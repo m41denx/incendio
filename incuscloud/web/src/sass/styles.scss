@@ -1,5 +1,17 @@
 @charset "UTF-8";
+// Incendio's look, from packages/ui: Vanilla with Incendio's settings (vite.config.ts
+// prepends packages/ui/src/sass/_settings.scss), its frame and its shared components.
 @import "vanilla-framework/scss/build";
+@import "../../../../packages/ui/src/sass/borders";
+@import "../../../../packages/ui/src/sass/breakpoints";
+@import "../../../../packages/ui/src/sass/pattern_icon";
+@include lxdui-p-icon;
+@import "../../../../packages/ui/src/sass/pattern_navigation";
+@import "../../../../packages/ui/src/sass/page_header";
+@import "../../../../packages/ui/src/sass/meter";
+@import "../../../../packages/ui/src/sass/empty_state";
+@import "../../../../packages/ui/src/sass/status_bar";
+@import "../../../../packages/ui/src/sass/shell";
 
 @include vf-p-icon-add-canvas;
 @include vf-p-icon-applications;
@@ -25,26 +37,21 @@
 @include vf-p-icon-user;
 @include vf-p-icon-user-group;
 @include vf-p-icon-website;
+@include vf-p-icon-status-failed-small;
+@include vf-p-icon-status-succeeded-small;
+@include vf-p-icon-status-in-progress-small;
+@include vf-p-icon-status-queued-small;
+@include vf-p-icon-close;
+@include vf-p-icon-book;
+@include vf-p-icon-pods;
 
-.ic-brand {
-  color: $colors--dark-theme--text-default;
-  font-weight: 550;
-  line-height: 1;
-}
+// IncusCloud's own pieces, in the same square style (no rounded corners).
 
-// Sign out is a form button styled as a navigation link.
-.ic-signout {
-  background: none;
-  border: 0;
-  justify-content: flex-start;
-  margin: 0;
-  text-align: left;
-  width: 100%;
-}
-
-.ic-page-controls {
+// A row of buttons (table rows, panels): Vanilla buttons side by side, vertically centred.
+.ic-actions {
+  align-items: center;
   display: flex;
-  gap: 0.5rem;
+  gap: $sph--small;
 }
 
 // Room for a row's buttons in fixed-layout tables.
@@ -52,80 +59,17 @@
   width: 24rem;
 }
 
-/* A form on a page of its own: readable line lengths. */
+// A form on a page of its own: readable line lengths.
 .ic-form-page {
   max-width: 42rem;
 }
 
-.ic-mono {
-  font-family: unquote($font-monospace);
-}
-
-// Long identifiers in table cells (paths, ids): wrap anywhere instead of clipping.
+// Long identifiers in table cells (paths, ids, secrets): wrap anywhere instead of clipping.
 .ic-wrap {
   display: block;
   overflow-wrap: anywhere;
   white-space: normal;
   word-break: break-all;
-}
-
-.ic-secret {
-  font-family: unquote($font-monospace);
-  overflow-wrap: anywhere;
-}
-
-.ic-negative {
-  color: $color-negative;
-}
-
-.ic-muted {
-  color: $colors--light-theme--text-muted;
-}
-
-.ic-kv {
-  display: grid;
-  gap: 0.25rem 1.5rem;
-  grid-template-columns: max-content 1fr;
-  margin-bottom: $spv--large;
-
-  dt {
-    color: $colors--light-theme--text-muted;
-  }
-
-  dd {
-    margin: 0;
-  }
-}
-
-// Capacity bars: the fill turns caution as it nears full, then negative.
-.ic-meter-group {
-  min-width: 9rem;
-
-  > span {
-    display: block;
-    margin-top: $sp-unit * 0.25;
-  }
-}
-
-.ic-meter {
-  background: $color-mid-light;
-  border-radius: 2px;
-  height: 0.5rem;
-  overflow: hidden;
-  width: 100%;
-}
-
-.ic-meter__fill {
-  background: $color-positive;
-  height: 100%;
-
-  &--caution {
-    background: $color-caution;
-  }
-
-  &--negative {
-    background: $color-negative;
-  }
 }
 
 // Small history charts (instance page): two per row on wide screens.
@@ -157,9 +101,9 @@
   width: 100%;
 
   path {
-    stroke: $color-link;
-    stroke-linecap: round;
-    stroke-linejoin: round;
+    stroke: #06c; // Incendio's meter blue
+    stroke-linecap: square;
+    stroke-linejoin: miter;
     stroke-width: 2;
   }
 }

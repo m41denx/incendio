@@ -8,6 +8,7 @@ import { request } from "../../api/client";
 import type { BalancingSuggestion, Instance } from "../../api/types";
 import { bytes } from "../../lib/format";
 import MigrateInstance from "../instances/MigrateInstance";
+import EmptyList from "../../components/EmptyList";
 
 const SUGGESTIONS = "/api/v1/balancing/suggestions";
 
@@ -34,14 +35,16 @@ const Suggestions: FC = () => {
 
   return (
     <PageLayout title="Balancing">
-      <p className="ic-muted">
+      <p className="u-text--muted">
         Where one of your clusters is much busier than another (by memory), moving some instances evens them out. Nothing moves until you start it.
       </p>
       {error ? <ErrorMessage error={error} /> : null}
       <Loaded query={suggestions}>
-        {(list) => (
+        {(list) =>
+          list.length === 0 ? (
+            <EmptyList icon="fork" title="No suggestions">No suggestions: your clusters are evenly loaded.</EmptyList>
+          ) : (
           <MainTable
-            emptyStateMsg="No suggestions: your clusters are evenly loaded."
             headers={[
               { content: "Instance" },
               { content: "Tenant" },

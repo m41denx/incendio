@@ -10,6 +10,7 @@ import type { Instance, InstanceList, Tenant } from "../../api/types";
 import { bytes, cores, UNKNOWN } from "../../lib/format";
 import { useClusters } from "../clusters/ClusterList";
 import { useUrlParam } from "../logs/TenantScope";
+import EmptyList from "../../components/EmptyList";
 
 const LIMIT = 100;
 
@@ -109,10 +110,15 @@ const InstancesPage: FC = () => {
       ) : instances.isPending ? (
         <Loading />
       ) : (
+        !filtered && total === 0 ? (
+          <EmptyList icon="pods" title="No instances found">
+            No instances yet. They appear here once a cluster's inventory has been read.
+          </EmptyList>
+        ) : (
         <>
-          <p className="ic-muted">{`Showing ${rows.length} of ${total} instances`}</p>
+          <p className="u-text--muted">{`Showing ${rows.length} of ${total} instances`}</p>
           <MainTable
-            emptyStateMsg={filtered ? "No instances match." : "No instances yet. They appear here once a cluster's inventory has been read."}
+            emptyStateMsg="No instances match."
             headers={[{ content: "Name" }, { content: "Cluster" }, { content: "Project" }, { content: "Status" }, { content: "Type" }, { content: "Location" }, { content: "IPv4" }, { content: "CPU" }, { content: "Memory" }]}
             rows={rows.map((i: Instance) => ({
               key: i.id,
@@ -124,7 +130,7 @@ const InstancesPage: FC = () => {
                     <>
                       {i.project}
                       {/* Tenant projects are named after the tenant; say so only when they differ. */}
-                      {i.tenantSlug && i.tenantSlug !== i.project ? <span className="ic-muted">{` · tenant ${i.tenantSlug}`}</span> : null}
+                      {i.tenantSlug && i.tenantSlug !== i.project ? <span className="u-text--muted">{` · tenant ${i.tenantSlug}`}</span> : null}
                     </>
                   ),
                 },
@@ -143,6 +149,7 @@ const InstancesPage: FC = () => {
             </Button>
           ) : null}
         </>
+        )
       )}
     </PageLayout>
   );

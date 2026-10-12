@@ -10,6 +10,7 @@ import type { Tenant } from "../../api/types";
 import CreateTenant from "./CreateTenant";
 import { quotaSummary } from "./quotas";
 import { roleName } from "./roles";
+import EmptyList from "../../components/EmptyList";
 
 const TenantList: FC = () => {
   const { data: me } = useMe();
@@ -27,10 +28,12 @@ const TenantList: FC = () => {
       }
     >
       <Loaded query={tenants}>
-        {(list) => (
+        {(list) =>
+          list.length === 0 ? (
+            <EmptyList icon="switcher-environments" title="No tenants found">{can(me, "operator") ? "No tenants yet." : "You are not a member of any tenant yet. Ask a tenant owner to add you."}</EmptyList>
+          ) : (
           <MainTable
             sortable
-            emptyStateMsg={can(me, "operator") ? "No tenants yet." : "You are not a member of any tenant yet. Ask a tenant owner to add you."}
             headers={[{ content: "Slug", sortKey: "slug" }, { content: "Name", sortKey: "name" }, { content: "Quotas" }, { content: "Your role", sortKey: "role" }]}
             rows={list.map((t) => {
               const role = tenantRole(me, t.id);

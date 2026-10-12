@@ -10,6 +10,8 @@ import type { Job } from "../../api/types";
 import { useClusters } from "../clusters/ClusterList";
 import { useUrlParam } from "../logs/TenantScope";
 import { active, canCancel, CancelJobButton, JobStateLabel, JobType, jobSummary, progressText } from "./jobState";
+import Failed from "../../components/Failed";
+import EmptyList from "../../components/EmptyList";
 
 const LIMIT = 100;
 const POLL_MS = 2_000;
@@ -64,8 +66,11 @@ const JobList: FC = () => {
       ) : (
         <>
           {cancelError ? <ErrorMessage error={cancelError} title="Could not cancel the job" /> : null}
+          {!state.value && !type.value && (jobs.data ?? []).length === 0 ? (
+            <EmptyList icon="loading-steps" title="No jobs found">No jobs yet.</EmptyList>
+          ) : (
           <MainTable
-            emptyStateMsg="No jobs yet."
+            emptyStateMsg="No jobs match these filters."
             headers={[{ content: "Job" }, { content: "Type" }, { content: "State" }, { content: "Progress" }, { content: "Started" }, { content: "Actions" }]}
             rows={(jobs.data ?? []).map((j) => ({
               key: j.id,
@@ -77,9 +82,9 @@ const JobList: FC = () => {
                   content: active(j) ? (
                     progressText(j)
                   ) : j.state === "failed" && j.error ? (
-                    <span className="ic-negative" title={j.error}>
+                    <Failed title={j.error}>
                       {truncate(j.error)}
-                    </span>
+                    </Failed>
                   ) : null,
                 },
                 { content: ago(j.createdAt) },
@@ -87,6 +92,7 @@ const JobList: FC = () => {
               ],
             }))}
           />
+          )}
         </>
       )}
     </PageLayout>

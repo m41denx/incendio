@@ -102,7 +102,7 @@ const TargetForm: FC<{ target?: BackupTarget; onClose: () => void }> = ({ target
         error={f.bucket && !bucketOk ? "At least 3 characters" : undefined}
       />
       <Input id="target-prefix" label="Prefix" type="text" value={f.prefix} onChange={set("prefix")} help="Keys start with this path" />
-      <Input id="target-access-key" label="Access key ID" type="text" required value={f.accessKeyId} onChange={set("accessKeyId")} className="ic-mono" />
+      <Input id="target-access-key" label="Access key ID" type="text" required value={f.accessKeyId} onChange={set("accessKeyId")} className="mono-font" />
       <Input
         id="target-secret-key"
         label="Secret key"

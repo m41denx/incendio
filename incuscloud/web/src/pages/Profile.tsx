@@ -7,6 +7,7 @@ import { Loaded } from "../components/Status";
 import { request } from "../api/client";
 import { clusterApiUrl, useMe } from "../api/hooks";
 import type { Cluster } from "../api/types";
+import Section from "../components/Section";
 
 const platformRoleLabel = (r: string | null) => (r ? r[0]!.toUpperCase() + r.slice(1) : "None");
 
@@ -19,6 +20,7 @@ const Profile: FC = () => {
         const usable = (clusters.data ?? []).filter((c) => c.status !== "disabled");
         return (
           <PageLayout title={p.name}>
+            <Section title="General" id="profile-general">
             <KeyValues
               items={[
                 ["Email", p.email ?? "—"],
@@ -39,8 +41,9 @@ const Profile: FC = () => {
                 ],
               ]}
             />
+            </Section>
 
-            <h2 className="p-heading--4">Use from the command line</h2>
+            <Section title="Use from the command line" id="profile-cli">
             <p>The CLI opens a browser sign-in on first use, and tokens refresh themselves.</p>
             <Loaded query={clusters}>
               {() =>
@@ -53,12 +56,13 @@ const Profile: FC = () => {
                     </div>
                   ))
                 ) : (
-                  <p className="ic-muted">No clusters are available to you yet.</p>
+                  <p className="u-text--muted">No clusters are available to you yet.</p>
                 )
               }
             </Loaded>
+            </Section>
 
-            <h2 className="p-heading--4">Consoles</h2>
+            <Section title="Consoles" id="profile-consoles">
             <Loaded query={clusters}>
               {() =>
                 usable.length ? (
@@ -71,10 +75,11 @@ const Profile: FC = () => {
                     ))}
                   </ul>
                 ) : (
-                  <p className="ic-muted">No consoles are available to you yet.</p>
+                  <p className="u-text--muted">No consoles are available to you yet.</p>
                 )
               }
             </Loaded>
+            </Section>
           </PageLayout>
         );
       }}

@@ -55,13 +55,13 @@ const TenantUsage: FC<{ tenantId: string }> = ({ tenantId }) => {
               key: c.clusterId,
               columns: [
                 { content: <Link to={`/clusters/${c.clusterId}`}>{c.clusterName}</Link> },
-                { content: <span className="ic-mono">{c.project}</span> },
+                { content: <span className="mono-font">{c.project}</span> },
                 ...RESOURCES.map((r) => ({ content: cellText(r, c) })),
               ],
             }))}
             emptyStateMsg="Not placed on any cluster yet."
           />
-          <p className="ic-muted">Each cluster may use what it already has plus whatever the tenant has left, so the total never exceeds the quota.</p>
+          <p className="u-text--muted">Each cluster may use what it already has plus whatever the tenant has left, so the total never exceeds the quota.</p>
         </>
       )}
     </Loaded>

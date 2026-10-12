@@ -94,9 +94,9 @@ function show(path = "/backups") {
 }
 
 /** The backup row of an instance, found by its name in the instance column. */
-const backupRow = async (name: string) => (await screen.findByText(`acme/${name}`, { selector: "span.ic-mono" })).closest("tr")!;
+const backupRow = async (name: string) => (await screen.findByText(`acme/${name}`, { selector: "span.mono-font" })).closest("tr")!;
 /** The schedule row of an instance, found the same way. */
-const policyRow = async (name: string) => (await screen.findByText(`acme/${name}`, { selector: "span.ic-mono" })).closest("tr")!;
+const policyRow = async (name: string) => (await screen.findByText(`acme/${name}`, { selector: "span.mono-font" })).closest("tr")!;
 
 test("backup rows show the instance and its cluster, the size, how it was made, the target and the state", async () => {
   api({

@@ -173,6 +173,6 @@ test("a failed inventory read shows Failed with its error", async () => {
   renderAt(<Dashboard />);
   const table = await screen.findByRole("region", { name: "Capacity" });
   const failed = await within(table).findByText("Failed");
-  expect(failed).toHaveClass("ic-negative");
+  expect(failed.querySelector(".p-icon--status-failed-small")).not.toBeNull();
   expect(failed).toHaveAttribute("title", "timeout reading node2");
 });

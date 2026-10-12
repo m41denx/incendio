@@ -183,8 +183,8 @@ test("preview shows the spread, the notes and each move with its reason", async 
   await userEvent.click(await screen.findByRole("button", { name: "Preview" }));
 
   expect(await screen.findByText("Spread now: 14.0 points; after: 3.2 points")).toBeInTheDocument();
-  expect(screen.getByText("node2 is offline; its instances stay put.")).toHaveClass("ic-muted");
-  expect(screen.getByText("2 instances are pinned.")).toHaveClass("ic-muted");
+  expect(screen.getByText("node2 is offline; its instances stay put.")).toHaveClass("u-text--muted");
+  expect(screen.getByText("2 instances are pinned.")).toHaveClass("u-text--muted");
 
   for (const h of ["Instance", "From", "To", "Why"]) expect(screen.getByRole("columnheader", { name: h })).toBeInTheDocument();
   const web = screen.getByRole("row", { name: /acme\/web-1/ });

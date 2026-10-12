@@ -10,6 +10,7 @@ import { can, tenantRole, useMe } from "../../api/hooks";
 import type { ServiceAccount, ServiceAccountSecret } from "../../api/types";
 import CreateServiceAccount, { canCreate, tenantsQuery } from "./CreateServiceAccount";
 import SecretOnce from "./SecretOnce";
+import EmptyList from "../../components/EmptyList";
 
 const ServiceAccountList: FC = () => {
   const { data: me } = useMe();
@@ -58,9 +59,11 @@ const ServiceAccountList: FC = () => {
         {(list) => {
           const rows = tenantFilter ? list.filter((a) => a.tenantId === tenantFilter) : list;
           return (
+            rows.length === 0 ? (
+              <EmptyList icon="applications" title="No service accounts found">{tenantFilter ? "No service accounts in this tenant yet." : "No service accounts yet."}</EmptyList>
+            ) : (
             <MainTable
               sortable
-              emptyStateMsg={tenantFilter ? "No service accounts in this tenant yet." : "No service accounts yet."}
               headers={[
                 { content: "Name", sortKey: "name" },
                 { content: "Client ID" },
@@ -74,12 +77,12 @@ const ServiceAccountList: FC = () => {
                   key: a.id,
                   columns: [
                     { content: a.name },
-                    { content: a.clientId, className: "ic-mono" },
+                    { content: a.clientId, className: "mono-font" },
                     { content: scope },
                     { content: ago(a.createdAt) },
                     {
                       content: manages(a) ? (
-                        <div className="ic-page-controls">
+                        <div className="ic-actions">
                           <ConfirmAction
                             label="Rotate secret"
                             appearance="base"
@@ -100,6 +103,7 @@ const ServiceAccountList: FC = () => {
                 };
               })}
             />
+            )
           );
         }}
       </Loaded>

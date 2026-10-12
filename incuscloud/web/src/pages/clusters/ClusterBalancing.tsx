@@ -7,6 +7,7 @@ import KeyValues from "../../components/KeyValues";
 import { ErrorMessage, Loaded, ago } from "../../components/Status";
 import { request } from "../../api/client";
 import type { BalanceReason, BalancingMethod, BalancingMode, BalancingPlan, BalancingPolicy, BalancingSettings, Job } from "../../api/types";
+import Section from "../../components/Section";
 
 const METHOD_LABEL: Record<BalancingMethod, string> = { memory: "memory", cpu: "CPU", disk: "disk" };
 const REASON_LABEL: Record<BalanceReason, string> = { balance: "Balance", pin: "Pinned elsewhere", affinity: "Keep together", "anti-affinity": "Keep apart" };
@@ -171,10 +172,7 @@ const ClusterBalancing: FC<{ clusterId: string; canManage: boolean }> = ({ clust
   };
 
   return (
-    <section aria-labelledby="cluster-balancing">
-      <h2 id="cluster-balancing" className="p-heading--4">
-        Balancing
-      </h2>
+    <Section title="Balancing" id="cluster-balancing">
       <Loaded query={policy}>
         {(p) => (
           <>
@@ -214,7 +212,7 @@ const ClusterBalancing: FC<{ clusterId: string; canManage: boolean }> = ({ clust
               <>
                 <p>{`Spread now: ${plan.before.toFixed(1)} points; after: ${plan.after.toFixed(1)} points`}</p>
                 {plan.notes.map((note, i) => (
-                  <p key={i} className="ic-muted">
+                  <p key={i} className="u-text--muted">
                     {note}
                   </p>
                 ))}
@@ -235,7 +233,7 @@ const ClusterBalancing: FC<{ clusterId: string; canManage: boolean }> = ({ clust
           </>
         )}
       </Loaded>
-    </section>
+    </Section>
   );
 };
 

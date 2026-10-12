@@ -29,8 +29,8 @@ const EnrolCluster: FC<{ onClose: () => void }> = ({ onClose }) => {
   return (
     <FormModal title="Enrol a cluster" submitLabel="Enrol" onSubmit={submit} onClose={onClose} submitDisabled={!NAME.test(name) || !token.trim() || !!labelError}>
       <p>On any member of the cluster, create a trust token for IncusCloud and paste it below:</p>
-      <pre className="ic-mono">incus config trust add incuscloud --quiet</pre>
-      <p className="ic-muted">IncusCloud reaches the cluster on the addresses in the token, checks its certificate against the token, and then configures it (sign-in through IncusCloud, permissions, tenant projects).</p>
+      <pre className="mono-font">incus config trust add incuscloud --quiet</pre>
+      <p className="u-text--muted">IncusCloud reaches the cluster on the addresses in the token, checks its certificate against the token, and then configures it (sign-in through IncusCloud, permissions, tenant projects).</p>
       <Input
         id="cluster-name"
         label="Name"
@@ -41,7 +41,7 @@ const EnrolCluster: FC<{ onClose: () => void }> = ({ onClose }) => {
         help="Lowercase letters, digits and dashes. Also its host name for API clients."
         error={name && !NAME.test(name) ? "Lowercase letters, digits and dashes; starts with a letter" : undefined}
       />
-      <Textarea id="cluster-token" label="Trust token" required rows={3} value={token} onChange={(e) => setToken(e.target.value)} className="ic-mono" />
+      <Textarea id="cluster-token" label="Trust token" required rows={3} value={token} onChange={(e) => setToken(e.target.value)} className="mono-font" />
       <Textarea id="cluster-labels" label="Labels" rows={2} value={labels} onChange={(e) => setLabels(e.target.value)} help="Optional, key=value per line." error={labelError} />
     </FormModal>
   );

@@ -53,7 +53,7 @@ test("the page is titled with the name and lists email, role and tenants", async
   });
   renderAt(<Profile />);
   expect(await screen.findByRole("heading", { name: "Ada Lovelace" })).toBeInTheDocument();
-  expect(screen.getByText("ada@example.com", { selector: "dd" })).toBeInTheDocument();
-  expect(screen.getByText("None", { selector: "dd" })).toBeInTheDocument();
+  expect(screen.getByText("ada@example.com", { selector: "td" })).toBeInTheDocument();
+  expect(screen.getByText("None", { selector: "td" })).toBeInTheDocument();
   expect(screen.getByText("Acme (member)")).toBeInTheDocument();
 });

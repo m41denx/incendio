@@ -11,7 +11,8 @@
     "isolatedModules": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
-    "types": ["vite/client", "vitest/globals", "@testing-library/jest-dom"]
+    "types": ["vite/client", "vitest/globals", "@testing-library/jest-dom"],
+    "paths": { "@incendio/ui/*": ["../../packages/ui/src/*"] }
   },
   "include": ["src", "vite.config.ts", "vitest.config.ts"]
 }

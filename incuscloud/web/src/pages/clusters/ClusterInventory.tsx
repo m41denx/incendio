@@ -9,6 +9,7 @@ import { request } from "../../api/client";
 import type { ClusterInventory as Inventory, ClusterMember, Job } from "../../api/types";
 import { UNKNOWN } from "../../lib/format";
 import EvacuateMember from "./EvacuateMember";
+import Section from "../../components/Section";
 
 /** Members and storage pools as the server last read them; for platform viewers. `canManage` adds maintenance actions for members. */
 const ClusterInventory: FC<{ clusterId: string; canManage?: boolean }> = ({ clusterId, canManage = false }) => {
@@ -50,10 +51,7 @@ const ClusterInventory: FC<{ clusterId: string; canManage?: boolean }> = ({ clus
   };
 
   return (
-    <section aria-labelledby="cluster-inventory">
-      <h2 id="cluster-inventory" className="p-heading--4">
-        Members and storage
-      </h2>
+    <Section title="Members and storage" id="cluster-inventory">
       <Loaded query={inventory}>
         {(inv) => (
           <>
@@ -63,7 +61,7 @@ const ClusterInventory: FC<{ clusterId: string; canManage?: boolean }> = ({ clus
               </Notification>
             ) : null}
             {error ? <ErrorMessage error={error} /> : null}
-            <p className="ic-muted">Inventory read {ago(inv.inventoryAt)}</p>
+            <p className="u-text--muted">Inventory read {ago(inv.inventoryAt)}</p>
             <MainTable
               emptyStateMsg="No members reported."
               headers={[
@@ -102,11 +100,11 @@ const ClusterInventory: FC<{ clusterId: string; canManage?: boolean }> = ({ clus
                 ],
               }))}
             />
-            <p className="ic-muted">{`${inv.instances.total} instances, ${inv.instances.running} running`}</p>
+            <p className="u-text--muted">{`${inv.instances.total} instances, ${inv.instances.running} running`}</p>
           </>
         )}
       </Loaded>
-    </section>
+    </Section>
   );
 };
 

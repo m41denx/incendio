@@ -9,6 +9,8 @@ import { request } from "../../api/client";
 import { can, tenantRole, useMe } from "../../api/hooks";
 import type { Job, Me, ReplicationPolicy } from "../../api/types";
 import { useClusters } from "../clusters/ClusterList";
+import Failed from "../../components/Failed";
+import EmptyList from "../../components/EmptyList";
 
 const POLICIES = "/api/v1/replication-policies";
 
@@ -85,7 +87,7 @@ const PolicyList: FC = () => {
 
   return (
     <PageLayout title="Replication">
-      <p className="ic-muted">Each policy keeps a stopped copy of an instance on another cluster, refreshed on its schedule. Failing over starts the copy.</p>
+      <p className="u-text--muted">Each policy keeps a stopped copy of an instance on another cluster, refreshed on its schedule. Failing over starts the copy.</p>
       {error ? <ErrorMessage error={error} title="Not done" /> : null}
       {started ? (
         <Notification severity="positive" title="Copy started">
@@ -96,8 +98,10 @@ const PolicyList: FC = () => {
         {(list) => {
           const showActions = list.some((p) => manages(me, p));
           return (
+            list.length === 0 ? (
+              <EmptyList icon="restart" title="No replication policies found">No replication policies yet. Create one from an instance's page.</EmptyList>
+            ) : (
             <MainTable
-              emptyStateMsg="No replication policies yet. Create one from an instance's page."
               headers={[
                 { content: "Instance" },
                 { content: "Replica" },
@@ -117,18 +121,18 @@ const PolicyList: FC = () => {
                     {
                       content: (
                         <>
-                          <span className="ic-mono">{`${p.sourceProject}/${p.instanceName}`}</span>
+                          <span className="mono-font">{`${p.sourceProject}/${p.instanceName}`}</span>
                           <br />
-                          <span className="ic-muted">{clusterName(p.sourceClusterId)}</span>
+                          <span className="u-text--muted">{clusterName(p.sourceClusterId)}</span>
                         </>
                       ),
                     },
                     {
                       content: (
                         <>
-                          <span className="ic-mono">{`${p.targetProject}/${p.targetName}`}</span>
+                          <span className="mono-font">{`${p.targetProject}/${p.targetName}`}</span>
                           <br />
-                          <span className="ic-muted">{clusterName(p.targetClusterId)}</span>
+                          <span className="u-text--muted">{clusterName(p.targetClusterId)}</span>
                         </>
                       ),
                     },
@@ -140,9 +144,9 @@ const PolicyList: FC = () => {
                           {p.lastError ? (
                             <>
                               {" "}
-                              <span className="ic-negative" title={p.lastError}>
+                              <Failed title={p.lastError}>
                                 Failed
-                              </span>
+                              </Failed>
                             </>
                           ) : null}
                         </>
@@ -154,7 +158,7 @@ const PolicyList: FC = () => {
                           {
                             className: "u-align--right",
                             content: canManage ? (
-                              <div className="ic-page-controls" style={{ justifyContent: "flex-end" }}>
+                              <div className="ic-actions" style={{ justifyContent: "flex-end" }}>
                                 {failedOver ? null : (
                                   <>
                                     <ActionButton
@@ -193,6 +197,7 @@ const PolicyList: FC = () => {
                 };
               })}
             />
+            )
           );
         }}
       </Loaded>

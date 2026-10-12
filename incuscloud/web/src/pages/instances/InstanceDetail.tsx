@@ -14,6 +14,7 @@ import MigrateInstance from "./MigrateInstance";
 import CreatePolicy from "../replication/CreatePolicy";
 import BackupNow from "../backups/BackupNow";
 import BackupSchedule from "../backups/BackupSchedule";
+import Section from "../../components/Section";
 
 const HOURS = 24;
 const REFRESH_MS = 60_000;
@@ -78,6 +79,7 @@ const InstanceDetail: FC = () => {
       <Loaded query={instance}>
         {(i) => (
           <>
+            <Section title="General" id="instance-general">
             <KeyValues
               items={[
                 ["Status", i.status],
@@ -89,13 +91,14 @@ const InstanceDetail: FC = () => {
                 ["Description", i.description || UNKNOWN],
                 ["Image", [i.imageOs, i.imageRelease].filter(Boolean).join(" ") || UNKNOWN],
                 ["Limits", limits(i)],
-                ["Addresses", i.addresses.length ? <span className="ic-mono">{i.addresses.join(", ")}</span> : UNKNOWN],
+                ["Addresses", i.addresses.length ? <span className="mono-font">{i.addresses.join(", ")}</span> : UNKNOWN],
                 ["Disk used", bytes(i.diskUsed)],
                 ["Created", i.createdAt ? new Date(i.createdAt).toLocaleString() : UNKNOWN],
                 ["Inventory read", ago(i.inventoryAt)],
               ]}
             />
-            <h2 className="p-heading--4">Last {HOURS} hours</h2>
+            </Section>
+            <Section title={`Last ${HOURS} hours`} id="instance-metrics">
             <Loaded query={metrics}>
               {({ samples }) => (
                 <div className="ic-spark-grid">
@@ -106,6 +109,7 @@ const InstanceDetail: FC = () => {
                 </div>
               )}
             </Loaded>
+            </Section>
           </>
         )}
       </Loaded>

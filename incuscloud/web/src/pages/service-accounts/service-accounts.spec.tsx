@@ -54,7 +54,7 @@ test("admins create a tenant account: the body is name and tenantId, then the se
   await userEvent.selectOptions(screen.getByLabelText("For"), "t2");
   await userEvent.click(screen.getByRole("button", { name: "Create" }));
   const dialog = await screen.findByRole("dialog", { name: "Save the secret now" });
-  expect(within(dialog).getByText("sec-very-secret-value")).toHaveClass("ic-secret");
+  expect(within(dialog).getByText("sec-very-secret-value")).toHaveClass("mono-font ic-wrap");
   expect(within(dialog).getByText("https://cloud.test/api/v1/tokens")).toBeInTheDocument();
   expect(api.calls.find((c) => c.method === "POST")!.body).toEqual({ name: "Deploy", tenantId: "t2" });
   expect(screen.queryByLabelText("Platform role")).not.toBeInTheDocument();

@@ -10,24 +10,19 @@ test("the bar is a meter with its values and label", () => {
   expect(meter).toHaveAttribute("aria-valuemin", "0");
   expect(meter).toHaveAttribute("aria-valuemax", String(4 * GiB));
   expect(meter).toHaveAttribute("aria-valuenow", String(GiB));
-  expect(meter.querySelector(".ic-meter__fill")).toHaveStyle({ width: "25%" });
+  expect(meter.querySelector<HTMLElement>(".p-meter > div")!.style.width).toBe("max(25%, 5px)");
   expect(screen.getByText("1.0 GiB / 4.0 GiB (25%)")).toBeInTheDocument();
 });
 
-test("the fill turns caution at 80% and negative at 95%", () => {
-  const { rerender, container } = render(<Meter used={79} total={100} />);
-  expect(container.querySelector(".ic-meter__fill")).not.toHaveClass("ic-meter__fill--caution", "ic-meter__fill--negative");
-  rerender(<Meter used={80} total={100} />);
-  expect(container.querySelector(".ic-meter__fill")).toHaveClass("ic-meter__fill--caution");
-  expect(container.querySelector(".ic-meter__fill")).not.toHaveClass("ic-meter__fill--negative");
-  rerender(<Meter used={95} total={100} />);
-  expect(container.querySelector(".ic-meter__fill")).toHaveClass("ic-meter__fill--negative");
-  expect(container.querySelector(".ic-meter__fill")).not.toHaveClass("ic-meter__fill--caution");
+test("it is Incendio's meter: one blue fill, whatever the level", () => {
+  const { container } = render(<Meter used={99} total={100} />);
+  expect(container.querySelectorAll(".p-meter > div")).toHaveLength(1);
+  expect(container.querySelector(".p-meter + .p-text--small.u-text--muted")).toHaveTextContent("99 B / 100 B (99%)");
 });
 
 test("the fill is clamped to the bar when used exceeds total", () => {
   const { container } = render(<Meter used={150} total={100} />);
-  expect(container.querySelector(".ic-meter__fill")).toHaveStyle({ width: "100%" });
+  expect(container.querySelector<HTMLElement>(".p-meter > div")!.style.width).toBe("max(100%, 5px)");
 });
 
 test("without a total there is no bar, only the unknown marker", () => {

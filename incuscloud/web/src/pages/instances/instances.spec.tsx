@@ -158,7 +158,7 @@ test("Create instance is offered to tenant members and platform operators, not t
   const show = async (who: ReturnType<typeof me>) => {
     mockApi({ "GET /api/v1/me": [200, who], "GET /api/v1/clusters": [200, [edge]], "GET /api/v1/tenants": [200, []], "GET /api/v1/instances": [200, list([])] });
     const view = renderAt(<InstancesPage />, { path: "/instances" });
-    await screen.findByText(/No instances/);
+    await screen.findByText("No instances found");
     const link = screen.queryByRole("link", { name: "Create instance" });
     view.unmount();
     return link?.getAttribute("href") ?? null;

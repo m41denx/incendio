@@ -9,6 +9,7 @@ import { can, useMe } from "../../api/hooks";
 import type { User } from "../../api/types";
 import CreateUser from "./CreateUser";
 import { roleLabel } from "./roles";
+import EmptyList from "../../components/EmptyList";
 
 const UserList: FC = () => {
   const { data: me } = useMe();
@@ -26,10 +27,12 @@ const UserList: FC = () => {
       }
     >
       <Loaded query={users}>
-        {(list) => (
+        {(list) =>
+          list.length === 0 ? (
+            <EmptyList icon="user-group" title="No users found">No users yet.</EmptyList>
+          ) : (
           <MainTable
             sortable
-            emptyStateMsg="No users yet."
             headers={[
               { content: "Name", sortKey: "name" },
               { content: "Email", sortKey: "email" },
