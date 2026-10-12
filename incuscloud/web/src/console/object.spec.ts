@@ -83,3 +83,14 @@ test("a Kubernetes cluster sits in its project", () => {
     "/ui/project/acme%40cluster-d/kubernetes/web",
   ]);
 });
+
+test("tenant members get no server-wide Incus pages: they have no rights there", () => {
+  const member = { operator: false, viewer: false };
+  const menu = (p: string) => subsOf(objectOf(p), member).map((t) => t.label);
+  expect(menu("/inventory/cluster-d/access/who")).toEqual(["Who has access"]);
+  expect(menu("/inventory/cluster-d/configure/warnings")).toEqual(["Warnings"]);
+  expect(menu("/inventory/cluster-d/groups/placement")).toEqual(["Placement groups"]);
+  expect(menu("/inventory/cluster-d/networks/networks")).toEqual(["Networks", "ACLs", "Address sets", "Zones", "IPAM"]);
+  // Platform viewers see them all.
+  expect(subsOf(objectOf("/inventory/cluster-d/access/who"), { operator: false, viewer: true }).map((t) => t.label)).toHaveLength(6);
+});

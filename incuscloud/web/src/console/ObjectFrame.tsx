@@ -87,7 +87,7 @@ const ObjectFrame: FC<{ children: ReactNode }> = ({ children }) => {
   const obj = objectOf(pathname);
   if (obj.kind === "none") return <>{children}</>;
   const crumbs = crumbsOf(obj);
-  const who = { operator: can(me, "operator") };
+  const who = { operator: can(me, "operator"), viewer: can(me, "viewer") };
   const tabs = tabsOf(obj, who);
   const subs = subsOf(obj, who);
   const tab = tabs.find((t) => t.active);

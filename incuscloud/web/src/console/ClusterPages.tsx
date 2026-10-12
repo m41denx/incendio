@@ -161,7 +161,7 @@ export const ClusterSub: FC = () => {
   const cluster = useCluster();
   const { tab = "", sub } = useParams<{ tab: string; sub: string }>();
   const { data: me } = useMe();
-  const subs = clusterSubs(cluster, tab as never, { operator: can(me, "operator") });
+  const subs = clusterSubs(cluster, tab as never, { operator: can(me, "operator"), viewer: can(me, "viewer") });
   const current = subs.find((s) => s.sub === sub);
   if (!subs.length) return <Navigate to={`/inventory/${enc(cluster)}`} replace />;
   if (!current) return <Navigate to={`/inventory/${enc(cluster)}/${tab}/${subs[0]!.sub}`} replace />;

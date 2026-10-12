@@ -32,6 +32,15 @@ interface Sub {
   /** A cluster's: the Incendio page it renders (`p` is the cluster's `default` project, encoded). A project's: the path below the project. */
   path: string;
   operator?: boolean;
+  /** A server-wide Incus page: for platform viewers (tenant members have no rights there). */
+  server?: boolean;
+}
+
+/** Who is looking: a platform operator, a platform viewer (or more); tenant members are neither. */
+export interface Who {
+  operator: boolean;
+  /** Defaults to true. */
+  viewer?: boolean;
 }
 
 const ROOT_TABS: Array<[RootTab, string, string]> = [
@@ -69,30 +78,30 @@ const STORAGE_SUBS = (p: string) => [
 /** A cluster tab's side menu; `p` is the cluster's `default` project, encoded. */
 export const CLUSTER_SUBS: Partial<Record<ClusterTab, (p: string) => Sub[]>> = {
   groups: () => [
-    { sub: "cluster", label: "Cluster groups", path: "/ui/cluster/groups" },
+    { sub: "cluster", label: "Cluster groups", path: "/ui/cluster/groups", server: true },
     // The project comes from the page's picker.
     { sub: "placement", label: "Placement groups", path: "" },
   ],
-  networks: (p) => [...NETWORK_SUBS(p), { sub: "integrations", label: "Integrations", path: "/ui/network-integrations" }],
+  networks: (p) => [...NETWORK_SUBS(p), { sub: "integrations", label: "Integrations", path: "/ui/network-integrations", server: true }],
   storage: STORAGE_SUBS,
   access: () => [
     // IncusCloud's own page.
     { sub: "who", label: "Who has access", path: "" },
-    { sub: "identities", label: "Identities", path: "/ui/permissions/identities" },
-    { sub: "groups", label: "Groups", path: "/ui/permissions/groups" },
-    { sub: "idp-groups", label: "IdP groups", path: "/ui/permissions/idp-groups" },
-    { sub: "grants", label: "Grants", path: "/ui/authorization/grants" },
-    { sub: "check", label: "Check", path: "/ui/authorization/check" },
+    { sub: "identities", label: "Identities", path: "/ui/permissions/identities", server: true },
+    { sub: "groups", label: "Groups", path: "/ui/permissions/groups", server: true },
+    { sub: "idp-groups", label: "IdP groups", path: "/ui/permissions/idp-groups", server: true },
+    { sub: "grants", label: "Grants", path: "/ui/authorization/grants", server: true },
+    { sub: "check", label: "Check", path: "/ui/authorization/check", server: true },
   ],
   configure: () => [
     { sub: "incuscloud", label: "IncusCloud", path: "", operator: true },
-    { sub: "settings", label: "Server settings", path: "/ui/settings" },
-    { sub: "cluster-settings", label: "Cluster settings", path: "/ui/cluster/settings" },
-    { sub: "links", label: "Cluster links", path: "/ui/cluster/links" },
-    { sub: "replicators", label: "Replicators", path: "/ui/cluster/replicators" },
-    { sub: "certificates", label: "Certificates", path: "/ui/settings/certificates" },
-    { sub: "logging", label: "Logging", path: "/ui/settings/logging" },
-    { sub: "acme", label: "ACME", path: "/ui/settings/acme" },
+    { sub: "settings", label: "Server settings", path: "/ui/settings", server: true },
+    { sub: "cluster-settings", label: "Cluster settings", path: "/ui/cluster/settings", server: true },
+    { sub: "links", label: "Cluster links", path: "/ui/cluster/links", server: true },
+    { sub: "replicators", label: "Replicators", path: "/ui/cluster/replicators", server: true },
+    { sub: "certificates", label: "Certificates", path: "/ui/settings/certificates", server: true },
+    { sub: "logging", label: "Logging", path: "/ui/settings/logging", server: true },
+    { sub: "acme", label: "ACME", path: "/ui/settings/acme", server: true },
     { sub: "warnings", label: "Warnings", path: "/ui/warnings" },
   ],
 };
@@ -196,11 +205,12 @@ export interface Tab {
 }
 
 /** The selected object's one row of tabs; none for objects whose page has its own. */
-export function tabsOf(o: Obj, who: { operator: boolean }): Tab[] {
+export function tabsOf(o: Obj, who: Who): Tab[] {
   if (o.kind === "root")
     return ROOT_TABS.filter(([t]) => t !== "clusters" || who.operator).map(([t, label, to]) => ({ label, to, active: o.tab === t }));
   if (o.kind === "cluster")
-    return CLUSTER_TABS.map(([t, label]) => ({ label, to: `/inventory/${enc(o.cluster)}${t === "summary" ? "" : `/${t}`}`, active: o.tab === t }));
+    // A tab of pages the caller may see none of is not shown.
+    return CLUSTER_TABS.filter(([t]) => !CLUSTER_SUBS[t] || clusterSubs(o.cluster, t, who).length).map(([t, label]) => ({ label, to: `/inventory/${enc(o.cluster)}${t === "summary" ? "" : `/${t}`}`, active: o.tab === t }));
   if (o.kind === "project") return PROJECT_TABS.map(([t, label, rest]) => ({ label, to: projectPath(o.project, rest), active: o.tab === t }));
   if (o.kind === "k8s") {
     const at = projectPath(o.project, `kubernetes/${enc(o.name)}`);
@@ -210,11 +220,11 @@ export function tabsOf(o: Obj, who: { operator: boolean }): Tab[] {
 }
 
 /** The pages of a cluster tab's side menu, as the caller may see them. */
-export const clusterSubs = (cluster: string, tab: ClusterTab, who: { operator: boolean }): Sub[] =>
-  (CLUSTER_SUBS[tab]?.(enc(`default@${cluster}`)) ?? []).filter((s) => !s.operator || who.operator);
+export const clusterSubs = (cluster: string, tab: ClusterTab, who: Who): Sub[] =>
+  (CLUSTER_SUBS[tab]?.(enc(`default@${cluster}`)) ?? []).filter((s) => (!s.operator || who.operator) && (!s.server || (who.viewer ?? true)));
 
 /** The selected tab's side menu (its pages), when it has several. */
-export function subsOf(o: Obj, who: { operator: boolean }): Tab[] {
+export function subsOf(o: Obj, who: Who): Tab[] {
   if (o.kind === "cluster") {
     const subs = clusterSubs(o.cluster, o.tab, who);
     return subs.map((s) => ({ label: s.label, to: `/inventory/${enc(o.cluster)}/${o.tab}/${s.sub}`, active: o.sub === s.sub }));
