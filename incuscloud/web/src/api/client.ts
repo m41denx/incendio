@@ -49,3 +49,19 @@ export function withQuery(path: string, q: Record<string, string | number | unde
   const s = p.toString();
   return s ? `${path}?${s}` : path;
 }
+
+/**
+ * An Incus API read through the federation facade over every cluster the
+ * caller may reach, whatever page asks (the console's inventory tree).
+ * Returns the response's `metadata`.
+ */
+export async function incusAll<T>(path: string): Promise<T> {
+  const res = await fetch(path, { credentials: "same-origin", headers: { accept: "application/json", "x-incuscloud-scope": "all" } });
+  if (res.status === 401) {
+    window.location.assign(signInUrl());
+    return new Promise<T>(() => {});
+  }
+  const json = (await res.json().catch(() => undefined)) as { metadata?: T; error?: string } | undefined;
+  if (!res.ok) throw new ApiError(res.status, "incus", json?.error || res.statusText || `Request failed (${res.status})`);
+  return json?.metadata as T;
+}
