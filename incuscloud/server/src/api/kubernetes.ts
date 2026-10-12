@@ -14,6 +14,7 @@ import { KUBERNETES_VERSIONS, SIZES, lbIsInstance, namespaceOf, specError, specF
 import { secretNameOf } from "../k8s/credentials.ts";
 import { pickEndpoint } from "../k8s/endpoint.ts";
 import { pendingOf } from "./tenant-cloud.ts";
+import { eventActivity, mergeActivity, type ActivityEntry, type K8sEventList } from "@incendio/k8s/src/lib/activity.ts";
 import { audited, uuidParam, visibleTenants } from "./common.ts";
 import { tuples } from "../authz/sync.ts";
 import { requestReconcile } from "../reconcile/requests.ts";
@@ -354,6 +355,32 @@ export function kubernetesRoutes({ db, authz, kube, k8sPorts }: { db: Db; authz:
         throw new ApiError(503, "management_unavailable", `The management cluster did not answer: ${String((e as Error).message ?? e)}`);
       }
       return machines.map(nodeOf).sort((a, b) => (a.role === b.role ? a.name.localeCompare(b.name) : a.role === "control-plane" ? -1 : 1));
+    })
+    .get("/api/v1/kubernetes/:id/status", async ({ principal, params }) => {
+      const { row } = await load(authed(principal), params.id);
+      const cluster = await enabled().get(MACHINE_API, "Cluster", row.namespace, row.name);
+      const st = (cluster?.status ?? {}) as { phase?: string; conditions?: Array<{ type: string; status: string; reason?: string; message?: string; lastTransitionTime?: string }> };
+      const conditions = (st.conditions ?? []).map((c) => ({ type: c.type, status: c.status, reason: c.reason ?? "", message: c.message ?? "", lastTransitionTime: c.lastTransitionTime ?? "" }));
+      // Why it is not available yet: CAPI's aggregated condition, else the control plane's.
+      const down = ["Available", "ControlPlaneAvailable"].map((t) => conditions.find((c) => c.type === t)).find((c) => c && c.status !== "True");
+      return { phase: st.phase ?? (cluster ? "" : "Missing"), message: down?.message || down?.reason || "", endpoint: endpointOf(row), conditions };
+    })
+    .get("/api/v1/kubernetes/:id/activity", async ({ principal, params }) => {
+      const { row } = await load(authed(principal), params.id);
+      // Events on its own objects: the Cluster and everything CAPI names after it.
+      const events = (await enabled().list("v1", "Event", row.namespace)) as unknown as NonNullable<K8sEventList["items"]>;
+      const names = new Set(events.map((e) => e.involvedObject?.name ?? "").filter((n) => n === row.name || n.startsWith(`${row.name}-`)));
+      const fromEvents = eventActivity({ items: events }, names, new Date(row.createdAt.getTime() - 60_000));
+      const ran = await db.select().from(jobs).where(jobFor(row.id)).orderBy(sql`${jobs.createdAt} desc`).limit(50);
+      const fromJobs: ActivityEntry[] = ran.map((j) => ({
+        time: (j.finishedAt ?? j.startedAt ?? j.createdAt).toISOString(),
+        level: j.state === "failed" ? "error" : "info",
+        source: "incuscloud",
+        object: j.type,
+        message: [`${j.type} ${j.state}`, j.progress?.message ? `${j.progress.stage}: ${j.progress.message}` : "", j.error].filter(Boolean).join(" — "),
+        count: 1,
+      }));
+      return { entries: mergeActivity([fromEvents, fromJobs], 300) };
     })
     .get("/api/v1/kubernetes/:id/kubeconfig", async ({ principal, request, params }) => {
       const p = authed(principal);

@@ -355,3 +355,58 @@ test("scale applies our ClusterClass before the Cluster (clusters made before it
   expect(kinds.indexOf("ClusterClass")).toBeGreaterThanOrEqual(0);
   expect(kinds.indexOf("ClusterClass")).toBeLessThan(kinds.indexOf("Cluster"));
 });
+
+test("a cluster's status: CAPI's conditions, its phase and why it is not available yet", async () => {
+  const { m, id } = await readyCluster();
+  kube.put({
+    apiVersion: "cluster.x-k8s.io/v1beta2",
+    kind: "Cluster",
+    metadata: { name: "web", namespace: "ic-acme" },
+    status: {
+      phase: "Provisioned",
+      conditions: [
+        { type: "Available", status: "False", reason: "NotAvailable", message: "* ControlPlaneAvailable: waiting for etcd", lastTransitionTime: "2026-10-12T10:00:00Z" },
+        { type: "InfrastructureReady", status: "True", reason: "Ready", lastTransitionTime: "2026-10-12T09:59:00Z" },
+      ],
+    },
+  });
+  const viewer = await h.user("v@example.com", { tenants: { [acme.id]: "viewer" } });
+  const r = await h.call(viewer, "GET", `/api/v1/kubernetes/${id}/status`);
+  expect(r.status).toBe(200);
+  expect(r.body).toEqual({
+    phase: "Provisioned",
+    message: "* ControlPlaneAvailable: waiting for etcd",
+    endpoint: "https://10.0.0.5:16443",
+    conditions: [
+      { type: "Available", status: "False", reason: "NotAvailable", message: "* ControlPlaneAvailable: waiting for etcd", lastTransitionTime: "2026-10-12T10:00:00Z" },
+      { type: "InfrastructureReady", status: "True", reason: "Ready", message: "", lastTransitionTime: "2026-10-12T09:59:00Z" },
+    ],
+  });
+  const outsider = await h.user("o@example.com");
+  expect((await h.call(outsider, "GET", `/api/v1/kubernetes/${id}/status`)).status).toBe(404);
+  void m;
+});
+
+test("a cluster's activity: Events on its objects and its jobs, oldest first", async () => {
+  const m = await member();
+  const { body } = await h.call(m, "POST", "/api/v1/kubernetes", make());
+  const id = body.cluster.id as string;
+  // After the create, as CAPI's events are.
+  const later = (sec: number) => new Date(Date.now() + sec * 1000).toISOString();
+  const event = (name: string, kind: string, involved: string, at: string, o: Record<string, unknown> = {}) =>
+    kube.put({ apiVersion: "v1", kind: "Event", metadata: { name, namespace: "ic-acme" }, involvedObject: { kind, name: involved }, reason: "Created", message: `made ${involved}`, lastTimestamp: at, type: "Normal", ...o } as never);
+  event("e1", "Machine", "web-md-0-abc", later(5));
+  event("e2", "Cluster", "web", later(10), { type: "Warning", reason: "Failed", message: "no address" });
+  event("e3", "Cluster", "other", later(15));
+  const viewer = await h.user("v@example.com", { tenants: { [acme.id]: "viewer" } });
+  const r = await h.call(viewer, "GET", `/api/v1/kubernetes/${id}/activity`);
+  expect(r.status).toBe(200);
+  const entries = r.body.entries as Array<{ source: string; level: string; object?: string; message: string }>;
+  expect(entries.filter((e) => e.source === "event").map((e) => [e.object, e.level, e.message])).toEqual([
+    ["Machine/web-md-0-abc", "info", "Created: made web-md-0-abc"],
+    ["Cluster/web", "warning", "Failed: no address"],
+  ]);
+  // The create job, queued.
+  expect(entries.filter((e) => e.source === "incuscloud").map((e) => [e.object, e.level])).toEqual([["k8s-create", "info"]]);
+  expect(entries[0]!.source).toBe("incuscloud");
+});

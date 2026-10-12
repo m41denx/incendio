@@ -13,6 +13,7 @@
   "dependencies": {
     "@electric-sql/pglite": "0.5.8",
     "@incendio/api": "workspace:*",
+    "@incendio/k8s": "workspace:*",
     "@openfga/sdk": "0.9.7",
     "@openfga/syntax-transformer": "0.2.2",
     "@peculiar/x509": "^2.1.0",
