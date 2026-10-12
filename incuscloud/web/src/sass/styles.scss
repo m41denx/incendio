@@ -226,3 +226,240 @@
     flex: 1;
   }
 }
+
+// The console's sidebar: Incendio's dark navigation panel, as wide as dragged (240–360px),
+// with the inventory (view buttons, then the tree, which scrolls) above Platform and Account.
+.l-navigation.ic-sidebar .l-navigation__drawer {
+  position: relative;
+}
+
+@media (min-width: $breakpoint-small) {
+  .l-navigation.ic-sidebar.is-pinned,
+  .l-navigation.ic-sidebar.is-pinned:hover,
+  .l-navigation.ic-sidebar.is-pinned .l-navigation__drawer {
+    width: var(--ic-sidebar-width, 15rem);
+  }
+}
+
+.ic-sidebar {
+  .l-navigation__drawer > .p-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
+  .ic-sidebar__content {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    padding-top: 0;
+  }
+
+  .ic-sidebar__inventory {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 6rem;
+  }
+
+  .ic-sidebar__views {
+    border-bottom: 1px solid $colors--dark-theme--border-default;
+    display: flex;
+    flex: 0 0 auto;
+  }
+
+  .ic-sidebar__view {
+    background: none;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    flex: 1 1 0;
+    margin: 0;
+    min-width: 0;
+    padding: $spv--small 0;
+
+    &:hover {
+      background: $colors--dark-theme--background-hover;
+    }
+
+    &.is-active {
+      background: $colors--dark-theme--background-active;
+      border-bottom-color: $color-link-dark;
+    }
+  }
+
+  .ic-sidebar__tree {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    padding: $spv--x-small 0;
+  }
+
+  .ic-tree {
+    color: $colors--dark-theme--text-default;
+
+    .ic-tree__row:hover {
+      background: $colors--dark-theme--background-hover;
+    }
+
+    .ic-tree__row.is-selected {
+      background: $colors--dark-theme--background-active;
+      box-shadow: inset 3px 0 0 $color-link-dark;
+    }
+
+    .ic-tree__count {
+      color: $colors--dark-theme--text-inactive;
+    }
+
+    .ic-tree__toggle {
+      background: none;
+    }
+  }
+
+  .ic-sidebar__error {
+    color: $colors--dark-theme--text-inactive;
+    padding: 0 $sph--large;
+  }
+
+  .ic-sidebar__bottom {
+    border-top: 1px solid $colors--dark-theme--border-default;
+    flex: 0 1 auto;
+    max-height: 45%;
+    overflow-y: auto;
+  }
+
+  // Collapsed to icons: the view buttons stack, the tree and the labels go.
+  &.is-collapsed {
+    .ic-sidebar__views {
+      flex-direction: column;
+    }
+
+    .ic-sidebar__tree,
+    .ic-section-label,
+    .ic-sidebar__handle {
+      display: none;
+    }
+  }
+}
+
+.ic-sidebar__handle {
+  bottom: 0;
+  cursor: col-resize;
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 5px;
+  z-index: 1002;
+
+  &:hover {
+    background: $color-link-dark;
+  }
+
+  @media (max-width: $breakpoint-small - 1px) {
+    display: none;
+  }
+}
+
+body.ic-resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+
+// The selected object above the page: its breadcrumb and its one row of tabs.
+.l-main.ic-object {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+}
+
+.ic-object__head {
+  flex: 0 0 auto;
+  padding: $spv--small $sph--large 0;
+
+  .ic-breadcrumbs {
+    margin-bottom: 0;
+
+    .p-breadcrumbs__item {
+      margin-bottom: 0;
+    }
+  }
+}
+
+.ic-tabs {
+  overflow: hidden;
+
+  .p-tabs {
+    margin-bottom: 0;
+  }
+
+  .p-tabs__list {
+    flex-wrap: nowrap;
+    white-space: nowrap;
+  }
+
+  .ic-tabs__more {
+    background: none;
+    border: 0;
+    border-radius: 0;
+  }
+}
+
+.ic-object__body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+
+  > .l-main {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+  }
+}
+
+// A cluster's Configure tab: its settings pages in a side menu, the chosen one beside it.
+.ic-configure {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+
+  .ic-configure__menu {
+    border-right: 1px solid $colors--theme--border-default;
+    flex: 0 0 12rem;
+    padding: $spv--large 0;
+  }
+
+  .ic-configure__link {
+    border-left: 3px solid transparent;
+    color: inherit;
+    display: block;
+    padding: $spv--x-small $sph--large;
+    text-decoration: none;
+
+    &:hover {
+      background: $colors--theme--background-hover;
+    }
+
+    &[aria-current="page"] {
+      background: $colors--theme--background-active;
+      border-left-color: $color-link;
+    }
+  }
+
+  .ic-configure__body {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-width: 0;
+    overflow-y: auto;
+
+    > .l-main {
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+  }
+}

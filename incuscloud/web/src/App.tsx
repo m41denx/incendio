@@ -15,7 +15,6 @@ import BackupList from "./pages/backups/BackupList";
 import TargetList from "./pages/backups/TargetList";
 import Suggestions from "./pages/balancing/Suggestions";
 import ClusterList from "./pages/clusters/ClusterList";
-import ClusterDetail from "./pages/clusters/ClusterDetail";
 import TenantList from "./pages/tenants/TenantList";
 import TenantDetail from "./pages/tenants/TenantDetail";
 import UserList from "./pages/users/UserList";
@@ -23,14 +22,35 @@ import UserDetail from "./pages/users/UserDetail";
 import ServiceAccountList from "./pages/service-accounts/ServiceAccountList";
 import AuditLog from "./pages/logs/AuditLog";
 import GatewayLog from "./pages/logs/GatewayLog";
+import { IncendioAt } from "./console/RenderAt";
+import { ClusterConfigure, ClusterIncendio, ClusterProjects, ClusterRedirect, ClusterSummary } from "./console/ClusterPages";
+
+const defaultProject = (cluster: string, rest: string) => `/ui/project/${encodeURIComponent(`default@${cluster}`)}/${rest}`;
 
 export const AppRoutes: FC = () => (
   <Routes>
     <Route element={<Shell />}>
+      {/* The tree's root, "All clusters": its Summary is the dashboard. */}
       <Route index element={<Dashboard />} />
-      {/* The inventory is Incendio's instance list over every cluster. */}
-      <Route path="instances" element={<Navigate to="/ui/all-projects/instances" replace />} />
-      <Route path="instances/new" element={<Navigate to="/ui/all-projects/instances" replace />} />
+      <Route path="all/clusters" element={<ClusterList />} />
+      <Route path="all/instances" element={<IncendioAt path="/ui/all-projects/instances" />} />
+      <Route path="all/warnings" element={<IncendioAt path="/ui/warnings" />} />
+      {/* A cluster: its tabs, Incendio's pages for it under the console URL (which tells the facade the cluster). */}
+      <Route path="inventory/:cluster" element={<ClusterSummary />} />
+      <Route path="inventory/:cluster/nodes" element={<ClusterIncendio path={() => "/ui/cluster/members"} />} />
+      <Route path="inventory/:cluster/projects" element={<ClusterProjects />} />
+      <Route path="inventory/:cluster/networks" element={<ClusterIncendio path={(c) => defaultProject(c, "networks")} />} />
+      <Route path="inventory/:cluster/storage" element={<ClusterIncendio path={(c) => defaultProject(c, "storage/pools")} />} />
+      <Route path="inventory/:cluster/operations" element={<ClusterIncendio path={() => "/ui/operations"} />} />
+      <Route path="inventory/:cluster/configure" element={<ClusterConfigure />} />
+      <Route path="inventory/:cluster/configure/:sub" element={<ClusterConfigure />} />
+      {/* Old links. */}
+      <Route path="instances" element={<Navigate to="/all/instances" replace />} />
+      <Route path="instances/new" element={<Navigate to="/all/instances" replace />} />
+      <Route path="ui/all-projects/instances" element={<Navigate to="/all/instances" replace />} />
+      <Route path="ui/warnings" element={<Navigate to="/all/warnings" replace />} />
+      <Route path="clusters" element={<Navigate to="/all/clusters" replace />} />
+      <Route path="clusters/:id" element={<ClusterRedirect />} />
       <Route path="instances/:id" element={<InstanceDetail />} />
       <Route path="kubernetes" element={<KubernetesList />} />
       <Route path="kubernetes/new" element={<CreateKubernetes />} />
@@ -41,8 +61,6 @@ export const AppRoutes: FC = () => (
       <Route path="backups" element={<BackupList />} />
       <Route path="balancing" element={<Suggestions />} />
       <Route path="backup-targets" element={<TargetList />} />
-      <Route path="clusters" element={<ClusterList />} />
-      <Route path="clusters/:id" element={<ClusterDetail />} />
       <Route path="tenants" element={<TenantList />} />
       <Route path="tenants/:id" element={<TenantDetail />} />
       <Route path="users" element={<UserList />} />

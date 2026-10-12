@@ -15,9 +15,10 @@ test("a per-cluster section of a merged project goes to one cluster: the one las
   expect(qualifyPath("/ui/project/kspike/networks", names, "cluster-c")).toBe("/ui/project/kspike%40cluster-b/networks");
 });
 
-test("the instance list (and the project's root) stay merged; qualified and unknown projects are left alone", () => {
-  for (const path of ["/ui/project/default/instances", "/ui/project/default", "/ui/project/default%40cluster-c/profiles", "/ui/project/nope/profiles", "/clusters", "/ui/cluster/members"])
-    expect(qualifyPath(path, names)).toBeNull();
+test("projects are never merged: an unqualified instance list goes to one cluster too; qualified and unknown projects are left alone", () => {
+  expect(qualifyPath("/ui/project/default/instances", names, "cluster-d")).toBe("/ui/project/default%40cluster-d/instances");
+  expect(qualifyPath("/ui/project/default", names)).toBe("/ui/project/default%40cluster-b/");
+  for (const path of ["/ui/project/default%40cluster-c/profiles", "/ui/project/nope/profiles", "/clusters", "/ui/cluster/members"]) expect(qualifyPath(path, names)).toBeNull();
 });
 
 test("on another section: the clusters the project is on, each the same section there; no 'All clusters'", () => {

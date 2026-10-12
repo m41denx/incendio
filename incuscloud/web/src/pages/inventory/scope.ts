@@ -54,7 +54,7 @@ function sectionOf(rest: string): string {
  */
 export function qualifyPath(pathname: string, names: string[], prefer?: string): string | null {
   const r = route(pathname);
-  if (!r || clusterOf(r.project) || spansClusters(r.rest)) return null;
+  if (!r || clusterOf(r.project)) return null;
   const on = clustersWith(names, r.project);
   if (!on.length) return null;
   const cluster = prefer && on.includes(prefer) ? prefer : on[0]!;

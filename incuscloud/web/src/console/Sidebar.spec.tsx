@@ -4,25 +4,27 @@ import { Route, Routes, useLocation } from "react-router-dom";
 import userEvent from "@testing-library/user-event";
 import { me, mockApi } from "../test/api";
 import { incendioApi, renderInFrame } from "../test/incendio";
-import Shell from "./Shell";
+import Shell from "../components/Shell";
 
-// Section labels, and "Profile" for the link to /profile (labelled with the user's name).
+// The sidebar's links, and "Profile" for the link to /profile (labelled with the user's name).
 const labels = async () => {
-  await screen.findByText("Clusters");
-  return screen.getAllByRole("link").map((a) => (a.getAttribute("href") === "/profile" ? "Profile" : a.textContent?.trim())).filter(Boolean);
+  await screen.findByRole("link", { name: "Kubernetes" });
+  const nav = screen.getByRole("navigation", { name: "main navigation" });
+  return [...nav.querySelectorAll("a")].map((a) => (a.getAttribute("href") === "/profile" ? "Profile" : a.textContent?.trim())).filter(Boolean);
 };
+const ready = () => screen.findByRole("link", { name: "Kubernetes" });
 
 test("platform admins see every section", async () => {
   mockApi({ ...incendioApi(), "GET /api/v1/me": [200, me({ platformRole: "admin" })] });
   renderInFrame(<Shell />);
-  expect(await labels()).toEqual(expect.arrayContaining(["Dashboard", "Instances", "Kubernetes", "Clusters", "Tenants", "Jobs", "Replication", "Backups", "Balancing", "Backup targets", "Users", "Service accounts", "Audit log", "Gateway log", "Profile"]));
+  expect(await labels()).toEqual(expect.arrayContaining(["All clusters", "Kubernetes", "Tenants", "Jobs", "Replication", "Backups", "Balancing", "Backup targets", "Users", "Service accounts", "Audit log", "Gateway log", "Profile"]));
 });
 
-test("tenant members see their tenants and clusters, not platform administration", async () => {
+test("tenant members see the platform's pages they use, not its administration", async () => {
   mockApi({ ...incendioApi(), "GET /api/v1/me": [200, me({ platformRole: null, tenants: [{ id: "t1", slug: "acme", name: "Acme", role: "member" }] })] });
   renderInFrame(<Shell />);
   const l = await labels();
-  expect(l).toEqual(expect.arrayContaining(["Dashboard", "Instances", "Kubernetes", "Clusters", "Tenants", "Jobs", "Replication", "Backups", "Balancing", "Profile"]));
+  expect(l).toEqual(expect.arrayContaining(["All clusters", "Kubernetes", "Tenants", "Jobs", "Replication", "Backups", "Balancing", "Profile"]));
   for (const hidden of ["Backup targets", "Users", "Service accounts", "Audit log", "Gateway log"]) expect(l).not.toContain(hidden);
 });
 
@@ -51,7 +53,7 @@ test("sign out is a navigation entry that posts to /auth/logout", async () => {
 test("Incendio's frame: a dark navigation panel with the logo, and the version in the status bar", async () => {
   mockApi({ ...incendioApi(), "GET /api/v1/me": [200, me()] });
   const { container } = renderInFrame(<Shell />);
-  await screen.findByText("Clusters");
+  await ready();
   expect(container.querySelector("nav.l-navigation .l-navigation__drawer .p-panel.is-dark")).not.toBeNull();
   expect(container.querySelector("nav .p-panel__logo .logo-text")).toHaveTextContent("IncusCloud");
   expect(container.querySelector("header.l-navigation-bar")).not.toBeNull();
@@ -62,7 +64,7 @@ test("Incendio's frame: a dark navigation panel with the logo, and the version i
 test("the navigation collapses and expands", async () => {
   mockApi({ ...incendioApi(), "GET /api/v1/me": [200, me()] });
   const { container } = renderInFrame(<Shell />);
-  await screen.findByText("Clusters");
+  await ready();
   const nav = () => container.querySelector("nav.l-navigation")!;
   expect(nav()).toHaveClass("is-pinned");
   await userEvent.click(screen.getByRole("button", { name: "collapse main navigation" }));
@@ -77,7 +79,7 @@ test("on small and medium screens the navigation starts collapsed, as Incendio's
   Object.defineProperty(window, "innerWidth", { value: 700, configurable: true });
   try {
     const { container } = renderInFrame(<Shell />);
-    await screen.findByText("Clusters");
+    await ready();
     expect(container.querySelector("nav.l-navigation")).toHaveClass("is-collapsed");
     await userEvent.click(screen.getByRole("button", { name: "Menu" }));
     expect(container.querySelector("nav.l-navigation")).toHaveClass("is-pinned");
@@ -91,18 +93,17 @@ afterEach(() => {
   document.body.classList.remove("is-dark");
 });
 
-test("sections in order, each labelled: the project's, Incus-wide, the platform's (dashboard first), the account", async () => {
+test("the tree first, then Platform and Account, each labelled; the dashboard and the cluster list are the root's tabs", async () => {
   mockApi({ ...incendioApi(), "GET /api/v1/me": [200, me({ platformRole: "admin" })] });
   renderInFrame(<Shell />);
-  await screen.findByText("Clusters");
-  const order = [...document.querySelectorAll(".project-select-label, .navigation-section-label, .p-side-navigation__link")].map((e) => e.textContent?.trim());
+  await ready();
+  const order = [...document.querySelectorAll(".ic-tree__label, .ic-section-label, .p-side-navigation__link")].map((e) => e.textContent?.trim());
   const at = (x: string) => order.findIndex((t) => t === x || t?.endsWith(x));
-  expect(order.filter((t) => ["Project", "Infrastructure", "Platform", "Account"].includes(t ?? ""))).toEqual(["Project", "Infrastructure", "Platform", "Account"]);
-  expect(at("Project")).toBeLessThan(at("Instances"));
-  expect(at("Platform")).toBeLessThan(at("Dashboard"));
-  expect(at("Dashboard")).toBeLessThan(at("Kubernetes"));
-  expect(at("Kubernetes")).toBeLessThan(at("Clusters"));
+  expect(order.filter((t) => ["Platform", "Account"].includes(t ?? ""))).toEqual(["Platform", "Account"]);
+  expect(at("All clusters")).toBeLessThan(at("Platform"));
+  expect(at("Platform")).toBeLessThan(at("Kubernetes"));
   expect(at("Account")).toBeLessThan(at("Sign out"));
+  for (const gone of ["Dashboard", "Clusters", "Infrastructure", "Project"]) expect(order).not.toContain(gone);
 });
 
 test("the saved theme (Incendio's setting) applies on every page, not only Incendio's", async () => {
@@ -118,13 +119,11 @@ const Where = () => {
   return <p data-testid="where">{l.pathname + l.search}</p>;
 };
 
-test("a merged project's profiles are one cluster's: the page goes to the project there, and the selector shows it by name", async () => {
+test("an unqualified project (an old link) goes to the project on a cluster that has it", async () => {
   mockApi({
     ...incendioApi(),
     "GET /api/v1/me": [200, me({ platformRole: "admin" })],
-    "GET /1.0/projects": [200, { type: "sync", metadata: ["default", "default@c1", "default@c2", "solo@c2"].map((name) => ({ name, description: "", config: {}, used_by: [] })) }],
-    "GET /1.0/projects/default%40c1": [200, { type: "sync", metadata: { name: "default@c1", description: "", config: {}, used_by: [] } }],
-    "GET /1.0/operations": [200, { type: "sync", metadata: {} }],
+    "GET /1.0/projects": [200, { type: "sync", metadata: ["default@c1", "default@c2", "solo@c2"].map((name) => ({ name, description: "", config: {}, used_by: [] })) }],
   });
   renderInFrame(
     <Routes>
@@ -132,11 +131,7 @@ test("a merged project's profiles are one cluster's: the page goes to the projec
         <Route path="*" element={<Where />} />
       </Route>
     </Routes>,
-    { path: "/ui/project/default/profiles", pattern: "/*" },
+    { path: "/ui/project/solo/profiles", pattern: "/*" },
   );
-  await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/ui/project/default%40c1/profiles"));
-  // The project by name, the cluster beside it.
-  await userEvent.click(await screen.findByRole("button", { name: "default" }));
-  expect(screen.getByRole("button", { name: "c1" })).toBeInTheDocument();
-  expect([...document.querySelectorAll(".project-select .projects .name")].map((e) => e.textContent)).toEqual(["default", "solo"]);
+  await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/ui/project/solo%40c2/profiles"));
 });

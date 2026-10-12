@@ -87,11 +87,11 @@ export function buildView(view: View, d: InventoryData): TreeItem {
     } else if (view === "networks") {
       children = (d.networks[cluster] ?? [])
         .filter((n) => n.managed)
-        .map((n) => ({ key: `net:${cluster}/${n.name}`, label: n.name, icon: "connected", to: projectPath(`default@${cluster}`, `network/${enc(n.name)}`) }));
+        .map((n) => ({ key: `net:${cluster}/${n.name}`, label: n.name, icon: "exposed", to: projectPath(`default@${cluster}`, `network/${enc(n.name)}`) }));
     } else {
       children = d.pools
         .filter((p) => clusterOf(p.name) === cluster)
-        .map((p) => ({ key: `pool:${p.name}`, label: nameOf(p.name), icon: "storage-bucket", status: p.status, to: projectPath(`default@${cluster}`, `storage/pool/${enc(p.name)}`) }));
+        .map((p) => ({ key: `pool:${p.name}`, label: nameOf(p.name), icon: "storage-pool", status: p.status, to: projectPath(`default@${cluster}`, `storage/pool/${enc(p.name)}`) }));
     }
     return {
       key: `c:${cluster}`,

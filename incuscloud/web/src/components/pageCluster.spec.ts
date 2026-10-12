@@ -6,4 +6,6 @@ test("a page belongs to the cluster its first qualified path segment names", () 
   expect(pageCluster("/ui/cluster/member/d1@cluster-d")).toBe("cluster-d");
   expect(pageCluster("/ui/all-projects/instances")).toBe("");
   expect(pageCluster("/ui/project/acme/instances")).toBe("");
+  expect(pageCluster("/inventory/cluster-c/storage")).toBe("cluster-c");
+  expect(pageCluster("/all/instances")).toBe("");
 });
