@@ -8,7 +8,7 @@ import { authed, principalContext, type Principal } from "../auth/principal.ts";
 import { ApiError } from "../lib/errors.ts";
 import { enqueueJob } from "../jobs/queue.ts";
 import { exceeds, sumUsage, type Usage } from "../tenants/quota.ts";
-import type { Kube } from "../k8s/kube.ts";
+import type { Kube, KubeObject } from "../k8s/kube.ts";
 import { clusterManifest } from "../k8s/manifests.ts";
 import { KUBERNETES_VERSIONS, SIZES, namespaceOf, upgradeError, usageOf, type Size } from "../k8s/model.ts";
 import { secretNameOf } from "../k8s/credentials.ts";
@@ -54,6 +54,22 @@ const jobFor = (id: string) => sql`${jobs.payload}->>'k8sId' = ${id}`;
 const lockTenant = (tx: Db, tenantId: string) => tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`tenant-create:${tenantId}`}))`);
 
 /** Kubernetes clusters (P10): tenant members create, scale and upgrade; tenant admins delete; on the management cluster through CAPI. */
+const MACHINE_API = "cluster.x-k8s.io/v1beta2";
+
+/** A Cluster API Machine as a node of its cluster: its Incus instance is its LXCMachine (CAPN names the instance after it). */
+function nodeOf(m: KubeObject) {
+  const spec = (m.spec ?? {}) as { version?: string; infrastructureRef?: { name?: string } };
+  const status = (m.status ?? {}) as { phase?: string; nodeRef?: { name?: string }; conditions?: Array<{ type: string; status: string }> };
+  return {
+    name: m.metadata.name,
+    role: m.metadata.labels?.["cluster.x-k8s.io/control-plane"] !== undefined ? ("control-plane" as const) : ("worker" as const),
+    instance: spec.infrastructureRef?.name ?? status.nodeRef?.name ?? "",
+    phase: status.phase ?? "Pending",
+    version: spec.version ?? "",
+    ready: status.conditions?.find((c) => c.type === "Ready")?.status === "True",
+  };
+}
+
 export function kubernetesRoutes({ db, authz, kube, k8sPorts }: { db: Db; authz: Authz; kube?: Kube; k8sPorts?: [number, number] }) {
   const ports = k8sPorts ?? DEFAULT_PORTS;
   const enabled = (): Kube => {
@@ -264,6 +280,17 @@ export function kubernetesRoutes({ db, authz, kube, k8sPorts }: { db: Db; authz:
       );
       set.status = 202;
       return job;
+    })
+    .get("/api/v1/kubernetes/:id/nodes", async ({ principal, params }) => {
+      const { row } = await load(authed(principal), params.id);
+      let machines: KubeObject[];
+      try {
+        machines = await enabled().list(MACHINE_API, "Machine", row.namespace, `cluster.x-k8s.io/cluster-name=${row.name}`);
+      } catch (e) {
+        if (e instanceof ApiError) throw e;
+        throw new ApiError(503, "management_unavailable", `The management cluster did not answer: ${String((e as Error).message ?? e)}`);
+      }
+      return machines.map(nodeOf).sort((a, b) => (a.role === b.role ? a.name.localeCompare(b.name) : a.role === "control-plane" ? -1 : 1));
     })
     .get("/api/v1/kubernetes/:id/kubeconfig", async ({ principal, request, params }) => {
       const p = authed(principal);

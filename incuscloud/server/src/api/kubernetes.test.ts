@@ -213,3 +213,33 @@ test("on a multi-member Incus cluster, a create is pinned to the member asked fo
   expect(r.status).toBe(202);
   expect(["m1", "m2"]).toContain(r.body.cluster.member);
 });
+
+const machine = (name: string, o: { cp?: boolean; phase?: string; ready?: boolean; cluster?: string; version?: string } = {}) => ({
+  apiVersion: "cluster.x-k8s.io/v1beta2",
+  kind: "Machine",
+  metadata: { name, namespace: "ic-acme", labels: { "cluster.x-k8s.io/cluster-name": o.cluster ?? "web", ...(o.cp ? { "cluster.x-k8s.io/control-plane": "" } : {}) } },
+  spec: { version: o.version ?? "v1.36.4", infrastructureRef: { apiGroup: "infrastructure.cluster.x-k8s.io", kind: "LXCMachine", name: `${name}-lxc` } },
+  status: { phase: o.phase ?? "Running", conditions: [{ type: "Ready", status: o.ready === false ? "False" : "True" }] },
+});
+
+test("a cluster's nodes: its Machines, control plane first, each with its Incus instance; tenant viewers may read them", async () => {
+  const m = await member();
+  const id = (await h.call(m, "POST", "/api/v1/kubernetes", make())).body.cluster.id;
+  kube.put(machine("web-md-b", {}));
+  kube.put(machine("web-md-a", { phase: "Provisioning", ready: false }));
+  kube.put(machine("web-cp-x", { cp: true }));
+  kube.put(machine("other-cp", { cp: true, cluster: "other" }));
+  const viewer = await h.user("v@example.com", { tenants: { [acme.id]: "viewer" } });
+  const r = await h.call(viewer, "GET", `/api/v1/kubernetes/${id}/nodes`);
+  expect(r.status).toBe(200);
+  expect(r.body).toEqual([
+    { name: "web-cp-x", role: "control-plane", instance: "web-cp-x-lxc", phase: "Running", version: "v1.36.4", ready: true },
+    { name: "web-md-a", role: "worker", instance: "web-md-a-lxc", phase: "Provisioning", version: "v1.36.4", ready: false },
+    { name: "web-md-b", role: "worker", instance: "web-md-b-lxc", phase: "Running", version: "v1.36.4", ready: true },
+  ]);
+  const outsider = await h.user("o@example.com");
+  expect((await h.call(outsider, "GET", `/api/v1/kubernetes/${id}/nodes`)).status).toBe(404);
+  kube.down = true;
+  const down = await h.call(viewer, "GET", `/api/v1/kubernetes/${id}/nodes`);
+  expect([down.status, down.body.error.code]).toEqual([503, "management_unavailable"]);
+});
