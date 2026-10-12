@@ -8,6 +8,7 @@ import type { Me } from "../api/types";
 import Logo from "../components/Logo";
 import { crumbsOf, objectOf } from "./object";
 import Tree from "./Tree";
+import KindIcon, { type Kind } from "./KindIcon";
 import { useInventory } from "./useInventory";
 import { VIEWS, type View } from "./views";
 
@@ -39,7 +40,7 @@ export function platformSections(me: Me): Section[] {
   ]);
 }
 
-const VIEW_ICONS: Record<View, string> = { instances: "pods", projects: "folder", nodes: "machines", networks: "exposed", storage: "storage-pool" };
+const VIEW_ICONS: Record<View, Kind> = { instances: "container", projects: "project", members: "member", networks: "network", storage: "pool" };
 const MIN_WIDTH = 240;
 const MAX_WIDTH = 360;
 
@@ -153,7 +154,7 @@ const Sidebar: FC = () => {
                 <div className="ic-sidebar__views" role="group" aria-label="Tree view">
                   {VIEWS.map((v) => (
                     <button key={v.view} type="button" className={classnames("ic-sidebar__view", { "is-active": v.view === view })} aria-label={v.label} aria-pressed={v.view === view} title={v.label} onClick={() => choose(v.view)}>
-                      <Icon name={VIEW_ICONS[v.view]} light />
+                      <KindIcon kind={VIEW_ICONS[v.view]} />
                     </button>
                   ))}
                 </div>

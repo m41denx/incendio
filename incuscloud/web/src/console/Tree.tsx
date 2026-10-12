@@ -2,6 +2,7 @@ import { type FC, useState } from "react";
 import { Link } from "react-router-dom";
 import classnames from "classnames";
 import { Button, Icon } from "@canonical/react-components";
+import KindIcon from "./KindIcon";
 import type { TreeItem } from "./views";
 
 /** The keys from the root down to the item that leads to `to` (empty when none does). */
@@ -14,8 +15,6 @@ function pathTo(item: TreeItem, to: string): string[] {
   return [];
 }
 
-/** A cluster's own status, when it is not plainly ready. */
-const clusterAlert = (status?: string) => (status && !["ready", "Online", "Created", "Running"].includes(status) ? status : null);
 
 /**
  * The inventory tree. Labels select (they are links to the object);
@@ -37,7 +36,6 @@ const Tree: FC<{ root: TreeItem; selected: string; onSelect?: () => void }> = ({
   const row = (item: TreeItem, depth: number) => {
     const kids = item.children ?? [];
     const open = kids.length > 0 && isOpen(item.key, depth);
-    const alert = depth === 1 ? clusterAlert(item.status) : null;
     return (
       <li key={item.key} role="treeitem" aria-level={depth + 1} aria-expanded={kids.length ? open : undefined} aria-selected={item.to === selected || undefined} className="ic-tree__item">
         <div className={classnames("ic-tree__row", { "is-selected": item.to === selected })} style={{ paddingLeft: `${depth * 0.75}rem` }}>
@@ -48,8 +46,8 @@ const Tree: FC<{ root: TreeItem; selected: string; onSelect?: () => void }> = ({
           ) : (
             <span className="ic-tree__toggle" />
           )}
-          <Link to={item.to} className="ic-tree__label" title={alert ? `${item.label} (${alert})` : item.label} onClick={onSelect}>
-            <Icon name={alert ? "status-failed-small" : item.icon} light /> <span className="u-truncate">{item.label}</span>
+          <Link to={item.to} className="ic-tree__label" title={item.status ? `${item.label} (${item.status})` : item.label} onClick={onSelect}>
+            <KindIcon kind={item.kind} tone={item.tone} /> <span className="u-truncate">{item.label}</span>
           </Link>
           {item.count !== undefined && <span className="ic-tree__count">{item.count}</span>}
         </div>

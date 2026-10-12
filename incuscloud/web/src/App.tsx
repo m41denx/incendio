@@ -23,7 +23,7 @@ import ServiceAccountList from "./pages/service-accounts/ServiceAccountList";
 import AuditLog from "./pages/logs/AuditLog";
 import GatewayLog from "./pages/logs/GatewayLog";
 import { AllWarnings, IncendioAt } from "./console/RenderAt";
-import { ClusterConfigure, ClusterIncendio, ClusterProjects, ClusterRedirect, ClusterSummary } from "./console/ClusterPages";
+import { ClusterConfigure, ClusterIncendio, ClusterProjects, ClusterRedirect, ClusterRename, ClusterSummary } from "./console/ClusterPages";
 
 const defaultProject = (cluster: string, rest: string) => `/ui/project/${encodeURIComponent(`default@${cluster}`)}/${rest}`;
 
@@ -37,7 +37,8 @@ export const AppRoutes: FC = () => (
       <Route path="all/warnings" element={<AllWarnings />} />
       {/* A cluster: its tabs, Incendio's pages for it under the console URL (which tells the facade the cluster). */}
       <Route path="inventory/:cluster" element={<ClusterSummary />} />
-      <Route path="inventory/:cluster/nodes" element={<ClusterIncendio path={() => "/ui/cluster/members"} />} />
+      <Route path="inventory/:cluster/members" element={<ClusterIncendio path={() => "/ui/cluster/members"} />} />
+      <Route path="inventory/:cluster/nodes" element={<ClusterRename to="members" />} />
       <Route path="inventory/:cluster/projects" element={<ClusterProjects />} />
       <Route path="inventory/:cluster/networks" element={<ClusterIncendio path={(c) => defaultProject(c, "networks")} />} />
       <Route path="inventory/:cluster/storage" element={<ClusterIncendio path={(c) => defaultProject(c, "storage/pools")} />} />

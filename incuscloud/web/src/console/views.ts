@@ -1,12 +1,13 @@
 import { clusterOf, nameOf } from "../pages/inventory/tree";
 import { projectPath } from "./object";
+import { toneOf, type Kind, type Tone } from "./KindIcon";
 
 /** What the sidebar's tree lists below each cluster. */
-export type View = "instances" | "projects" | "nodes" | "networks" | "storage";
+export type View = "instances" | "projects" | "members" | "networks" | "storage";
 export const VIEWS: Array<{ view: View; label: string }> = [
   { view: "instances", label: "Instances" },
   { view: "projects", label: "Projects" },
-  { view: "nodes", label: "Nodes" },
+  { view: "members", label: "Members" },
   { view: "networks", label: "Networks" },
   { view: "storage", label: "Storage" },
 ];
@@ -14,7 +15,8 @@ export const VIEWS: Array<{ view: View; label: string }> = [
 export interface TreeItem {
   key: string;
   label: string;
-  icon: string;
+  kind: Kind;
+  tone: Tone;
   /** Where selecting it goes: the object's console URL. */
   to: string;
   count?: string;
@@ -27,23 +29,10 @@ export interface InventoryData {
   clusters: Array<{ name: string; status: string }>;
   members: Array<{ server_name: string; status: string }>;
   projects: Array<{ name: string }>;
-  instances: Array<{ name: string; project: string; location: string; status: string }>;
+  instances: Array<{ name: string; project: string; location: string; status: string; type?: string }>;
   networks: Record<string, Array<{ name: string; managed: boolean }>>;
   pools: Array<{ name: string; status: string }>;
 }
-
-/** An Incus status as a small status icon. */
-export const statusIcon = (status: string) =>
-  ({
-    Online: "status-succeeded-small",
-    Running: "status-succeeded-small",
-    Ready: "status-waiting-small",
-    Evacuated: "status-waiting-small",
-    Frozen: "status-in-progress-small",
-    Stopped: "status-queued-small",
-    Offline: "status-failed-small",
-    Error: "status-failed-small",
-  })[status] ?? "status-queued-small";
 
 const enc = encodeURIComponent;
 const byLabel = (a: TreeItem, b: TreeItem) => a.label.localeCompare(b.label);
@@ -52,7 +41,8 @@ const running = (list: InventoryData["instances"]) => list.filter((i) => i.statu
 const instanceItem = (i: InventoryData["instances"][number]): TreeItem => ({
   key: `i:${i.project}/${i.name}`,
   label: i.name,
-  icon: statusIcon(i.status),
+  kind: i.type === "virtual-machine" ? "vm" : "container",
+  tone: toneOf(i.status),
   status: i.status,
   to: projectPath(i.project, `instance/${enc(i.name)}`),
 });
@@ -60,7 +50,8 @@ const instanceItem = (i: InventoryData["instances"][number]): TreeItem => ({
 const nodeItem = (name: string, status: string, instances?: InventoryData["instances"]): TreeItem => ({
   key: `n:${name}`,
   label: nameOf(name),
-  icon: statusIcon(status),
+  kind: "member",
+  tone: toneOf(status),
   status,
   to: `/ui/cluster/member/${enc(name)}`,
   ...(instances ? { count: String(instances.length), children: instances.map(instanceItem).sort(byLabel) } : {}),
@@ -92,23 +83,24 @@ export function buildView(view: View, d: InventoryData): TreeItem {
         .filter((p) => clusterOf(p.name) === cluster)
         .map((p) => {
           const mine = instances.filter((i) => i.project === p.name);
-          return { key: `p:${p.name}`, label: nameOf(p.name), icon: "folder", to: projectPath(p.name, "instances"), count: String(mine.length), children: mine.map(instanceItem).sort(byLabel) };
+          return { key: `p:${p.name}`, label: nameOf(p.name), kind: "project", tone: "none", to: projectPath(p.name, "instances"), count: String(mine.length), children: mine.map(instanceItem).sort(byLabel) };
         });
-    } else if (view === "nodes") {
+    } else if (view === "members") {
       children = members.map((m) => nodeItem(m.server_name, m.status));
     } else if (view === "networks") {
       children = (d.networks[cluster] ?? [])
         .filter((n) => n.managed)
-        .map((n) => ({ key: `net:${cluster}/${n.name}`, label: n.name, icon: "exposed", to: projectPath(`default@${cluster}`, `network/${enc(n.name)}`) }));
+        .map((n) => ({ key: `net:${cluster}/${n.name}`, label: n.name, kind: "network", tone: "none", to: projectPath(`default@${cluster}`, `network/${enc(n.name)}`) }));
     } else {
       children = d.pools
         .filter((p) => clusterOf(p.name) === cluster)
-        .map((p) => ({ key: `pool:${p.name}`, label: nameOf(p.name), icon: "storage-pool", status: p.status, to: projectPath(`default@${cluster}`, `storage/pool/${enc(p.name)}`) }));
+        .map((p) => ({ key: `pool:${p.name}`, label: nameOf(p.name), kind: "pool", tone: toneOf(p.status), status: p.status, to: projectPath(`default@${cluster}`, `storage/pool/${enc(p.name)}`) }));
     }
     return {
       key: `c:${cluster}`,
       label: cluster,
-      icon: "cluster-host",
+      kind: "cluster",
+      tone: toneOf(statusOf.get(cluster)),
       status: statusOf.get(cluster),
       to: `/inventory/${enc(cluster)}`,
       ...(withInstances ? { count: `${running(instances)}/${instances.length}` } : {}),
@@ -120,7 +112,8 @@ export function buildView(view: View, d: InventoryData): TreeItem {
   return {
     key: "root",
     label: "All clusters",
-    icon: "cluster-host",
+    kind: "root",
+    tone: "none",
     to: "/",
     ...(withInstances ? { count: `${running(all)}/${all.length}` } : {}),
     children: clusters.sort(byLabel),

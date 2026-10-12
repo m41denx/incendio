@@ -58,7 +58,7 @@ export const ClusterSummary: FC = () => {
             </Notification>
           ) : null}
           <section className="ic-stats" aria-label={`Cluster ${cluster}`}>
-            <Stat label="Nodes">
+            <Stat label="Members">
               {online} / {nodes.length} online
             </Stat>
             <Stat label="Instances">{item.count?.replace("/", " / ")} running</Stat>
@@ -74,9 +74,9 @@ export const ClusterSummary: FC = () => {
               </>
             ) : null}
           </section>
-          <h2 className="p-heading--5">Nodes</h2>
+          <h2 className="p-heading--5">Members</h2>
           <MainTable
-            headers={[{ content: "Node" }, { content: "Status" }, { content: "Instances", className: "u-align--right" }]}
+            headers={[{ content: "Member" }, { content: "Status" }, { content: "Instances", className: "u-align--right" }]}
             rows={nodes.map((n) => ({
               columns: [
                 { content: <Link to={n.to}>{n.label}</Link> },
@@ -176,3 +176,6 @@ export const ClusterRedirect: FC = () => {
   if (clusters.isPending) return <Loading />;
   return <Navigate to={name ? `/inventory/${enc(name)}/configure/incuscloud` : "/all/clusters"} replace />;
 };
+
+/** A cluster tab's old name: the same tab under its new one. */
+export const ClusterRename: FC<{ to: string }> = ({ to }) => <Navigate to={`/inventory/${enc(useCluster())}/${to}`} replace />;

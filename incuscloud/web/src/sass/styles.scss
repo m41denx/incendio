@@ -476,3 +476,63 @@ body.ic-resizing {
     }
   }
 }
+
+// Inventory kinds (console/KindIcon): square line icons in the current colour, tinted by status.
+.ic-kind {
+  flex: 0 0 auto;
+  height: 1rem;
+  vertical-align: -0.1875rem;
+  width: 1rem;
+
+  &.ic-tone--ok {
+    color: #0e8420;
+  }
+
+  &.ic-tone--off {
+    color: $color-mid-dark;
+  }
+
+  &.ic-tone--busy {
+    color: #cc7900;
+  }
+
+  &.ic-tone--frozen {
+    color: #06c;
+  }
+
+  &.ic-tone--bad {
+    color: #c7162b;
+  }
+}
+
+// On the dark sidebar: the same tones, lighter.
+.ic-sidebar .ic-kind {
+  &.ic-tone--none {
+    color: $colors--dark-theme--text-default;
+  }
+
+  &.ic-tone--ok {
+    color: #5dc76b;
+  }
+
+  &.ic-tone--off {
+    color: #8a8a8a;
+  }
+
+  &.ic-tone--busy {
+    color: #f99b11;
+  }
+
+  &.ic-tone--frozen {
+    color: #69a7ff;
+  }
+
+  &.ic-tone--bad {
+    color: #ff6b6b;
+  }
+}
+
+.ic-sidebar__view .ic-kind {
+  height: 1.125rem;
+  width: 1.125rem;
+}

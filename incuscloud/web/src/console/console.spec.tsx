@@ -32,7 +32,7 @@ const api = (over: Record<string, [number, unknown?]> = {}) =>
   });
 
 const nav = () => within(screen.getByRole("navigation", { name: "main navigation" }));
-/** The tree's link to a cluster (a standalone cluster's one node has its name too). */
+/** The tree's link to a cluster (a standalone cluster's one member has its name too). */
 const clusterLink = async (name: string) => (await nav().findAllByRole("link", { name })).find((a) => a.getAttribute("href") === `/inventory/${name}`)!;
 /** The tab row, once it is there. */
 const tabRow = () =>
@@ -49,7 +49,7 @@ test("the sidebar: tree views, the tree, then Platform and Account; the view is 
   expect(await n.findByRole("link", { name: "m1" })).toBeInTheDocument();
   expect(n.getByRole("link", { name: "All clusters" })).toBeInTheDocument();
   expect(await clusterLink("c2")).toBeInTheDocument();
-  for (const v of ["Instances", "Projects", "Nodes", "Networks", "Storage"]) expect(n.getByRole("button", { name: v })).toBeInTheDocument();
+  for (const v of ["Instances", "Projects", "Members", "Networks", "Storage"]) expect(n.getByRole("button", { name: v })).toBeInTheDocument();
   for (const l of ["Kubernetes", "Tenants", "Jobs", "Sign out"]) expect(n.getByRole("link", { name: l })).toBeInTheDocument();
   // The root's tabs, not the sidebar, lead to the dashboard and the cluster list.
   expect(n.queryByRole("link", { name: "Dashboard" })).not.toBeInTheDocument();
@@ -61,11 +61,11 @@ test("the sidebar: tree views, the tree, then Platform and Account; the view is 
 
 test("a cluster's tab: breadcrumb, the tab row, and Incendio's page under the console URL", async () => {
   api();
-  renderInFrame(<AppRoutes />, { path: "/inventory/c1/nodes" });
+  renderInFrame(<AppRoutes />, { path: "/inventory/c1/members" });
   const crumbs = within(await screen.findByRole("navigation", { name: "Breadcrumbs" }));
   expect(crumbs.getAllByRole("link").map((a) => a.textContent)).toEqual(["All clusters", "c1"]);
   const tabs = within(document.querySelector(".ic-tabs") as HTMLElement);
-  expect(tabs.getByRole("link", { name: "Nodes" })).toHaveAttribute("aria-current", "page");
+  expect(tabs.getByRole("link", { name: "Members" })).toHaveAttribute("aria-current", "page");
   expect(await screen.findByText("Cluster members")).toBeInTheDocument();
 });
 
@@ -94,6 +94,9 @@ test("going to another cluster drops the global lists cached for the last one", 
 
 test("old routes land on the new objects", async () => {
   api();
+  const nodes = renderInFrame(<AppRoutes />, { path: "/inventory/c1/nodes" });
+  await waitFor(async () => expect((await tabRow()).getByRole("link", { name: "Members" })).toHaveAttribute("aria-current", "page"));
+  nodes.unmount();
   const { unmount } = renderInFrame(<AppRoutes />, { path: "/instances" });
   expect((await tabRow()).getByRole("link", { name: "Instances" })).toHaveAttribute("aria-current", "page");
   unmount();
@@ -140,4 +143,14 @@ test("warnings over every cluster say which cluster", async () => {
   expect(within(await row("on m1@c1")).getByRole("cell", { name: "Cluster" })).toHaveTextContent("c1");
   expect(within(await row("on c2@c2")).getByRole("cell", { name: "Cluster" })).toHaveTextContent("c2");
   expect(screen.getByRole("columnheader", { name: /^Cluster/ })).toBeInTheDocument();
+});
+
+test("tree rows show their kind's icon, tinted by status", async () => {
+  api();
+  // The selected instance's rows above it are open.
+  renderInFrame(<AppRoutes />, { path: "/ui/project/p%40c1/instance/web" });
+  const row = (await nav().findByRole("link", { name: "web" })).closest(".ic-tree__row")!;
+  expect(row.querySelector("svg.ic-kind")).toHaveClass("ic-kind--container", "ic-tone--ok");
+  const member = (await nav().findByRole("link", { name: "m1" })).closest(".ic-tree__row")!;
+  expect(member.querySelector("svg.ic-kind")).toHaveClass("ic-kind--member", "ic-tone--ok");
 });

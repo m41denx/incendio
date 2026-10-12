@@ -13,9 +13,9 @@ const data = (over: Partial<InventoryData> = {}): InventoryData => ({
   ],
   projects: [{ name: "default@cluster-d" }, { name: "default@cluster-b" }, { name: "kspike@cluster-b" }],
   instances: [
-    { name: "web-d2", project: "default@cluster-d", location: "d2@cluster-d", status: "Running" },
-    { name: "web-d1", project: "default@cluster-d", location: "d1@cluster-d", status: "Stopped" },
-    { name: "web-b", project: "kspike@cluster-b", location: "cluster-b@cluster-b", status: "Running" },
+    { name: "web-d2", project: "default@cluster-d", location: "d2@cluster-d", status: "Running", type: "container" },
+    { name: "web-d1", project: "default@cluster-d", location: "d1@cluster-d", status: "Stopped", type: "virtual-machine" },
+    { name: "web-b", project: "kspike@cluster-b", location: "cluster-b@cluster-b", status: "Running", type: "container" },
   ],
   networks: { "cluster-d": [{ name: "incusbr0", managed: true }, { name: "eth0", managed: false }] },
   pools: [{ name: "default@cluster-d", status: "Created" }],
@@ -28,7 +28,7 @@ const lines = (t: TreeItem, depth = 0): string[] => [
   ...(t.children ?? []).flatMap((c) => lines(c, depth + 1)),
 ];
 
-test("instances view: every cluster, its nodes, their instances; counts running/total", () => {
+test("instances view: every cluster, its members, their instances; counts running/total", () => {
   expect(lines(buildView("instances", data()))).toEqual([
     "All clusters (2/3) -> /",
     "  cluster-b (1/1) -> /inventory/cluster-b",
@@ -56,8 +56,8 @@ test("projects view: each cluster's projects and their instances", () => {
   ]);
 });
 
-test("nodes, networks and storage views", () => {
-  expect(lines(buildView("nodes", data()))).toEqual([
+test("members, networks and storage views", () => {
+  expect(lines(buildView("members", data()))).toEqual([
     "All clusters -> /",
     "  cluster-b -> /inventory/cluster-b",
     "    cluster-b -> /ui/cluster/member/cluster-b%40cluster-b",
@@ -90,4 +90,24 @@ test("an unreachable cluster stays in the tree with its status and nothing under
 test("a tenant member (no cluster list) sees the clusters its members and projects are on", () => {
   const t = buildView("projects", data({ clusters: [], members: [{ server_name: "cluster-b@cluster-b", status: "Online" }], projects: [{ name: "kspike@cluster-b" }], instances: [] }));
   expect(lines(t)).toEqual(["All clusters (0/0) -> /", "  cluster-b (0/0) -> /inventory/cluster-b", "    kspike (0) -> /ui/project/kspike%40cluster-b/instances"]);
+});
+
+/** Each row as kind/tone. */
+const kinds = (t: TreeItem): string[] => [`${t.label}:${t.kind}/${t.tone}`, ...(t.children ?? []).flatMap(kinds)];
+
+test("every row has its kind and a tone from its status", () => {
+  expect(kinds(buildView("instances", data({ clusters: [...data().clusters, { name: "cluster-x", status: "error" }] })))).toEqual([
+    "All clusters:root/none",
+    "cluster-b:cluster/ok",
+    "cluster-b:member/ok",
+    "web-b:container/ok",
+    "cluster-d:cluster/ok",
+    "d1:member/ok",
+    "web-d1:vm/off",
+    "d2:member/ok",
+    "web-d2:container/ok",
+    "cluster-x:cluster/bad",
+  ]);
+  expect(kinds(buildView("networks", data())).slice(-1)).toEqual(["incusbr0:network/none"]);
+  expect(kinds(buildView("storage", data())).slice(-1)).toEqual(["default:pool/ok"]);
 });

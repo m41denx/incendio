@@ -7,14 +7,14 @@ import { clusterOf, nameOf } from "../pages/inventory/tree";
 export type Obj =
   | { kind: "root"; tab: RootTab }
   | { kind: "cluster"; cluster: string; tab: ClusterTab; sub?: string }
-  | { kind: "node"; cluster: string; node: string }
+  | { kind: "member"; cluster: string; member: string }
   | { kind: "project"; cluster: string; project: string; tab: ProjectTab }
   | { kind: "instance"; cluster: string; project: string; name: string }
   | { kind: "network" | "pool" | "profile"; cluster: string; project: string; name: string }
   | { kind: "none" };
 
 type RootTab = "summary" | "clusters" | "instances" | "warnings";
-type ClusterTab = "summary" | "nodes" | "projects" | "networks" | "storage" | "operations" | "configure";
+type ClusterTab = "summary" | "members" | "projects" | "networks" | "storage" | "operations" | "configure";
 type ProjectTab = "instances" | "profiles" | "networks" | "storage" | "images" | "usage" | "configure";
 
 const ROOT_TABS: Array<[RootTab, string, string]> = [
@@ -25,7 +25,7 @@ const ROOT_TABS: Array<[RootTab, string, string]> = [
 ];
 const CLUSTER_TABS: Array<[ClusterTab, string, string]> = [
   ["summary", "Summary", ""],
-  ["nodes", "Nodes", "/nodes"],
+  ["members", "Members", "/members"],
   ["projects", "Projects", "/projects"],
   ["networks", "Networks", "/networks"],
   ["storage", "Storage", "/storage"],
@@ -87,7 +87,7 @@ export function objectOf(pathname: string): Obj {
   }
   if (segs[0] === "ui" && segs[1] === "cluster" && segs[2] === "member" && segs[3]) {
     const cluster = clusterOf(segs[3]);
-    return cluster ? { kind: "node", cluster, node: segs[3] } : { kind: "none" };
+    return cluster ? { kind: "member", cluster, member: segs[3] } : { kind: "none" };
   }
   if (segs[0] === "ui" && segs[1] === "project" && segs[2]) {
     const project = segs[2];
@@ -133,7 +133,7 @@ export function crumbsOf(o: Obj): Crumb[] {
   if (o.kind === "root") return crumbs;
   crumbs.push({ label: o.cluster, to: `/inventory/${enc(o.cluster)}` });
   if (o.kind === "cluster") return crumbs;
-  if (o.kind === "node") return [...crumbs, { label: nameOf(o.node), to: `/ui/cluster/member/${enc(o.node)}` }];
+  if (o.kind === "member") return [...crumbs, { label: nameOf(o.member), to: `/ui/cluster/member/${enc(o.member)}` }];
   crumbs.push({ label: nameOf(o.project), to: projectPath(o.project, "instances") });
   if (o.kind === "project") return crumbs;
   const at: Record<typeof o.kind, string> = {
