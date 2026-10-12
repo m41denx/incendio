@@ -56,7 +56,7 @@ Incendio's pure parts are **imported, not copied**, from `@incendio/ui`:
 - **Machines:** for the control plane and for workers each:
   - count (control plane 1, 3 or 5; workers 0–20);
   - type (container or virtual machine);
-  - flavor, or custom CPU and memory;
+  - flavor, or custom CPU and memory (Incendio turns them into a `c<cores>-m<GiB>` flavor; a custom flavor must have that form too);
   - profiles;
   - target (a member or `@group` of the chosen Incus cluster).
 - **Networking:** pod CIDR, service CIDR, privileged containers, deploy kube-flannel, install kubeadm on boot.
@@ -71,12 +71,13 @@ Profiles, members and groups come from the chosen Incus cluster through the faca
 `POST /api/v1/kubernetes` keeps `tenantId`, `clusterId`, `name`, `version`, `controlPlanes` (1|3|5) and `workers`. It gains a `spec`:
 
 ```ts
-interface MachineSpec { type: "container" | "virtual-machine"; cpu: number; memoryGiB: number; profiles: string[]; target: string }
+/** flavor: CAPN's `c<cores>-m<GiB>` (GiB may be fractional); IncusCloud counts quota from it, so free-text instance types are refused. */
+interface MachineSpec { type: "container" | "virtual-machine"; flavor: string; profiles: string[]; target: string }
 interface K8sSpec {
   controlPlane: MachineSpec;
   worker: MachineSpec;
   loadBalancer:
-    | { type: "lxc" | "oci"; cpu: number; memoryGiB: number; profiles: string[]; target: string }
+    | { type: "lxc" | "oci"; flavor: string; profiles: string[]; target: string }
     | { type: "kube-vip"; host: string; interface: string }
     | { type: "ovn"; host: string; networkName: string };
   image: string;          // "" = CAPN's image for the version
@@ -91,7 +92,7 @@ interface K8sSpec {
 
 - **`size` stays accepted**, as today's sizes. A request with neither `size` nor `spec` gets `size: "medium"`. Requests carry one or the other; both together is a 422.
 - **Storage:** the spec is stored as jsonb `spec` on `k8s_clusters`. Existing rows are backfilled from `size`, and `size` becomes nullable.
-- **Quota:** usage comes from the spec. Each node counts its CPU, memory and a 10 GiB disk. The load balancer counts the same way, for `lxc` and `oci` only.
+- **Quota:** usage comes from the spec's flavors. Each node counts its CPU, memory and a 10 GiB disk. The load balancer counts the same way, for `lxc` and `oci` only. A control plane needs at least 2 CPUs and 1700 MiB, as Incendio checks.
 - **Endpoint:**
   - `lxc` and `oci` work as today: a forward on the member that holds the load balancer. That member is its target when the target is a member, else IncusCloud's choice.
   - `kube-vip` and `ovn` use their host on port 6443, with no forward. The form says the host must be reachable from IncusCloud's management cluster.
