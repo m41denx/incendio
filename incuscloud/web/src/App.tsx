@@ -23,9 +23,8 @@ import ServiceAccountList from "./pages/service-accounts/ServiceAccountList";
 import AuditLog from "./pages/logs/AuditLog";
 import GatewayLog from "./pages/logs/GatewayLog";
 import { AllWarnings, IncendioAt } from "./console/RenderAt";
-import { ClusterConfigure, ClusterIncendio, ClusterProjects, ClusterRedirect, ClusterRename, ClusterSummary } from "./console/ClusterPages";
+import { ClusterIncendio, ClusterProjects, ClusterRedirect, ClusterRename, ClusterSub, ClusterSummary } from "./console/ClusterPages";
 
-const defaultProject = (cluster: string, rest: string) => `/ui/project/${encodeURIComponent(`default@${cluster}`)}/${rest}`;
 
 export const AppRoutes: FC = () => (
   <Routes>
@@ -40,11 +39,10 @@ export const AppRoutes: FC = () => (
       <Route path="inventory/:cluster/members" element={<ClusterIncendio path={() => "/ui/cluster/members"} />} />
       <Route path="inventory/:cluster/nodes" element={<ClusterRename to="members" />} />
       <Route path="inventory/:cluster/projects" element={<ClusterProjects />} />
-      <Route path="inventory/:cluster/networks" element={<ClusterIncendio path={(c) => defaultProject(c, "networks")} />} />
-      <Route path="inventory/:cluster/storage" element={<ClusterIncendio path={(c) => defaultProject(c, "storage/pools")} />} />
       <Route path="inventory/:cluster/operations" element={<ClusterIncendio path={() => "/ui/operations"} />} />
-      <Route path="inventory/:cluster/configure" element={<ClusterConfigure />} />
-      <Route path="inventory/:cluster/configure/:sub" element={<ClusterConfigure />} />
+      {/* Tabs with a side menu (groups, networks, storage, access, configure): the page it names. */}
+      <Route path="inventory/:cluster/:tab" element={<ClusterSub />} />
+      <Route path="inventory/:cluster/:tab/:sub" element={<ClusterSub />} />
       {/* Old links. */}
       <Route path="instances" element={<Navigate to="/all/instances" replace />} />
       <Route path="instances/new" element={<Navigate to="/all/instances" replace />} />

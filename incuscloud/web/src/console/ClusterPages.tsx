@@ -1,6 +1,6 @@
 import type { FC, ReactNode } from "react";
-import { Link, Navigate, Route, useParams } from "react-router-dom";
-import { Button, MainTable, Notification } from "@canonical/react-components";
+import { Link, Navigate, Route, useParams, useSearchParams } from "react-router-dom";
+import { Button, MainTable, Notification, Select } from "@canonical/react-components";
 import { useQuery } from "@tanstack/react-query";
 import { request } from "../api/client";
 import { can, useMe } from "../api/hooks";
@@ -10,7 +10,7 @@ import Meter from "../components/Meter";
 import { Loading } from "../components/Status";
 import { UNKNOWN } from "../lib/format";
 import ClusterDetail from "../pages/clusters/ClusterDetail";
-import { projectPath } from "./object";
+import { clusterSubs, projectPath } from "./object";
 import { IncendioAt, RenderAt } from "./RenderAt";
 import { useInventory } from "./useInventory";
 
@@ -125,44 +125,45 @@ const ClusterSettings: FC<{ cluster: string }> = ({ cluster }) => {
   );
 };
 
-interface ConfigureItem {
-  sub: string;
-  label: string;
-  operator?: boolean;
-  page: (cluster: string) => ReactNode;
-}
-const CONFIGURE: ConfigureItem[] = [
-  { sub: "incuscloud", label: "IncusCloud", operator: true, page: (c) => <ClusterSettings cluster={c} /> },
-  { sub: "settings", label: "Server settings", page: () => <IncendioAt path="/ui/cluster/settings" /> },
-  { sub: "groups", label: "Cluster groups", page: () => <IncendioAt path="/ui/cluster/groups" /> },
-  { sub: "links", label: "Cluster links", page: () => <IncendioAt path="/ui/cluster/links" /> },
-  { sub: "warnings", label: "Warnings", page: () => <IncendioAt path="/ui/warnings" /> },
-];
-
-/** A cluster's Configure tab: a side menu of its settings pages, the chosen one beside it. */
-export const ClusterConfigure: FC = () => {
-  const cluster = useCluster();
-  const { sub } = useParams<{ sub: string }>();
-  const { data: me } = useMe();
-  const items = CONFIGURE.filter((i) => !i.operator || can(me, "operator"));
-  const current = items.find((i) => i.sub === sub);
-  if (!current) return <Navigate to={`/inventory/${enc(cluster)}/configure/${items[0]!.sub}`} replace />;
+/** A cluster's placement groups: Incendio's page for one of its projects, picked here. */
+const PlacementGroups: FC<{ cluster: string }> = ({ cluster }) => {
+  const { root } = useInventory("projects");
+  const [params, setParams] = useSearchParams();
+  const projects = (root.children?.find((c) => c.label === cluster)?.children ?? []).map((p) => p.label);
+  const project = params.get("project") || "default";
   return (
-    <div className="ic-configure">
-      <nav className="ic-configure__menu" aria-label="Configure">
-        <ul className="p-list u-no-margin--bottom">
-          {items.map((i) => (
-            <li key={i.sub} className="p-list__item">
-              <Link to={`/inventory/${enc(cluster)}/configure/${i.sub}`} className="ic-configure__link" aria-current={i === current ? "page" : undefined}>
-                {i.label}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </nav>
-      <div className="ic-configure__body">{current.page(cluster)}</div>
+    <div className="ic-picked">
+      <div className="ic-picked__picker">
+        <Select
+          id="placement-project"
+          label="Project"
+          value={project}
+          onChange={(e) => setParams({ project: e.target.value }, { replace: true })}
+          options={(projects.length ? projects : [project]).map((p) => ({ label: p, value: p }))}
+        />
+      </div>
+      <IncendioAt path={projectPath(`${project}@${cluster}`, "placement-groups")} />
     </div>
   );
+};
+
+/** IncusCloud's own pages in a cluster tab's side menu; the others are Incendio's. */
+const OWN: Record<string, (cluster: string) => ReactNode> = {
+  "configure/incuscloud": (c) => <ClusterSettings cluster={c} />,
+  "groups/placement": (c) => <PlacementGroups cluster={c} />,
+};
+
+/** A page of a cluster tab with a side menu (the frame draws the menu); its first page when none or an unknown one is named. */
+export const ClusterSub: FC = () => {
+  const cluster = useCluster();
+  const { tab = "", sub } = useParams<{ tab: string; sub: string }>();
+  const { data: me } = useMe();
+  const subs = clusterSubs(cluster, tab as never, { operator: can(me, "operator") });
+  const current = subs.find((s) => s.sub === sub);
+  if (!subs.length) return <Navigate to={`/inventory/${enc(cluster)}`} replace />;
+  if (!current) return <Navigate to={`/inventory/${enc(cluster)}/${tab}/${subs[0]!.sub}`} replace />;
+  const own = OWN[`${tab}/${current.sub}`];
+  return own ? <>{own(cluster)}</> : <IncendioAt key={current.path} path={current.path} />;
 };
 
 /** Incendio's page for this cluster, at its own path, inside the cluster's tab. */

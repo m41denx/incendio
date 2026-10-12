@@ -434,19 +434,19 @@ body.ic-resizing {
   }
 }
 
-// A cluster's Configure tab: its settings pages in a side menu, the chosen one beside it.
-.ic-configure {
+// A tab with several pages (console/SideMenu): its pages in a side menu, the chosen one beside it.
+.ic-sidemenu {
   display: flex;
   flex: 1 1 auto;
   min-height: 0;
 
-  .ic-configure__menu {
+  .ic-sidemenu__menu {
     border-right: 1px solid $colors--theme--border-default;
     flex: 0 0 12rem;
     padding: $spv--large 0;
   }
 
-  .ic-configure__link {
+  .ic-sidemenu__link {
     border-left: 3px solid transparent;
     color: inherit;
     display: block;
@@ -463,7 +463,7 @@ body.ic-resizing {
     }
   }
 
-  .ic-configure__body {
+  .ic-sidemenu__body {
     display: flex;
     flex: 1 1 auto;
     flex-direction: column;
@@ -535,4 +535,23 @@ body.ic-resizing {
 .ic-sidebar__view .ic-kind {
   height: 1.125rem;
   width: 1.125rem;
+}
+
+// A page shown for one picked item (placement groups for one of a cluster's projects): the picker above it.
+.ic-picked {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+
+  .ic-picked__picker {
+    flex: 0 0 auto;
+    max-width: 20rem;
+    padding: $spv--large $sph--large 0;
+  }
+
+  > .l-main {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
 }

@@ -2,7 +2,8 @@ import { type FC, type ReactNode, useLayoutEffect, useRef, useState } from "reac
 import { Link, useLocation } from "react-router-dom";
 import { ContextualMenu } from "@canonical/react-components";
 import { can, useMe } from "../api/hooks";
-import { crumbsOf, objectOf, tabsOf, type Tab } from "./object";
+import { crumbsOf, objectOf, subsOf, tabsOf, type Tab } from "./object";
+import SideMenu from "./SideMenu";
 
 /**
  * How many tabs fit in `available` pixels: all of them, or as many as fit
@@ -86,24 +87,39 @@ const ObjectFrame: FC<{ children: ReactNode }> = ({ children }) => {
   const obj = objectOf(pathname);
   if (obj.kind === "none") return <>{children}</>;
   const crumbs = crumbsOf(obj);
-  const tabs = tabsOf(obj, { operator: can(me, "operator") });
+  const who = { operator: can(me, "operator") };
+  const tabs = tabsOf(obj, who);
+  const subs = subsOf(obj, who);
+  const tab = tabs.find((t) => t.active);
   return (
     <div className="l-main ic-object">
       <div className="ic-object__head">
         <nav className="p-breadcrumbs ic-breadcrumbs" aria-label="Breadcrumbs">
           <ol className="p-breadcrumbs__items u-no-margin--bottom">
             {crumbs.map((c, i) => (
-              <li key={c.to} className="p-breadcrumbs__item">
-                <Link to={c.to} aria-current={i === crumbs.length - 1 ? "location" : undefined}>
-                  {c.label}
-                </Link>
+              <li key={`${i}:${c.to}`} className="p-breadcrumbs__item">
+                {c.to ? (
+                  <Link to={c.to} aria-current={i === crumbs.length - 1 ? "location" : undefined}>
+                    {c.label}
+                  </Link>
+                ) : (
+                  <span aria-current="location">{c.label}</span>
+                )}
               </li>
             ))}
           </ol>
         </nav>
         {tabs.length ? <TabRow key={tabs.map((t) => t.label).join("|")} tabs={tabs} /> : null}
       </div>
-      <div className="ic-object__body">{children}</div>
+      <div className="ic-object__body">
+        {subs.length && tab ? (
+          <SideMenu label={tab.label} items={subs}>
+            {children}
+          </SideMenu>
+        ) : (
+          children
+        )}
+      </div>
     </div>
   );
 };

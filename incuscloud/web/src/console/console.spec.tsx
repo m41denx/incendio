@@ -28,6 +28,10 @@ const api = (over: Record<string, [number, unknown?]> = {}) =>
     "GET /1.0/instances": sync([{ name: "web", project: "p@c1", location: "m1@c1", status: "Running", type: "container", config: {}, devices: {}, expanded_config: {}, expanded_devices: {} }]),
     "GET /1.0/projects": sync(["default@c1", "default@c2", "p@c1"].map((name) => ({ name, description: "", config: {}, used_by: [] }))),
     "GET /api/v1/fleet/summary": [200, { instances: { total: 0, byStatus: {} }, clusters: [] }],
+    "GET /1.0/projects/default%40c1": sync({ name: "default@c1", description: "", config: {}, used_by: [] }),
+    "GET /1.0/projects/p%40c1": sync({ name: "p@c1", description: "", config: {}, used_by: [] }),
+    "GET /1.0/network-acls": sync([]),
+    "GET /1.0/operations": sync({}),
     ...over,
   });
 
@@ -153,4 +157,36 @@ test("tree rows show their kind's icon, tinted by status", async () => {
   expect(row.querySelector("svg.ic-kind")).toHaveClass("ic-kind--container", "ic-tone--ok");
   const member = (await nav().findByRole("link", { name: "m1" })).closest(".ic-tree__row")!;
   expect(member.querySelector("svg.ic-kind")).toHaveClass("ic-kind--member", "ic-tone--ok");
+});
+
+test("a cluster tab with a side menu renders the chosen Incendio page for that cluster", async () => {
+  api();
+  renderInFrame(<AppRoutes />, { path: "/inventory/c1/networks/acls" });
+  const menu = within(await screen.findByRole("navigation", { name: "Networks" }));
+  expect(menu.getByRole("link", { name: "ACLs" })).toHaveAttribute("aria-current", "page");
+  expect(menu.getByRole("link", { name: "Zones" })).toHaveAttribute("href", "/inventory/c1/networks/zones");
+  expect(await screen.findByTitle("Learn more about network access control lists")).toBeInTheDocument();
+});
+
+test("a cluster tab with a side menu opens its first page", async () => {
+  api();
+  renderInFrame(<AppRoutes />, { path: "/inventory/c1/storage" });
+  const menu = within(await screen.findByRole("navigation", { name: "Storage" }));
+  await waitFor(() => expect(menu.getByRole("link", { name: "Pools" })).toHaveAttribute("aria-current", "page"));
+});
+
+test("placement groups: a cluster's, for one of its projects", async () => {
+  api();
+  renderInFrame(<AppRoutes />, { path: "/inventory/c1/groups/placement" });
+  expect(await screen.findByText("Placement groups", { selector: ".p-heading--4, h1, h2, .p-panel__title, *" })).toBeInTheDocument();
+  const picker = await screen.findByRole("combobox", { name: "Project" });
+  expect([...picker.querySelectorAll("option")].map((o) => o.textContent)).toEqual(["default", "p"]);
+});
+
+test("a project's tab with several pages shows them in a side menu", async () => {
+  api();
+  renderInFrame(<AppRoutes />, { path: "/ui/project/p%40c1/network-acls" });
+  const menu = within(await screen.findByRole("navigation", { name: "Networks" }));
+  expect(menu.getByRole("link", { name: "ACLs" })).toHaveAttribute("aria-current", "page");
+  expect(menu.getByRole("link", { name: "IPAM" })).toHaveAttribute("href", "/ui/project/p%40c1/network-ipam");
 });

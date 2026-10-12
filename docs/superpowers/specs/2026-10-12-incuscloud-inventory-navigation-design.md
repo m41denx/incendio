@@ -87,7 +87,7 @@ Incus's own word is used throughout: a cluster has **members** (not "nodes").
 | Project › Networks | Networks · ACLs · Address sets · Zones · IPAM |
 | Project › Storage | Pools · Volumes · Buckets · Custom ISOs |
 | Project › Access | IncusCloud's page: the tenant whose project it is, its members and roles, and the Incus relation each role gives |
-| Project › Configure | Configuration · Placement groups · Replicators |
+| Project › Configure | Configuration · Placement groups (replicators are cluster-wide: Cluster › Configure) |
 
 **Rendering cluster tabs.** A cluster tab whose content is an Incendio page renders that page under the console URL, using a synthetic location. For example, `/inventory/cluster-d/members` renders Incendio's `/ui/cluster/members`, and `/inventory/cluster-d/networks` renders `/ui/project/default@cluster-d/networks`. Links inside such a page go to Incendio's real routes, which select the object they open. A link to a network, for instance, selects that network's project.
 

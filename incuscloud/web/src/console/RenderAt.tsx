@@ -1,6 +1,7 @@
 import type { FC, ReactNode } from "react";
 import { Route, Routes, UNSAFE_RouteContext } from "react-router-dom";
 import IncendioApp from "@incendio/ui/App";
+import { ProjectProvider } from "@incendio/ui/context/useCurrentProject";
 import { WarningListExtensionContext, type WarningListExtension } from "@incendio/ui/context/warningListExtension";
 import { clusterOf } from "../pages/inventory/tree";
 
@@ -22,10 +23,17 @@ export const RenderAt: FC<{ path: string; children: ReactNode }> = ({ path, chil
   );
 };
 
-/** One of Incendio's pages, at its own path, inside a console tab. */
+/** One of Incendio's pages, at its own path, inside a console tab; its current project is the one that path names. */
 export const IncendioAt: FC<{ path: string }> = ({ path }) => (
   <RenderAt path={path}>
-    <Route path="*" element={<IncendioApp />} />
+    <Route
+      path="*"
+      element={
+        <ProjectProvider>
+          <IncendioApp />
+        </ProjectProvider>
+      }
+    />
   </RenderAt>
 );
 
