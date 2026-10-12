@@ -60,10 +60,13 @@ function clustersIn(pathAndQuery: string, clusters: string[]): string[] {
  * page it was made from (a global call on a project's page belongs to that
  * project's cluster), otherwise all of them.
  */
-export function targetOf(pathAndQuery: string, referer: string | undefined, clusters: string[]): Target {
+export function targetOf(pathAndQuery: string, referer: string | undefined, clusters: string[], scope?: string): Target {
   const own = clustersIn(pathAndQuery, clusters);
   if (own.length > 1) return { kind: "conflict", clusters: own };
   if (own.length === 1) return { kind: "one", cluster: own[0]! };
+  // The console says which cluster its page is about (or that it wants every cluster).
+  if (scope === "all") return { kind: "all" };
+  if (scope && clusters.includes(scope)) return { kind: "one", cluster: scope };
   if (referer) {
     let path: string;
     try {
@@ -73,6 +76,12 @@ export function targetOf(pathAndQuery: string, referer: string | undefined, clus
     }
     const seen = clustersIn(path, clusters);
     if (seen.length) return { kind: "one", cluster: seen[0]! };
+    // A cluster's console page: /inventory/<cluster>/…
+    const page = path.match(/^\/inventory\/([^/]+)/);
+    if (page) {
+      const name = decode(page[1]!);
+      if (clusters.includes(name)) return { kind: "one", cluster: name };
+    }
   }
   return { kind: "all" };
 }

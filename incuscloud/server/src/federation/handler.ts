@@ -30,7 +30,6 @@ const FACADE_PATH = /^\/1\.0(?:[/?]|$)/;
 /** JSON request bodies are rewritten in memory up to this size. */
 const BODY_LIMIT = 16 << 20;
 /** Lists every page needs, whatever page asks: never scoped by the Referer. */
-const EVERYWHERE = new Set(["/1.0", "/1.0/projects", "/1.0/operations", "/1.0/warnings", "/1.0/events"]);
 const SERVER_TTL_MS = 60_000;
 
 type Obj = Record<string, unknown>;
@@ -149,7 +148,15 @@ export function createFacade(deps: FacadeDeps): GatewayHandler {
     const method = req.method ?? "GET";
     const { standalone, view } = await synthetic(req, a, c, method, stripRequest(url, c.name));
     const path = stripRequest(url, c.name, { standalone });
-    const qualify = (json: unknown) => qualifyResponse(path, json, c.name, { standalone });
+    const qualify = (json: unknown) => {
+      const out = qualifyResponse(path, json, c.name, { standalone });
+      // A standalone server's member and group views are synthesized as one member's cluster: it says so too.
+      if (standalone && path === "/1.0") {
+        const env = (out as { metadata?: { environment?: Record<string, unknown> } })?.metadata?.environment;
+        if (env) env.server_clustered = true;
+      }
+      return out;
+    };
     if (view) return sendJson(res, { status: view.status, body: qualify(view.body) });
     let body: Buffer | null = o.body ?? null;
     if (body === null && method !== "GET" && method !== "HEAD" && !streamed(req, url)) {
@@ -224,6 +231,12 @@ export function createFacade(deps: FacadeDeps): GatewayHandler {
     return one(req, res, a, c, { body: raw });
   }
 
+  /** The console's `X-IncusCloud-Scope`: "all", or a cluster name. */
+  const scopeOf = (req: IncomingMessage) => {
+    const v = req.headers["x-incuscloud-scope"];
+    return typeof v === "string" && v ? v : undefined;
+  };
+
   function sameOriginReferer(req: IncomingMessage): string | undefined {
     const r = req.headers.referer;
     if (!r) return undefined;
@@ -244,7 +257,8 @@ export function createFacade(deps: FacadeDeps): GatewayHandler {
       if (method === "GET" && path === "/1.0") return sendJson(res, untrustedServer());
       return writeIncusError(res, 401, "Sign in to IncusCloud first");
     }
-    const t = EVERYWHERE.has(path) && method === "GET" ? ({ kind: "all" } as const) : targetOf(url, sameOriginReferer(req), a.known);
+    // Every path, the always-merged ones included, is one cluster's when the request or the console page names one.
+    const t = targetOf(url, sameOriginReferer(req), a.known, scopeOf(req));
     if (t.kind === "conflict") return writeIncusError(res, 400, `The request names several clusters (${t.clusters.join(", ")})`);
     if (t.kind === "one") {
       const c = a.reachable.find((x) => x.name === t.cluster);

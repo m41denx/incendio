@@ -74,19 +74,8 @@ export function merge(path: string, answers: Array<Answer | null>, o: { clusters
 
   if (path === "/1.0/projects") {
     const list = metas.flat() as unknown[];
-    const byName = new Map<string, unknown[]>();
-    for (const p of list) {
-      const full = typeof p === "string" ? decodeURIComponent(p.split("/").pop()!) : String((p as Obj).name);
-      const at = full.lastIndexOf("@");
-      const name = at > 0 ? full.slice(0, at) : full;
-      byName.set(name, [...(byName.get(name) ?? []), p]);
-    }
-    const merged: unknown[] = [];
-    for (const [name, same] of byName) {
-      if (same.length < 2) continue;
-      merged.push(typeof same[0] === "string" ? `/1.0/projects/${encodeURIComponent(name)}` : mergedProject(name, same as Obj[]));
-    }
-    return sync([...merged, ...list]);
+    // Never merged: a shared name means nothing across clusters.
+    return sync(list);
   }
   const project = path.match(/^\/1\.0\/projects\/([^/]+)(\/state)?$/);
   if (project) {

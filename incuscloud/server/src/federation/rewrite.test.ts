@@ -90,3 +90,13 @@ test("a request body loses its qualifiers for that cluster, URLs included", () =
     stripBody({ name: "web", source: { type: "copy", source: "db", project: "acme@cluster-b", operation: "/1.0/operations/0b1c@cluster-b" }, devices: { root: { pool: "local@cluster-b" } }, config: { "user.mail": "a@cluster-d" } }, "cluster-b"),
   ).toEqual({ name: "web", source: { type: "copy", source: "db", project: "acme", operation: "/1.0/operations/0b1c" }, devices: { root: { pool: "local" } }, config: { "user.mail": "a@cluster-d" } });
 });
+
+test("scope: a qualifier wins, then the scope header, then the referer (qualified or /inventory/<cluster>), else all", () => {
+  const cs = ["c1", "c2"];
+  expect(targetOf("/1.0/instances?project=p%40c1", "https://x/inventory/c2/nodes", cs, "c2")).toEqual({ kind: "one", cluster: "c1" });
+  expect(targetOf("/1.0/cluster/members", "https://x/inventory/c2/nodes", cs, "all")).toEqual({ kind: "all" });
+  expect(targetOf("/1.0/cluster/members", undefined, cs, "c1")).toEqual({ kind: "one", cluster: "c1" });
+  expect(targetOf("/1.0/cluster/members", "https://x/inventory/c2/nodes", cs)).toEqual({ kind: "one", cluster: "c2" });
+  expect(targetOf("/1.0/cluster/members", "https://x/inventory/nope/nodes", cs)).toEqual({ kind: "all" });
+  expect(targetOf("/1.0/cluster/members", "https://x/all/instances", cs)).toEqual({ kind: "all" });
+});

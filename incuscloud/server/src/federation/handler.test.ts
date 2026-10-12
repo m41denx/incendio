@@ -82,8 +82,8 @@ async function cookieOf(a: Actor) {
   return `ic_session=${id}`;
 }
 
-const call = async (as: Actor | null, path: string, o: { method?: string; body?: unknown; referer?: string; origin?: string } = {}) => {
-  const headers: Record<string, string> = { host: "cloud.test" };
+const call = async (as: Actor | null, path: string, o: { method?: string; body?: unknown; referer?: string; origin?: string; headers?: Record<string, string> } = {}) => {
+  const headers: Record<string, string> = { host: "cloud.test", ...o.headers };
   if (as) headers.cookie = await cookieOf(as);
   if (o.referer) headers.referer = o.referer;
   if (o.origin) headers.origin = o.origin;
@@ -123,14 +123,32 @@ test("Incendio's image picker learns the extra image servers from the server con
   expect(JSON.parse(s.body.metadata.config["user.ui.image_servers"])).toEqual([{ name: "mirror.example", url: "https://mirror.example" }]);
 });
 
-test("projects: every cluster's, qualified, and one merged entry per name on several clusters", async () => {
+test("projects are never merged: each cluster's, qualified; from a cluster's page, that cluster's", async () => {
   const r = await call(admin, "/1.0/projects?recursion=1");
-  expect(names(r.body.metadata)).toEqual(["acme", "acme@c1", "acme@c2", "beta@c1", "default", "default@c1", "default@c2"]);
-  const merged = (await call(admin, "/1.0/projects/acme")).body.metadata;
-  expect(merged.name).toBe("acme");
-  // Asked from a project's page, the list is still everyone's.
+  expect(names(r.body.metadata)).toEqual(["acme@c1", "acme@c2", "beta@c1", "default@c1", "default@c2"]);
   const fromPage = await call(admin, "/1.0/projects?recursion=1", { referer: "https://cloud.test/ui/project/acme@c1/instances" });
-  expect(fromPage.body.metadata).toHaveLength(7);
+  expect(names(fromPage.body.metadata)).toEqual(["acme@c1", "beta@c1", "default@c1"]);
+  // The console's tree asks for every cluster, wherever it is.
+  const tree = await call(admin, "/1.0/projects?recursion=1", { referer: "https://cloud.test/inventory/c1", headers: { "x-incuscloud-scope": "all" } });
+  expect(names(tree.body.metadata)).toEqual(["acme@c1", "acme@c2", "beta@c1", "default@c1", "default@c2"]);
+});
+
+test("always-merged paths are one cluster's on that cluster's console pages", async () => {
+  const before = m2.seen.length;
+  const r = await call(admin, "/1.0/warnings", { referer: "https://cloud.test/inventory/c1/configure/warnings" });
+  expect(r.status).toBe(200);
+  expect(m1.seen.at(-1)!.url).toBe("/1.0/warnings");
+  expect(m2.seen.slice(before).some((x) => x.url.startsWith("/1.0/warnings"))).toBe(false);
+  const scoped = await call(admin, "/1.0/cluster/members", { headers: { "x-incuscloud-scope": "c1" } });
+  const memberNames = scoped.body.metadata.map((m: any) => (typeof m === "string" ? decodeURIComponent(m) : m.server_name));
+  expect(memberNames.length).toBeGreaterThan(0);
+  expect(memberNames.every((m: string) => m.endsWith("@c1"))).toBe(true);
+});
+
+test("a standalone cluster's own /1.0 reports clustered, as its synthesized member views do", async () => {
+  const r = await call(admin, "/1.0", { referer: "https://cloud.test/inventory/c2" });
+  expect(r.status).toBe(200);
+  expect(r.body.metadata.environment.server_clustered).toBe(true);
 });
 
 test("a merged project lists every cluster's instances, each marked with its project and member", async () => {

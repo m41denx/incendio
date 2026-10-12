@@ -43,6 +43,7 @@ export function fakeIncusApi(m: IncusModel) {
       return sync(m.instances.filter((i) => i.project === project).map((i) => ({ ...i, status: "Running" })));
     }
     if (r.method === "GET" && path.endsWith("/files")) return { body: `${path.split("/")[3]}@c1 is not rewritten\n`, type: "application/octet-stream" };
+    if (r.method === "GET" && path === "/1.0/warnings") return sync([{ uuid: `w-${m.members[0] ?? "standalone"}`, type: "test", project: "", location: m.members[0] ?? "" }]);
     if (r.method === "GET" && path === "/1.0/storage-pools") return sync(m.pools.map((name) => ({ name, driver: "dir", locations: m.clustered ? m.members : ["none"] })));
     if (r.method === "GET" && path === "/1.0/cluster/members") {
       if (!m.clustered) return fail(500, "Server isn't part of a cluster");
