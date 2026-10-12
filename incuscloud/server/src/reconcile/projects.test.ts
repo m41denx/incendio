@@ -22,11 +22,12 @@ beforeEach(() => {
   for (const name of [...fake.projects.keys()]) if (name !== "default") fake.projects.delete(name);
 });
 
-test("project config: restricted (nesting allowed, for Kubernetes nodes), own images/profiles/volumes, shared networks, marker, limits in bytes", () => {
+test("project config: restricted (nesting allowed, for Kubernetes nodes; members may be targeted), own images/profiles/volumes, shared networks, marker, limits in bytes", () => {
   expect(projectConfigFor(tenant, limits)).toEqual({
     restricted: "true",
     "restricted.backups": "allow",
     "restricted.containers.nesting": "allow",
+    "restricted.cluster.target": "allow",
     "features.images": "true",
     "features.profiles": "true",
     "features.storage.volumes": "true",
@@ -58,6 +59,13 @@ test("a limit change keeps the rest of the project's config (Incus replaces a pr
   const c = fake.projects.get("acme")!.config;
   expect(c).toMatchObject({ restricted: "true", "user.incuscloud.tenant": tenant.id, "features.networks": "false", "limits.cpu": "4", "user.note": "set by an admin" });
   expect(fake.projects.get("acme")!.description).toBe("IncusCloud tenant acme");
+});
+
+test("projects made before member targeting was allowed get restricted.cluster.target=allow", async () => {
+  expect(await ensureProject(client, "acme", tenant, limits)).toBe("created");
+  delete fake.projects.get("acme")!.config["restricted.cluster.target"];
+  expect(await ensureProject(client, "acme", tenant, limits)).toBe("updated");
+  expect(fake.projects.get("acme")!.config["restricted.cluster.target"]).toBe("allow");
 });
 
 test("projects made before backups existed get restricted.backups=allow", async () => {

@@ -31,3 +31,11 @@ export function clusterApiUrl(me: Pick<Me, "clusterDomain" | "publicUrl"> | unde
 
 /** The caller's role in a tenant, if a member. */
 export const tenantRole = (me: Me | undefined, tenantId: string): TenantRole | undefined => me?.tenants.find((t) => t.id === tenantId)?.role;
+
+/** Every reachable cluster's members through the console's Incus API (`name@cluster`); empty when it cannot say. */
+export const useConsoleMembers = () =>
+  useQuery({
+    queryKey: ["console", "members"],
+    queryFn: async () => (await request<{ metadata?: Array<{ server_name: string; status: string }> }>("GET", "/1.0/cluster/members?recursion=1")).metadata ?? [],
+    staleTime: 30_000,
+  });

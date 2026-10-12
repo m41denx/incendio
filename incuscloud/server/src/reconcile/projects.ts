@@ -14,6 +14,8 @@ export function projectConfigFor(tenant: { id: string }, limits: Limits): Record
     "restricted.backups": "allow",
     // Kubernetes nodes (P10) are unprivileged containers that need nesting; they stay unprivileged.
     "restricted.containers.nesting": "allow",
+    // Tenants see their clusters' members and may create on a chosen one (the console's target picker).
+    "restricted.cluster.target": "allow",
     "features.images": "true",
     "features.profiles": "true",
     "features.storage.volumes": "true",

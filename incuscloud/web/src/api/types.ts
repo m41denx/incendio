@@ -460,6 +460,8 @@ export interface K8sCluster {
   tenantSlug: string;
   clusterId: string;
   clusterName: string;
+  /** The member its load balancer and nodes run on ("" on a single-member Incus cluster). */
+  member?: string;
   name: string;
   version: string;
   controlPlanes: number;
@@ -493,4 +495,6 @@ export interface CreateK8sRequest {
   controlPlanes: 1 | 3;
   workers: number;
   size: K8sSize;
+  /** On a multi-member Incus cluster: the member its load balancer and nodes run on (default: chosen). */
+  member?: string;
 }

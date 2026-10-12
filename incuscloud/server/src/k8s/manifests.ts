@@ -56,10 +56,14 @@ export interface ClusterSpec {
   secretName: string;
 }
 
-/** A workload cluster on our ClusterClass: unprivileged container nodes, behind CAPN's haproxy, on a preset endpoint. */
-export function clusterManifest(c: ClusterSpec, opts: { lbTarget?: string }): KubeObject {
+/**
+ * A workload cluster on our ClusterClass: unprivileged container nodes, behind
+ * CAPN's haproxy, on a preset endpoint. With `member`, the load balancer and
+ * every node go on that member (without OVN, each member's bridge is its own network).
+ */
+export function clusterManifest(c: ClusterSpec, opts: { member?: string }): KubeObject {
   const lxc: Record<string, string> = { flavor: LB.flavor };
-  if (opts.lbTarget) lxc.target = opts.lbTarget;
+  if (opts.member) lxc.target = opts.member;
   return {
     apiVersion: "cluster.x-k8s.io/v1beta2",
     kind: "Cluster",
@@ -78,7 +82,7 @@ export function clusterManifest(c: ClusterSpec, opts: { lbTarget?: string }): Ku
           { name: "loadBalancer", value: { lxc } },
           {
             name: "instance",
-            value: { type: "container", flavor: SIZES[c.size].flavor, profiles: ["default"], devices: [], image: "", installKubeadm: false, target: "" },
+            value: { type: "container", flavor: SIZES[c.size].flavor, profiles: ["default"], devices: [], image: "", installKubeadm: false, target: opts.member ?? "" },
           },
         ],
         workers: { machineDeployments: [{ class: "default-worker", name: "md-0", replicas: c.workers }] },

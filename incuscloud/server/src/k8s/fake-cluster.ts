@@ -18,11 +18,25 @@ export class FakeCluster {
   members: Array<{ server_name: string; url: string; status: string }> = [{ server_name: "m1", url: "https://10.0.0.5:8443", status: "Online" }];
   profileNetwork = "incusbr0";
   calls: Array<{ method: string; path: string; body?: unknown }> = [];
+  /** Operations still running: the instances they touch, and what finishing them does. */
+  running: Array<{ id: string; project: string; instances: string[]; finish: () => void }> = [];
   /** Fingerprint → computed by the test (the fake does not parse certificates). */
   fingerprintOf: (certificate: string) => string = (c) => `fp-${c.length}`;
 
   get client(): IncusAdminClient {
-    return { request: (m: string, p: string, b?: unknown) => this.request(m, p, b) } as unknown as IncusAdminClient;
+    return {
+      request: (m: string, p: string, b?: unknown) => this.request(m, p, b),
+      wait: async (op: string) => {
+        this.calls.push({ method: "WAIT", path: op });
+        const id = op.split("/").pop()!;
+        const r = this.running.find((x) => x.id === id);
+        if (r) {
+          this.running = this.running.filter((x) => x !== r);
+          r.finish();
+        }
+        return { id, status: "Success" };
+      },
+    } as unknown as IncusAdminClient;
   }
 
   private ok(metadata: unknown) {
@@ -50,6 +64,18 @@ export class FakeCluster {
     const prof = /^\/1\.0\/profiles\/default$/.exec(p);
     if (prof && method === "GET") return this.ok({ name: "default", devices: { eth0: { type: "nic", name: "eth0", network: this.profileNetwork }, root: { type: "disk", path: "/", pool: "local" } } });
     if (p === "/1.0/instances" && method === "GET") return this.ok(this.instances.filter((i) => i.project === project));
+    if (p === "/1.0/operations" && method === "GET")
+      return this.ok({
+        running: this.running.filter((o) => o.project === project).map((o) => ({ id: o.id, status: "Running", resources: { instances: o.instances.map((n) => `/1.0/instances/${n}?project=${project}`) } })),
+      });
+    const inst = /^\/1\.0\/instances\/([^/]+)(\/state)?$/.exec(p);
+    if (inst && (method === "DELETE" || (method === "PUT" && inst[2]))) {
+      const name = decodeURIComponent(inst[1]!);
+      const i = this.instances.findIndex((x) => x.name === name && x.project === project);
+      if (i < 0) throw new ClusterError(404, "Instance not found");
+      if (method === "DELETE") this.instances.splice(i, 1);
+      return { type: "async", status: "Operation created", status_code: 100, operation: `/1.0/operations/${method.toLowerCase()}-${name}`, metadata: {} };
+    }
     const fwds = /^\/1\.0\/networks\/([^/]+)\/forwards$/.exec(p);
     if (fwds && method === "POST") {
       const b = body as Omit<Forward, "network" | "location">;

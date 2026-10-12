@@ -1,4 +1,4 @@
-import { type FC, useState } from "react";
+import { type FC, type ReactNode, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ActionButton, Button, Icon, Input, Notification, Select } from "@canonical/react-components";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -142,6 +142,7 @@ const KubernetesDetail: FC = () => {
                   ["API endpoint", <code>{c.endpoint}</code>],
                   ["Tenant", <Link to={`/tenants/${c.tenantId}`}>{c.tenantSlug}</Link>],
                   ["Incus cluster", <Link to={`/clusters/${c.clusterId}`}>{c.clusterName}</Link>],
+                  ...(c.member ? [["Node", <Link to={`/ui/all-projects/instances?node=${encodeURIComponent(`${c.member}@${c.clusterName}`)}`}>{c.member}</Link>] as [string, ReactNode]] : []),
                   ["Node size", sizeLabel(options.data, c.size)],
                   ["Control plane", plural(c.controlPlanes, "node")],
                   ["Workers", plural(c.workers, "node")],

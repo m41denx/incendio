@@ -8,6 +8,8 @@ export interface IncusModel {
   instances: Array<{ name: string; project: string; location: string }>;
   /** Every request, bodies parsed. */
   seen: Array<{ method: string; url: string; body?: unknown }>;
+  /** How `/1.0` answers instead: as to a caller it does not trust, or an error. */
+  server?: "untrusted" | "error";
 }
 
 const sync = (metadata: unknown) => ({ body: { type: "sync", status: "Success", status_code: 200, metadata } });
@@ -22,6 +24,8 @@ export function fakeIncusApi(m: IncusModel) {
     const project = u.searchParams.get("project") ?? "default";
     const recursion = u.searchParams.get("recursion");
     if (r.method === "GET" && path === "/1.0") {
+      if (m.server === "error") return fail(500, "down");
+      if (m.server === "untrusted") return sync({ auth: "untrusted", api_extensions: [], config: {} });
       return sync({
         auth: r.headers.authorization ? "trusted" : "untrusted",
         api_extensions: m.extensions,

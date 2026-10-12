@@ -37,6 +37,8 @@ const view = (r: Row, tenantSlug: string, clusterName: string) => ({
   workers: r.workers,
   size: r.size,
   endpoint: endpointOf(r),
+  /** The member its load balancer and nodes are on ("" on a single-member Incus cluster). */
+  member: r.lbMember,
   status: r.status,
   statusMessage: r.statusMessage,
   nodes: r.nodes,
@@ -131,7 +133,7 @@ export function kubernetesRoutes({ db, authz, kube, k8sPorts }: { db: Db; authz:
             const usage = await tx.select({ usage: placements.usage }).from(placements).where(eq(placements.tenantId, tenant.id));
             const over = exceeds(tenant.quotas, sumUsage([...usage.map((x) => x.usage), await pendingOf(txDb, tenant.id)]), req);
             if (over.length) throw new ApiError(409, "quota_exceeded", `Over the tenant's quota: ${over.join(", ")}`);
-            const ep = await pickEndpoint(txDb, body.clusterId, ports);
+            const ep = await pickEndpoint(txDb, body.clusterId, ports, body.member);
             const [row] = await tx
               .insert(k8sClusters)
               .values({
@@ -173,6 +175,8 @@ export function kubernetesRoutes({ db, authz, kube, k8sPorts }: { db: Db; authz:
           controlPlanes: t.Union([t.Literal(1), t.Literal(3)]),
           workers: t.Integer({ minimum: 0, maximum: 20 }),
           size: t.Union((Object.keys(SIZES) as Size[]).map((s) => t.Literal(s))),
+          /** On a multi-member Incus cluster: the member to run on (default: the one with most memory free). */
+          member: t.Optional(t.String({ minLength: 1, maxLength: 253 })),
         }),
       },
     )
@@ -206,7 +210,7 @@ export function kubernetesRoutes({ db, authz, kube, k8sPorts }: { db: Db; authz:
               if (over.length) throw new ApiError(409, "quota_exceeded", `Over the tenant's quota: ${over.join(", ")}`);
             }
             const [saved] = await tx.update(k8sClusters).set(next).where(eq(k8sClusters.id, cur.id)).returning();
-            await enabled().apply(clusterManifest({ ...saved!, secretName: secretNameOf({ name: clusterName }) }, { lbTarget: saved!.lbMember || undefined }));
+            await enabled().apply(clusterManifest({ ...saved!, secretName: secretNameOf({ name: clusterName }) }, { member: saved!.lbMember || undefined }));
             return saved!;
           }),
         (s) => ({ k8sId: s.id, version: s.version, controlPlanes: s.controlPlanes, workers: s.workers }),

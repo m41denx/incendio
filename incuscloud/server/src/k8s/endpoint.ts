@@ -20,23 +20,32 @@ const API_PORT = "6443";
 const hostOf = (url: string) => new URL(url).hostname.replace(/^\[|\]$/g, "");
 
 /**
- * An endpoint for a new workload cluster: the Incus cluster's address and the
- * lowest port in the range not yet used there. Only single-member clusters:
- * CAPN cannot pin its load balancer or nodes to a member in a restricted
- * project, and without OVN each member's bridge is its own network, so nodes
- * on different members could not reach each other.
+ * An endpoint for a new workload cluster: an address of the Incus cluster
+ * and the lowest port in the range not yet used there. On a multi-member
+ * cluster the load balancer and every node go on one member (without OVN
+ * each member's bridge is its own network): the one asked for, else the
+ * online member with the most memory free, and the endpoint is its address.
  */
-export async function pickEndpoint(db: Db, clusterId: string, [low, high]: [number, number]): Promise<Endpoint> {
+export async function pickEndpoint(db: Db, clusterId: string, [low, high]: [number, number], want?: string): Promise<Endpoint> {
   const [c] = await db.select({ name: clusters.name, url: clusters.url }).from(clusters).where(eq(clusters.id, clusterId));
   if (!c) throw new ApiError(404, "not_found", "Cluster not found");
-  const members = await db.select({ name: clusterMembers.name }).from(clusterMembers).where(eq(clusterMembers.clusterId, clusterId));
-  if (members.length > 1)
-    throw new ApiError(409, "needs_ovn", `${c.name} has ${members.length} members: Kubernetes clusters run on single-member Incus clusters until OVN networking comes (P11)`);
-  const host = hostOf(c.url);
+  const members = await db.select().from(clusterMembers).where(eq(clusterMembers.clusterId, clusterId));
+  let host = hostOf(c.url);
+  let member = "";
+  if (members.length > 1) {
+    const chosen = want
+      ? members.find((m) => m.name === want)
+      : members.filter((m) => m.status === "Online").sort((a, b) => b.memoryTotal - b.memoryUsed - (a.memoryTotal - a.memoryUsed) || a.name.localeCompare(b.name))[0];
+    if (!chosen) throw new ApiError(409, "bad_member", want ? `${c.name} has no member "${want}"` : `${c.name} has no online member`);
+    if (chosen.status !== "Online") throw new ApiError(409, "bad_member", `${chosen.name} is ${chosen.status}`);
+    if (!chosen.url) throw new ApiError(409, "bad_member", `The address of ${chosen.name} is not known yet`);
+    host = hostOf(chosen.url);
+    member = chosen.name;
+  }
   const used = new Set(
     (await db.select({ port: k8sClusters.endpointPort }).from(k8sClusters).where(and(eq(k8sClusters.clusterId, clusterId), eq(k8sClusters.endpointHost, host)))).map((r) => r.port),
   );
-  for (let port = low; port <= high; port++) if (!used.has(port)) return { host, port, member: "" };
+  for (let port = low; port <= high; port++) if (!used.has(port)) return { host, port, member };
   throw new ApiError(409, "no_port", `No free port for a Kubernetes API endpoint on ${host} (${low}-${high})`);
 }
 
@@ -69,6 +78,33 @@ export async function findLb(client: IncusAdminClient, project: string, name: st
     if (address) break;
   }
   return { name: lb.name, member: lb.location, address };
+}
+
+/**
+ * Removes a deleted workload cluster's instances CAPN left in the project. A
+ * create CAPN gave up on (an image still downloading) keeps running in Incus
+ * and lands later, so operations touching the cluster's instances (CAPN
+ * names them `<cluster>-…`) are waited for first. Returns the names removed.
+ */
+export async function removeLeftovers(client: IncusAdminClient, project: string, name: string, namespace: string): Promise<string[]> {
+  const q = `project=${encodeURIComponent(project)}`;
+  const ops = await client.request<{ running?: Array<{ id: string; resources?: { instances?: string[] } | null }> }>("GET", `/1.0/operations?${q}&recursion=1`);
+  const ours = (url: string) => decodeURIComponent(new URL(url, "https://x").pathname.split("/").pop() ?? "").startsWith(`${name}-`);
+  for (const op of ops.metadata.running ?? []) {
+    if (!(op.resources?.instances ?? []).some(ours)) continue;
+    // Its outcome does not matter, only that it is over.
+    await client.wait(op.id).catch(() => undefined);
+  }
+  const r = await client.request<InstanceState[]>("GET", `/1.0/instances?${q}&recursion=1`);
+  const left = r.metadata.filter((i) => i.config["user.cluster-name"] === name && i.config["user.cluster-namespace"] === namespace);
+  for (const i of left) {
+    const path = `/1.0/instances/${encodeURIComponent(i.name)}?${q}`;
+    const stop = await client.request("PUT", `/1.0/instances/${encodeURIComponent(i.name)}/state?${q}`, { action: "stop", force: true }).catch(() => null);
+    if (stop?.operation) await client.wait(stop.operation).catch(() => undefined);
+    const del = await client.request("DELETE", path);
+    if (del.operation) await client.wait(del.operation);
+  }
+  return left.map((i) => i.name);
 }
 
 export interface ForwardSpec extends Endpoint {
@@ -121,7 +157,9 @@ export async function ensureForward(client: IncusAdminClient, f: ForwardSpec): P
   const clash = ports.find((p) => p.listen_port === ours.listen_port && p.description !== ours.description);
   if (clash) throw new ApiError(409, "port_in_use", `Port ${f.port} on ${f.host} is already forwarded (${clash.description || "not by IncusCloud"})`);
   const i = ports.findIndex((p) => p.description === ours.description);
-  if (i >= 0 && JSON.stringify(ports[i]) === JSON.stringify(ours)) return "unchanged";
+  // Field by field: Incus orders them its own way and adds some (snat).
+  const same = (p: Port) => (Object.keys(ours) as Array<keyof Port>).every((k) => String(p[k] ?? "") === String(ours[k]));
+  if (i >= 0 && same(ports[i]!)) return "unchanged";
   const next = i >= 0 ? ports.map((p, j) => (j === i ? ours : p)) : [...ports, ours];
   await client.request("PUT", forwardsPath(f, f.host), { description: existing.description, config: existing.config ?? {}, ports: next });
   return "updated";

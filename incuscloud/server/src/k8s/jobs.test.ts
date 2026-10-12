@@ -131,6 +131,22 @@ test("delete: waits for the Cluster to go, removes its forward port and row; cre
   expect(kube.objects.get("v1|Secret|ic-acme|incus-lab")).toBeUndefined();
 });
 
+test("delete: CAPN instances left behind are removed, after the operations still creating them finish; other clusters' stay", async () => {
+  const { web, api } = await twoClusters();
+  const worker = { ...lbInstance("web"), name: "web-md-0-abc", config: { "user.cluster-name": "web", "user.cluster-namespace": "ic-acme", "user.cluster-role": "worker" } };
+  incus.instances.push(worker, lbInstance("api"));
+  // A load balancer create CAPN gave up on, still running: it lands later.
+  incus.running.push({ id: "op-late", project: "acme", instances: ["web-lb-x1"], finish: () => void incus.instances.push(lbInstance("web")) });
+  const { p, stages } = run("delete", web.id, (n) => {
+    if (n === 1) kube.objects.delete("cluster.x-k8s.io/v1beta2|Cluster|ic-acme|web");
+  });
+  await p;
+  expect(incus.calls.some((c) => c.method === "WAIT" && c.path.endsWith("op-late"))).toBe(true);
+  expect(incus.instances.map((i) => i.name)).toEqual(["api-lb-x1"]);
+  expect(stages).toContain("leftovers");
+  expect(await rowOf(api.id)).toBeDefined();
+});
+
 test("delete with the management cluster unreachable fails and keeps the row, marked deleting", async () => {
   const { web } = await twoClusters();
   kube.down = true;

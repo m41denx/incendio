@@ -94,6 +94,7 @@ test("create: a ready placement, a name and a shape, with what it takes from the
       ],
     ],
     "POST /api/v1/kubernetes": [202, { cluster: k8s({ id: "k-9", status: "creating" }), job: { id: "j-1" } }],
+    "GET /1.0/cluster/members": [200, { type: "sync", metadata: [{ server_name: "lab@lab", status: "Online" }] }],
   });
   renderAt(
     <Routes>
@@ -105,6 +106,8 @@ test("create: a ready placement, a name and a shape, with what it takes from the
   const cluster = await screen.findByLabelText("Incus cluster");
   expect((await within(cluster).findAllByRole("option")).map((o) => o.textContent)).toEqual(["lab"]);
   expect(screen.getByLabelText("Kubernetes version")).toHaveValue("v1.37.0");
+  // A single-member Incus cluster: nothing to choose.
+  expect(screen.queryByLabelText("Node")).not.toBeInTheDocument();
   await userEvent.type(screen.getByLabelText("Name"), "web");
   await userEvent.selectOptions(screen.getByLabelText("Control plane nodes"), "3");
   await userEvent.clear(screen.getByLabelText("Worker nodes"));
@@ -115,6 +118,39 @@ test("create: a ready placement, a name and a shape, with what it takes from the
   await userEvent.click(screen.getByRole("button", { name: "Create" }));
   await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/kubernetes/k-9"));
   expect(api.calls.find((c) => c.method === "POST")!.body).toEqual({ tenantId: "t-1", clusterId: "c-1", name: "web", version: "v1.37.0", controlPlanes: 3, workers: 2, size: "medium" });
+});
+
+test("create on a multi-member Incus cluster: its nodes run on one member, chosen or automatic", async () => {
+  const api = mockApi({
+    "GET /api/v1/me": [200, memberOf("member")],
+    "GET /api/v1/kubernetes/versions": [200, options()],
+    "GET /api/v1/tenants/t-1/placements": [200, [{ clusterId: "c-1", clusterName: "lab", project: "acme", status: "ready", statusMessage: "", createdAt: "" }]],
+    "GET /1.0/cluster/members": [
+      200,
+      {
+        type: "sync",
+        metadata: [
+          { server_name: "m1@lab", status: "Online" },
+          { server_name: "m2@lab", status: "Online" },
+          { server_name: "m3@lab", status: "Offline" },
+          { server_name: "x1@other", status: "Online" },
+        ],
+      },
+    ],
+    "POST /api/v1/kubernetes": [202, { cluster: k8s({ id: "k-9", status: "creating" }), job: { id: "j-1" } }],
+  });
+  renderAt(<CreateKubernetes />);
+  const node = await screen.findByLabelText("Node");
+  expect(within(node).getAllByRole("option").map((o) => [o.textContent, (o as HTMLOptionElement).disabled])).toEqual([
+    ["Automatic (most memory free)", false],
+    ["m1", false],
+    ["m2", false],
+    ["m3 (Offline)", true],
+  ]);
+  await userEvent.selectOptions(node, "m2");
+  await userEvent.type(screen.getByLabelText("Name"), "web");
+  await userEvent.click(screen.getByRole("button", { name: "Create" }));
+  await waitFor(() => expect(api.calls.find((c) => c.method === "POST")?.body).toMatchObject({ clusterId: "c-1", member: "m2" }));
 });
 
 test("create refuses names CAPI cannot use", async () => {

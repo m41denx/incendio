@@ -201,6 +201,16 @@ test("members: a standalone server is one member named after its cluster", async
   expect(m2.seen.at(-1)!.url).toBe("/1.0/instances?project=acme");
 });
 
+test("a cluster whose /1.0 says nothing about it (untrusted, an error) is not taken for a standalone server, nor remembered", async () => {
+  const members = async () => (await call(admin, "/1.0/cluster/members?recursion=1")).body.metadata.map((m: any) => m.server_name).sort();
+  for (const answer of ["untrusted", "error"] as const) {
+    m1.server = answer;
+    expect(await members()).not.toContain("c1@c1");
+    m1.server = undefined;
+    expect(await members()).toEqual(["c2@c2", "m1@c1", "m2@c1"]);
+  }
+});
+
 test("non-JSON bodies pass through untouched", async () => {
   const r = await call(alice, "/1.0/instances/web/files?project=acme%40c1&path=%2Fetc%2Fhostname");
   expect(r.type).toBe("application/octet-stream");

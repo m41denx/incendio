@@ -5,9 +5,10 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import PageLayout from "../../components/PageLayout";
 import { ErrorMessage, Loading } from "../../components/Status";
 import { request } from "../../api/client";
-import { can, useMe } from "../../api/hooks";
+import { can, useConsoleMembers, useMe } from "../../api/hooks";
 import type { CreateK8sRequest, K8sCluster, K8sSize, Tenant, TenantPlacement, TenantRole } from "../../api/types";
 import { sizeLabel, useK8sOptions } from "./hooks";
+import { clusterOf, nameOf } from "../inventory/tree";
 
 /** A DNS label CAPI can build instance names from. */
 const NAME = /^[a-z]([a-z0-9-]{0,30}[a-z0-9])?$/;
@@ -35,6 +36,9 @@ const CreateKubernetes: FC = () => {
   const placements = useQuery({ queryKey: ["tenants", tenantId, "placements"], queryFn: () => request<TenantPlacement[]>("GET", `/api/v1/tenants/${tenantId}/placements`), enabled: !!tenantId });
 
   const [clusterPick, setClusterPick] = useState("");
+  const [memberPick, setMemberPick] = useState("");
+  // Every cluster's members, through the console's API (name@cluster).
+  const { data: allMembers = [] } = useConsoleMembers();
   const [name, setName] = useState("");
   const [versionPick, setVersionPick] = useState("");
   const [controlPlanes, setControlPlanes] = useState<1 | 3>(1);
@@ -45,6 +49,9 @@ const CreateKubernetes: FC = () => {
 
   const ready = (placements.data ?? []).filter((p) => p.status === "ready");
   const clusterId = ready.some((p) => p.clusterId === clusterPick) ? clusterPick : (ready[0]?.clusterId ?? "");
+  const clusterName = ready.find((p) => p.clusterId === clusterId)?.clusterName ?? "";
+  const members = allMembers.filter((m) => clusterOf(m.server_name) === clusterName).sort((a, b) => a.server_name.localeCompare(b.server_name));
+  const member = members.length > 1 && members.some((m) => nameOf(m.server_name) === memberPick && m.status === "Online") ? memberPick : "";
   const versions = options.data?.versions ?? [];
   const version = versions.includes(versionPick) ? versionPick : (versions.at(-1) ?? "");
   const valid = !!tenantId && !!clusterId && NAME.test(name) && !!version && whole(workers, 0, MAX_WORKERS);
@@ -52,7 +59,7 @@ const CreateKubernetes: FC = () => {
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!valid || busy) return;
-    const body: CreateK8sRequest = { tenantId, clusterId, name, version, controlPlanes, workers: Number(workers), size };
+    const body: CreateK8sRequest = { tenantId, clusterId, name, version, controlPlanes, workers: Number(workers), size, ...(member ? { member } : {}) };
     setBusy(true);
     setError(null);
     try {
@@ -87,8 +94,27 @@ const CreateKubernetes: FC = () => {
         value={clusterId}
         onChange={(e) => setClusterPick(e.target.value)}
         options={ready.map((p) => ({ value: p.clusterId, label: p.clusterName }))}
-        help={placements.isPending ? "Loading…" : ready.length ? "Its nodes run in the tenant's project there." : "This tenant has no ready Incus cluster."}
+        help={
+          placements.isPending
+            ? "Loading…"
+            : ready.length
+              ? "The Incus clusters this tenant is placed on (and ready); its nodes run in the tenant's project there. Place the tenant on more clusters from its page."
+              : "This tenant has no ready Incus cluster: place it on one from its page."
+        }
       />
+      {members.length > 1 ? (
+        <Select
+          id="k8s-member"
+          label="Node"
+          value={member}
+          onChange={(e) => setMemberPick(e.target.value)}
+          options={[
+            { value: "", label: "Automatic (most memory free)" },
+            ...members.map((m) => ({ value: nameOf(m.server_name), label: m.status === "Online" ? nameOf(m.server_name) : `${nameOf(m.server_name)} (${m.status})`, disabled: m.status !== "Online" })),
+          ]}
+          help="The load balancer and every node run on this member of the Incus cluster: without OVN networking, each member's bridge is its own network."
+        />
+      ) : null}
       <Input
         id="k8s-name"
         label="Name"

@@ -105,18 +105,25 @@ export function createFacade(deps: FacadeDeps): GatewayHandler {
 
   const call = (req: IncomingMessage, a: Admitted, cluster: ClusterRow, method: string, path: string): Call => ({ cluster, method, path, token: a.principal.token, clientIp: ipOf(req) });
 
-  /** The cluster's `/1.0` (cached): whether it is clustered, and its environment. */
+  /**
+   * The cluster's `/1.0` (cached): whether it is clustered, and its environment.
+   * Only a trusted answer says so; an error or an untrusted one (the cluster
+   * does not trust the caller yet) is not remembered, and the cluster is asked.
+   */
   async function serverOf(req: IncomingMessage, a: Admitted, c: ClusterRow) {
     const hit = servers.get(c.id);
     if (hit && Date.now() - hit.at < SERVER_TTL_MS) return hit;
+    const unknown = { at: 0, env: {} as Obj, clustered: true };
     try {
       const r = await fetchCluster(deps.upstreams, req, call(req, a, c, "GET", "/1.0"), { timeoutMs: 5000 });
-      const env = (JSON.parse(r.body.toString()).metadata?.environment ?? {}) as Obj;
+      const meta = r.status === 200 ? (JSON.parse(r.body.toString()).metadata as Obj | undefined) : undefined;
+      if (meta?.auth !== "trusted" || !meta.environment) return unknown;
+      const env = meta.environment as Obj;
       const s = { at: Date.now(), env, clustered: !!env.server_clustered };
       servers.set(c.id, s);
       return s;
     } catch {
-      return { at: 0, env: {} as Obj, clustered: true };
+      return unknown;
     }
   }
 

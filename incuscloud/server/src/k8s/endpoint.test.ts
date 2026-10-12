@@ -26,14 +26,25 @@ test("a single-member cluster: its address, the lowest free port, no member pinn
   expect(await pickEndpoint(db, clusterId, [16443, 16446])).toEqual({ host: "10.0.0.5", port: 16444, member: "" });
 });
 
-test("a multi-member cluster is refused until OVN networking: CAPN cannot pin to a member in a restricted project", async () => {
+test("a multi-member cluster: everything on one member (one bridge without OVN), the one with most memory free, on its address", async () => {
+  await db.insert(clusterMembers).values([
+    { clusterId, name: "m1", url: "https://10.0.0.6:8443", status: "Online", memoryTotal: 8 * 2 ** 30, memoryUsed: 6 * 2 ** 30 },
+    { clusterId, name: "m2", url: "https://10.0.0.7:8443", status: "Online", memoryTotal: 8 * 2 ** 30, memoryUsed: 2 * 2 ** 30 },
+    { clusterId, name: "m3", url: "https://10.0.0.8:8443", status: "Offline", memoryTotal: 64 * 2 ** 30, memoryUsed: 0 },
+  ]);
+  expect(await pickEndpoint(db, clusterId, [16443, 16446])).toEqual({ host: "10.0.0.7", port: 16443, member: "m2" });
+  // Ports are per address: another member's are its own.
+  await taken(16443, "10.0.0.6");
+  expect(await pickEndpoint(db, clusterId, [16443, 16446], "m1")).toEqual({ host: "10.0.0.6", port: 16444, member: "m1" });
+});
+
+test("a member asked for must be one of the cluster's, and online", async () => {
   await db.insert(clusterMembers).values([
     { clusterId, name: "m1", url: "https://10.0.0.6:8443", status: "Online" },
-    { clusterId, name: "m2", url: "https://10.0.0.7:8443", status: "Online" },
+    { clusterId, name: "m3", url: "https://10.0.0.8:8443", status: "Offline" },
   ]);
-  await expect(pickEndpoint(db, clusterId, [16443, 16446])).rejects.toThrow(
-    "lab has 2 members: Kubernetes clusters run on single-member Incus clusters until OVN networking comes (P11)",
-  );
+  await expect(pickEndpoint(db, clusterId, [16443, 16446], "m9")).rejects.toThrow('lab has no member "m9"');
+  await expect(pickEndpoint(db, clusterId, [16443, 16446], "m3")).rejects.toThrow("m3 is Offline");
 });
 
 test("a full range is refused", async () => {
@@ -75,6 +86,15 @@ test("a forward is created for the first endpoint on an address, on its member",
   expect(await ensureForward(c.client, { network: "incusbr0", member: "m2", host: "10.0.0.7", port: 16443, target: "10.1.0.9", id: "k1" })).toBe("created");
   expect(c.forwards.get("incusbr0|10.0.0.7")).toMatchObject({ location: "m2", description: "IncusCloud Kubernetes endpoints", ports: [ours("k1", 16443, "10.1.0.9")] });
   expect(c.calls.at(-1)!.path).toBe("/1.0/networks/incusbr0/forwards?target=m2");
+});
+
+test("a forward that already says what we want is unchanged, however Incus orders and adds to its port fields", async () => {
+  const c = new FakeCluster();
+  const f = { network: "incusbr0", member: "m2", host: "10.0.0.7", port: 16443, target: "10.1.0.9", id: "k1" };
+  await ensureForward(c.client, f);
+  const { description, ...rest } = ours("k1", 16443, "10.1.0.9");
+  c.forwards.get("incusbr0|10.0.0.7")!.ports = [{ ...rest, snat: false, description } as never];
+  expect(await ensureForward(c.client, f)).toBe("unchanged");
 });
 
 test("a shared forward gets our port added or re-targeted; ports that are not ours are left alone", async () => {

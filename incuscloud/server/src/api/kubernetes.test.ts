@@ -182,13 +182,19 @@ test("a tenant with Kubernetes clusters on a cluster is not removed from it, nor
   expect([r.status, r.body.error.message]).toEqual([409, "1 Kubernetes cluster(s) run on this cluster; delete them first"]);
 });
 
-test("create on a multi-member Incus cluster is refused with the reason", async () => {
+test("on a multi-member Incus cluster, a create is pinned to the member asked for, or chosen", async () => {
   const { clusterMembers } = await import("../db/schema.ts");
   await h.db.insert(clusterMembers).values([
     { clusterId: lab, name: "m1", url: "https://10.0.0.6:8443", status: "Online" },
     { clusterId: lab, name: "m2", url: "https://10.0.0.7:8443", status: "Online" },
   ]);
-  const r = await h.call(await member(), "POST", "/api/v1/kubernetes", make());
-  expect([r.status, r.body.error.code]).toEqual([409, "needs_ovn"]);
-  expect(await rows()).toHaveLength(0);
+  const as = await member();
+  let r = await h.call(as, "POST", "/api/v1/kubernetes", { ...make(), name: "third", member: "m9" });
+  expect([r.status, r.body.error.code]).toEqual([409, "bad_member"]);
+  r = await h.call(as, "POST", "/api/v1/kubernetes", { ...make(), member: "m2" });
+  expect(r.status).toBe(202);
+  expect(r.body.cluster).toMatchObject({ member: "m2", endpoint: "https://10.0.0.7:16443" });
+  r = await h.call(as, "POST", "/api/v1/kubernetes", { ...make(), name: "other" });
+  expect(r.status).toBe(202);
+  expect(["m1", "m2"]).toContain(r.body.cluster.member);
 });

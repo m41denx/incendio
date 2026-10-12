@@ -101,6 +101,12 @@ try {
     return k.status === "ready" && k.nodesReady === 2;
   });
 
+  // On a multi-member Incus cluster, everything runs on the member it was pinned to (one bridge without OVN).
+  const pinned = (await api("GET", `/api/v1/kubernetes/${k8sId}`)).member as string;
+  const where = (await incus("list", "--project", slug, "-f", "csv", "-c", "nL")).out.split("\n").filter(Boolean);
+  if (pinned) check(where.length === 3 && where.every((l) => l.endsWith(`,${pinned}`)), `its 3 instances all run on ${pinned}: ${where.join(" ")}`);
+  else step(`single-member cluster: ${where.join(" ")}`);
+
   // 5. Over the quota is refused once the usage is measured (3 of 4 instances).
   await until("the tenant's usage counts the nodes and the load balancer", async () => ((await api("GET", `/api/v1/tenants/${tenantId}/usage`)) as { used: { instances: number } }).used.instances === 3, 180_000);
   const over = await call("PATCH", `/api/v1/kubernetes/${k8sId}`, { workers: 3 });

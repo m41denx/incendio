@@ -3,7 +3,8 @@ import { jobs, k8sClusters, placements, tenants } from "../db/schema.ts";
 import type { JobContext, JobHandler } from "../jobs/types.ts";
 import { ApiError } from "../lib/errors.ts";
 import { ensureCredentials, revokeUnlessUsed } from "./credentials.ts";
-import { defaultNetwork, ensureForward, findLb, removeForward } from "./endpoint.ts";
+import { defaultNetwork, ensureForward, findLb, removeForward, removeLeftovers } from "./endpoint.ts";
+import { log } from "../lib/log.ts";
 import type { Kube, KubeObject } from "./kube.ts";
 import { classBundle, clusterManifest, tenantBundle } from "./manifests.ts";
 
@@ -87,7 +88,7 @@ export function k8sCreateHandler(o: K8sJobOptions): JobHandler {
       const { secretName } = await ensureCredentials({ db: ctx.db, kube, client }, { tenant, cluster, project });
 
       await ctx.progress({ stage: "cluster", message: `${row.name} on ${endpointUrl(row.endpointHost, row.endpointPort)}` });
-      await kube.apply(clusterManifest({ ...row, secretName }, { lbTarget: row.lbMember || undefined }));
+      await kube.apply(clusterManifest({ ...row, secretName }, { member: row.lbMember || undefined }));
       await ctx.db.update(k8sClusters).set({ status: "provisioning" }).where(eq(k8sClusters.id, row.id));
 
       await ctx.progress({ stage: "load-balancer", message: "waiting for its address" });
@@ -153,6 +154,10 @@ export function k8sDeleteHandler(o: K8sJobOptions): JobHandler {
     await ctx.progress({ stage: "cluster", message: `deleting ${row.name} and its nodes` });
     await kube.delete(...CLUSTER, row.namespace, row.name);
     await wait(async () => ((await kube.get(...CLUSTER, row.namespace, row.name)) ? null : true), () => `${row.name} was not removed in time`);
+
+    await ctx.progress({ stage: "leftovers", message: `instances of ${row.name} left in ${project}` });
+    const leftovers = await removeLeftovers(client, project, row.name, row.namespace);
+    if (leftovers.length) log.warn("kubernetes leftovers removed", { cluster: row.name, project, instances: leftovers });
 
     await ctx.progress({ stage: "forward", message: `${row.endpointHost}:${row.endpointPort}` });
     const network = await defaultNetwork(client, project);
