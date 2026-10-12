@@ -13,6 +13,11 @@ import { HydraTokens } from "./auth/session.ts";
 import { createVerifier, discoverIssuer, remoteJwks } from "./auth/verify.ts";
 import { oidcProxy } from "./auth/oidc-proxy.ts";
 import { webStylesheet } from "./identity/pages.ts";
+import { KubeClient } from "./k8s/kube.ts";
+import { K8sWorker } from "./k8s/worker.ts";
+import { clusterClient } from "./clusters/enroll.ts";
+import { clusters } from "./db/schema.ts";
+import { eq } from "drizzle-orm";
 import { ensureBootstrapAdmin } from "./bootstrap/admin.ts";
 import { log, setLogLevel } from "./lib/log.ts";
 import { createGateway } from "./gateway/handler.ts";
@@ -85,8 +90,27 @@ const scheduleDue = async () => {
   await scheduleBackups(db);
   await scheduleBalancing(db);
 };
-const jobRunner = config.role !== "api" ? new JobRunner({ db, secretKey: config.secretKey }, { holder: `${hostname()}/${process.pid}`, handlers: jobHandlers({ imageServer: config.imageServer }), concurrency: config.jobConcurrency, beforeTick: scheduleDue }) : undefined;
+/** The management cluster (P10); without it Kubernetes is off. */
+const kube = config.k8s ? KubeClient.fromFile(config.k8s.kubeconfig) : undefined;
+const jobRunner = config.role !== "api" ? new JobRunner({ db, secretKey: config.secretKey }, { holder: `${hostname()}/${process.pid}`, handlers: jobHandlers({ imageServer: config.imageServer, kube }), concurrency: config.jobConcurrency, beforeTick: scheduleDue }) : undefined;
 jobRunner?.start();
+const k8sWorker =
+  kube && config.role !== "api"
+    ? new K8sWorker(
+        {
+          db,
+          kube,
+          clientFor: async (id) => {
+            const [row] = await db.select().from(clusters).where(eq(clusters.id, id));
+            if (!row) throw new Error(`cluster ${id} is gone`);
+            return clusterClient(config, row);
+          },
+        },
+        { holder: `${hostname()}/${process.pid}` },
+      )
+    : undefined;
+k8sWorker?.start();
+if (kube) log.info("kubernetes enabled", { kubeconfig: config.k8s!.kubeconfig, ports: config.k8s!.ports.join("-") });
 if (fleet) log.info("inventory started", { intervalMs: config.inventoryIntervalMs });
 
 const appDeps = {
@@ -127,7 +151,7 @@ for (const sig of ["SIGINT", "SIGTERM"] as const) {
     log.info("shutting down", { signal: sig });
     const closeServer = serveApi ? new Promise<void>((resolve) => server.close(() => resolve())) : Promise.resolve();
     // The worker releases its lease so another replica takes over at once.
-    Promise.all([closeServer.then(() => requestLog.stop()), worker?.stop(), fleet?.stop(), jobRunner?.stop()]).finally(() => process.exit(0));
+    Promise.all([closeServer.then(() => requestLog.stop()), worker?.stop(), fleet?.stop(), jobRunner?.stop(), k8sWorker?.stop()]).finally(() => process.exit(0));
     setTimeout(() => process.exit(0), 10_000).unref();
   });
 }

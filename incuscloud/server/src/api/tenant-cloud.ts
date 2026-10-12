@@ -34,8 +34,10 @@ async function pendingOf(db: Db, tenantId: string): Promise<Usage> {
   const rows = await db
     .select({ payload: jobs.payload })
     .from(jobs)
-    .where(and(eq(jobs.tenantId, tenantId), eq(jobs.type, "create"), inArray(jobs.state, ["queued", "running"])));
+    .where(and(eq(jobs.tenantId, tenantId), inArray(jobs.type, ["create", "k8s-create"]), inArray(jobs.state, ["queued", "running"])));
   return sumUsage(rows.map(({ payload }) => {
+    // A Kubernetes create carries its nodes' and load balancer's total.
+    if (payload.usage) return payload.usage as Usage;
     const p = payload as unknown as CreatePayload;
     return { instances: 1, cpu: p.cpu, memory: p.memory, disk: p.disk };
   }));

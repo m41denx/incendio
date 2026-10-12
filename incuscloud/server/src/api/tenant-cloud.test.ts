@@ -109,3 +109,20 @@ test("images: a short list to choose from, for anyone signed in", async () => {
   expect(r.body[0]).toEqual({ alias: expect.any(String), label: expect.any(String), vm: expect.any(Boolean) });
   expect((await h.call(null, "GET", "/api/v1/images")).status).toBe(401);
 });
+
+test("create: a pending Kubernetes create counts against the quota through its payload's usage", async () => {
+  await withMembers();
+  const member = await h.user("m@example.com", { tenants: { [acme.id]: "member" } });
+  const { enqueueJob } = await import("../jobs/queue.ts");
+  // Used: 3 GiB of 8; the Kubernetes cluster being created takes 4 more.
+  await enqueueJob(h.db, {
+    type: "k8s-create",
+    payload: { k8sId: "00000000-0000-4000-8000-000000000008", usage: { instances: 2, cpu: 3, memory: 4 * GiB, disk: 20 * GiB } },
+    actor: { type: "user", id: member.id },
+    tenantId: acme.id,
+    clusterIds: [lab],
+  });
+  const r = await h.call(member, "POST", `/api/v1/tenants/${acme.id}/instances`, { ...make, name: "a", memoryGiB: 2 });
+  expect(r.status).toBe(409);
+  expect(r.body.error.message).toBe("Over the tenant's quota: memory: 9.0 of 8 GiB");
+});
