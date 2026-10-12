@@ -1,5 +1,7 @@
 import { afterEach, expect, test } from "vitest";
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import userEvent from "@testing-library/user-event";
 import { queryClient } from "@incendio/ui/context/appProviders";
 import { me, mockApi } from "../test/api";
@@ -261,4 +263,32 @@ test("while the instances are loading the tree shows no counts (0/0 would say th
   const m1 = (await nav().findByRole("link", { name: "m1" })).closest(".ic-tree__row")!;
   expect(m1.querySelector(".ic-tree__count")).toBeNull();
   expect(nav().getByRole("link", { name: "All clusters" }).closest(".ic-tree__row")!.querySelector(".ic-tree__count")).toBeNull();
+});
+
+test("a page still showing a global list when the cluster changes gets the new cluster's", async () => {
+  queryClient.clear();
+  api();
+  let fetched = 0;
+  let go: (to: string) => void = () => {};
+  // Apart, so the probe does not re-render on navigation: like a page that stays mounted.
+  const Go = () => {
+    go = useNavigate();
+    return null;
+  };
+  const Probe = () => {
+    // Under a global key ("cluster"), of its own: Incendio's pages read the real ones.
+    const { data } = useQuery({ queryKey: ["cluster", "probe"], queryFn: async () => `fetch ${++fetched}`, staleTime: Infinity });
+    return <span data-testid="probe">{data}</span>;
+  };
+  renderInFrame(
+    <>
+      <AppRoutes />
+      <Probe />
+      <Go />
+    </>,
+    { path: "/inventory/c1/members" },
+  );
+  await waitFor(() => expect(screen.getByTestId("probe")).toHaveTextContent("fetch 1"));
+  act(() => go("/inventory/c2/members"));
+  await waitFor(() => expect(screen.getByTestId("probe")).toHaveTextContent("fetch 2"));
 });

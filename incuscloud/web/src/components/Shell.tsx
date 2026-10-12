@@ -71,7 +71,8 @@ const Shell: FC = () => {
   useEffect(() => {
     if (lastCluster.current === cluster) return;
     lastCluster.current = cluster;
-    queryClient.removeQueries({ predicate: (q) => GLOBAL_KEYS.has(String(q.queryKey[0])) });
+    // Reset, not remove: pages still mounted (and watching them) refetch instead of keeping the last cluster's.
+    void queryClient.resetQueries({ predicate: (q) => GLOBAL_KEYS.has(String(q.queryKey[0])) });
   }, [cluster]);
 
   const target = params.get("target");
