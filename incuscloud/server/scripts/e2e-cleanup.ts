@@ -24,8 +24,18 @@ const incus = async (...args: string[]) => {
   return { code: await p.exited, out: await new Response(p.stdout).text() };
 };
 
+const k8s = ((await api("GET", "/api/v1/kubernetes/versions")) as { enabled: boolean }).enabled;
 for (const t of (await api("GET", "/api/v1/tenants")) as Array<{ id: string; slug: string }>) {
   if (!t.slug.startsWith(prefix)) continue;
+  // Kubernetes clusters first: a tenant with some is not removed from their Incus cluster.
+  if (k8s) {
+    const list = () => api("GET", `/api/v1/kubernetes?tenant=${t.id}`) as Promise<Array<{ id: string; name: string; status: string }>>;
+    for (const c of await list()) {
+      const r = await b.api(base, "DELETE", `/api/v1/kubernetes/${c.id}`);
+      console.log(`kubernetes ${t.slug}/${c.name}: delete ${r.status === 202 ? "started" : `→ ${r.status}`}`);
+    }
+    for (let i = 0; (await list()).length && i < 200; i++) await Bun.sleep(3000);
+  }
   for (const p of (await api("GET", `/api/v1/tenants/${t.id}/placements`)) as Array<{ clusterId: string }>) await api("DELETE", `/api/v1/clusters/${p.clusterId}/tenants/${t.id}`);
   await api("DELETE", `/api/v1/tenants/${t.id}`);
   console.log(`tenant ${t.slug} deleted`);

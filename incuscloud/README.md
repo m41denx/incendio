@@ -21,6 +21,7 @@ Licensed under GPL-3.0 (see `LICENSE`).
 | P7 | Backups: S3 targets, schedules with retention, restore anywhere | done |
 | P8 | Balancing: ProxLB's model per cluster, member maintenance, cross-cluster suggestions | done |
 | P9 | Tenant cloud: one quota across clusters, usage, self-service create with placement | done |
+| P10 | Kubernetes: clusters on any Incus cluster through one Cluster API install, no appliance per cluster | done |
 
 ## How it fits together
 
@@ -232,6 +233,36 @@ Incus applies a project PATCH's config as the whole config: its `projectPatch` m
 - over-quota refused, by the API and by Incus;
 - a lowered quota, with both projects still restricted.
 
+## Kubernetes
+
+Tenant members create Kubernetes clusters on any Incus cluster their tenant is placed on. Nothing is installed in the Incus clusters: one [Cluster API](https://cluster-api.sigs.k8s.io/) install with the Incus provider ([CAPN](https://github.com/lxc/cluster-api-provider-incus)), in a Kubernetes cluster of the control plane's own (the **management cluster**), drives them all. IncusCloud talks to its API directly; no `kubectl` or `clusterctl` at runtime.
+
+**Setting it up.** In the management cluster, once:
+
+```sh
+# ~/.cluster-api/clusterctl.yaml names CAPN's release URL (see scripts/dev-mgmt.sh)
+CLUSTER_TOPOLOGY=true EXP_CLUSTER_RESOURCE_SET=true clusterctl init \
+  --core cluster-api:v1.14.3 --bootstrap kubeadm:v1.14.3 --control-plane kubeadm:v1.14.3 --infrastructure incus:v0.9.1
+```
+
+Then give IncusCloud a kubeconfig for it (`IC_K8S_KUBECONFIG`), with rights to manage namespaces, secrets, config maps and Cluster API objects. Without one, Kubernetes is off: the UI says so and the API answers 409 `kubernetes_disabled`. IncusCloud applies everything else itself: its ClusterClass `incuscloud-v1` (derived from CAPN's, Apache-2.0) in `incuscloud-system`, and per tenant a namespace `ic-<slug>` with flannel as a ClusterResourceSet.
+
+The Incus hosts need the kernel modules Kubernetes nodes use loaded (`br_netfilter`, `overlay`, `ip_vs`, `nf_nat`): the nodes are unprivileged containers and cannot load them.
+
+**What a cluster is.**
+- Nodes are unprivileged containers in the tenant's project, with `security.nesting` only. Tenant projects allow that (`restricted.containers.nesting=allow`) and nothing more.
+- Sizes: small (2 CPUs, 2 GiB), medium (2, 4), large (4, 8). One or three control plane nodes, up to 20 workers. Versions with prebuilt CAPN images: v1.34.0, v1.35.5, v1.36.4, v1.37.0.
+- Nodes and the load balancer count against the tenant's quota as instances (10 GiB of disk each). A create is checked like an instance create, counting creates still running; scaling up is checked too, scaling down never is.
+- CAPN gets a client certificate trusted only for the tenant's project on that Incus cluster. Its key exists only in the management cluster's secret; IncusCloud keeps the fingerprint and revokes the certificate when the tenant's last Kubernetes cluster there is deleted.
+
+**The API endpoint.** The management cluster and the nodes must both reach each cluster's API server. CAPN's load balancer (haproxy, in the tenant's project) gets an address on the project's network. IncusCloud presets the cluster's endpoint to an Incus member's address and a port from `IC_K8S_PORTS` (default 16443–16999), and adds a network forward from there to the load balancer's port 6443. On a multi-member cluster the forward and the load balancer are pinned to one member. The sync worker keeps the forward pointed at the load balancer when its address changes. Limits: the endpoint is a member's address, so it moves only if that member's address does, and it is reachable wherever that address is; OVN load balancers come with P11.
+
+IncusCloud only touches forward ports marked `incuscloud k8s <id>`. A forward on the same address that is not its own is shared, and a port someone else forwards is refused rather than taken over.
+
+**Lifecycle.** A create is a job: namespace, credentials, the Cluster, then the forward once the load balancer has an address, then waiting for `ControlPlaneAvailable` (30 min). The sync worker (lease `kubernetes`, every 15 s) turns Cluster conditions and Machines into ready or degraded, with the reason and nodes ready. Scale and upgrade (one minor version at a time) are applied to the Cluster topology directly. A delete is a job: it stops a create still running, deletes the Cluster and waits for CAPN to remove the nodes, then removes the forward port and, if it was the last, the certificate. The kubeconfig download (members and up, audited) is CAPI's admin kubeconfig. A tenant with Kubernetes clusters on an Incus cluster cannot be removed from it, and that cluster cannot be deleted, even with `force`.
+
+`server/scripts/k8s-e2e.ts` runs it against a live cluster: a create, the workload API through the endpoint with the downloaded kubeconfig, a worker joining, scaling over the quota refused, and a delete that leaves nothing behind.
+
 ## Balancing
 
 Balancing keeps a cluster's members evenly loaded. It follows [ProxLB](https://github.com/gyptazy/ProxLB)'s model (GPLv3, like this project), reimplemented in `server/src/balancing/engine.ts`.
@@ -309,6 +340,10 @@ all. The reconciler's settings:
   worker runs at once, 1..16, default 2.
 - `IC_IMAGE_SERVER`: the simplestreams server self-service creates take
   images from, default `https://images.linuxcontainers.org`.
+- `IC_K8S_KUBECONFIG`: the management cluster's kubeconfig; unset turns
+  Kubernetes off. See [Kubernetes](#kubernetes).
+- `IC_K8S_PORTS`: the port range for Kubernetes API endpoints on member
+  addresses, default `16443-16999`.
 
 ## Development
 
@@ -318,6 +353,11 @@ scripts/dev.sh             # Hydra + OpenFGA (state in .dev/openfga.db) + server
 ```
 
 Sign in as `admin@incuscloud.dev` with the password in `.dev/admin-password`.
+
+For Kubernetes, `scripts/dev-mgmt.sh` makes a management cluster: k3s in a
+privileged container `ic-mgmt` on the dev host, with Cluster API and CAPN, and
+`.dev/mgmt.kubeconfig`, which `scripts/dev.sh` then uses. Set `IC_MGMT_POOL`
+and `IC_MGMT_NETWORK` for the container's storage pool and network.
 
 To use a dev cluster through the gateway, Hydra and OpenFGA must be reachable
 from it: start with `IC_DEV_HOST=<host address on the cluster's network> scripts/dev.sh`,
@@ -336,6 +376,7 @@ IC_IT_TRUST_TOKEN=$(incus config trust add it --quiet) bun test src/clusters
 bun scripts/smoke.ts [trust-token]              # end to end against scripts/dev.sh
 bun scripts/cli-e2e.ts [cluster]                # stock incus CLI through the gateway
 bun scripts/tenant-e2e.ts [cluster]             # a tenant member, through the gateway and directly
+bun scripts/k8s-e2e.ts [cluster]                # a Kubernetes cluster's whole life (needs dev-mgmt.sh)
 ```
 
 The server tests import `@incendio/api/node`; build it first
