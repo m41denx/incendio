@@ -2,6 +2,8 @@ export interface LxdWarning {
   status: LxdWarningStatus;
   uuid: string;
   project: string;
+  /** The cluster member the warning is from (empty on a standalone server). */
+  location?: string;
   type: string;
   count: number;
   first_seen_at: string;

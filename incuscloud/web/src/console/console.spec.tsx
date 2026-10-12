@@ -119,3 +119,25 @@ test("the sidebar is as wide as dragged, between 240 and 360 pixels, and remembe
   expect(localStorage.getItem("ic.sidebar")).toBe("360");
   expect((screen.getByRole("navigation", { name: "main navigation" }) as HTMLElement).style.getPropertyValue("--ic-sidebar-width")).toBe("360px");
 });
+
+test("warnings over every cluster say which cluster", async () => {
+  const warning = (uuid: string, location: string) => ({
+    uuid,
+    location,
+    project: "",
+    type: "Couldn't find the CGroup memory controller",
+    count: 1,
+    first_seen_at: "2026-10-12T10:00:00Z",
+    last_seen_at: "2026-10-12T10:00:00Z",
+    last_message: `on ${location}`,
+    severity: "low",
+    status: "new",
+    entity_url: "",
+  });
+  api({ "GET /1.0/warnings": sync([warning("w-1", "m1@c1"), warning("w-2", "c2@c2")]) });
+  renderInFrame(<AppRoutes />, { path: "/all/warnings" });
+  const row = async (text: string) => (await screen.findByText(text)).closest("tr")!;
+  expect(within(await row("on m1@c1")).getByRole("cell", { name: "Cluster" })).toHaveTextContent("c1");
+  expect(within(await row("on c2@c2")).getByRole("cell", { name: "Cluster" })).toHaveTextContent("c2");
+  expect(screen.getByRole("columnheader", { name: /^Cluster/ })).toBeInTheDocument();
+});
