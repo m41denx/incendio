@@ -6,6 +6,7 @@ import { ensureCredentials, revokeUnlessUsed } from "./credentials.ts";
 import { defaultNetwork, ensureForward, findLb, removeForward, removeLeftovers } from "./endpoint.ts";
 import { log } from "../lib/log.ts";
 import type { Kube, KubeObject } from "./kube.ts";
+import { lbIsInstance } from "./model.ts";
 import { classBundle, clusterManifest, tenantBundle } from "./manifests.ts";
 
 /** What the k8s-create and k8s-delete jobs carry: the row; everything else is read from it. */
@@ -100,21 +101,24 @@ export function k8sCreateHandler(o: K8sJobOptions): JobHandler {
       const { secretName } = await ensureCredentials({ db: ctx.db, kube, client }, { tenant, cluster, project });
 
       await ctx.progress({ stage: "cluster", message: `${row.name} on ${endpointUrl(row.endpointHost, row.endpointPort)}` });
-      await kube.apply(clusterManifest({ ...row, secretName }, { member: row.lbMember || undefined }));
+      await kube.apply(clusterManifest({ ...row, secretName }));
       await ctx.db.update(k8sClusters).set({ status: "provisioning" }).where(eq(k8sClusters.id, row.id));
 
-      await ctx.progress({ stage: "load-balancer", message: "waiting for its address" });
-      const lb = await wait(
-        async () => {
-          const found = await findLb(client, project, row.name, row.namespace);
-          return found?.address ? { ...found, address: found.address } : null;
-        },
-        () => `The load balancer of ${row.name} did not get an address in time`,
-      );
+      // kube-vip and OVN: the API is at their own address; only an instance load balancer is forwarded to.
+      if (lbIsInstance(row.spec.loadBalancer)) {
+        await ctx.progress({ stage: "load-balancer", message: "waiting for its address" });
+        const lb = await wait(
+          async () => {
+            const found = await findLb(client, project, row.name, row.namespace);
+            return found?.address ? { ...found, address: found.address } : null;
+          },
+          () => `The load balancer of ${row.name} did not get an address in time`,
+        );
 
-      await ctx.progress({ stage: "forward", message: `${row.endpointHost}:${row.endpointPort} to ${lb.address}:6443` });
-      const network = await defaultNetwork(client, project);
-      await ensureForward(client, { network, member: row.lbMember, host: row.endpointHost, port: row.endpointPort, target: lb.address, id: row.id });
+        await ctx.progress({ stage: "forward", message: `${row.endpointHost}:${row.endpointPort} to ${lb.address}:6443` });
+        const network = await defaultNetwork(client, project);
+        await ensureForward(client, { network, member: row.lbMember, host: row.endpointHost, port: row.endpointPort, target: lb.address, id: row.id });
+      }
 
       await ctx.progress({ stage: "control-plane", message: "waiting until it is available" });
       let why = "";
@@ -171,9 +175,11 @@ export function k8sDeleteHandler(o: K8sJobOptions): JobHandler {
     const leftovers = await removeLeftovers(client, project, row.name, row.namespace);
     if (leftovers.length) log.warn("kubernetes leftovers removed", { cluster: row.name, project, instances: leftovers });
 
-    await ctx.progress({ stage: "forward", message: `${row.endpointHost}:${row.endpointPort}` });
-    const network = await defaultNetwork(client, project);
-    await removeForward(client, { network, member: row.lbMember, host: row.endpointHost, port: row.endpointPort, target: "", id: row.id });
+    if (lbIsInstance(row.spec.loadBalancer)) {
+      await ctx.progress({ stage: "forward", message: `${row.endpointHost}:${row.endpointPort}` });
+      const network = await defaultNetwork(client, project);
+      await removeForward(client, { network, member: row.lbMember, host: row.endpointHost, port: row.endpointPort, target: "", id: row.id });
+    }
 
     await ctx.progress({ stage: "credentials", message: `revoking the certificate on ${cluster.name} if no other cluster uses it` });
     await revokeUnlessUsed({ db: ctx.db, kube, client }, { tenant, cluster, except: row.id });

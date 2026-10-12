@@ -224,3 +224,30 @@ test("delete waits for a create of the same cluster that is still running", asyn
   expect(seen[0]).toBe("wait 1: cluster deleted false");
   expect(await rowOf(web.id)).toBeUndefined();
 });
+
+const addVip = async (name: string, status: "creating" | "ready" = "creating") =>
+  (
+    await db
+      .insert(k8sClusters)
+      .values({ tenantId: tenant.id, clusterId: cluster.id, name, namespace: "ic-acme", version: "v1.36.4", controlPlanes: 1, workers: 1, spec: { ...specFromSize("small"), loadBalancer: { type: "kube-vip", host: "10.0.0.50", interface: "" } }, endpointHost: "10.0.0.50", endpointPort: 6443, status, createdBy: "u" })
+      .returning()
+  )[0]!;
+
+test("create with kube-vip: no load balancer to wait for and no forward; ready once the control plane is available", async () => {
+  const row = await addVip("vip");
+  const { p, stages } = run("create", row.id, (n) => {
+    if (n === 1) available("vip");
+  });
+  expect(await p).toEqual({ id: row.id, endpoint: "https://10.0.0.50:6443" });
+  expect(incus.forwards.size).toBe(0);
+  expect(stages).toEqual(["namespace", "credentials", "cluster", "control-plane"]);
+});
+
+test("delete of a kube-vip cluster touches no forward", async () => {
+  const row = await addVip("vip", "ready");
+  await ensureCredentials({ db, kube, client: incus.client }, { tenant, cluster, project: "acme" });
+  await kube.apply({ apiVersion: "cluster.x-k8s.io/v1beta2", kind: "Cluster", metadata: { name: "vip", namespace: "ic-acme" } });
+  await run("delete", row.id, () => void kube.objects.delete("cluster.x-k8s.io/v1beta2|Cluster|ic-acme|vip")).p;
+  expect(await rowOf(row.id)).toBeUndefined();
+  expect(incus.calls.filter((c) => c.path.includes("/forwards"))).toEqual([]);
+});

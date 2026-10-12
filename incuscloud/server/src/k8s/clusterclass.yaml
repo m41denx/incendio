@@ -176,6 +176,46 @@ spec:
             type: boolean
             default: false
             description: Inject preKubeadmCommands that install Kubeadm on the instance. This is useful if using a plain Ubuntu image.
+  # IncusCloud: the workers' own instance spec (optional; without it they use `instance`).
+  - name: workerInstance
+    required: false
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          type:
+            description: One of 'container', 'virtual-machine', 'kind'.
+            type: string
+            enum:
+            - container
+            - virtual-machine
+            - kind
+            - ""
+          image:
+            type: string
+            description: Override the image to use for provisioning nodes.
+            default: ""
+          flavor:
+            type: string
+            description: Instance size, e.g. "c1-m1" for 1 CPU and 1 GB RAM
+          profiles:
+            type: array
+            items:
+              type: string
+            description: List of profiles to apply on the instance
+          devices:
+            type: array
+            items:
+              type: string
+            description: Override device (e.g. network, storage) configuration for the instance
+          target:
+            type: string
+            description: Specify a target for the instance (name of cluster member, or group)
+            default: ""
+          installKubeadm:
+            type: boolean
+            default: false
+            description: Inject preKubeadmCommands that install Kubeadm on the instance. This is useful if using a plain Ubuntu image.
   - name: etcdImageTag
     required: false
     schema:
@@ -308,14 +348,15 @@ spec:
         path: /spec/template/spec
         valueFrom:
           template: |
-            profiles: {{ .instance.profiles | toJson }}
-            devices: {{ .instance.devices | toJson }}
-            instanceType: {{ .instance.type | quote }}
-            flavor: {{ .instance.flavor | quote }}
-            target: {{ .instance.target | quote }}
+            {{ $i := .instance }}{{ if .workerInstance }}{{ $i = .workerInstance }}{{ end }}
+            profiles: {{ $i.profiles | toJson }}
+            devices: {{ $i.devices | toJson }}
+            instanceType: {{ $i.type | quote }}
+            flavor: {{ $i.flavor | quote }}
+            target: {{ $i.target | quote }}
             image:
-              name: {{ .instance.image | quote }}
-            {{ if ne .instance.type "virtual-machine" }}
+              name: {{ $i.image | quote }}
+            {{ if ne $i.type "virtual-machine" }}
             config:
               security.nesting: "true"
             {{ end }}

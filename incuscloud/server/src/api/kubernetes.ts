@@ -9,8 +9,8 @@ import { ApiError } from "../lib/errors.ts";
 import { enqueueJob } from "../jobs/queue.ts";
 import { exceeds, sumUsage, type Usage } from "../tenants/quota.ts";
 import type { Kube, KubeObject } from "../k8s/kube.ts";
-import { clusterManifest } from "../k8s/manifests.ts";
-import { KUBERNETES_VERSIONS, SIZES, namespaceOf, specError, specFromSize, upgradeError, usageOfSpec, type K8sSpec, type Size } from "../k8s/model.ts";
+import { classBundle, clusterManifest } from "../k8s/manifests.ts";
+import { KUBERNETES_VERSIONS, SIZES, lbIsInstance, namespaceOf, specError, specFromSize, upgradeError, usageOfSpec, type K8sSpec, type Size } from "../k8s/model.ts";
 import { secretNameOf } from "../k8s/credentials.ts";
 import { pickEndpoint } from "../k8s/endpoint.ts";
 import { pendingOf } from "./tenant-cloud.ts";
@@ -77,6 +77,27 @@ const Spec = t.Object({
   metallb: t.Union([t.Null(), t.Object({ addresses: t.Array(t.String({ minLength: 1, maxLength: 64 }), { maxItems: 16 }) })]),
 });
 const ControlPlanes = t.Union([t.Literal(1), t.Literal(3), t.Literal(5)]);
+
+/** The member a spec's load balancer asks for ("@group" and "" ask for none). */
+const lbMemberOf = (spec?: K8sSpec) => (spec && lbIsInstance(spec.loadBalancer) && spec.loadBalancer.target && !spec.loadBalancer.target.startsWith("@") ? spec.loadBalancer.target : undefined);
+
+/** On a multi-member Incus cluster, what has no target goes on the member chosen (each member's bridge is its own network). */
+function pinned(spec: K8sSpec, member: string): K8sSpec {
+  if (!member) return spec;
+  const pin = <T extends { target: string }>(x: T): T => (x.target ? x : { ...x, target: member });
+  return { ...spec, controlPlane: pin(spec.controlPlane), worker: pin(spec.worker), loadBalancer: lbIsInstance(spec.loadBalancer) ? pin(spec.loadBalancer) : spec.loadBalancer };
+}
+
+/** kube-vip and OVN: the cluster's API at its own address, one cluster per address. */
+async function vipEndpoint(db: Db, clusterId: string, host: string) {
+  const [taken] = await db
+    .select({ name: k8sClusters.name })
+    .from(k8sClusters)
+    .where(and(eq(k8sClusters.clusterId, clusterId), eq(k8sClusters.endpointHost, host), eq(k8sClusters.endpointPort, VIP_PORT)));
+  if (taken) throw new ApiError(409, "conflict", `${host}:${VIP_PORT} is already the endpoint of ${taken.name}`);
+  return { host, port: VIP_PORT, member: "" };
+}
+const VIP_PORT = 6443;
 
 const jobFor = (id: string) => sql`${jobs.payload}->>'k8sId' = ${id}`;
 const lockTenant = (tx: Db, tenantId: string) => tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`tenant-create:${tenantId}`}))`);
@@ -200,7 +221,7 @@ export function kubernetesRoutes({ db, authz, kube, k8sPorts }: { db: Db; authz:
             const usage = await tx.select({ usage: placements.usage }).from(placements).where(eq(placements.tenantId, tenant.id));
             const over = exceeds(tenant.quotas, sumUsage([...usage.map((x) => x.usage), await pendingOf(txDb, tenant.id)]), req);
             if (over.length) throw new ApiError(409, "quota_exceeded", `Over the tenant's quota: ${over.join(", ")}`);
-            const ep = await pickEndpoint(txDb, body.clusterId, ports, body.member);
+            const ep = given && !lbIsInstance(given.loadBalancer) ? await vipEndpoint(txDb, body.clusterId, given.loadBalancer.host) : await pickEndpoint(txDb, body.clusterId, ports, lbMemberOf(given) ?? body.member);
             const [row] = await tx
               .insert(k8sClusters)
               .values({
@@ -213,7 +234,7 @@ export function kubernetesRoutes({ db, authz, kube, k8sPorts }: { db: Db; authz:
                 workers: body.workers,
                 size,
                 // A size's spec is pinned to the member the endpoint chose (as before specs).
-                spec: given ?? specFromSize(size!, ep.member),
+                spec: given ? pinned(given, ep.member) : specFromSize(size!, ep.member),
                 endpointHost: ep.host,
                 endpointPort: ep.port,
                 lbMember: ep.member,
@@ -285,7 +306,9 @@ export function kubernetesRoutes({ db, authz, kube, k8sPorts }: { db: Db; authz:
               if (over.length) throw new ApiError(409, "quota_exceeded", `Over the tenant's quota: ${over.join(", ")}`);
             }
             const [saved] = await tx.update(k8sClusters).set(next).where(eq(k8sClusters.id, cur.id)).returning();
-            await enabled().apply(clusterManifest({ ...saved!, secretName: secretNameOf({ name: clusterName }) }, { member: saved!.lbMember || undefined }));
+            // Our ClusterClass first: a cluster made before it last changed may use variables only the new one has.
+            for (const obj of classBundle()) await enabled().apply(obj);
+            await enabled().apply(clusterManifest({ ...saved!, secretName: secretNameOf({ name: clusterName }) }));
             return saved!;
           }),
         (s) => ({ k8sId: s.id, version: s.version, controlPlanes: s.controlPlanes, workers: s.workers }),

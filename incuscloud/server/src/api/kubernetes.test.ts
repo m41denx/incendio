@@ -317,3 +317,41 @@ test("scale a spec cluster: growth is checked against its flavors", async () => 
   expect([over.status, over.body.error.message]).toEqual([409, "Over the tenant's quota: cpu: 31 of 30"]);
   expect((await h.call(m, "GET", `/api/v1/kubernetes/${id}`)).body.spec.worker.flavor).toBe("c2-m4");
 });
+
+test("kube-vip and OVN clusters are reached at their own address: no port from the range; one cluster per address", async () => {
+  await h.db.update(tenants).set({ quotas: {} }).where(eq(tenants.id, acme.id));
+  const m = await member();
+  let r = await h.call(m, "POST", "/api/v1/kubernetes", withSpec({ name: "vip" }, { loadBalancer: { type: "kube-vip", host: "10.0.0.50", interface: "" } }));
+  expect(r.status).toBe(202);
+  expect(r.body.cluster).toMatchObject({ endpoint: "https://10.0.0.50:6443", member: "" });
+  r = await h.call(m, "POST", "/api/v1/kubernetes", withSpec({ name: "ovn" }, { loadBalancer: { type: "ovn", host: "10.0.0.50", networkName: "ovn0" } }));
+  expect([r.status, r.body.error.code]).toEqual([409, "conflict"]);
+  // The port range is untouched: an lxc cluster still gets its first port.
+  r = await h.call(m, "POST", "/api/v1/kubernetes", withSpec({ name: "lxc" }));
+  expect(r.body.cluster.endpoint).toBe("https://10.0.0.5:16443");
+});
+
+test("on a multi-member Incus cluster, a spec without targets is pinned to the member chosen; its own targets stay", async () => {
+  await h.db.update(tenants).set({ quotas: {} }).where(eq(tenants.id, acme.id));
+  const { clusterMembers } = await import("../db/schema.ts");
+  await h.db.insert(clusterMembers).values([
+    { clusterId: lab, name: "m1", url: "https://10.0.0.6:8443", status: "Online" },
+    { clusterId: lab, name: "m2", url: "https://10.0.0.7:8443", status: "Online" },
+  ]);
+  const m = await member();
+  let r = await h.call(m, "POST", "/api/v1/kubernetes", { ...withSpec(), member: "m2" });
+  expect(r.body.cluster.spec).toMatchObject({ controlPlane: { target: "m2" }, worker: { target: "m2" }, loadBalancer: { target: "m2" } });
+  // The load balancer's member decides where the forward goes.
+  r = await h.call(m, "POST", "/api/v1/kubernetes", withSpec({ name: "own" }, { loadBalancer: { type: "lxc", flavor: "c1-m1", profiles: [], target: "m1" }, worker: { type: "container", flavor: "c2-m4", profiles: [], target: "@all" } }));
+  expect(r.body.cluster).toMatchObject({ member: "m1", endpoint: "https://10.0.0.6:16443" });
+  expect(r.body.cluster.spec).toMatchObject({ controlPlane: { target: "m1" }, worker: { target: "@all" }, loadBalancer: { target: "m1" } });
+});
+
+test("scale applies our ClusterClass before the Cluster (clusters made before it changed)", async () => {
+  const { m, id } = await readyCluster();
+  kube.applied.length = 0;
+  expect((await h.call(m, "PATCH", `/api/v1/kubernetes/${id}`, { workers: 0 })).status).toBe(200);
+  const kinds = kube.applied.map((o) => o.kind);
+  expect(kinds.indexOf("ClusterClass")).toBeGreaterThanOrEqual(0);
+  expect(kinds.indexOf("ClusterClass")).toBeLessThan(kinds.indexOf("Cluster"));
+});

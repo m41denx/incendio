@@ -1,3 +1,4 @@
+import { lbIsInstance } from "./model.ts";
 import { and, eq, inArray } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
 import { k8sClusters, placements, type K8sStatus } from "../db/schema.ts";
@@ -72,7 +73,7 @@ export class K8sWorker {
         const seen = assess(row, cluster, machines);
         const set = OWNED.includes(row.status) ? seen : { nodes: seen.nodes, nodesReady: seen.nodesReady };
         await db.update(k8sClusters).set({ ...set, syncedAt: new Date() }).where(eq(k8sClusters.id, row.id));
-        if (cluster && OWNED.includes(row.status)) await this.retarget(row, project);
+        if (cluster && OWNED.includes(row.status) && lbIsInstance(row.spec.loadBalancer)) await this.retarget(row, project);
       } catch (e) {
         log.warn("kubernetes sync failed", { cluster: row.name, error: (e as Error).message });
       }

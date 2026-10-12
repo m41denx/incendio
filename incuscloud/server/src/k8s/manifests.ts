@@ -1,5 +1,5 @@
 import type { KubeObject } from "./kube.ts";
-import { CLASS_NAME, CLASS_NAMESPACE, LB, namespaceOf, type K8sSpec } from "./model.ts";
+import { CLASS_NAME, CLASS_NAMESPACE, namespaceOf, type K8sSpec } from "./model.ts";
 import classYaml from "./clusterclass.yaml" with { type: "text" };
 import flannelYaml from "./flannel-cni.yaml" with { type: "text" };
 
@@ -61,16 +61,38 @@ export interface ClusterSpec {
  * CAPN's haproxy, on a preset endpoint. With `member`, the load balancer and
  * every node go on that member (without OVN, each member's bridge is its own network).
  */
-export function clusterManifest(c: ClusterSpec, opts: { member?: string }): KubeObject {
-  const lxc: Record<string, string> = { flavor: LB.flavor };
-  if (opts.member) lxc.target = opts.member;
+/** CAPN's `instance` variable for one role. */
+const instanceOf = (m: K8sSpec["controlPlane"], spec: K8sSpec) => ({
+  type: m.type,
+  flavor: m.flavor,
+  profiles: m.profiles,
+  devices: [],
+  image: spec.image,
+  installKubeadm: spec.installKubeadm,
+  target: m.target,
+});
+
+/** CAPN's `loadBalancer` variable: as it was before specs for an lxc one on `default` (no rollout on re-apply). */
+function loadBalancerOf(lb: K8sSpec["loadBalancer"]): Record<string, Record<string, unknown>> {
+  if (lb.type === "kube-vip") return { "kube-vip": { host: lb.host, ...(lb.interface ? { interface: lb.interface } : {}) } };
+  if (lb.type === "ovn") return { ovn: { host: lb.host, networkName: lb.networkName } };
+  const plainProfiles = lb.profiles.length === 1 && lb.profiles[0] === "default";
+  return { [lb.type]: { flavor: lb.flavor, ...(lb.profiles.length && !plainProfiles ? { profiles: lb.profiles } : {}), ...(lb.target ? { target: lb.target } : {}) } };
+}
+
+export function clusterManifest(c: ClusterSpec): KubeObject {
+  const { spec } = c;
   return {
     apiVersion: "cluster.x-k8s.io/v1beta2",
     kind: "Cluster",
-    metadata: { name: c.name, namespace: c.namespace, labels: { "capn.cluster.x-k8s.io/deploy-kube-flannel": "true", "incuscloud.io/k8s-id": c.id } },
+    metadata: {
+      name: c.name,
+      namespace: c.namespace,
+      labels: { ...(spec.flannel ? { "capn.cluster.x-k8s.io/deploy-kube-flannel": "true" } : {}), "incuscloud.io/k8s-id": c.id },
+    },
     spec: {
-      clusterNetwork: { pods: { cidrBlocks: ["10.244.0.0/16"] }, services: { cidrBlocks: ["10.96.0.0/12"] }, serviceDomain: "cluster.local" },
-      // Reachable from the management cluster and the nodes: a network forward to the load balancer.
+      clusterNetwork: { pods: { cidrBlocks: [spec.podCidr] }, services: { cidrBlocks: [spec.serviceCidr] }, serviceDomain: "cluster.local" },
+      // An instance load balancer is reached through a forward; kube-vip and OVN at their own address.
       controlPlaneEndpoint: { host: c.endpointHost, port: c.endpointPort },
       topology: {
         classRef: { name: CLASS_NAME, namespace: CLASS_NAMESPACE },
@@ -78,12 +100,10 @@ export function clusterManifest(c: ClusterSpec, opts: { member?: string }): Kube
         controlPlane: { replicas: c.controlPlanes },
         variables: [
           { name: "secretRef", value: c.secretName },
-          { name: "privileged", value: false },
-          { name: "loadBalancer", value: { lxc } },
-          {
-            name: "instance",
-            value: { type: "container", flavor: c.spec.controlPlane.flavor, profiles: ["default"], devices: [], image: "", installKubeadm: false, target: opts.member ?? "" },
-          },
+          { name: "privileged", value: spec.privileged },
+          { name: "loadBalancer", value: loadBalancerOf(spec.loadBalancer) },
+          { name: "instance", value: instanceOf(spec.controlPlane, spec) },
+          { name: "workerInstance", value: instanceOf(spec.worker, spec) },
         ],
         workers: { machineDeployments: [{ class: "default-worker", name: "md-0", replicas: c.workers }] },
       },

@@ -1,4 +1,5 @@
 import { specFromSize } from "./model.ts";
+import classYamlText from "./clusterclass.yaml" with { type: "text" };
 import { expect, test } from "bun:test";
 import { classBundle, clusterManifest, identitySecret, tenantBundle } from "./manifests.ts";
 
@@ -50,7 +51,7 @@ test("the identity secret is CAPN's format, restricted to the tenant's project",
 const row = { id: "k-1", name: "web", namespace: "ic-acme", version: "v1.36.4", controlPlanes: 1, workers: 2, spec: specFromSize("medium"), endpointHost: "10.0.0.5", endpointPort: 16443, secretName: "incus-lab" };
 
 test("a cluster: our class across namespaces, the preset endpoint, unprivileged nodes, sizes and counts", () => {
-  const c = clusterManifest(row, { member: "m2" });
+  const c = clusterManifest({ ...row, spec: specFromSize("medium", "m2") });
   expect(c).toMatchObject({
     apiVersion: "cluster.x-k8s.io/v1beta2",
     kind: "Cluster",
@@ -72,11 +73,55 @@ test("a cluster: our class across namespaces, the preset endpoint, unprivileged 
     loadBalancer: { lxc: { flavor: "c1-m1", target: "m2" } },
     // The nodes on the load balancer's member: without OVN, each member's bridge is its own network.
     instance: { type: "container", flavor: "c2-m4", profiles: ["default"], devices: [], image: "", installKubeadm: false, target: "m2" },
+    workerInstance: { type: "container", flavor: "c2-m4", profiles: ["default"], devices: [], image: "", installKubeadm: false, target: "m2" },
   });
+  expect((c.spec as { clusterNetwork: unknown }).clusterNetwork).toEqual({ pods: { cidrBlocks: ["10.244.0.0/16"] }, services: { cidrBlocks: ["10.96.0.0/12"] }, serviceDomain: "cluster.local" });
 });
 
 test("without a member (a single-member Incus cluster) no target is set", () => {
-  const vars = (clusterManifest(row, {}).spec as { topology: { variables: { name: string; value: unknown }[] } }).topology.variables;
+  const vars = (clusterManifest(row).spec as { topology: { variables: { name: string; value: unknown }[] } }).topology.variables;
   expect(vars.find((v) => v.name === "loadBalancer")!.value).toEqual({ lxc: { flavor: "c1-m1" } });
   expect(vars.find((v) => v.name === "instance")!.value).toMatchObject({ target: "" });
+});
+
+const varsOf = (c: ReturnType<typeof clusterManifest>) => Object.fromEntries((c.spec as { topology: { variables: { name: string; value: unknown }[] } }).topology.variables.map((v) => [v.name, v.value]));
+
+test("a spec: each role its own instances, the networks, flannel and privileged as asked", () => {
+  const spec = {
+    ...specFromSize("medium"),
+    controlPlane: { type: "virtual-machine" as const, flavor: "c4-m8", profiles: ["default", "fast"], target: "@gpu" },
+    worker: { type: "container" as const, flavor: "c2-m0.5", profiles: ["default"], target: "d2" },
+    loadBalancer: { type: "oci" as const, flavor: "c1-m1", profiles: ["lb"], target: "d1" },
+    image: "ubuntu/24.04",
+    privileged: true,
+    flannel: false,
+    installKubeadm: true,
+    podCidr: "10.200.0.0/16",
+    serviceCidr: "10.201.0.0/16",
+  };
+  const c = clusterManifest({ ...row, spec });
+  const vars = varsOf(c);
+  expect(vars.privileged).toBe(true);
+  expect(vars.loadBalancer).toEqual({ oci: { flavor: "c1-m1", profiles: ["lb"], target: "d1" } });
+  expect(vars.instance).toEqual({ type: "virtual-machine", flavor: "c4-m8", profiles: ["default", "fast"], devices: [], image: "ubuntu/24.04", installKubeadm: true, target: "@gpu" });
+  expect(vars.workerInstance).toEqual({ type: "container", flavor: "c2-m0.5", profiles: ["default"], devices: [], image: "ubuntu/24.04", installKubeadm: true, target: "d2" });
+  expect(c.metadata.labels!["capn.cluster.x-k8s.io/deploy-kube-flannel"]).toBeUndefined();
+  expect((c.spec as { clusterNetwork: unknown }).clusterNetwork).toEqual({ pods: { cidrBlocks: ["10.200.0.0/16"] }, services: { cidrBlocks: ["10.201.0.0/16"] }, serviceDomain: "cluster.local" });
+});
+
+test("kube-vip and OVN load balancers are addresses", () => {
+  const vip = varsOf(clusterManifest({ ...row, spec: { ...specFromSize("medium"), loadBalancer: { type: "kube-vip", host: "10.0.0.50", interface: "" } } }));
+  expect(vip.loadBalancer).toEqual({ "kube-vip": { host: "10.0.0.50" } });
+  const vipIf = varsOf(clusterManifest({ ...row, spec: { ...specFromSize("medium"), loadBalancer: { type: "kube-vip", host: "10.0.0.50", interface: "eth0" } } }));
+  expect(vipIf.loadBalancer).toEqual({ "kube-vip": { host: "10.0.0.50", interface: "eth0" } });
+  const ovn = varsOf(clusterManifest({ ...row, spec: { ...specFromSize("medium"), loadBalancer: { type: "ovn", host: "10.10.0.5", networkName: "ovn0" } } }));
+  expect(ovn.loadBalancer).toEqual({ ovn: { host: "10.10.0.5", networkName: "ovn0" } });
+});
+
+test("our ClusterClass gives workers their own instance spec when one is set", () => {
+  expect(classYamlText).toContain("- name: workerInstance");
+  const worker = classYamlText.slice(classYamlText.indexOf("- name: workerInstanceSpec"), classYamlText.indexOf("- name: controlPlaneInstallKubeadm"));
+  expect(worker).toContain("{{ $i := .instance }}{{ if .workerInstance }}{{ $i = .workerInstance }}{{ end }}");
+  expect(worker).not.toContain(".instance.flavor");
+  expect(worker).toContain("$i.flavor");
 });

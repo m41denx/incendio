@@ -116,3 +116,15 @@ test("another replica holding the lease means no pass here", async () => {
   await worker().tick();
   expect(await rowOf(r.id)).toMatchObject({ status: "ready", nodes: 0 });
 });
+
+test("a kube-vip cluster's endpoint is its own address: nothing is forwarded", async () => {
+  const [r] = await db
+    .insert(k8sClusters)
+    .values({ tenantId, clusterId, name: "vip", namespace: "ic-acme", version: "v1.36.4", controlPlanes: 1, workers: 1, spec: { ...specFromSize("small"), loadBalancer: { type: "kube-vip", host: "10.0.0.50", interface: "" } }, endpointHost: "10.0.0.50", endpointPort: 6443, status: "ready", createdBy: "u" })
+    .returning();
+  capi("vip");
+  incus.instances = [lb("vip", "10.1.0.23")];
+  await worker().tick();
+  expect((await rowOf(r!.id)).status).toBe("ready");
+  expect(incus.calls.filter((c) => c.path.includes("/forwards"))).toEqual([]);
+});
