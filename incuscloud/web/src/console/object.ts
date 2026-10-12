@@ -41,6 +41,18 @@ export interface Who {
   operator: boolean;
   /** Defaults to true. */
   viewer?: boolean;
+  /** The project a cluster's pages open in (see homeProject); its `default` when not given. */
+  home?: (cluster: string) => string;
+}
+
+/**
+ * The project a cluster's own pages (networks, storage, create instance) open
+ * in: its `default` when the caller can see it (platform users), else the
+ * caller's first project there (a tenant member has no rights in `default`).
+ */
+export function homeProject(cluster: string, projects: string[]): string {
+  const there = projects.filter((p) => clusterOf(p) === cluster).sort();
+  return there.includes(`default@${cluster}`) || !there.length ? `default@${cluster}` : there[0]!;
 }
 
 const ROOT_TABS: Array<[RootTab, string, string]> = [
@@ -75,7 +87,7 @@ const STORAGE_SUBS = (p: string) => [
   { sub: "buckets", label: "Buckets", path: `/ui/project/${p}/storage/buckets` },
   { sub: "isos", label: "Custom ISOs", path: `/ui/project/${p}/storage/custom-isos` },
 ];
-/** A cluster tab's side menu; `p` is the cluster's `default` project, encoded. */
+/** A cluster tab's side menu; `p` is the cluster's home project (see homeProject), encoded. */
 export const CLUSTER_SUBS: Partial<Record<ClusterTab, (p: string) => Sub[]>> = {
   groups: () => [
     { sub: "cluster", label: "Cluster groups", path: "/ui/cluster/groups", server: true },
@@ -221,7 +233,7 @@ export function tabsOf(o: Obj, who: Who): Tab[] {
 
 /** The pages of a cluster tab's side menu, as the caller may see them. */
 export const clusterSubs = (cluster: string, tab: ClusterTab, who: Who): Sub[] =>
-  (CLUSTER_SUBS[tab]?.(enc(`default@${cluster}`)) ?? []).filter((s) => (!s.operator || who.operator) && (!s.server || (who.viewer ?? true)));
+  (CLUSTER_SUBS[tab]?.(enc(who.home?.(cluster) ?? `default@${cluster}`)) ?? []).filter((s) => (!s.operator || who.operator) && (!s.server || (who.viewer ?? true)));
 
 /** The selected tab's side menu (its pages), when it has several. */
 export function subsOf(o: Obj, who: Who): Tab[] {

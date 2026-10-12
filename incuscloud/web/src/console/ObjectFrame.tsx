@@ -1,3 +1,4 @@
+import { useHome } from "./useInventory";
 import { type FC, type ReactNode, useLayoutEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { ContextualMenu } from "@canonical/react-components";
@@ -84,10 +85,11 @@ const TabRow: FC<{ tabs: Tab[] }> = ({ tabs }) => {
 const ObjectFrame: FC<{ children: ReactNode }> = ({ children }) => {
   const { pathname } = useLocation();
   const { data: me } = useMe();
+  const home = useHome();
   const obj = objectOf(pathname);
   if (obj.kind === "none") return <>{children}</>;
   const crumbs = crumbsOf(obj);
-  const who = { operator: can(me, "operator"), viewer: can(me, "viewer") };
+  const who = { operator: can(me, "operator"), viewer: can(me, "viewer"), home };
   const tabs = tabsOf(obj, who);
   const subs = subsOf(obj, who);
   const tab = tabs.find((t) => t.active);

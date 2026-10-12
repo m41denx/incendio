@@ -14,7 +14,7 @@ import ClusterDetail from "../pages/clusters/ClusterDetail";
 import { clusterSubs, projectPath } from "./object";
 import { IncendioAt, RenderAt } from "./RenderAt";
 import AccessPage from "./AccessPage";
-import { useInventory } from "./useInventory";
+import { useHome, useInventory } from "./useInventory";
 
 const enc = encodeURIComponent;
 const useCluster = () => useParams<{ cluster: string }>().cluster ?? "";
@@ -32,6 +32,7 @@ export const ClusterSummary: FC = () => {
   const { data: me } = useMe();
   const viewer = can(me, "viewer");
   const { root, isLoading } = useInventory("instances");
+  const home = useHome();
   const fleet = useQuery({ queryKey: ["fleet", "summary"], queryFn: () => request<FleetSummary>("GET", "/api/v1/fleet/summary"), enabled: viewer });
   const item = root.children?.find((c) => c.label === cluster);
   const cap = fleet.data?.clusters?.find((c) => c.name === cluster);
@@ -41,7 +42,7 @@ export const ClusterSummary: FC = () => {
     <PageLayout
       title="Summary"
       controls={
-        <Button element={Link} to={projectPath(`default@${cluster}`, "instances/create")} appearance="positive" hasIcon>
+        <Button element={Link} to={projectPath(home(cluster), "instances/create")} appearance="positive" hasIcon>
           <span>Create instance</span>
         </Button>
       }
@@ -161,7 +162,8 @@ export const ClusterSub: FC = () => {
   const cluster = useCluster();
   const { tab = "", sub } = useParams<{ tab: string; sub: string }>();
   const { data: me } = useMe();
-  const subs = clusterSubs(cluster, tab as never, { operator: can(me, "operator"), viewer: can(me, "viewer") });
+  const home = useHome();
+  const subs = clusterSubs(cluster, tab as never, { operator: can(me, "operator"), viewer: can(me, "viewer"), home });
   const current = subs.find((s) => s.sub === sub);
   if (!subs.length) return <Navigate to={`/inventory/${enc(cluster)}`} replace />;
   if (!current) return <Navigate to={`/inventory/${enc(cluster)}/${tab}/${subs[0]!.sub}`} replace />;

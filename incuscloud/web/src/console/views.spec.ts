@@ -121,3 +121,9 @@ test("the projects view lists a project's Kubernetes clusters after its instance
 });
 
 const kids = (t: TreeItem) => (t.children ?? []).map((c) => `${c.label}:${c.kind}/${c.tone}`);
+
+test("a tenant member's networks and pools open in their own project: they have no rights in default", () => {
+  const tenant = data({ projects: [{ name: "kspike@cluster-b" }], networks: { "cluster-b": [{ name: "incusbr0", managed: true }] }, pools: [{ name: "default@cluster-b", status: "Created" }] });
+  expect(lines(buildView("networks", tenant)).find((l) => l.includes("incusbr0"))).toBe("    incusbr0 -> /ui/project/kspike%40cluster-b/network/incusbr0");
+  expect(lines(buildView("storage", tenant)).find((l) => l.includes("pool/"))).toBe("    default -> /ui/project/kspike%40cluster-b/storage/pool/default%40cluster-b");
+});

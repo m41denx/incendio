@@ -292,3 +292,12 @@ test("a page still showing a global list when the cluster changes gets the new c
   act(() => go("/inventory/c2/members"));
   await waitFor(() => expect(screen.getByTestId("probe")).toHaveTextContent("fetch 2"));
 });
+
+test("a tenant member creates instances on a cluster in their own project, not default", async () => {
+  api({
+    "GET /api/v1/me": [200, me({ platformRole: null, tenants: [{ id: "t", slug: "p", name: "P", role: "member" }] } as never)],
+    "GET /1.0/projects": sync([{ name: "p@c1", description: "", config: {}, used_by: [] }]),
+  });
+  renderInFrame(<AppRoutes />, { path: "/inventory/c1" });
+  await waitFor(() => expect(screen.getByRole("link", { name: "Create instance" })).toHaveAttribute("href", "/ui/project/p%40c1/instances/create"));
+});

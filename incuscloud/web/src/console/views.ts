@@ -1,5 +1,5 @@
 import { clusterOf, nameOf } from "../pages/inventory/tree";
-import { projectPath } from "./object";
+import { homeProject, projectPath } from "./object";
 import { toneOf, type Kind, type Tone } from "./KindIcon";
 
 /** What the sidebar's tree lists below each cluster. */
@@ -71,6 +71,7 @@ export function buildView(view: View, d: InventoryData): TreeItem {
   ]);
   names.delete("");
   const statusOf = new Map(d.clusters.map((c) => [c.name, c.status]));
+  const projectNames = d.projects.map((p) => p.name);
 
   const clusters = [...names].map((cluster): TreeItem => {
     const instances = d.instances.filter((i) => clusterOf(i.project) === cluster);
@@ -96,11 +97,11 @@ export function buildView(view: View, d: InventoryData): TreeItem {
     } else if (view === "networks") {
       children = (d.networks[cluster] ?? [])
         .filter((n) => n.managed)
-        .map((n) => ({ key: `net:${cluster}/${n.name}`, label: n.name, kind: "network", tone: "none", to: projectPath(`default@${cluster}`, `network/${enc(n.name)}`) }));
+        .map((n) => ({ key: `net:${cluster}/${n.name}`, label: n.name, kind: "network", tone: "none", to: projectPath(homeProject(cluster, projectNames), `network/${enc(n.name)}`) }));
     } else {
       children = d.pools
         .filter((p) => clusterOf(p.name) === cluster)
-        .map((p) => ({ key: `pool:${p.name}`, label: nameOf(p.name), kind: "pool", tone: toneOf(p.status), status: p.status, to: projectPath(`default@${cluster}`, `storage/pool/${enc(p.name)}`) }));
+        .map((p) => ({ key: `pool:${p.name}`, label: nameOf(p.name), kind: "pool", tone: toneOf(p.status), status: p.status, to: projectPath(homeProject(cluster, projectNames), `storage/pool/${enc(p.name)}`) }));
     }
     return {
       key: `c:${cluster}`,

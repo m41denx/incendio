@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { clusterOfObj, crumbsOf, objectOf, subsOf, tabsOf } from "./object";
+import { clusterOfObj, clusterSubs, crumbsOf, homeProject, objectOf, subsOf, tabsOf } from "./object";
 
 test("URLs select objects", () => {
   expect(objectOf("/")).toEqual({ kind: "root", tab: "summary" });
@@ -93,4 +93,18 @@ test("tenant members get no server-wide Incus pages: they have no rights there",
   expect(menu("/inventory/cluster-d/networks/networks")).toEqual(["Networks", "ACLs", "Address sets", "Zones", "IPAM"]);
   // Platform viewers see them all.
   expect(subsOf(objectOf("/inventory/cluster-d/access/who"), { operator: false, viewer: true }).map((t) => t.label)).toHaveLength(6);
+});
+
+test("a cluster's home project: default when the caller can see it, else the caller's first there", () => {
+  expect(homeProject("c", ["default@c", "acme@c"])).toBe("default@c");
+  expect(homeProject("c", ["zeta@c", "acme@c", "default@d"])).toBe("acme@c");
+  // Not known yet (or none): default.
+  expect(homeProject("c", [])).toBe("default@c");
+});
+
+test("a tenant member's cluster tabs open their own project's pages", () => {
+  const member = { operator: false, viewer: false, home: () => "acme@cluster-d" };
+  const paths = subsOf(objectOf("/inventory/cluster-d/networks/networks"), member).map((t) => t.to);
+  expect(paths.every((p) => p.startsWith("/inventory/cluster-d/networks/"))).toBe(true);
+  expect(clusterSubs("cluster-d", "storage", member).map((s) => s.path)[0]).toBe("/ui/project/acme%40cluster-d/storage/pools");
 });
