@@ -301,3 +301,14 @@ test("a tenant member creates instances on a cluster in their own project, not d
   renderInFrame(<AppRoutes />, { path: "/inventory/c1" });
   await waitFor(() => expect(screen.getByRole("link", { name: "Create instance" })).toHaveAttribute("href", "/ui/project/p%40c1/instances/create"));
 });
+
+test("a tenant member's placement groups are their own project's, not default's", async () => {
+  const calls = api({
+    "GET /api/v1/me": [200, me({ platformRole: null, tenants: [{ id: "t", slug: "p", name: "P", role: "member" }] } as never)],
+    "GET /1.0/projects": sync([{ name: "p@c1", description: "", config: {}, used_by: [] }]),
+    "GET /1.0/placement-groups": sync([]),
+  });
+  renderInFrame(<AppRoutes />, { path: "/inventory/c1/groups/placement" });
+  await waitFor(() => expect(calls.calls.some((c) => c.path.startsWith("/1.0/projects/p%40c1"))).toBe(true));
+  expect(calls.calls.some((c) => c.path.startsWith("/1.0/projects/default%40c1"))).toBe(false);
+});

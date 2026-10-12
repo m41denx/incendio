@@ -131,9 +131,11 @@ const ClusterSettings: FC<{ cluster: string }> = ({ cluster }) => {
 /** A cluster's placement groups: Incendio's page for one of its projects, picked here. */
 const PlacementGroups: FC<{ cluster: string }> = ({ cluster }) => {
   const { root } = useInventory("projects");
+  const home = useHome();
   const [params, setParams] = useSearchParams();
   const projects = (root.children?.find((c) => c.label === cluster)?.children ?? []).map((p) => p.label);
-  const project = params.get("project") || "default";
+  // Until one is picked, the caller's home project there (a tenant member has no rights in default).
+  const project = params.get("project") || nameOf(home(cluster));
   return (
     <div className="ic-picked">
       <div className="ic-picked__picker">
