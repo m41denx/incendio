@@ -12,6 +12,9 @@ afterEach(() => {
   localStorage.removeItem("ic.sidebar");
 });
 
+/** A Kubernetes cluster in project p on c1. */
+const kweb = { id: "k-1", tenantId: "t-1", tenantSlug: "acme", clusterId: "id-1", clusterName: "c1", project: "p", member: "", name: "kweb", version: "v1.37.0", controlPlanes: 1, workers: 1, size: "small", endpoint: "https://10.0.0.1:16443", status: "ready", statusMessage: "", nodes: 2, nodesReady: 2, createdBy: "u", createdAt: "2026-10-12T10:00:00Z", syncedAt: null };
+
 const sync = (metadata: unknown) => [200, { type: "sync", metadata }] as [number, unknown];
 
 /** Two clusters: c1 with members m1 and m2, c2 standalone. */
@@ -32,6 +35,8 @@ const api = (over: Record<string, [number, unknown?]> = {}) =>
     "GET /1.0/projects/p%40c1": sync({ name: "p@c1", description: "", config: {}, used_by: [] }),
     "GET /1.0/network-acls": sync([]),
     "GET /1.0/operations": sync({}),
+    "GET /api/v1/kubernetes/versions": [200, { enabled: true, versions: ["v1.37.0"], sizes: { small: { cpu: 2, memoryGiB: 2 } } }],
+    "GET /api/v1/kubernetes": [200, [kweb]],
     ...over,
   });
 
@@ -54,7 +59,9 @@ test("the sidebar: tree views, the tree, then Platform and Account; the view is 
   expect(n.getByRole("link", { name: "All clusters" })).toBeInTheDocument();
   expect(await clusterLink("c2")).toBeInTheDocument();
   for (const v of ["Instances", "Projects", "Members", "Networks", "Storage"]) expect(n.getByRole("button", { name: v })).toBeInTheDocument();
-  for (const l of ["Kubernetes", "Tenants", "Jobs", "Sign out"]) expect(n.getByRole("link", { name: l })).toBeInTheDocument();
+  for (const l of ["Tenants", "Jobs", "Sign out"]) expect(n.getByRole("link", { name: l })).toBeInTheDocument();
+  // Kubernetes clusters are inventory objects (the root's and each cluster's tab), not a platform page.
+  expect(n.queryByRole("link", { name: "Kubernetes" })).not.toBeInTheDocument();
   // The root's tabs, not the sidebar, lead to the dashboard and the cluster list.
   expect(n.queryByRole("link", { name: "Dashboard" })).not.toBeInTheDocument();
   expect(n.queryByRole("link", { name: "Clusters" })).not.toBeInTheDocument();
@@ -189,4 +196,26 @@ test("a project's tab with several pages shows them in a side menu", async () =>
   const menu = within(await screen.findByRole("navigation", { name: "Networks" }));
   expect(menu.getByRole("link", { name: "ACLs" })).toHaveAttribute("aria-current", "page");
   expect(menu.getByRole("link", { name: "IPAM" })).toHaveAttribute("href", "/ui/project/p%40c1/network-ipam");
+});
+
+test("Kubernetes: the root's tab lists every cluster's, a cluster's tab its own, with Create for that cluster", async () => {
+  api();
+  const all = renderInFrame(<AppRoutes />, { path: "/all/kubernetes" });
+  const row = (await screen.findByRole("link", { name: "kweb" })).closest("tr")!;
+  expect(within(row).getByRole("link", { name: "c1" })).toHaveAttribute("href", "/inventory/c1");
+  expect(within(row).getByRole("link", { name: "kweb" })).toHaveAttribute("href", "/ui/project/p%40c1/kubernetes/kweb");
+  all.unmount();
+  renderInFrame(<AppRoutes />, { path: "/inventory/c1/kubernetes" });
+  expect(await screen.findByRole("link", { name: "kweb" })).toBeInTheDocument();
+  expect(screen.queryByRole("columnheader", { name: "Incus cluster" })).toBeNull();
+  expect(screen.getByRole("link", { name: "Create cluster" })).toHaveAttribute("href", "/kubernetes/new?cluster=c1");
+});
+
+test("old Kubernetes links land on the new pages", async () => {
+  api({ "GET /api/v1/kubernetes/k-1": [200, kweb] });
+  const list = renderInFrame(<AppRoutes />, { path: "/kubernetes" });
+  await waitFor(async () => expect((await tabRow()).getByRole("link", { name: "Kubernetes" })).toHaveAttribute("aria-current", "page"));
+  list.unmount();
+  renderInFrame(<AppRoutes />, { path: "/kubernetes/k-1" });
+  await waitFor(() => expect(screen.getByRole("navigation", { name: "Breadcrumbs" })).toHaveTextContent("kweb"));
 });

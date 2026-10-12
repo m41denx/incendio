@@ -25,6 +25,8 @@ const k8s = (over: Partial<K8sCluster> = {}): K8sCluster => ({
   tenantSlug: "acme",
   clusterId: "c-1",
   clusterName: "lab",
+  project: "acme",
+  member: "",
   name: "web",
   version: "v1.36.4",
   controlPlanes: 1,
@@ -54,13 +56,13 @@ test("the list shows each cluster with its status, version, nodes, endpoint, ten
   });
   renderAt(<KubernetesList />);
   const web = (await screen.findByRole("link", { name: "web" })).closest("tr")!;
-  expect(within(web).getByRole("link", { name: "web" })).toHaveAttribute("href", "/kubernetes/k-1");
+  expect(within(web).getByRole("link", { name: "web" })).toHaveAttribute("href", "/ui/project/acme%40lab/kubernetes/web");
   expect(within(web).getByText("Ready")).toBeInTheDocument();
   expect(within(web).getByText("v1.36.4")).toBeInTheDocument();
   expect(within(web).getByText("3/3")).toBeInTheDocument();
   expect(within(web).getByText("10.0.0.5:16443")).toBeInTheDocument();
   expect(within(web).getByRole("link", { name: "acme" })).toHaveAttribute("href", "/tenants/t-1");
-  expect(within(web).getByRole("link", { name: "lab" })).toHaveAttribute("href", "/clusters/c-1");
+  expect(within(web).getByRole("link", { name: "lab" })).toHaveAttribute("href", "/inventory/lab");
   const api = screen.getByRole("link", { name: "api" }).closest("tr")!;
   expect(within(api).getByText("Degraded")).toBeInTheDocument();
   expect(within(api).getByText("1 of 2 nodes ready")).toBeInTheDocument();
@@ -107,8 +109,10 @@ test("create: a ready placement, a name and a shape, with what it takes from the
   expect((await within(cluster).findAllByRole("option")).map((o) => o.textContent)).toEqual(["lab"]);
   expect(screen.getByLabelText("Kubernetes version")).toHaveValue("v1.37.0");
   // A single-member Incus cluster: nothing to choose.
-  expect(screen.queryByLabelText("Node")).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("Member")).not.toBeInTheDocument();
   await userEvent.type(screen.getByLabelText("Name"), "web");
+  // The form's sections, as Incendio's: the shape of the nodes is the next one.
+  await userEvent.click(within(screen.getByRole("navigation", { name: "Kubernetes form navigation" })).getByText("Nodes"));
   await userEvent.selectOptions(screen.getByLabelText("Control plane nodes"), "3");
   await userEvent.clear(screen.getByLabelText("Worker nodes"));
   await userEvent.type(screen.getByLabelText("Worker nodes"), "2");
@@ -116,7 +120,7 @@ test("create: a ready placement, a name and a shape, with what it takes from the
   // 5 nodes of 2 CPUs and 4 GiB, and a load balancer of 1 and 1.
   expect(screen.getByText("Uses 6 instances, 11 CPUs, 21 GiB of memory and 60 GiB of disk of the tenant's quota, with its load balancer.")).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Create" }));
-  await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/kubernetes/k-9"));
+  await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/ui/project/acme%40lab/kubernetes/web"));
   expect(api.calls.find((c) => c.method === "POST")!.body).toEqual({ tenantId: "t-1", clusterId: "c-1", name: "web", version: "v1.37.0", controlPlanes: 3, workers: 2, size: "medium" });
 });
 
@@ -140,7 +144,7 @@ test("create on a multi-member Incus cluster: its nodes run on one member, chose
     "POST /api/v1/kubernetes": [202, { cluster: k8s({ id: "k-9", status: "creating" }), job: { id: "j-1" } }],
   });
   renderAt(<CreateKubernetes />);
-  const node = await screen.findByLabelText("Node");
+  const node = await screen.findByLabelText("Member");
   expect(within(node).getAllByRole("option").map((o) => [o.textContent, (o as HTMLOptionElement).disabled])).toEqual([
     ["Automatic (most memory free)", false],
     ["m1", false],
@@ -192,14 +196,20 @@ test("create refuses names CAPI cannot use", async () => {
   expect(screen.getByRole("button", { name: "Create" })).toHaveAttribute("aria-disabled", "true");
 });
 
-const detail = (who: Me, cluster: K8sCluster, extra: Parameters<typeof mockApi>[0] = {}) => {
-  const api = mockApi({ "GET /api/v1/me": [200, who], "GET /api/v1/kubernetes/versions": [200, options()], "GET /api/v1/kubernetes/k-1": [200, cluster], ...extra });
+const detail = (who: Me, cluster: K8sCluster, extra: Parameters<typeof mockApi>[0] = {}, tab = "") => {
+  const api = mockApi({
+    "GET /api/v1/me": [200, who],
+    "GET /api/v1/kubernetes/versions": [200, options()],
+    "GET /api/v1/kubernetes": [200, [cluster, k8s({ id: "k-2", name: "web", project: "other", clusterName: "lab" })]],
+    "GET /api/v1/kubernetes/k-1": [200, cluster],
+    ...extra,
+  });
   renderAt(
     <Routes>
-      <Route path="/kubernetes/:id" element={<KubernetesDetail />} />
+      <Route path="/ui/project/:project/kubernetes/:name/:tab?" element={<KubernetesDetail />} />
       <Route path="*" element={<Where />} />
     </Routes>,
-    { path: "/kubernetes/k-1" },
+    { path: `/ui/project/acme%40lab/kubernetes/web${tab ? `/${tab}` : ""}` },
   );
   return api;
 };
@@ -258,4 +268,34 @@ test("detail: the kubeconfig downloads as a file", async () => {
   await waitFor(() => expect(created).toHaveBeenCalled());
   expect(saved.mock.instances[0]).toHaveProperty("download", "web.kubeconfig");
   expect(api.calls.some((c) => c.path === "/api/v1/kubernetes/k-1/kubeconfig")).toBe(true);
+});
+
+test("detail: its nodes, control plane first, each linked to its Incus instance on its member", async () => {
+  detail(memberOf("viewer"), k8s(), {
+    "GET /api/v1/kubernetes/k-1/nodes": [
+      200,
+      [
+        { name: "web-cp-x", role: "control-plane", instance: "web-cp-x", phase: "Running", version: "v1.36.4", ready: true },
+        { name: "web-md-a", role: "worker", instance: "web-md-a", phase: "Provisioning", version: "v1.36.4", ready: false },
+      ],
+    ],
+    "GET /1.0/instances": [200, { type: "sync", metadata: [{ name: "web-cp-x", project: "acme@lab", location: "m2@lab", status: "Running", type: "container" }] }],
+  }, "nodes");
+  const cp = (await screen.findByRole("link", { name: "web-cp-x" })).closest("tr")!;
+  expect(within(cp).getByRole("link", { name: "web-cp-x" })).toHaveAttribute("href", "/ui/project/acme%40lab/instance/web-cp-x");
+  expect(within(cp).getByText("Control plane")).toBeInTheDocument();
+  expect(await within(cp).findByText("m2")).toBeInTheDocument();
+  const worker = screen.getByRole("link", { name: "web-md-a" }).closest("tr")!;
+  expect(within(worker).getByText("Provisioning")).toBeInTheDocument();
+  expect(within(worker).getByText("Not ready")).toBeInTheDocument();
+});
+
+test("detail: its activity is its jobs, newest first", async () => {
+  const job = (id: string, type: string, k8sId: string, createdAt: string) => ({ id, type, state: "succeeded", progress: { stage: "done" }, payload: { k8sId }, result: null, error: "", tenantId: "t-1", clusterIds: [], instanceKey: null, actorType: "user", actorId: "u-1", cancelRequested: false, createdAt, startedAt: createdAt, finishedAt: createdAt });
+  detail(memberOf("member"), k8s(), {
+    "GET /api/v1/jobs": [200, [job("j-1", "k8s-create", "k-1", "2026-10-12T10:00:00Z"), job("j-2", "k8s-create", "k-9", "2026-10-12T11:00:00Z")]],
+  }, "activity");
+  const row = (await screen.findByRole("link", { name: "k8s-create" })).closest("tr")!;
+  expect(within(row).getByRole("link", { name: "k8s-create" })).toHaveAttribute("href", "/jobs/j-1");
+  expect(screen.getAllByRole("link", { name: "k8s-create" })).toHaveLength(1);
 });

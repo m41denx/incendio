@@ -8,25 +8,25 @@ import Shell from "../components/Shell";
 
 // The sidebar's links, and "Profile" for the link to /profile (labelled with the user's name).
 const labels = async () => {
-  await screen.findByRole("link", { name: "Kubernetes" });
+  await screen.findByRole("link", { name: "Tenants" });
   const nav = screen.getByRole("navigation", { name: "main navigation" });
   return [...nav.querySelectorAll("a")].map((a) => (a.getAttribute("href") === "/profile" ? "Profile" : a.textContent?.trim())).filter(Boolean);
 };
-const ready = () => screen.findByRole("link", { name: "Kubernetes" });
+const ready = () => screen.findByRole("link", { name: "Tenants" });
 /** Incendio announces a collapse or expand 500ms later: wait for it, so it does not outlive the test. */
 const toggled = () => new Promise((resolve) => window.addEventListener("menu-collapse-toggle", resolve, { once: true }));
 
 test("platform admins see every section", async () => {
   mockApi({ ...incendioApi(), "GET /api/v1/me": [200, me({ platformRole: "admin" })] });
   renderInFrame(<Shell />);
-  expect(await labels()).toEqual(expect.arrayContaining(["All clusters", "Kubernetes", "Tenants", "Jobs", "Replication", "Backups", "Balancing", "Backup targets", "Users", "Service accounts", "Audit log", "Gateway log", "Profile"]));
+  expect(await labels()).toEqual(expect.arrayContaining(["All clusters", "Tenants", "Jobs", "Replication", "Backups", "Balancing", "Backup targets", "Users", "Service accounts", "Audit log", "Gateway log", "Profile"]));
 });
 
 test("tenant members see the platform's pages they use, not its administration", async () => {
   mockApi({ ...incendioApi(), "GET /api/v1/me": [200, me({ platformRole: null, tenants: [{ id: "t1", slug: "acme", name: "Acme", role: "member" }] })] });
   renderInFrame(<Shell />);
   const l = await labels();
-  expect(l).toEqual(expect.arrayContaining(["All clusters", "Kubernetes", "Tenants", "Jobs", "Replication", "Backups", "Balancing", "Profile"]));
+  expect(l).toEqual(expect.arrayContaining(["All clusters", "Tenants", "Jobs", "Replication", "Backups", "Balancing", "Profile"]));
   for (const hidden of ["Backup targets", "Users", "Service accounts", "Audit log", "Gateway log"]) expect(l).not.toContain(hidden);
 });
 
@@ -107,9 +107,9 @@ test("the tree first, then Platform and Account, each labelled; the dashboard an
   const at = (x: string) => order.findIndex((t) => t === x || t?.endsWith(x));
   expect(order.filter((t) => ["Platform", "Account"].includes(t ?? ""))).toEqual(["Platform", "Account"]);
   expect(at("All clusters")).toBeLessThan(at("Platform"));
-  expect(at("Platform")).toBeLessThan(at("Kubernetes"));
+  expect(at("Platform")).toBeLessThan(at("Tenants"));
   expect(at("Account")).toBeLessThan(at("Sign out"));
-  for (const gone of ["Dashboard", "Clusters", "Infrastructure", "Project"]) expect(order).not.toContain(gone);
+  for (const gone of ["Dashboard", "Clusters", "Kubernetes", "Infrastructure", "Project"]) expect(order).not.toContain(gone);
 });
 
 test("the saved theme (Incendio's setting) applies on every page, not only Incendio's", async () => {

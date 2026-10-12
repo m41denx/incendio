@@ -460,6 +460,8 @@ export interface K8sCluster {
   tenantSlug: string;
   clusterId: string;
   clusterName: string;
+  /** The tenant's Incus project on that cluster, where its nodes run. */
+  project: string;
   /** The member its load balancer and nodes run on ("" on a single-member Incus cluster). */
   member?: string;
   name: string;
@@ -476,6 +478,16 @@ export interface K8sCluster {
   createdBy: string;
   createdAt: string;
   syncedAt: string | null;
+}
+
+/** GET /api/v1/kubernetes/:id/nodes: a Cluster API Machine and the Incus instance it runs on. */
+export interface K8sNode {
+  name: string;
+  role: "control-plane" | "worker";
+  instance: string;
+  phase: string;
+  version: string;
+  ready: boolean;
 }
 
 /** GET /api/v1/kubernetes/versions. */

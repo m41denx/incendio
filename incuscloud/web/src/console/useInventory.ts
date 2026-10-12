@@ -46,6 +46,20 @@ export function useInventory(view: View): { root: TreeItem; isLoading: boolean; 
     enabled: view === "storage",
     ...REFRESH,
   });
+  // Kubernetes clusters (none when IncusCloud has no management cluster).
+  const kubernetes = useQuery({
+    queryKey: ["inventory", "kubernetes"],
+    queryFn: async () => {
+      try {
+        return await request<Array<{ name: string; project: string; clusterName: string; status: string }>>("GET", "/api/v1/kubernetes");
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 409) return [];
+        throw e;
+      }
+    },
+    enabled: view === "projects",
+    ...REFRESH,
+  });
   const names = [...new Set([...(clusters.data ?? []).map((c) => c.name), ...(members.data ?? []).map((m) => clusterOf(m.server_name))])].filter(Boolean).sort();
   const networks = useQueries({
     queries: names.map((c) => ({
@@ -63,8 +77,9 @@ export function useInventory(view: View): { root: TreeItem; isLoading: boolean; 
     instances: instances.data ?? [],
     networks: Object.fromEntries(names.map((c, i) => [c, (networks[i]?.data ?? []).map((n) => ({ ...n, name: nameOf(n.name) }))])),
     pools: pools.data ?? [],
+    kubernetes: (kubernetes.data ?? []).map((k) => ({ name: k.name, project: `${k.project}@${k.clusterName}`, status: k.status })),
   };
-  const shown = [clusters, members, ...(withInstances ? [instances] : []), ...(view === "projects" ? [projects] : []), ...(view === "storage" ? [pools] : []), ...(view === "networks" ? networks : [])];
+  const shown = [clusters, members, ...(withInstances ? [instances] : []), ...(view === "projects" ? [projects, kubernetes] : []), ...(view === "storage" ? [pools] : []), ...(view === "networks" ? networks : [])];
   return {
     root: buildView(view, data),
     isLoading: shown.some((q) => q.isLoading),

@@ -27,12 +27,14 @@ const BUSY = ["creating", "provisioning", "deleting"];
 type Row = typeof k8sClusters.$inferSelect;
 const endpointOf = (r: Pick<Row, "endpointHost" | "endpointPort">) => `https://${r.endpointHost.includes(":") ? `[${r.endpointHost}]` : r.endpointHost}:${r.endpointPort}`;
 
-const view = (r: Row, tenantSlug: string, clusterName: string) => ({
+const view = (r: Row, tenantSlug: string, clusterName: string, project: string) => ({
   id: r.id,
   tenantId: r.tenantId,
   tenantSlug,
   clusterId: r.clusterId,
   clusterName,
+  /** The tenant's Incus project on that cluster, where its instances run. */
+  project,
   name: r.name,
   version: r.version,
   controlPlanes: r.controlPlanes,
@@ -82,10 +84,11 @@ export function kubernetesRoutes({ db, authz, kube, k8sPorts }: { db: Db; authz:
   };
   const select = (where?: ReturnType<typeof and>) =>
     db
-      .select({ row: k8sClusters, tenantSlug: tenants.slug, clusterName: clusters.name })
+      .select({ row: k8sClusters, tenantSlug: tenants.slug, clusterName: clusters.name, project: sql<string>`coalesce(${placements.project}, ${tenants.slug})` })
       .from(k8sClusters)
       .innerJoin(tenants, eq(tenants.id, k8sClusters.tenantId))
       .innerJoin(clusters, eq(clusters.id, k8sClusters.clusterId))
+      .leftJoin(placements, and(eq(placements.tenantId, k8sClusters.tenantId), eq(placements.clusterId, k8sClusters.clusterId)))
       .where(where)
       .orderBy(tenants.slug, k8sClusters.name);
   const load = async (p: Principal, id: string) => {
@@ -115,13 +118,13 @@ export function kubernetesRoutes({ db, authz, kube, k8sPorts }: { db: Db; authz:
         const v = await visibleTenants(db, authz, p);
         if (v !== "all" && !v.length) return [];
         const conds = [v === "all" ? undefined : inArray(k8sClusters.tenantId, v), query.tenant ? eq(k8sClusters.tenantId, uuidParam(query.tenant)) : undefined];
-        return (await select(and(...conds))).map((x) => view(x.row, x.tenantSlug, x.clusterName));
+        return (await select(and(...conds))).map((x) => view(x.row, x.tenantSlug, x.clusterName, x.project));
       },
       { query: t.Object({ tenant: t.Optional(t.String()) }) },
     )
     .get("/api/v1/kubernetes/:id", async ({ principal, params }) => {
       const x = await load(authed(principal), params.id);
-      return view(x.row, x.tenantSlug, x.clusterName);
+      return view(x.row, x.tenantSlug, x.clusterName, x.project);
     })
     .post(
       "/api/v1/kubernetes",
@@ -190,7 +193,7 @@ export function kubernetesRoutes({ db, authz, kube, k8sPorts }: { db: Db; authz:
               tenantId: tenant.id,
               clusterIds: [body.clusterId],
             });
-            return { cluster: view(row!, tenant.slug, clusterName!), job };
+            return { cluster: view(row!, tenant.slug, clusterName!, placed?.project ?? tenant.slug), job };
           }),
         (r) => ({ k8sId: r.cluster.id, name: r.cluster.name }),
         );
@@ -219,7 +222,7 @@ export function kubernetesRoutes({ db, authz, kube, k8sPorts }: { db: Db; authz:
       "/api/v1/kubernetes/:id",
       async ({ principal, request, params, body }) => {
         const p = authed(principal);
-        const { row, tenantSlug, clusterName } = await load(p, params.id);
+        const { row, tenantSlug, clusterName, project } = await load(p, params.id);
         await needRole(p, row.tenantId, "member");
         const action = body.version && body.version !== row.version ? "kubernetes.upgrade" : "kubernetes.scale";
         const updated = await audited(db, { principal: p, request }, action, { type: "tenant", id: row.tenantId }, () =>
@@ -250,7 +253,7 @@ export function kubernetesRoutes({ db, authz, kube, k8sPorts }: { db: Db; authz:
           }),
         (s) => ({ k8sId: s.id, version: s.version, controlPlanes: s.controlPlanes, workers: s.workers }),
         );
-        return view(updated, tenantSlug, clusterName);
+        return view(updated, tenantSlug, clusterName, project);
       },
       {
         body: t.Object({

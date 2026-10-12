@@ -39,7 +39,7 @@ test("create: a member gets a cluster on the cluster's address and the first por
   const m = await member();
   const r = await h.call(m, "POST", "/api/v1/kubernetes", make());
   expect(r.status).toBe(202);
-  expect(r.body.cluster).toMatchObject({ name: "web", tenantSlug: "acme", clusterName: "lab", status: "creating", endpoint: "https://10.0.0.5:16443", nodes: 0, nodesReady: 0 });
+  expect(r.body.cluster).toMatchObject({ name: "web", tenantSlug: "acme", clusterName: "lab", project: "acme", status: "creating", endpoint: "https://10.0.0.5:16443", nodes: 0, nodesReady: 0 });
   expect(r.body.job.type).toBe("k8s-create");
   const [row] = await rows();
   expect(row).toMatchObject({ namespace: "ic-acme", endpointHost: "10.0.0.5", endpointPort: 16443, lbMember: "", createdBy: m.id });
@@ -230,6 +230,10 @@ test("a cluster's nodes: its Machines, control plane first, each with its Incus 
   kube.put(machine("web-cp-x", { cp: true }));
   kube.put(machine("other-cp", { cp: true, cluster: "other" }));
   const viewer = await h.user("v@example.com", { tenants: { [acme.id]: "viewer" } });
+  // Its project is the tenant's project on that cluster, whatever it is named.
+  await h.db.update(placements).set({ project: "acme-lab" }).where(eq(placements.clusterId, lab));
+  expect((await h.call(viewer, "GET", `/api/v1/kubernetes/${id}`)).body.project).toBe("acme-lab");
+  expect((await h.call(viewer, "GET", "/api/v1/kubernetes")).body[0].project).toBe("acme-lab");
   const r = await h.call(viewer, "GET", `/api/v1/kubernetes/${id}/nodes`);
   expect(r.status).toBe(200);
   expect(r.body).toEqual([

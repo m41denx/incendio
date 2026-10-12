@@ -1,12 +1,18 @@
 import type { FC } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useParams } from "react-router-dom";
 import Shell from "./components/Shell";
 import IncendioPages from "./components/IncendioPages";
 import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
 import KubernetesList from "./pages/kubernetes/KubernetesList";
+
+/** A cluster's or a project's Kubernetes tab: the list, scoped by the URL. */
+const ScopedKubernetes: FC<{ by: "cluster" | "project" }> = ({ by }) => {
+  const p = useParams();
+  return <KubernetesList key={p[by]} scope={{ [by]: p[by] }} />;
+};
 import CreateKubernetes from "./pages/kubernetes/CreateKubernetes";
-import KubernetesDetail from "./pages/kubernetes/KubernetesDetail";
+import KubernetesDetail, { KubernetesRedirect } from "./pages/kubernetes/KubernetesDetail";
 import InstanceDetail from "./pages/instances/InstanceDetail";
 import JobList from "./pages/jobs/JobList";
 import JobDetail from "./pages/jobs/JobDetail";
@@ -51,9 +57,14 @@ export const AppRoutes: FC = () => (
       <Route path="clusters" element={<Navigate to="/all/clusters" replace />} />
       <Route path="clusters/:id" element={<ClusterRedirect />} />
       <Route path="instances/:id" element={<InstanceDetail />} />
-      <Route path="kubernetes" element={<KubernetesList />} />
+      {/* Kubernetes clusters: inventory objects in their project; the root's and each cluster's tab list them. */}
+      <Route path="all/kubernetes" element={<KubernetesList />} />
+      <Route path="inventory/:cluster/kubernetes" element={<ScopedKubernetes by="cluster" />} />
+      <Route path="ui/project/:project/kubernetes" element={<ScopedKubernetes by="project" />} />
+      <Route path="ui/project/:project/kubernetes/:name/:tab?" element={<KubernetesDetail />} />
+      <Route path="kubernetes" element={<Navigate to="/all/kubernetes" replace />} />
       <Route path="kubernetes/new" element={<CreateKubernetes />} />
-      <Route path="kubernetes/:id" element={<KubernetesDetail />} />
+      <Route path="kubernetes/:id" element={<KubernetesRedirect />} />
       <Route path="jobs" element={<JobList />} />
       <Route path="jobs/:id" element={<JobDetail />} />
       <Route path="replication" element={<PolicyList />} />

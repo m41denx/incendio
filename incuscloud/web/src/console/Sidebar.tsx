@@ -26,7 +26,6 @@ export function platformSections(me: Me): Section[] {
   const manages = platformViewer || tenantAdmin(me);
   const only = (xs: Array<Section | false>) => xs.filter((x): x is Section => !!x);
   return only([
-    { label: "Kubernetes", icon: "kubernetes", to: "/kubernetes" },
     { label: "Tenants", icon: "switcher-environments", to: "/tenants" },
     { label: "Jobs", icon: "loading-steps", to: "/jobs" },
     { label: "Replication", icon: "restart", to: "/replication" },
