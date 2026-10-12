@@ -7,6 +7,9 @@ import { defaultNetwork, ensureForward, findLb, removeForward, removeLeftovers }
 import { log } from "../lib/log.ts";
 import type { Kube, KubeObject } from "./kube.ts";
 import { lbIsInstance } from "./model.ts";
+import { enqueueJob } from "../jobs/queue.ts";
+import { installMetalLB, kubeFromKubeconfig, metallbObjects, workloadKubeconfig, METALLB_MANIFEST_URL } from "./metallb.ts";
+import { METALLB_NAMESPACE, METALLB_POOL } from "@incendio/k8s/src/lib/metallb.ts";
 import { classBundle, clusterManifest, tenantBundle } from "./manifests.ts";
 
 /** What the k8s-create and k8s-delete jobs carry: the row; everything else is read from it. */
@@ -22,6 +25,10 @@ export interface K8sJobOptions {
   pollMs?: number;
   /** Tests replace it to play the controllers. */
   sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
+  /** Opens a workload cluster's API from its admin kubeconfig (MetalLB); tests replace it. */
+  workloadKube?: (kubeconfig: string) => Kube;
+  /** MetalLB's native manifest (MetalLB); tests replace it. */
+  metallbManifest?: () => Promise<string>;
 }
 
 const DEADLINE_MS = 30 * 60_000;
@@ -131,6 +138,10 @@ export function k8sCreateHandler(o: K8sJobOptions): JobHandler {
         () => `The control plane of ${row.name} did not become available in time${why ? ` (${why})` : ""}`,
       );
       await ctx.db.update(k8sClusters).set({ status: "ready", statusMessage: "" }).where(eq(k8sClusters.id, row.id));
+      // MetalLB goes in once there is a cluster to put it in: its own job, so a failure there is not the create's.
+      if (row.spec.metallb) {
+        await enqueueJob(ctx.db, { type: "k8s-metallb", payload: { k8sId: row.id, name: row.name }, actor: { type: "system", id: "k8s-create" }, tenantId: row.tenantId, clusterIds: [row.clusterId] });
+      }
       return { id: row.id, endpoint: endpointUrl(row.endpointHost, row.endpointPort) };
     } catch (e) {
       // Stopped by a delete: the row is the delete's now.
@@ -189,4 +200,37 @@ export function k8sDeleteHandler(o: K8sJobOptions): JobHandler {
     if (!left) await kube.delete("v1", "Namespace", undefined, row.namespace);
     return { id: row.id };
   };
+}
+
+/**
+ * Puts the cluster's MetalLB in line with its spec: installs (or updates)
+ * MetalLB and its pool when it has addresses; removes the pool (MetalLB
+ * itself stays) when it has none.
+ */
+export function k8sMetallbHandler(o: K8sJobOptions): JobHandler {
+  const { kube } = o;
+  const workloadKube = o.workloadKube ?? kubeFromKubeconfig;
+  const manifest = o.metallbManifest ?? (() => fetchManifest(METALLB_MANIFEST_URL));
+  return async (ctx) => {
+    const { row } = await load(ctx);
+    const text = await workloadKubeconfig(kube, row.namespace, row.name);
+    if (!text) throw new Error(`The kubeconfig of ${row.name} is not available yet`);
+    const workload = workloadKube(text);
+    const addresses = row.spec.metallb?.addresses ?? [];
+    if (!addresses.length) {
+      await ctx.progress({ stage: "pool", message: "removing the address pool" });
+      await workload.delete("metallb.io/v1beta1", "L2Advertisement", METALLB_NAMESPACE, METALLB_POOL);
+      await workload.delete("metallb.io/v1beta1", "IPAddressPool", METALLB_NAMESPACE, METALLB_POOL);
+      return { id: row.id, addresses };
+    }
+    await ctx.progress({ stage: "metallb", message: `installing MetalLB with ${addresses.join(", ")}` });
+    await installMetalLB(workload, metallbObjects(await manifest(), addresses), { deadlineMs: o.deadlineMs, sleep: o.sleep ? (ms) => o.sleep!(ms, ctx.signal) : undefined });
+    return { id: row.id, addresses };
+  };
+}
+
+async function fetchManifest(url: string): Promise<string> {
+  const r = await fetch(url, { signal: AbortSignal.timeout(30_000) });
+  if (!r.ok) throw new Error(`MetalLB's manifest (${url}): HTTP ${r.status}`);
+  return r.text();
 }

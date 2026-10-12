@@ -94,7 +94,12 @@ test("the console's image catalogue: the image server and any extra simplestream
 
 test("Kubernetes is off without a management kubeconfig; ports default to 16443-16999", () => {
   expect(loadConfig(base).k8s).toBeUndefined();
-  expect(loadConfig({ ...base, IC_K8S_KUBECONFIG: "/etc/ic/mgmt.kubeconfig" }).k8s).toEqual({ kubeconfig: "/etc/ic/mgmt.kubeconfig", ports: [16443, 16999] });
+  expect(loadConfig({ ...base, IC_K8S_KUBECONFIG: "/etc/ic/mgmt.kubeconfig" }).k8s).toEqual({
+    kubeconfig: "/etc/ic/mgmt.kubeconfig",
+    ports: [16443, 16999],
+    // MetalLB as Incendio's agent installs it.
+    metallbManifestUrl: "https://raw.githubusercontent.com/metallb/metallb/v0.16.0/config/manifests/metallb-native.yaml",
+  });
   expect(loadConfig({ ...base, IC_K8S_KUBECONFIG: "/k", IC_K8S_PORTS: "20000-20010" }).k8s?.ports).toEqual([20000, 20010]);
   for (const bad of ["20010-20000", "80-90", "1-2-3", "x", "20000-70000"]) expect(() => loadConfig({ ...base, IC_K8S_KUBECONFIG: "/k", IC_K8S_PORTS: bad })).toThrow(/IC_K8S_PORTS/);
 });

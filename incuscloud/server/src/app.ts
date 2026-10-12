@@ -40,6 +40,8 @@ export interface AppDeps extends AuthDeps {
   kube?: Kube;
   /** Ports for workload API endpoints (IC_K8S_PORTS). */
   k8sPorts?: [number, number];
+  /** Opens a workload cluster's API from its admin kubeconfig; tests replace it. */
+  workloadKube?: (kubeconfig: string) => Kube;
 }
 
 /** The platform's HTTP app: identity pages, sessions, platform API, health. */

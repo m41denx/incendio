@@ -93,7 +93,7 @@ const scheduleDue = async () => {
 };
 /** The management cluster (P10); without it Kubernetes is off. */
 const kube = config.k8s ? KubeClient.fromFile(config.k8s.kubeconfig) : undefined;
-const jobRunner = config.role !== "api" ? new JobRunner({ db, secretKey: config.secretKey }, { holder: `${hostname()}/${process.pid}`, handlers: jobHandlers({ imageServer: config.imageServer, kube }), concurrency: config.jobConcurrency, beforeTick: scheduleDue }) : undefined;
+const jobRunner = config.role !== "api" ? new JobRunner({ db, secretKey: config.secretKey }, { holder: `${hostname()}/${process.pid}`, handlers: jobHandlers({ imageServer: config.imageServer, kube, metallbManifestUrl: config.k8s?.metallbManifestUrl }), concurrency: config.jobConcurrency, beforeTick: scheduleDue }) : undefined;
 jobRunner?.start();
 const k8sWorker =
   kube && config.role !== "api"

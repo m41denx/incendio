@@ -13,6 +13,8 @@ import { classBundle, clusterManifest } from "../k8s/manifests.ts";
 import { KUBERNETES_VERSIONS, SIZES, lbIsInstance, namespaceOf, specError, specFromSize, upgradeError, usageOfSpec, type K8sSpec, type Size } from "../k8s/model.ts";
 import { secretNameOf } from "../k8s/credentials.ts";
 import { pickEndpoint } from "../k8s/endpoint.ts";
+import { kubeFromKubeconfig, metallbState, workloadKubeconfig } from "../k8s/metallb.ts";
+import { parseRange } from "@incendio/k8s/src/lib/metallb.ts";
 import { pendingOf } from "./tenant-cloud.ts";
 import { eventActivity, mergeActivity, type ActivityEntry, type K8sEventList } from "@incendio/k8s/src/lib/activity.ts";
 import { audited, uuidParam, visibleTenants } from "./common.ts";
@@ -120,7 +122,7 @@ function nodeOf(m: KubeObject) {
   };
 }
 
-export function kubernetesRoutes({ db, authz, kube, k8sPorts }: { db: Db; authz: Authz; kube?: Kube; k8sPorts?: [number, number] }) {
+export function kubernetesRoutes({ db, authz, kube, k8sPorts, workloadKube = kubeFromKubeconfig }: { db: Db; authz: Authz; kube?: Kube; k8sPorts?: [number, number]; workloadKube?: (kubeconfig: string) => Kube }) {
   const ports = k8sPorts ?? DEFAULT_PORTS;
   const enabled = (): Kube => {
     if (!kube) throw new ApiError(409, "kubernetes_disabled", "Kubernetes is not enabled: IncusCloud has no management cluster (IC_K8S_KUBECONFIG)");
@@ -382,6 +384,40 @@ export function kubernetesRoutes({ db, authz, kube, k8sPorts }: { db: Db; authz:
       }));
       return { entries: mergeActivity([fromEvents, fromJobs], 300) };
     })
+    .get("/api/v1/kubernetes/:id/metallb", async ({ principal, params }) => {
+      const { row } = await load(authed(principal), params.id);
+      const requested = row.spec.metallb?.addresses ?? null;
+      const text = await workloadKubeconfig(enabled(), row.namespace, row.name);
+      if (!text) return { requested, installed: false, ready: false, addresses: [], message: `The kubeconfig of ${row.name} is not available yet` };
+      try {
+        return { requested, ...(await metallbState(workloadKube(text))), message: "" };
+      } catch (e) {
+        return { requested, installed: false, ready: false, addresses: [], message: `${row.name} did not answer: ${(e as Error).message}` };
+      }
+    })
+    .put(
+      "/api/v1/kubernetes/:id/metallb",
+      async ({ principal, request, params, body, set }) => {
+        const p = authed(principal);
+        const { row, tenantSlug, clusterName, project } = await load(p, params.id);
+        await needRole(p, row.tenantId, "member");
+        const addresses = body.addresses.map((a) => a.trim());
+        const bad = addresses.find((a) => parseRange(a) === null);
+        if (bad !== undefined) throw new ApiError(400, "invalid_request", `"${bad}" is not an IPv4 range (a.b.c.d-e.f.g.h), CIDR or address`);
+        const r = await audited(db, { principal: p, request }, "kubernetes.metallb", { type: "tenant", id: row.tenantId }, () =>
+          db.transaction(async (tx) => {
+            const spec = { ...row.spec, metallb: addresses.length ? { addresses } : null };
+            const [saved] = await tx.update(k8sClusters).set({ spec }).where(eq(k8sClusters.id, row.id)).returning();
+            const job = await enqueueJob(tx as unknown as Db, { type: "k8s-metallb", payload: { k8sId: row.id, name: row.name }, actor: { type: p.kind, id: p.id }, tenantId: row.tenantId, clusterIds: [row.clusterId] });
+            return { cluster: view(saved!, tenantSlug, clusterName, project), job };
+          }),
+        (r) => ({ k8sId: r.cluster.id, addresses }),
+        );
+        set.status = 202;
+        return r;
+      },
+      { body: t.Object({ addresses: t.Array(t.String({ minLength: 1, maxLength: 64 }), { maxItems: 16 }) }) },
+    )
     .get("/api/v1/kubernetes/:id/kubeconfig", async ({ principal, request, params }) => {
       const p = authed(principal);
       const { row } = await load(p, params.id);

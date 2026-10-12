@@ -410,3 +410,39 @@ test("a cluster's activity: Events on its objects and its jobs, oldest first", a
   expect(entries.filter((e) => e.source === "incuscloud").map((e) => [e.object, e.level])).toEqual([["k8s-create", "info"]]);
   expect(entries[0]!.source).toBe("incuscloud");
 });
+
+test("MetalLB: members set its addresses (audited, a job installs it); an empty list removes the pool", async () => {
+  const { m, id } = await readyCluster();
+  const viewer = await h.user("v@example.com", { tenants: { [acme.id]: "viewer" } });
+  expect((await h.call(viewer, "PUT", `/api/v1/kubernetes/${id}/metallb`, { addresses: ["10.0.0.200-10.0.0.220"] })).status).toBe(403);
+  let r = await h.call(m, "PUT", `/api/v1/kubernetes/${id}/metallb`, { addresses: ["10.0.0.200-10.0.0.300"] });
+  expect([r.status, r.body.error.code]).toEqual([400, "invalid_request"]);
+  r = await h.call(m, "PUT", `/api/v1/kubernetes/${id}/metallb`, { addresses: [" 10.0.0.200-10.0.0.220 "] });
+  expect(r.status).toBe(202);
+  expect(r.body.job.type).toBe("k8s-metallb");
+  expect((await rows())[0]!.spec.metallb).toEqual({ addresses: ["10.0.0.200-10.0.0.220"] });
+  const [job] = await h.db.select().from(jobs).where(eq(jobs.type, "k8s-metallb"));
+  expect(job!.payload).toMatchObject({ k8sId: id, name: "web" });
+  expect((await h.db.select().from(auditLog).where(eq(auditLog.action, "kubernetes.metallb"))).length).toBe(1);
+  r = await h.call(m, "PUT", `/api/v1/kubernetes/${id}/metallb`, { addresses: [] });
+  expect(r.status).toBe(202);
+  expect((await rows())[0]!.spec.metallb).toBeNull();
+});
+
+test("MetalLB's state is read from the workload cluster; before its kubeconfig exists, it says so", async () => {
+  const workload = new FakeKube();
+  const off = await harness({ kube, k8sPorts: [16443, 16445], workloadKube: () => workload });
+  const lab2 = (await off.db.insert(clusters).values({ name: "lab", url: "https://10.0.0.5:8443", fingerprint: "f", serverCert: "", clientCert: "", clientKeyEnc: "", status: "ready" }).returning())[0]!.id;
+  const t = await off.tenant("acme");
+  await off.db.insert(placements).values({ tenantId: t.id, clusterId: lab2, project: "acme", status: "ready", usage: { instances: 0, cpu: 0, memory: 0, disk: 0 } });
+  const m = await off.user("m@example.com", { tenants: { [t.id]: "member" } });
+  const { body } = await off.call(m, "POST", "/api/v1/kubernetes", { tenantId: t.id, clusterId: lab2, name: "web", version: "v1.36.4", controlPlanes: 1, workers: 1 });
+  const id = body.cluster.id as string;
+  let r = await off.call(m, "GET", `/api/v1/kubernetes/${id}/metallb`);
+  expect(r.body).toEqual({ requested: null, installed: false, ready: false, addresses: [], message: "The kubeconfig of web is not available yet" });
+  kube.put({ apiVersion: "v1", kind: "Secret", metadata: { name: "web-kubeconfig", namespace: "ic-acme" }, data: { value: Buffer.from("kubeconfig").toString("base64") } } as never);
+  workload.put({ apiVersion: "apps/v1", kind: "Deployment", metadata: { name: "controller", namespace: "metallb-system" }, status: { conditions: [{ type: "Available", status: "True" }] } });
+  workload.put({ apiVersion: "metallb.io/v1beta1", kind: "IPAddressPool", metadata: { name: "incendio", namespace: "metallb-system" }, spec: { addresses: ["10.0.0.200/29"] } });
+  r = await off.call(m, "GET", `/api/v1/kubernetes/${id}/metallb`);
+  expect(r.body).toEqual({ requested: null, installed: true, ready: true, addresses: ["10.0.0.200/29"], message: "" });
+});

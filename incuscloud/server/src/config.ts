@@ -1,3 +1,4 @@
+import { METALLB_MANIFEST_URL } from "./k8s/metallb.ts";
 import { z } from "zod";
 
 /** Validated server configuration, read from IC_* environment variables. */
@@ -25,7 +26,7 @@ export interface Config {
   /** Simplestreams servers the console's image picker lists (the image server first). */
   imageServers: string[];
   /** The management cluster CAPI and CAPN run in (P10); absent turns Kubernetes off. */
-  k8s?: { kubeconfig: string; ports: [number, number] };
+  k8s?: { kubeconfig: string; ports: [number, number]; metallbManifestUrl: string };
   clusterDomain: string;
   bootstrapAdmin?: { email: string; password: string };
   logLevel: "debug" | "info" | "warn" | "error";
@@ -75,6 +76,8 @@ const schema = z
       .transform((s) => s.split(",").map((x) => x.trim()).filter(Boolean))
       .pipe(z.array(url)),
     IC_K8S_KUBECONFIG: z.string().min(1).optional(),
+    /** MetalLB's native manifest, applied into workload clusters that ask for it. */
+    IC_METALLB_MANIFEST_URL: url.default(METALLB_MANIFEST_URL),
     IC_K8S_PORTS: z
       .string()
       .default("16443-16999")
@@ -129,7 +132,7 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
     jobConcurrency: v.IC_JOB_CONCURRENCY,
     imageServer: v.IC_IMAGE_SERVER.replace(/\/$/, ""),
     imageServers: [...new Set([v.IC_IMAGE_SERVER, ...v.IC_IMAGE_SERVERS].map((u) => u.replace(/\/$/, "")))],
-    k8s: v.IC_K8S_KUBECONFIG ? { kubeconfig: v.IC_K8S_KUBECONFIG, ports: v.IC_K8S_PORTS } : undefined,
+    k8s: v.IC_K8S_KUBECONFIG ? { kubeconfig: v.IC_K8S_KUBECONFIG, ports: v.IC_K8S_PORTS, metallbManifestUrl: v.IC_METALLB_MANIFEST_URL } : undefined,
     clusterDomain: v.IC_CLUSTER_DOMAIN,
     bootstrapAdmin: v.IC_BOOTSTRAP_ADMIN_EMAIL ? { email: v.IC_BOOTSTRAP_ADMIN_EMAIL, password: v.IC_BOOTSTRAP_ADMIN_PASSWORD! } : undefined,
     logLevel: v.IC_LOG_LEVEL,

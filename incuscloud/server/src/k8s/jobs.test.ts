@@ -10,7 +10,7 @@ import { FakeKube } from "./fake-kube.ts";
 import { FakeCluster } from "./fake-cluster.ts";
 import { ensureCredentials } from "./credentials.ts";
 import { ensureForward } from "./endpoint.ts";
-import { k8sCreateHandler, k8sDeleteHandler } from "./jobs.ts";
+import { k8sCreateHandler, k8sDeleteHandler, k8sMetallbHandler } from "./jobs.ts";
 
 let db: Db;
 let kube: FakeKube;
@@ -250,4 +250,58 @@ test("delete of a kube-vip cluster touches no forward", async () => {
   await run("delete", row.id, () => void kube.objects.delete("cluster.x-k8s.io/v1beta2|Cluster|ic-acme|vip")).p;
   expect(await rowOf(row.id)).toBeUndefined();
   expect(incus.calls.filter((c) => c.path.includes("/forwards"))).toEqual([]);
+});
+
+const METALLB_MANIFEST = `
+apiVersion: v1
+kind: Namespace
+metadata: { name: metallb-system }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: controller, namespace: metallb-system }
+`;
+
+async function metallbRun(k8sId: string, workload: FakeKube, step: () => void = () => {}) {
+  const h = k8sMetallbHandler({ kube, deadlineMs: 60_000, sleep: async () => step(), workloadKube: () => workload, metallbManifest: async () => METALLB_MANIFEST });
+  return h({
+    db,
+    secretKey: Buffer.alloc(32),
+    job: { id: "00000000-0000-4000-8000-0000000000b1", tenantId: tenant.id, payload: { k8sId } },
+    signal: new AbortController().signal,
+    progress: async () => {},
+    clientFor: async () => ({ client: incus.client, row: cluster }),
+  } as unknown as JobContext);
+}
+const kubeconfigOf = (name: string) =>
+  kube.put({ apiVersion: "v1", kind: "Secret", metadata: { name: `${name}-kubeconfig`, namespace: "ic-acme" }, data: { value: Buffer.from("kc").toString("base64") } } as never);
+
+test("the MetalLB job installs it into the workload cluster with the cluster's addresses", async () => {
+  const row = await addK8s("web", 16443, "ready");
+  await db.update(k8sClusters).set({ spec: { ...row.spec, metallb: { addresses: ["10.0.0.200/29"] } } }).where(eq(k8sClusters.id, row.id));
+  kubeconfigOf("web");
+  const workload = new FakeKube();
+  await metallbRun(row.id, workload, () => workload.setStatus("apps/v1", "Deployment", "metallb-system", "controller", { conditions: [{ type: "Available", status: "True" }] }));
+  expect(workload.objects.get("metallb.io/v1beta1|IPAddressPool|metallb-system|incendio")).toMatchObject({ spec: { addresses: ["10.0.0.200/29"] } });
+});
+
+test("the MetalLB job with no addresses removes the pool; without a kubeconfig yet it fails saying so", async () => {
+  const row = await addK8s("web", 16443, "ready");
+  const workload = new FakeKube();
+  await expect(metallbRun(row.id, workload)).rejects.toThrow("The kubeconfig of web is not available yet");
+  kubeconfigOf("web");
+  workload.put({ apiVersion: "metallb.io/v1beta1", kind: "IPAddressPool", metadata: { name: "incendio", namespace: "metallb-system" }, spec: { addresses: ["10.0.0.200/29"] } });
+  workload.put({ apiVersion: "metallb.io/v1beta1", kind: "L2Advertisement", metadata: { name: "incendio", namespace: "metallb-system" }, spec: {} });
+  await metallbRun(row.id, workload);
+  expect(workload.objects.get("metallb.io/v1beta1|IPAddressPool|metallb-system|incendio")).toBeUndefined();
+  expect(workload.objects.get("metallb.io/v1beta1|L2Advertisement|metallb-system|incendio")).toBeUndefined();
+});
+
+test("create: with MetalLB asked for, its install is queued once the cluster is ready", async () => {
+  const row = await addK8s("web", 16443);
+  await db.update(k8sClusters).set({ spec: { ...row.spec, metallb: { addresses: ["10.0.0.200/29"] } } }).where(eq(k8sClusters.id, row.id));
+  incus.instances.push(lbInstance("web", "10.1.0.9"));
+  await run("create", row.id, () => available("web")).p;
+  const queued = await db.select().from(jobs).where(eq(jobs.type, "k8s-metallb"));
+  expect(queued.map((j) => j.payload)).toEqual([{ k8sId: row.id, name: "web" }]);
 });
