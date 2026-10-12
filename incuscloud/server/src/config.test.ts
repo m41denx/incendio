@@ -81,3 +81,10 @@ test("jobs run two at a time by default", () => {
   expect(loadConfig({ ...base, IC_IMAGE_SERVER: "https://mirror.example/" }).imageServer).toBe("https://mirror.example");
   expect(() => loadConfig({ ...base, IC_JOB_CONCURRENCY: "0" })).toThrow(/IC_JOB_CONCURRENCY/);
 });
+
+test("Kubernetes is off without a management kubeconfig; ports default to 16443-16999", () => {
+  expect(loadConfig(base).k8s).toBeUndefined();
+  expect(loadConfig({ ...base, IC_K8S_KUBECONFIG: "/etc/ic/mgmt.kubeconfig" }).k8s).toEqual({ kubeconfig: "/etc/ic/mgmt.kubeconfig", ports: [16443, 16999] });
+  expect(loadConfig({ ...base, IC_K8S_KUBECONFIG: "/k", IC_K8S_PORTS: "20000-20010" }).k8s?.ports).toEqual([20000, 20010]);
+  for (const bad of ["20010-20000", "80-90", "1-2-3", "x", "20000-70000"]) expect(() => loadConfig({ ...base, IC_K8S_KUBECONFIG: "/k", IC_K8S_PORTS: bad })).toThrow(/IC_K8S_PORTS/);
+});

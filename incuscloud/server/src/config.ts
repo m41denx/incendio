@@ -22,6 +22,8 @@ export interface Config {
   jobConcurrency: number;
   /** Simplestreams server self-service creates take images from. */
   imageServer: string;
+  /** The management cluster CAPI and CAPN run in (P10); absent turns Kubernetes off. */
+  k8s?: { kubeconfig: string; ports: [number, number] };
   clusterDomain: string;
   bootstrapAdmin?: { email: string; password: string };
   logLevel: "debug" | "info" | "warn" | "error";
@@ -65,6 +67,16 @@ const schema = z
     IC_METRICS_RETENTION: z.coerce.number().int().min(1).max(720).default(24),
     IC_JOB_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(2),
     IC_IMAGE_SERVER: url.default("https://images.linuxcontainers.org"),
+    IC_K8S_KUBECONFIG: z.string().min(1).optional(),
+    IC_K8S_PORTS: z
+      .string()
+      .default("16443-16999")
+      .transform((s, ctx): [number, number] => {
+        const m = /^(\d+)-(\d+)$/.exec(s);
+        const [a, b] = m ? [Number(m[1]), Number(m[2])] : [0, 0];
+        if (!m || a < 1024 || b > 65535 || a > b) ctx.addIssue({ code: "custom", message: "a port range a-b with 1024 <= a <= b <= 65535" });
+        return [a, b];
+      }),
     IC_CLUSTER_DOMAIN: z.string().min(1),
     IC_BOOTSTRAP_ADMIN_EMAIL: z.email().optional(),
     IC_BOOTSTRAP_ADMIN_PASSWORD: z.string().min(12).optional(),
@@ -109,6 +121,7 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
     metricsRetentionMs: v.IC_METRICS_RETENTION * 3_600_000,
     jobConcurrency: v.IC_JOB_CONCURRENCY,
     imageServer: v.IC_IMAGE_SERVER.replace(/\/$/, ""),
+    k8s: v.IC_K8S_KUBECONFIG ? { kubeconfig: v.IC_K8S_KUBECONFIG, ports: v.IC_K8S_PORTS } : undefined,
     clusterDomain: v.IC_CLUSTER_DOMAIN,
     bootstrapAdmin: v.IC_BOOTSTRAP_ADMIN_EMAIL ? { email: v.IC_BOOTSTRAP_ADMIN_EMAIL, password: v.IC_BOOTSTRAP_ADMIN_PASSWORD! } : undefined,
     logLevel: v.IC_LOG_LEVEL,
