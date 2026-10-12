@@ -9,6 +9,13 @@
 - "when creating instances instead of predefined images we need to pull simplestreams ui to pick image. also instance create is very crude - we need full config menu like incendio"
 - "dont do half-assed ui - you can literally copy almost all of incendio. we already have mechanism that routes api calls to corresnponding cluster - just merge results from all clusters and mark which is which"
 
+**User direction (2026-10-12, second message, verbatim):** "what I meant is that we need to go vcenter style: cluster -> node -> instance in instances view, pull in stats from all clusters, when creating instance have incendio create instance view but with ability to pick cluster and target node"
+
+**Decisions (user, 2026-10-12):**
+- Everyone, tenant members included, sees cluster → node → instance for the clusters they reach, and may target a node: tenant projects get `restricted.cluster.target=allow`.
+- The tree is strictly cluster → node → instance. Project is a column and a filter at the top, not a tree level.
+- The per-cluster Incendio at `/clusters/<name>/ui/` stays only as an "Open in Incendio" fallback link.
+
 **Architecture:**
 - **A federation facade on the server** at `/1.0/…` on IncusCloud's own origin, for the browser session. To Incendio it looks like one Incus cluster. Behind it, each request goes through the existing gateway machinery, with the user's token and the per-cluster `can_access` check, to one cluster or to all of them.
 - **Qualified names.** An identity that belongs to one cluster is written `<name>@<cluster>`:
@@ -89,7 +96,12 @@ Wired in `front.ts`/`main.ts` for `/1.0` on the public origin. Tests: two fake I
 
 Operation sockets are relayed. Events are fanned in with `ws` and rewritten. Tests.
 
-### Task 4: Host Incendio in the IncusCloud web app
+### Task 4: Host Incendio in the IncusCloud web app, with the inventory tree
+
+- **Inventory tree** (vCenter style), always in the left pane of the Instances section: clusters → nodes (members, standalone servers as one node) → instances, with status icons and counts. Selecting a cluster or a node shows its summary (stats from the fleet inventory) and its instances. Selecting an instance opens Incendio's instance detail.
+- **Instances view:** Incendio's instance list over the merged API, with Cluster and Node columns and a project filter.
+- **Stats:** fleet, cluster and node totals from IncusCloud's inventory (CPU, memory, load, instance counts); Incendio's live metrics on the instance page.
+- **Create instance:** Incendio's create form with Cluster and Target node pickers at the top. The cluster sets the qualified project (`<project>@<cluster>`), so profiles, networks, pools and images come from that cluster.
 
 - Build aliases. Mount Incendio's Root pieces and routes.
 - Navigation extension in `packages/ui` (logo, extra sections, sign-out, no login page).

@@ -1,17 +1,36 @@
+// First, as Incendio does: component styles (react-components) must come after Vanilla's.
+import "./sass/styles.scss";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter } from "react-router-dom";
-import { QueryClientProvider } from "@tanstack/react-query";
-import { queryClient } from "./api/hooks";
+import { RouterProvider, createBrowserRouter } from "react-router-dom";
+import AppProviders, { queryClient } from "@incendio/ui/context/appProviders";
+import { ApiError } from "./api/client";
 import { AppRoutes } from "./App";
-import "./sass/styles.scss";
+
+// A data router: Incendio's forms block navigation away from unsaved changes.
+// Incendio's providers (one query cache, auth, projects, operations, toasts) wrap both apps.
+// The platform API's 4xx answers will not change by asking again (Incendio's retries stay for its own).
+const incendioRetry = queryClient.getDefaultOptions().queries?.retry;
+queryClient.setDefaultOptions({
+  queries: {
+    ...queryClient.getDefaultOptions().queries,
+    retry: (n, e) => (e instanceof ApiError ? e.status >= 500 && n < 2 : typeof incendioRetry === "function" ? incendioRetry(n, e) : n < 3),
+  },
+});
+
+const router = createBrowserRouter([
+  {
+    path: "*",
+    Component: () => (
+      <AppProviders>
+        <AppRoutes />
+      </AppProviders>
+    ),
+  },
+]);
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient()}>
-      <BrowserRouter>
-        <AppRoutes />
-      </BrowserRouter>
-    </QueryClientProvider>
+    <RouterProvider router={router} />
   </StrictMode>,
 );

@@ -1,18 +1,8 @@
 @charset "UTF-8";
 // Incendio's look, from packages/ui: Vanilla with Incendio's settings (vite.config.ts
-// prepends packages/ui/src/sass/_settings.scss), its frame and its shared components.
-@import "vanilla-framework/scss/build";
-@import "../../../../packages/ui/src/sass/borders";
-@import "../../../../packages/ui/src/sass/breakpoints";
-@import "../../../../packages/ui/src/sass/pattern_icon";
-@include lxdui-p-icon;
-@import "../../../../packages/ui/src/sass/pattern_navigation";
-@import "../../../../packages/ui/src/sass/page_header";
-@import "../../../../packages/ui/src/sass/meter";
-@import "../../../../packages/ui/src/sass/empty_state";
-@import "../../../../packages/ui/src/sass/status_bar";
-@import "../../../../packages/ui/src/sass/login";
-@import "../../../../packages/ui/src/sass/shell";
+// prepends packages/ui/src/sass/_settings.scss) and all of Incendio's styles.
+// All of Incendio: its pages are part of the console.
+@import "../../../../packages/ui/src/sass/styles";
 
 @include vf-p-icon-add-canvas;
 @include vf-p-icon-applications;
@@ -116,5 +106,114 @@
     stroke-linecap: square;
     stroke-linejoin: miter;
     stroke-width: 2;
+  }
+}
+
+// The inventory tree (cluster → node → instance) beside the instance list: square rows, Incendio's colours.
+.ic-tree {
+  font-size: 0.875rem;
+
+  .ic-tree__group {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .ic-tree__item {
+    margin: 0;
+    padding: 0;
+  }
+
+  .ic-tree__row {
+    align-items: center;
+    display: flex;
+    gap: $sph--x-small;
+    min-height: 2rem;
+
+    &:hover {
+      background: $colors--theme--background-hover;
+    }
+
+    &.is-selected {
+      background: $colors--theme--background-active;
+      box-shadow: inset 3px 0 0 $color-link;
+    }
+  }
+
+  .ic-tree__toggle {
+    flex: 0 0 1.5rem;
+    height: 1.5rem;
+    min-width: 1.5rem;
+    padding: 0;
+  }
+
+  .ic-tree__chevron--closed {
+    transform: rotate(-90deg);
+  }
+
+  .ic-tree__label {
+    align-items: center;
+    background: none;
+    border: 0;
+    border-radius: 0;
+    color: inherit;
+    cursor: pointer;
+    display: flex;
+    flex: 1 1 auto;
+    gap: $sph--small;
+    justify-content: flex-start;
+    margin: 0;
+    min-width: 0;
+    padding: 0.25rem 0;
+    text-align: left;
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  .ic-tree__count {
+    color: $color-mid-dark;
+    flex: 0 0 auto;
+    font-variant-numeric: tabular-nums;
+    padding-right: $sph--small;
+  }
+}
+
+// The selection's summary above the instance list: square tiles in a row.
+.ic-stats {
+  display: grid;
+  gap: 1px;
+  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+  margin-bottom: $spv--large;
+
+  .ic-stat {
+    border: 1px solid $color-mid-light;
+    margin: -1px 0 0 -1px;
+    padding: $spv--small $sph--large;
+  }
+
+  .ic-stat--wide {
+    grid-column: span 2;
+  }
+
+  .ic-stat__label {
+    color: $color-mid-dark;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .ic-stat__value {
+    font-size: 1.125rem;
+    line-height: 1.75rem;
+    white-space: nowrap;
+
+    .p-meter,
+    [role="meter"] {
+      font-size: 0.875rem;
+      white-space: normal;
+    }
   }
 }

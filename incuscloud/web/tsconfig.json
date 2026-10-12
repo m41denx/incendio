@@ -1,18 +1,59 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2023",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "module": "ESNext",
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
     "strict": true,
-    "noUncheckedIndexedAccess": true,
     "noEmit": true,
     "isolatedModules": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
-    "types": ["vite/client", "vitest/globals", "@testing-library/jest-dom"],
-    "paths": { "@incendio/ui/*": ["../../packages/ui/src/*"] }
+    "types": [
+      "vite/client",
+      "vitest/globals",
+      "@testing-library/jest-dom"
+    ],
+    "paths": {
+      "@incendio/ui/*": [
+        "../../packages/ui/src/*"
+      ],
+      "api/*": [
+        "../../packages/ui/src/api/*"
+      ],
+      "components/*": [
+        "../../packages/ui/src/components/*"
+      ],
+      "context/*": [
+        "../../packages/ui/src/context/*"
+      ],
+      "lib/*": [
+        "../../packages/ui/src/lib/*"
+      ],
+      "pages/*": [
+        "../../packages/ui/src/pages/*"
+      ],
+      "types/*": [
+        "../../packages/ui/src/types/*"
+      ],
+      "util/*": [
+        "../../packages/ui/src/util/*"
+      ]
+    }
   },
-  "include": ["src", "vite.config.ts", "vitest.config.ts"]
+  "include": [
+    "src",
+    "vite.config.ts",
+    "vitest.config.ts",
+    "../../packages/ui/src/types/spice-inputs.d.ts",
+    "../../packages/ui/src/types/spice-main.d.ts",
+    "../../packages/ui/src/types/parse-prometheus-text-format.d.ts",
+    "../../packages/ui/src/types/useportal.d.ts",
+    "../../packages/ui/src/types/cytoscapecomponent.d.ts"
+  ]
 }

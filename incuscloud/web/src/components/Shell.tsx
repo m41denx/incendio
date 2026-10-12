@@ -1,34 +1,56 @@
-import { useRef, useState, type FC, type ReactNode } from "react";
-import { Link, Outlet, useLocation } from "react-router-dom";
-import classnames from "classnames";
-import { AppStatus, Application, Button, CustomLayout, Icon, SideNavigationItem, SkipLink } from "@canonical/react-components";
+import { useMemo, useRef, type FC, type ReactNode } from "react";
+import { Link, Outlet, useLocation, useSearchParams } from "react-router-dom";
+import { Application, CustomLayout, Icon, SideNavigationItem, SkipLink } from "@canonical/react-components";
+import Navigation from "@incendio/ui/components/Navigation";
+import Events from "@incendio/ui/Events";
+import StatusBar from "@incendio/ui/components/StatusBar";
+import { NavigationExtensionContext, type NavigationExtension } from "@incendio/ui/context/navigationExtension";
+import { InstanceListExtensionContext } from "@incendio/ui/context/instanceListExtension";
 import { can, useMe } from "../api/hooks";
 import type { Me } from "../api/types";
 import Logo from "./Logo";
 import { ErrorMessage, Loading } from "./Status";
+import InventoryTree from "../pages/inventory/InventoryTree";
+import InventorySummary from "../pages/inventory/InventorySummary";
+import { inScope, selectionOf } from "../pages/inventory/tree";
 
 const tenantAdmin = (me: Me) => me.tenants.some((t) => t.role === "owner" || t.role === "admin");
 
-/** Sections the caller may use; the API still decides on every request. */
-export function sections(me: Me) {
+interface Section {
+  label: string;
+  icon: string;
+  to: string;
+  end?: boolean;
+}
+
+/**
+ * IncusCloud's own sections; the API still decides on every request.
+ * `top` come before Incendio's (project, instances, profiles, networking,
+ * storage, images…), `platform` after them.
+ */
+export function sections(me: Me): { top: Section[]; platform: Section[] } {
   const platformViewer = can(me, "viewer");
   const manages = platformViewer || tenantAdmin(me);
-  return [
-    { label: "Dashboard", icon: "switcher-dashboard", to: "/", end: true },
-    { label: "Instances", icon: "pods", to: "/instances" },
-    { label: "Kubernetes", icon: "kubernetes", to: "/kubernetes" },
-    { label: "Clusters", icon: "cluster-host", to: "/clusters" },
-    { label: "Tenants", icon: "switcher-environments", to: "/tenants" },
-    { label: "Jobs", icon: "loading-steps", to: "/jobs" },
-    { label: "Replication", icon: "restart", to: "/replication" },
-    { label: "Backups", icon: "archive", to: "/backups" },
-    { label: "Balancing", icon: "fork", to: "/balancing" },
-    platformViewer && { label: "Backup targets", icon: "storage-bucket", to: "/backup-targets" },
-    platformViewer && { label: "Users", icon: "user-group", to: "/users" },
-    manages && { label: "Service accounts", icon: "applications", to: "/service-accounts" },
-    manages && { label: "Audit log", icon: "show", to: "/audit" },
-    manages && { label: "Gateway log", icon: "export", to: "/gateway-log" },
-  ].filter((x): x is { label: string; icon: string; to: string; end?: boolean } => !!x);
+  const only = (xs: Array<Section | false>) => xs.filter((x): x is Section => !!x);
+  return {
+    top: [
+      { label: "Dashboard", icon: "switcher-dashboard", to: "/", end: true },
+      { label: "Kubernetes", icon: "kubernetes", to: "/kubernetes" },
+    ],
+    platform: only([
+      { label: "Clusters", icon: "cluster-host", to: "/clusters" },
+      { label: "Tenants", icon: "switcher-environments", to: "/tenants" },
+      { label: "Jobs", icon: "loading-steps", to: "/jobs" },
+      { label: "Replication", icon: "restart", to: "/replication" },
+      { label: "Backups", icon: "archive", to: "/backups" },
+      { label: "Balancing", icon: "fork", to: "/balancing" },
+      platformViewer && { label: "Backup targets", icon: "storage-bucket", to: "/backup-targets" },
+      platformViewer && { label: "Users", icon: "user-group", to: "/users" },
+      manages && { label: "Service accounts", icon: "applications", to: "/service-accounts" },
+      manages && { label: "Audit log", icon: "show", to: "/audit" },
+      manages && { label: "Gateway log", icon: "export", to: "/gateway-log" },
+    ]),
+  };
 }
 
 /** Incendio's navigation link markup; `end` matches the path exactly (the dashboard at /). */
@@ -44,133 +66,89 @@ const NavItem: FC<{ to: string; title: string; icon: string; end?: boolean; chil
   );
 };
 
-const COLLAPSED_KEY = "incuscloud.navCollapsed";
-/** Incendio's medium-screen breakpoint: below it the navigation starts collapsed. */
-const MEDIUM_SCREEN = 820;
+const items = (list: Section[], close: () => void) =>
+  list.map((s) => (
+    <NavItem key={s.to} to={s.to} title={s.label} icon={s.icon} end={s.end} onClick={close}>
+      {s.label}
+    </NavItem>
+  ));
 
-/** The user's last choice, or collapsed on small and medium screens. */
-const initiallyCollapsed = () => {
-  try {
-    const choice = localStorage.getItem(COLLAPSED_KEY);
-    if (choice !== null) return choice === "true";
-  } catch {
-    // No storage: fall back to the screen size.
-  }
-  return window.innerWidth < MEDIUM_SCREEN;
-};
-
-/** Incendio's frame: the navigation, the page, and the status bar. */
+/**
+ * The console's frame is Incendio's: its navigation (with IncusCloud's
+ * sections added), its pages over every cluster, its status bar with
+ * running operations and notifications.
+ */
 const Shell: FC = () => {
   const me = useMe();
-  const [collapsed, setCollapsed] = useState(initiallyCollapsed);
-  const [mobileOpen, setMobileOpen] = useState(false);
   const logout = useRef<HTMLFormElement>(null);
-  const toggle = () => {
-    const next = !collapsed;
-    setCollapsed(next);
-    try {
-      localStorage.setItem(COLLAPSED_KEY, String(next));
-    } catch {
-      // Not remembered in this browser; the choice still holds for this page.
-    }
-  };
-  const closeMobile = () => setMobileOpen(false);
+  const [params] = useSearchParams();
+  const selection = selectionOf(params);
+
+  const navigation = useMemo<NavigationExtension>(() => {
+    const s = me.data ? sections(me.data) : { top: [], platform: [] };
+    return {
+      logo: <Logo />,
+      before: (close) => items(s.top, close),
+      after: (close) =>
+        s.platform.length ? (
+          <>
+            <hr className="navigation-hr" />
+            {items(s.platform, close)}
+          </>
+        ) : null,
+      account: (close) =>
+        me.data ? (
+          <>
+            <NavItem to="/profile" title="Profile" icon="user" onClick={close}>
+              <span className="u-truncate">{me.data.name || me.data.email || "Profile"}</span>
+            </NavItem>
+            <SideNavigationItem>
+              <form ref={logout} method="post" action="/auth/logout" hidden />
+              <a
+                className="p-side-navigation__link"
+                href="/auth/logout"
+                title="Sign out"
+                onClick={(e) => {
+                  e.preventDefault();
+                  logout.current?.submit();
+                }}
+              >
+                <Icon className="is-light p-side-navigation__icon p-side-logout" name="export" />
+                Sign out
+              </a>
+            </SideNavigationItem>
+          </>
+        ) : null,
+      // IncusCloud's own, or meaningless across clusters (each cluster's server settings and OpenFGA are IncusCloud's).
+      hide: ["kubernetes", "permissions", "settings", "os"],
+    };
+  }, [me.data]);
+
+  // The instance list is the inventory: the tree beside it, the selection's summary above it.
+  const inventory = useMemo(() => ({ aside: <InventoryTree />, above: <InventorySummary />, scope: inScope(selection) }), [selection.cluster, selection.node]);
 
   return (
-    <Application id="l-application">
-      <SkipLink mainId="main-content" />
-      <header className="l-navigation-bar">
-        <div className="p-panel is-dark">
-          <div className="p-panel__header">
-            <Logo />
-            <div className="p-panel__controls">
-              <Button dense className="p-panel__toggle" onClick={() => setMobileOpen(true)}>
-                Menu
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
-      <nav aria-label="main navigation" className={classnames("l-navigation", { "is-collapsed": collapsed && !mobileOpen, "is-pinned": !collapsed || mobileOpen })}>
-        <div className="l-navigation__drawer">
-          <div className="p-panel is-dark">
-            <div className="p-panel__header is-sticky">
-              <Logo />
-              <div className="p-panel__controls u-hide--medium u-hide--large">
-                <Button appearance="base" hasIcon className="u-no-margin" aria-label="close navigation" onClick={closeMobile}>
-                  <Icon name="close" />
-                </Button>
-              </div>
-            </div>
-            <div className="p-panel__content">
-              <div className="p-side-navigation--icons sidenav-top-container">
-                <ul className="p-side-navigation__list sidenav-top-ul">
-                  {me.data &&
-                    sections(me.data).map((s) => (
-                      <NavItem key={s.to} to={s.to} title={s.label} icon={s.icon} end={s.end} onClick={closeMobile}>
-                        {s.label}
-                      </NavItem>
-                    ))}
-                </ul>
-              </div>
-              <div className="p-side-navigation--icons sidenav-bottom-container">
-                <ul className="p-side-navigation__list sidenav-bottom-ul authenticated-nav">
-                  <hr className="navigation-hr" />
-                  {me.data && (
-                    <>
-                      <NavItem to="/profile" title="Profile" icon="user" onClick={closeMobile}>
-                        <span className="u-truncate">{me.data.name || me.data.email || "Profile"}</span>
-                      </NavItem>
-                      <SideNavigationItem>
-                        <form ref={logout} method="post" action="/auth/logout" hidden />
-                        <a
-                          className="p-side-navigation__link"
-                          href="/auth/logout"
-                          title="Sign out"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            logout.current?.submit();
-                          }}
-                        >
-                          <Icon className="is-light p-side-navigation__icon p-side-logout" name="export" />
-                          Sign out
-                        </a>
-                      </SideNavigationItem>
-                    </>
-                  )}
-                </ul>
-                <div className="sidenav-toggle-wrapper authenticated-nav">
-                  <Button
-                    appearance="base"
-                    aria-label={`${collapsed ? "expand" : "collapse"} main navigation`}
-                    hasIcon
-                    dense
-                    className="sidenav-toggle u-no-margin l-navigation-collapse-toggle u-hide--small"
-                    onClick={toggle}
-                  >
-                    <Icon name="sidebar-toggle" />
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </nav>
-      {me.error ? (
-        <CustomLayout>
-          <ErrorMessage error={me.error} />
-        </CustomLayout>
-      ) : me.isPending ? (
-        <CustomLayout>
-          <Loading />
-        </CustomLayout>
-      ) : (
-        <Outlet />
-      )}
-      <AppStatus className="status-bar" id="status-bar">
-        <span className="server-version p-text--small">Version {__APP_VERSION__}</span>
-      </AppStatus>
-    </Application>
+    <NavigationExtensionContext.Provider value={navigation}>
+      <InstanceListExtensionContext.Provider value={inventory}>
+        <Application id="l-application">
+          <SkipLink mainId="main-content" />
+          <Navigation />
+          {me.error ? (
+            <CustomLayout>
+              <ErrorMessage error={me.error} />
+            </CustomLayout>
+          ) : me.isPending ? (
+            <CustomLayout>
+              <Loading />
+            </CustomLayout>
+          ) : (
+            <Outlet />
+          )}
+          <Events />
+          <StatusBar />
+        </Application>
+      </InstanceListExtensionContext.Provider>
+    </NavigationExtensionContext.Provider>
   );
 };
 

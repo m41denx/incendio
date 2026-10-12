@@ -4,6 +4,7 @@ import react from "@vitejs/plugin-react";
 import { readFileSync } from "node:fs";
 
 // Incendio's SCSS settings (breakpoints, indices), as packages/ui itself prepends them.
+const incendio = fileURLToPath(new URL("../../packages/ui/src", import.meta.url));
 const incendioSettings = readFileSync(new URL("../../packages/ui/src/sass/_settings.scss", import.meta.url), "utf8").trim();
 
 // Development: `bun run watch` here and `scripts/dev.sh`, which serves build/
@@ -20,12 +21,19 @@ export default defineConfig({
     },
   },
   resolve: {
-    // Incendio's own components (packages/ui), shared rather than copied.
-    alias: { "@incendio/ui": fileURLToPath(new URL("../../packages/ui/src", import.meta.url)) },
-    // One React (and component library) for both: packages/ui has its own node_modules.
-    dedupe: ["react", "react-dom", "classnames", "@canonical/react-components"],
+    alias: [
+      // Incendio itself (packages/ui): its components, and its pages over the federation facade.
+      { find: "@incendio/ui", replacement: incendio },
+      // Incendio's own imports are bare (its tsconfig paths): api/…, pages/…, util/….
+      { find: /^(api|components|context|lib|pages|types|util)\/(.*)$/, replacement: `${incendio}/$1/$2` },
+    ],
+    // One copy of each library both use: packages/ui has its own node_modules.
+    dedupe: ["react", "react-dom", "react-router", "react-router-dom", "@tanstack/react-query", "classnames", "@canonical/react-components"],
   },
-  define: { __APP_VERSION__: JSON.stringify(JSON.parse(readFileSync(new URL("package.json", import.meta.url), "utf8")).version) },
+  define: {
+    __APP_VERSION__: JSON.stringify(JSON.parse(readFileSync(new URL("package.json", import.meta.url), "utf8")).version),
+    __UI_GIT_HASH__: JSON.stringify("incuscloud"),
+  },
   plugins: [react()],
   build: { outDir: "build", emptyOutDir: true },
 });

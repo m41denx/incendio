@@ -81,6 +81,7 @@ import {
 import InstanceUsageMainMemory from "pages/instances/InstanceUsageMainMemory";
 import InstanceUsageRootFilesystem from "pages/instances/InstanceUsageRootFilesystem";
 import { useInstances } from "context/useInstances";
+import { useInstanceListExtension } from "context/instanceListExtension";
 import { useProjectEntitlements } from "util/entitlements/projects";
 import { useCurrentProject } from "context/useCurrentProject";
 import { useProject } from "context/useProjects";
@@ -121,6 +122,7 @@ const saveOrdered = (columns: string[]) => {
 
 const InstanceList: FC = () => {
   const instanceLoading = useInstanceLoading();
+  const extension = useInstanceListExtension();
   const navigate = useNavigate();
   const notify = useNotify();
   const panelParams = usePanelParams();
@@ -161,11 +163,14 @@ const InstanceList: FC = () => {
   );
 
   const {
-    data: instances = [],
+    data: fetchedInstances = [],
     error,
     isLoading,
     refetch,
   } = useInstances(project?.name ?? null, encodeServerFilters(serverFilters));
+  const instances = extension.scope
+    ? fetchedInstances.filter(extension.scope)
+    : fetchedInstances;
 
   if (error) {
     notify.failure("Loading instances failed", error);
@@ -774,136 +779,156 @@ const InstanceList: FC = () => {
         }
       >
         <NotificationRow />
-        <Row className="no-grid-gap">
-          <Col size={12}>
-            {hasInstances && (
-              <>
-                <ScrollableTable
-                  dependencies={[filteredInstances, notify.notification]}
-                  tableId="instances-table"
-                  belowIds={["status-bar"]}
-                >
-                  <TablePagination
-                    data={sortedRows}
-                    id="pagination"
-                    itemName="instance"
-                    className="u-no-margin--top"
-                    aria-label="Table pagination control"
-                    description={
-                      selectedNames.length > 0 && (
-                        <SelectedTableNotification
-                          totalCount={totalInstanceCount}
-                          itemName="instance"
-                          parentName={
-                            project ? `project: ${project?.name}` : undefined
+        <div
+          className={classnames({
+            "instance-list-with-aside": extension.aside,
+          })}
+        >
+          {extension.aside && (
+            <aside className="instance-list-aside">{extension.aside}</aside>
+          )}
+          <div className="instance-list-main">
+            {extension.above}
+            <Row className="no-grid-gap">
+              <Col size={12}>
+                {hasInstances && (
+                  <>
+                    <ScrollableTable
+                      dependencies={[filteredInstances, notify.notification]}
+                      tableId="instances-table"
+                      belowIds={["status-bar"]}
+                    >
+                      <TablePagination
+                        data={sortedRows}
+                        id="pagination"
+                        itemName="instance"
+                        className="u-no-margin--top"
+                        aria-label="Table pagination control"
+                        description={
+                          selectedNames.length > 0 && (
+                            <SelectedTableNotification
+                              totalCount={totalInstanceCount}
+                              itemName="instance"
+                              parentName={
+                                project
+                                  ? `project: ${project?.name}`
+                                  : undefined
+                              }
+                              selectedNames={selectedNames}
+                              setSelectedNames={setSelectedNames}
+                              filteredNames={filteredInstances.map(
+                                getInstanceKey,
+                              )}
+                            />
+                          )
+                        }
+                      >
+                        <ColumnSelector
+                          columns={orderedColumns.filter((column) => {
+                            if (column === CLUSTER_MEMBER && !isClustered) {
+                              return false;
+                            }
+
+                            if (column === PROJECT && !isAllProjects) {
+                              return false;
+                            }
+
+                            if (column === ACTIONS) {
+                              return false;
+                            }
+
+                            return true;
+                          })}
+                          hideableColumns={USER_HIDEABLE_COLUMNS}
+                          userHidden={userHidden}
+                          sizeHidden={sizeHidden}
+                          setUserHidden={setHidden}
+                          setColumnOrder={setColumnOrder}
+                          className={classnames({
+                            "u-hide": panelParams.instance,
+                          })}
+                        />
+                        <SelectableMainTable
+                          id="instances-table"
+                          headers={visibleHeaders}
+                          rows={sortedRows}
+                          sortable
+                          emptyStateMsg={
+                            isLoading ? (
+                              <Spinner
+                                className="u-loader"
+                                text="Loading instances..."
+                              />
+                            ) : (
+                              <>No instance found matching this search</>
+                            )
                           }
+                          itemName="instance"
+                          parentName="project"
                           selectedNames={selectedNames}
                           setSelectedNames={setSelectedNames}
+                          disabledNames={processingNames}
                           filteredNames={filteredInstances.map(getInstanceKey)}
+                          onUpdateSort={updateSort}
                         />
-                      )
-                    }
+                      </TablePagination>
+                    </ScrollableTable>
+                    <div id="instance-table-measure">
+                      <SelectableMainTable
+                        headers={visibleHeaderColumns(headers, userHidden)}
+                        rows={getRows(userHidden)}
+                        className="scrollable-table"
+                        itemName="instance"
+                        parentName="project"
+                        selectedNames={selectedNames}
+                        setSelectedNames={setSelectedNames}
+                        disabledNames={processingNames}
+                        filteredNames={filteredInstances.map(getInstanceKey)}
+                      />
+                    </div>
+                  </>
+                )}
+                {!hasInstances && (
+                  <EmptyState
+                    className="empty-state"
+                    image={<Icon name="pods" className="empty-state-icon" />}
+                    title="No instances found"
                   >
-                    <ColumnSelector
-                      columns={orderedColumns.filter((column) => {
-                        if (column === CLUSTER_MEMBER && !isClustered) {
-                          return false;
-                        }
-
-                        if (column === PROJECT && !isAllProjects) {
-                          return false;
-                        }
-
-                        if (column === ACTIONS) {
-                          return false;
-                        }
-
-                        return true;
-                      })}
-                      hideableColumns={USER_HIDEABLE_COLUMNS}
-                      userHidden={userHidden}
-                      sizeHidden={sizeHidden}
-                      setUserHidden={setHidden}
-                      setColumnOrder={setColumnOrder}
-                      className={classnames({
-                        "u-hide": panelParams.instance,
-                      })}
-                    />
-                    <SelectableMainTable
-                      id="instances-table"
-                      headers={visibleHeaders}
-                      rows={sortedRows}
-                      sortable
-                      emptyStateMsg={
-                        isLoading ? (
-                          <Spinner
-                            className="u-loader"
-                            text="Loading instances..."
-                          />
-                        ) : (
-                          <>No instance found matching this search</>
+                    <p>
+                      There are no instances in {project ? "this" : "any"}{" "}
+                      project.
+                      {canCreateInstances(project)
+                        ? " Spin up your first instance!"
+                        : ""}
+                    </p>
+                    <p>
+                      <DocLink
+                        docPath="/howto/instances_create/"
+                        hasExternalIcon
+                      >
+                        How to create instances
+                      </DocLink>
+                    </p>
+                    <Button
+                      className="empty-state-button"
+                      appearance="positive"
+                      onClick={async () =>
+                        navigate(
+                          `${ROOT_PATH}/ui/project/${encodeURIComponent(projectForCreationName)}/instances/create`,
                         )
                       }
-                      itemName="instance"
-                      parentName="project"
-                      selectedNames={selectedNames}
-                      setSelectedNames={setSelectedNames}
-                      disabledNames={processingNames}
-                      filteredNames={filteredInstances.map(getInstanceKey)}
-                      onUpdateSort={updateSort}
-                    />
-                  </TablePagination>
-                </ScrollableTable>
-                <div id="instance-table-measure">
-                  <SelectableMainTable
-                    headers={visibleHeaderColumns(headers, userHidden)}
-                    rows={getRows(userHidden)}
-                    className="scrollable-table"
-                    itemName="instance"
-                    parentName="project"
-                    selectedNames={selectedNames}
-                    setSelectedNames={setSelectedNames}
-                    disabledNames={processingNames}
-                    filteredNames={filteredInstances.map(getInstanceKey)}
-                  />
-                </div>
-              </>
-            )}
-            {!hasInstances && (
-              <EmptyState
-                className="empty-state"
-                image={<Icon name="pods" className="empty-state-icon" />}
-                title="No instances found"
-              >
-                <p>
-                  There are no instances in {project ? "this" : "any"} project.
-                  {canCreateInstances(project)
-                    ? " Spin up your first instance!"
-                    : ""}
-                </p>
-                <p>
-                  <DocLink docPath="/howto/instances_create/" hasExternalIcon>
-                    How to create instances
-                  </DocLink>
-                </p>
-                <Button
-                  className="empty-state-button"
-                  appearance="positive"
-                  onClick={async () =>
-                    navigate(
-                      `${ROOT_PATH}/ui/project/${encodeURIComponent(projectForCreationName)}/instances/create`,
-                    )
-                  }
-                  disabled={!!createInstanceRestriction}
-                  title={createInstanceRestriction}
-                >
-                  Create instance
-                </Button>
-                <ReceiveMigrationBtn project={projectForCreationName} />
-              </EmptyState>
-            )}
-          </Col>
-        </Row>
+                      disabled={!!createInstanceRestriction}
+                      title={createInstanceRestriction}
+                    >
+                      Create instance
+                    </Button>
+                    <ReceiveMigrationBtn project={projectForCreationName} />
+                  </EmptyState>
+                )}
+              </Col>
+            </Row>
+          </div>
+        </div>
       </CustomLayout>
       {panelParams.panel === panels.instanceSummary && <InstanceDetailPanel />}
     </>

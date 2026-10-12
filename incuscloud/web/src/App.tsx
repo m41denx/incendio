@@ -1,10 +1,9 @@
 import type { FC } from "react";
-import { Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
 import Shell from "./components/Shell";
-import NotFound from "./pages/NotFound";
+import IncendioPages from "./components/IncendioPages";
 import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
-import InstanceList from "./pages/instances/InstanceList";
 import KubernetesList from "./pages/kubernetes/KubernetesList";
 import CreateKubernetes from "./pages/kubernetes/CreateKubernetes";
 import KubernetesDetail from "./pages/kubernetes/KubernetesDetail";
@@ -15,7 +14,6 @@ import PolicyList from "./pages/replication/PolicyList";
 import BackupList from "./pages/backups/BackupList";
 import TargetList from "./pages/backups/TargetList";
 import Suggestions from "./pages/balancing/Suggestions";
-import CreateInstance from "./pages/instances/CreateInstance";
 import ClusterList from "./pages/clusters/ClusterList";
 import ClusterDetail from "./pages/clusters/ClusterDetail";
 import TenantList from "./pages/tenants/TenantList";
@@ -30,8 +28,9 @@ export const AppRoutes: FC = () => (
   <Routes>
     <Route element={<Shell />}>
       <Route index element={<Dashboard />} />
-      <Route path="instances" element={<InstanceList />} />
-      <Route path="instances/new" element={<CreateInstance />} />
+      {/* The inventory is Incendio's instance list over every cluster. */}
+      <Route path="instances" element={<Navigate to="/ui/all-projects/instances" replace />} />
+      <Route path="instances/new" element={<Navigate to="/ui/all-projects/instances" replace />} />
       <Route path="instances/:id" element={<InstanceDetail />} />
       <Route path="kubernetes" element={<KubernetesList />} />
       <Route path="kubernetes/new" element={<CreateKubernetes />} />
@@ -52,7 +51,7 @@ export const AppRoutes: FC = () => (
       <Route path="audit" element={<AuditLog />} />
       <Route path="gateway-log" element={<GatewayLog />} />
       <Route path="profile" element={<Profile />} />
-      <Route path="*" element={<NotFound />} />
+      <Route path="*" element={<IncendioPages />} />
     </Route>
   </Routes>
 );

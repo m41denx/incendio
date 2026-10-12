@@ -17,7 +17,7 @@ import { MemberLoadingProvider } from "context/memberLoading";
 import { ModalProvider } from "context/useModal";
 import { LxdApiError } from "util/helpers";
 
-const queryClient = new QueryClient({
+export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: (failureCount, error: unknown) => {

@@ -47,16 +47,20 @@ export const me = (over: Partial<Me> = {}): Me => ({
   ...over,
 });
 
-/** Renders `ui` at `path` (matched by `pattern`) with a fresh query client. */
-export function renderAt(ui: ReactNode, { path = "/", pattern = "*" }: { path?: string; pattern?: string } = {}) {
+/**
+ * Renders `ui` at `path` (matched by `pattern`) with a fresh query client;
+ * `wrap` puts providers around the routes (test/incendio's frame).
+ */
+export function renderAt(ui: ReactNode, { path = "/", pattern = "*", wrap }: { path?: string; pattern?: string; wrap?: (routes: ReactNode) => ReactNode } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const routes = (
+    <Routes>
+      <Route path={pattern} element={ui} />
+    </Routes>
+  );
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[path]}>
-        <Routes>
-          <Route path={pattern} element={ui} />
-        </Routes>
-      </MemoryRouter>
+      <MemoryRouter initialEntries={[path]}>{wrap ? wrap(routes) : routes}</MemoryRouter>
     </QueryClientProvider>,
   );
 }
