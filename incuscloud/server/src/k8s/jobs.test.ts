@@ -2,7 +2,7 @@ import { beforeEach, expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
 import { testDb } from "../db/test-db.ts";
 import type { Db } from "../db/index.ts";
-import { clusters, k8sClusters, placements, tenants } from "../db/schema.ts";
+import { clusters, jobs, k8sClusters, placements, tenants } from "../db/schema.ts";
 import { fingerprintOf } from "../incus/certs.ts";
 import type { JobContext } from "../jobs/types.ts";
 import { FakeKube } from "./fake-kube.ts";
@@ -48,7 +48,7 @@ const available = (name: string, ok = true) =>
   kube.setStatus("cluster.x-k8s.io/v1beta2", "Cluster", "ic-acme", name, { conditions: [{ type: "ControlPlaneAvailable", status: ok ? "True" : "False", message: ok ? "" : "waiting" }] });
 
 /** Runs a handler; `step` plays the controllers, once per wait. */
-function run(handler: "create" | "delete", k8sId: string, step: (n: number) => void = () => {}, o: { deadlineMs?: number } = {}) {
+function run(handler: "create" | "delete", k8sId: string, step: (n: number) => void | Promise<void> = () => {}, o: { deadlineMs?: number } = {}) {
   let n = 0;
   const stages: string[] = [];
   const opts = { kube, deadlineMs: o.deadlineMs ?? 60_000, sleep: async () => step(++n) };
@@ -122,7 +122,7 @@ test("delete: waits for the Cluster to go, removes its forward port and row; cre
   expect(incus.forwards.get("incusbr0|10.0.0.5")!.ports.map((x) => x.description)).toEqual([`incuscloud k8s ${api.id}`]);
   expect(incus.certificates.size).toBe(1);
 
-  await run("delete", api.id, () => kube.objects.delete("cluster.x-k8s.io/v1beta2|Cluster|ic-acme|api")).p;
+  await run("delete", api.id, () => void kube.objects.delete("cluster.x-k8s.io/v1beta2|Cluster|ic-acme|api")).p;
   expect(incus.certificates.size).toBe(0);
   expect(incus.forwards.size).toBe(0);
   expect(kube.objects.get("v1|Secret|ic-acme|incus-lab")).toBeUndefined();
@@ -140,4 +140,39 @@ test("the job types exist only when a management cluster is configured", async (
   const { jobHandlers } = await import("../jobs/handlers.ts");
   expect(Object.keys(jobHandlers({ kube }))).toEqual(expect.arrayContaining(["k8s-create", "k8s-delete"]));
   expect(Object.keys(jobHandlers())).not.toContain("k8s-create");
+});
+
+test("a create stopped by a delete leaves the row deleting, not failed", async () => {
+  const row = await addK8s("web", 16443);
+  const abort = new AbortController();
+  const p = k8sCreateHandler({ kube, deadlineMs: 60_000, sleep: async () => {
+    // The API marks it deleting and asks the create to stop.
+    await db.update(k8sClusters).set({ status: "deleting" }).where(eq(k8sClusters.id, row.id));
+    abort.abort(new Error("Cancelled"));
+  } })({
+    db,
+    secretKey: Buffer.alloc(32),
+    job: { id: "00000000-0000-4000-8000-0000000000a2", tenantId: tenant.id, payload: { k8sId: row.id } },
+    signal: abort.signal,
+    progress: async () => {},
+    clientFor: async () => ({ client: incus.client, row: cluster }),
+  } as unknown as JobContext);
+  await expect(p).rejects.toThrow("Cancelled");
+  expect(await rowOf(row.id)).toMatchObject({ status: "deleting" });
+});
+
+test("delete waits for a create of the same cluster that is still running", async () => {
+  const { web } = await twoClusters();
+  const { enqueueJob } = await import("../jobs/queue.ts");
+  const create = await enqueueJob(db, { type: "k8s-create", payload: { k8sId: web.id }, actor: { type: "user", id: "u" }, tenantId: tenant.id });
+  await db.update(jobs).set({ state: "running" }).where(eq(jobs.id, create.id));
+  const seen: string[] = [];
+  const { p } = run("delete", web.id, async (n) => {
+    seen.push(`wait ${n}: cluster deleted ${kube.deleted.length > 0}`);
+    if (n === 1) await db.update(jobs).set({ state: "cancelled" }).where(eq(jobs.id, create.id));
+    if (n === 2) kube.objects.delete("cluster.x-k8s.io/v1beta2|Cluster|ic-acme|web");
+  });
+  await p;
+  expect(seen[0]).toBe("wait 1: cluster deleted false");
+  expect(await rowOf(web.id)).toBeUndefined();
 });

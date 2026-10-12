@@ -30,7 +30,7 @@ export const IMAGES = [
 ];
 
 /** Resources asked for by creates not finished yet: they count against the quota until their usage is recorded. */
-async function pendingOf(db: Db, tenantId: string): Promise<Usage> {
+export async function pendingOf(db: Db, tenantId: string): Promise<Usage> {
   const rows = await db
     .select({ payload: jobs.payload })
     .from(jobs)

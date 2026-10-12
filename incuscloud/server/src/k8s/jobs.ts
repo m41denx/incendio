@@ -1,5 +1,5 @@
-import { and, eq, ne } from "drizzle-orm";
-import { k8sClusters, placements, tenants } from "../db/schema.ts";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
+import { jobs, k8sClusters, placements, tenants } from "../db/schema.ts";
 import type { JobContext, JobHandler } from "../jobs/types.ts";
 import { ApiError } from "../lib/errors.ts";
 import { ensureCredentials, revokeCredentials } from "./credentials.ts";
@@ -116,7 +116,11 @@ export function k8sCreateHandler(o: K8sJobOptions): JobHandler {
       await ctx.db.update(k8sClusters).set({ status: "ready", statusMessage: "" }).where(eq(k8sClusters.id, row.id));
       return { id: row.id, endpoint: endpointUrl(row.endpointHost, row.endpointPort) };
     } catch (e) {
-      await ctx.db.update(k8sClusters).set({ status: "error", statusMessage: (e as Error).message.slice(0, 500) }).where(eq(k8sClusters.id, row.id));
+      // Stopped by a delete: the row is the delete's now.
+      await ctx.db
+        .update(k8sClusters)
+        .set({ status: "error", statusMessage: (e as Error).message.slice(0, 500) })
+        .where(and(eq(k8sClusters.id, row.id), ne(k8sClusters.status, "deleting")));
       throw e;
     }
   };
@@ -133,6 +137,18 @@ export function k8sDeleteHandler(o: K8sJobOptions): JobHandler {
     const { row, tenant, project, client, cluster } = await load(ctx);
     const wait = waiter(ctx, o);
     await ctx.db.update(k8sClusters).set({ status: "deleting" }).where(eq(k8sClusters.id, row.id));
+
+    // A create still running was asked to stop; it must end before its forward and credentials go.
+    await wait(
+      async () => {
+        const running = await ctx.db
+          .select({ id: jobs.id })
+          .from(jobs)
+          .where(and(eq(jobs.type, "k8s-create"), inArray(jobs.state, ["queued", "running"]), sql`${jobs.payload}->>'k8sId' = ${row.id}`));
+        return running.length ? null : true;
+      },
+      () => `The create of ${row.name} did not stop in time`,
+    );
 
     await ctx.progress({ stage: "cluster", message: `deleting ${row.name} and its nodes` });
     await kube.delete(...CLUSTER, row.namespace, row.name);

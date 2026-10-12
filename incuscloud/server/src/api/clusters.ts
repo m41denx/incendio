@@ -1,7 +1,7 @@
 import { Elysia, t } from "elysia";
 import { and, eq, inArray } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
-import { clusters, placements, tenants } from "../db/schema.ts";
+import { clusters, k8sClusters, placements, tenants } from "../db/schema.ts";
 import type { Authz } from "../authz/platform.ts";
 import { tuples } from "../authz/sync.ts";
 import { forbidden, needVisible, notFound, platformCan, subject } from "../authz/guards.ts";
@@ -91,6 +91,9 @@ export function clustersRoutes({ db, authz, secretKey }: { db: Db; authz: Authz;
         await audited(db, { principal: p, request }, "cluster.delete", { type: "cluster", id: params.id }, async () => {
           const row = await load(p, params.id, "admin");
           const placed = await db.select().from(placements).where(eq(placements.clusterId, row.id));
+          // Not even with force: CAPN's nodes, forwards and certificates there would be orphaned.
+          const k8s = await db.select({ id: k8sClusters.id }).from(k8sClusters).where(eq(k8sClusters.clusterId, row.id));
+          if (k8s.length) throw new ApiError(409, "cluster_in_use", `${k8s.length} Kubernetes cluster(s) run on this cluster; delete them first`);
           if (placed.length && query.force !== "true") throw new ApiError(409, "cluster_in_use", `${placed.length} tenant(s) are placed on this cluster; remove them or pass force=true`);
           // Best effort: the cluster may already be gone. First stop it trusting our tokens and grants,
           // then remove our certificate (the order matters: without it we cannot unset anything).
@@ -142,6 +145,12 @@ export function clustersRoutes({ db, authz, secretKey }: { db: Db; authz: Authz;
       await audited(db, { principal: p, request }, "cluster.tenant.remove", { type: "cluster", id: params.id }, async () => {
         await load(p, params.id, "can_access");
         await needOperator(p);
+        const k8s = await db
+          .select({ slug: tenants.slug })
+          .from(k8sClusters)
+          .innerJoin(tenants, eq(tenants.id, k8sClusters.tenantId))
+          .where(and(eq(k8sClusters.clusterId, params.id), eq(k8sClusters.tenantId, uuidParam(params.tenantId))));
+        if (k8s.length) throw new ApiError(409, "tenant_in_use", `${k8s[0]!.slug} has ${k8s.length} Kubernetes cluster(s) on this cluster; delete them first`);
         const removed = await db.delete(placements).where(and(eq(placements.clusterId, params.id), eq(placements.tenantId, uuidParam(params.tenantId)))).returning();
         if (!removed.length) throw notFound("This tenant is not on this cluster");
         await authz.write([], [tuples.placement(params.tenantId, params.id)]);

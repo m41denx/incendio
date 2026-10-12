@@ -17,6 +17,8 @@ import { replicationRoutes } from "./api/replication.ts";
 import { backupsRoutes } from "./api/backups.ts";
 import { balancingRoutes, type ClientOf } from "./api/balancing.ts";
 import { tenantCloudRoutes } from "./api/tenant-cloud.ts";
+import { kubernetesRoutes } from "./api/kubernetes.ts";
+import type { Kube } from "./k8s/kube.ts";
 import type { StoreFor } from "./backups/store.ts";
 import { gatewayLogRoutes } from "./api/gateway-log.ts";
 
@@ -33,6 +35,10 @@ export interface AppDeps extends AuthDeps {
   clientOf?: ClientOf;
   /** The platform UI's stylesheet, for the server-rendered sign-in pages. */
   stylesheet?: () => string | undefined;
+  /** The management cluster (P10); without it Kubernetes is off. */
+  kube?: Kube;
+  /** Ports for workload API endpoints (IC_K8S_PORTS). */
+  k8sPorts?: [number, number];
 }
 
 /** The platform's HTTP app: identity pages, sessions, platform API, health. */
@@ -56,5 +62,6 @@ export function createApp(deps: AppDeps) {
     .use(replicationRoutes(deps))
     .use(backupsRoutes(deps))
     .use(balancingRoutes(deps))
-    .use(tenantCloudRoutes(deps));
+    .use(tenantCloudRoutes(deps))
+    .use(kubernetesRoutes(deps));
 }

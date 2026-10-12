@@ -125,6 +125,8 @@ const appDeps = {
   secureCookies: config.publicUrl.startsWith("https://"),
   clusterDomain: config.clusterDomain,
   stylesheet: config.webDir ? () => webStylesheet(config.webDir!) : undefined,
+  kube,
+  k8sPorts: config.k8s?.ports,
 };
 const app = createApp(appDeps);
 const requestLog = new RequestLog(db, { sampleReads: config.gatewaySampleReads });
