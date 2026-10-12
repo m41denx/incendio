@@ -449,3 +449,48 @@ export interface CreateInstanceRequest {
   labels?: Record<string, string>;
   start?: boolean;
 }
+
+export type K8sStatus = "creating" | "provisioning" | "ready" | "degraded" | "deleting" | "error";
+export type K8sSize = "small" | "medium" | "large";
+
+/** A Kubernetes cluster run by CAPI on an Incus cluster (P10): GET /api/v1/kubernetes[/:id]. */
+export interface K8sCluster {
+  id: string;
+  tenantId: string;
+  tenantSlug: string;
+  clusterId: string;
+  clusterName: string;
+  name: string;
+  version: string;
+  controlPlanes: number;
+  workers: number;
+  size: K8sSize;
+  /** https://host:port, forwarded to the cluster's load balancer. */
+  endpoint: string;
+  status: K8sStatus;
+  statusMessage: string;
+  nodes: number;
+  nodesReady: number;
+  createdBy: string;
+  createdAt: string;
+  syncedAt: string | null;
+}
+
+/** GET /api/v1/kubernetes/versions. */
+export interface K8sOptions {
+  /** False when IncusCloud has no management cluster: every other Kubernetes call answers 409. */
+  enabled: boolean;
+  versions: string[];
+  sizes: Record<K8sSize, { cpu: number; memoryGiB: number }>;
+}
+
+/** POST /api/v1/kubernetes. */
+export interface CreateK8sRequest {
+  tenantId: string;
+  clusterId: string;
+  name: string;
+  version: string;
+  controlPlanes: 1 | 3;
+  workers: number;
+  size: K8sSize;
+}

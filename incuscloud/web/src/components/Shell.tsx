@@ -16,6 +16,7 @@ export function sections(me: Me) {
   return [
     { label: "Dashboard", icon: "switcher-dashboard", to: "/", end: true },
     { label: "Instances", icon: "pods", to: "/instances" },
+    { label: "Kubernetes", icon: "kubernetes", to: "/kubernetes" },
     { label: "Clusters", icon: "cluster-host", to: "/clusters" },
     { label: "Tenants", icon: "switcher-environments", to: "/tenants" },
     { label: "Jobs", icon: "loading-steps", to: "/jobs" },

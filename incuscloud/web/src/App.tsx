@@ -5,6 +5,9 @@ import NotFound from "./pages/NotFound";
 import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
 import InstanceList from "./pages/instances/InstanceList";
+import KubernetesList from "./pages/kubernetes/KubernetesList";
+import CreateKubernetes from "./pages/kubernetes/CreateKubernetes";
+import KubernetesDetail from "./pages/kubernetes/KubernetesDetail";
 import InstanceDetail from "./pages/instances/InstanceDetail";
 import JobList from "./pages/jobs/JobList";
 import JobDetail from "./pages/jobs/JobDetail";
@@ -30,6 +33,9 @@ export const AppRoutes: FC = () => (
       <Route path="instances" element={<InstanceList />} />
       <Route path="instances/new" element={<CreateInstance />} />
       <Route path="instances/:id" element={<InstanceDetail />} />
+      <Route path="kubernetes" element={<KubernetesList />} />
+      <Route path="kubernetes/new" element={<CreateKubernetes />} />
+      <Route path="kubernetes/:id" element={<KubernetesDetail />} />
       <Route path="jobs" element={<JobList />} />
       <Route path="jobs/:id" element={<JobDetail />} />
       <Route path="replication" element={<PolicyList />} />

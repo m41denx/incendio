@@ -151,7 +151,8 @@ export function kubernetesRoutes({ db, authz, kube, k8sPorts }: { db: Db; authz:
               .returning();
             const job = await enqueueJob(txDb, {
               type: "k8s-create",
-              payload: { k8sId: row!.id, usage: req },
+              // Name and cluster for the job list; usage for quota checks while it runs.
+              payload: { k8sId: row!.id, name: row!.name, clusterId: row!.clusterId, usage: req },
               actor: { type: p.kind, id: p.id },
               tenantId: tenant.id,
               clusterIds: [body.clusterId],
@@ -234,7 +235,7 @@ export function kubernetesRoutes({ db, authz, kube, k8sPorts }: { db: Db; authz:
           // A create still running stops; the delete job waits for it to end.
           await tx.update(jobs).set({ state: "cancelled", cancelRequested: true, finishedAt: new Date() }).where(and(eq(jobs.type, "k8s-create"), eq(jobs.state, "queued"), jobFor(row.id)));
           await tx.update(jobs).set({ cancelRequested: true }).where(and(eq(jobs.type, "k8s-create"), eq(jobs.state, "running"), jobFor(row.id)));
-          return enqueueJob(txDb, { type: "k8s-delete", payload: { k8sId: row.id }, actor: { type: p.kind, id: p.id }, tenantId: row.tenantId, clusterIds: [row.clusterId] });
+          return enqueueJob(txDb, { type: "k8s-delete", payload: { k8sId: row.id, name: row.name, clusterId: row.clusterId }, actor: { type: p.kind, id: p.id }, tenantId: row.tenantId, clusterIds: [row.clusterId] });
         }),
       () => ({ k8sId: row.id, name: row.name }),
       );

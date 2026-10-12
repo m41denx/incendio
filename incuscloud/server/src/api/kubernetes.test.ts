@@ -44,7 +44,7 @@ test("create: a member gets a cluster on the cluster's address and the first por
   const [row] = await rows();
   expect(row).toMatchObject({ namespace: "ic-acme", endpointHost: "10.0.0.5", endpointPort: 16443, lbMember: "", createdBy: m.id });
   const [job] = await h.db.select().from(jobs);
-  expect(job!.payload).toEqual({ k8sId: row!.id, usage: { instances: 3, cpu: 5, memory: 5 * GiB, disk: 30 * GiB } });
+  expect(job!.payload).toEqual({ k8sId: row!.id, name: "web", clusterId: lab, usage: { instances: 3, cpu: 5, memory: 5 * GiB, disk: 30 * GiB } });
   const [a] = await h.db.select().from(auditLog).where(eq(auditLog.action, "kubernetes.create"));
   expect(a).toMatchObject({ result: "success" });
 });
@@ -150,6 +150,7 @@ test("delete: tenant admins and operators; marks it deleting, cancels its create
   const r = await h.call(admin, "DELETE", `/api/v1/kubernetes/${id}`);
   expect(r.status).toBe(202);
   expect(r.body.type).toBe("k8s-delete");
+  expect(r.body.payload).toEqual({ k8sId: id, name: "web", clusterId: lab });
   expect((await rows())[0]).toMatchObject({ status: "deleting" });
   expect((await h.db.select().from(jobs).where(eq(jobs.type, "k8s-create")))[0]).toMatchObject({ cancelRequested: true });
   const again = await h.call(admin, "DELETE", `/api/v1/kubernetes/${id}`);

@@ -13,14 +13,14 @@ const labels = async () => {
 test("platform admins see every section", async () => {
   mockApi({ "GET /api/v1/me": [200, me({ platformRole: "admin" })] });
   renderAt(<Shell />);
-  expect(await labels()).toEqual(expect.arrayContaining(["Dashboard", "Instances", "Clusters", "Tenants", "Jobs", "Replication", "Backups", "Balancing", "Backup targets", "Users", "Service accounts", "Audit log", "Gateway log", "Profile"]));
+  expect(await labels()).toEqual(expect.arrayContaining(["Dashboard", "Instances", "Kubernetes", "Clusters", "Tenants", "Jobs", "Replication", "Backups", "Balancing", "Backup targets", "Users", "Service accounts", "Audit log", "Gateway log", "Profile"]));
 });
 
 test("tenant members see their tenants and clusters, not platform administration", async () => {
   mockApi({ "GET /api/v1/me": [200, me({ platformRole: null, tenants: [{ id: "t1", slug: "acme", name: "Acme", role: "member" }] })] });
   renderAt(<Shell />);
   const l = await labels();
-  expect(l).toEqual(expect.arrayContaining(["Dashboard", "Instances", "Clusters", "Tenants", "Jobs", "Replication", "Backups", "Balancing", "Profile"]));
+  expect(l).toEqual(expect.arrayContaining(["Dashboard", "Instances", "Kubernetes", "Clusters", "Tenants", "Jobs", "Replication", "Backups", "Balancing", "Profile"]));
   for (const hidden of ["Backup targets", "Users", "Service accounts", "Audit log", "Gateway log"]) expect(l).not.toContain(hidden);
 });
 

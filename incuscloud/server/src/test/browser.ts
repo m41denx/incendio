@@ -43,7 +43,7 @@ export class TestBrowser {
 
   /** Submits the page's only form with extra fields. */
   async submit(page: { url: string; body: string }, fields: Record<string, string>) {
-    const action = page.body.match(/<form method="post" action="([^"]+)"/)![1]!;
+    const action = page.body.match(/<form\b[^>]*\bmethod="post"[^>]*\baction="([^"]+)"/)![1]!;
     const hidden = Object.fromEntries([...page.body.matchAll(/<input type="hidden" name="([^"]+)" value="([^"]*)"/g)].map((m) => [m[1]!, m[2]!]));
     return this.go(new URL(action, page.url).toString(), { method: "POST", form: { ...hidden, ...fields } });
   }

@@ -42,6 +42,11 @@
 @include vf-p-icon-status-succeeded-small;
 @include vf-p-icon-status-in-progress-small;
 @include vf-p-icon-status-queued-small;
+@include vf-p-icon-status-waiting-small;
+// Kubernetes cluster actions, as on Incendio's cluster page.
+@include vf-p-icon-begin-downloading;
+@include vf-p-icon-resize;
+@include vf-p-icon-upload;
 @include vf-p-icon-close;
 @include vf-p-icon-book;
 @include vf-p-icon-pods;

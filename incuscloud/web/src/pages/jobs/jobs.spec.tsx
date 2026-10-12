@@ -322,3 +322,19 @@ test("a self-service create reads as such and links to the instances", async () 
   expect(screen.getByRole("link", { name: "Create" })).toHaveAttribute("href", "/instances");
   expect(screen.getByText("debian/12, 1 CPU, 1.0 GiB memory, 10 GiB disk")).toBeInTheDocument();
 });
+
+test("Kubernetes creates and deletes read as such and link to the cluster or the list", async () => {
+  mockApi({
+    "GET /api/v1/me": [200, ownUser()],
+    "GET /api/v1/clusters": [200, clusters],
+    "GET /api/v1/jobs/j-10": [200, job({ id: "j-10", type: "k8s-create", progress: { stage: "control-plane", message: "waiting until it is available" }, payload: { k8sId: "k-1", name: "web", clusterId: "c-1", usage: {} } })],
+    "GET /api/v1/jobs/j-11": [200, job({ id: "j-11", type: "k8s-delete", payload: { k8sId: "k-1", name: "web", clusterId: "c-1" } })],
+  });
+  const first = renderAt(<JobDetail />, { path: "/jobs/j-10", pattern: "/jobs/:id" });
+  expect(await screen.findByText(/Create Kubernetes cluster web \(edge-1\)/)).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Kubernetes create" })).toHaveAttribute("href", "/kubernetes/k-1");
+  first.unmount();
+  renderAt(<JobDetail />, { path: "/jobs/j-11", pattern: "/jobs/:id" });
+  expect(await screen.findByText(/Delete Kubernetes cluster web \(edge-1\)/)).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Kubernetes delete" })).toHaveAttribute("href", "/kubernetes");
+});
