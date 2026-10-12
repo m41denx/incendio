@@ -1,3 +1,4 @@
+import { specFromSize } from "./model.ts";
 import { expect, test } from "bun:test";
 import { classBundle, clusterManifest, identitySecret, tenantBundle } from "./manifests.ts";
 
@@ -46,7 +47,7 @@ test("the identity secret is CAPN's format, restricted to the tenant's project",
   });
 });
 
-const row = { id: "k-1", name: "web", namespace: "ic-acme", version: "v1.36.4", controlPlanes: 1, workers: 2, size: "medium" as const, endpointHost: "10.0.0.5", endpointPort: 16443, secretName: "incus-lab" };
+const row = { id: "k-1", name: "web", namespace: "ic-acme", version: "v1.36.4", controlPlanes: 1, workers: 2, spec: specFromSize("medium"), endpointHost: "10.0.0.5", endpointPort: 16443, secretName: "incus-lab" };
 
 test("a cluster: our class across namespaces, the preset endpoint, unprivileged nodes, sizes and counts", () => {
   const c = clusterManifest(row, { member: "m2" });

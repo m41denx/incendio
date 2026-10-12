@@ -1,3 +1,4 @@
+import { specFromSize } from "./model.ts";
 import { beforeEach, expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
 import { testDb } from "../db/test-db.ts";
@@ -31,7 +32,7 @@ const addK8s = async (name: string, port: number, status: "creating" | "deleting
   (
     await db
       .insert(k8sClusters)
-      .values({ tenantId: tenant.id, clusterId: cluster.id, name, namespace: "ic-acme", version: "v1.36.4", controlPlanes: 1, workers: 1, size: "small", endpointHost: "10.0.0.5", endpointPort: port, status, createdBy: "u" })
+      .values({ tenantId: tenant.id, clusterId: cluster.id, name, namespace: "ic-acme", version: "v1.36.4", controlPlanes: 1, workers: 1, size: "small", spec: specFromSize("small"), endpointHost: "10.0.0.5", endpointPort: port, status, createdBy: "u" })
       .returning()
   )[0]!;
 const rowOf = async (id: string) => (await db.select().from(k8sClusters).where(eq(k8sClusters.id, id)))[0];

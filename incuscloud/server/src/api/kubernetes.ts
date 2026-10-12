@@ -10,7 +10,7 @@ import { enqueueJob } from "../jobs/queue.ts";
 import { exceeds, sumUsage, type Usage } from "../tenants/quota.ts";
 import type { Kube, KubeObject } from "../k8s/kube.ts";
 import { clusterManifest } from "../k8s/manifests.ts";
-import { KUBERNETES_VERSIONS, SIZES, namespaceOf, upgradeError, usageOf, type Size } from "../k8s/model.ts";
+import { KUBERNETES_VERSIONS, SIZES, namespaceOf, specError, specFromSize, upgradeError, usageOfSpec, type K8sSpec, type Size } from "../k8s/model.ts";
 import { secretNameOf } from "../k8s/credentials.ts";
 import { pickEndpoint } from "../k8s/endpoint.ts";
 import { pendingOf } from "./tenant-cloud.ts";
@@ -39,7 +39,9 @@ const view = (r: Row, tenantSlug: string, clusterName: string, project: string) 
   version: r.version,
   controlPlanes: r.controlPlanes,
   workers: r.workers,
+  /** The size it was made with (clusters made before specs, or from a size); null when made from a spec. */
   size: r.size,
+  spec: r.spec,
   endpoint: endpointOf(r),
   /** The member its load balancer and nodes are on ("" on a single-member Incus cluster). */
   member: r.lbMember,
@@ -51,6 +53,30 @@ const view = (r: Row, tenantSlug: string, clusterName: string, project: string) 
   createdAt: r.createdAt,
   syncedAt: r.syncedAt,
 });
+
+const Profiles = t.Array(t.String({ minLength: 1, maxLength: 63 }), { maxItems: 16 });
+const Flavor = t.String({ minLength: 1, maxLength: 32 });
+const Target = t.String({ maxLength: 253 });
+const Machine = t.Object({ type: t.Union([t.Literal("container"), t.Literal("virtual-machine")]), flavor: Flavor, profiles: Profiles, target: Target });
+const Host = t.String({ maxLength: 253 });
+/** Incendio's create options (see K8sSpec); specError checks what the schema cannot. */
+const Spec = t.Object({
+  controlPlane: Machine,
+  worker: Machine,
+  loadBalancer: t.Union([
+    t.Object({ type: t.Union([t.Literal("lxc"), t.Literal("oci")]), flavor: Flavor, profiles: Profiles, target: Target }),
+    t.Object({ type: t.Literal("kube-vip"), host: Host, interface: t.String({ maxLength: 63 }) }),
+    t.Object({ type: t.Literal("ovn"), host: Host, networkName: t.String({ maxLength: 63 }) }),
+  ]),
+  image: t.String({ maxLength: 253 }),
+  privileged: t.Boolean(),
+  flannel: t.Boolean(),
+  installKubeadm: t.Boolean(),
+  podCidr: t.String({ maxLength: 43 }),
+  serviceCidr: t.String({ maxLength: 43 }),
+  metallb: t.Union([t.Null(), t.Object({ addresses: t.Array(t.String({ minLength: 1, maxLength: 64 }), { maxItems: 16 }) })]),
+});
+const ControlPlanes = t.Union([t.Literal(1), t.Literal(3), t.Literal(5)]);
 
 const jobFor = (id: string) => sql`${jobs.payload}->>'k8sId' = ${id}`;
 const lockTenant = (tx: Db, tenantId: string) => tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`tenant-create:${tenantId}`}))`);
@@ -108,6 +134,8 @@ export function kubernetesRoutes({ db, authz, kube, k8sPorts }: { db: Db; authz:
         enabled: !!kube,
         versions: KUBERNETES_VERSIONS,
         sizes: Object.fromEntries(Object.entries(SIZES).map(([k, s]) => [k, { cpu: s.cpu, memoryGiB: s.memoryGiB }])),
+        /** What the create form starts from. */
+        defaults: specFromSize("medium"),
       };
     })
     .get(
@@ -133,7 +161,12 @@ export function kubernetesRoutes({ db, authz, kube, k8sPorts }: { db: Db; authz:
         enabled();
         await needVisible(authz, p, "viewer", "viewer", `tenant:${body.tenantId}`);
         await needRole(p, body.tenantId, "member");
-        const req = usageOf(body.size, body.controlPlanes, body.workers);
+        if (body.size && body.spec) throw new ApiError(400, "invalid_request", "Give a size or a spec, not both");
+        const size: Size | null = body.spec ? null : (body.size ?? "medium");
+        const given = body.spec as K8sSpec | undefined;
+        const why = given ? specError(given) : null;
+        if (why) throw new ApiError(400, "invalid_request", why);
+        const req = usageOfSpec(given ?? specFromSize(size!), body.controlPlanes, body.workers);
         // Operators create on any ready cluster: the tenant is placed there first, and the job waits for its project.
         const operator = await platformCan(authz, p, "operator");
         let placedNow = false;
@@ -178,7 +211,9 @@ export function kubernetesRoutes({ db, authz, kube, k8sPorts }: { db: Db; authz:
                 version: body.version,
                 controlPlanes: body.controlPlanes,
                 workers: body.workers,
-                size: body.size,
+                size,
+                // A size's spec is pinned to the member the endpoint chose (as before specs).
+                spec: given ?? specFromSize(size!, ep.member),
                 endpointHost: ep.host,
                 endpointPort: ep.port,
                 lbMember: ep.member,
@@ -210,9 +245,11 @@ export function kubernetesRoutes({ db, authz, kube, k8sPorts }: { db: Db; authz:
           clusterId: t.String({ format: "uuid" }),
           name: t.String({ pattern: NAME }),
           version: t.Union(KUBERNETES_VERSIONS.map((v) => t.Literal(v))),
-          controlPlanes: t.Union([t.Literal(1), t.Literal(3)]),
+          controlPlanes: ControlPlanes,
           workers: t.Integer({ minimum: 0, maximum: 20 }),
-          size: t.Union((Object.keys(SIZES) as Size[]).map((s) => t.Literal(s))),
+          /** Clusters as before specs; neither size nor spec is a medium one. */
+          size: t.Optional(t.Union((Object.keys(SIZES) as Size[]).map((s) => t.Literal(s)))),
+          spec: t.Optional(Spec),
           /** On a multi-member Incus cluster: the member to run on (default: the one with most memory free). */
           member: t.Optional(t.String({ minLength: 1, maxLength: 253 })),
         }),
@@ -238,8 +275,8 @@ export function kubernetesRoutes({ db, authz, kube, k8sPorts }: { db: Db; authz:
               if (why) throw new ApiError(409, "bad_upgrade", why);
             }
             // Only growth needs room; shrinking is always allowed.
-            const before = usageOf(cur.size, cur.controlPlanes, cur.workers, { lb: false });
-            const after = usageOf(cur.size, next.controlPlanes, next.workers, { lb: false });
+            const before = usageOfSpec(cur.spec, cur.controlPlanes, cur.workers, { lb: false });
+            const after = usageOfSpec(cur.spec, next.controlPlanes, next.workers, { lb: false });
             const grow = Object.fromEntries(Object.keys(after).map((k) => [k, Math.max(0, after[k as keyof Usage] - before[k as keyof Usage])])) as unknown as Usage;
             if (grow.instances > 0) {
               const [tenant] = await tx.select().from(tenants).where(eq(tenants.id, cur.tenantId));
@@ -258,7 +295,7 @@ export function kubernetesRoutes({ db, authz, kube, k8sPorts }: { db: Db; authz:
       {
         body: t.Object({
           version: t.Optional(t.Union(KUBERNETES_VERSIONS.map((v) => t.Literal(v)))),
-          controlPlanes: t.Optional(t.Union([t.Literal(1), t.Literal(3)])),
+          controlPlanes: t.Optional(ControlPlanes),
           workers: t.Optional(t.Integer({ minimum: 0, maximum: 20 })),
         }),
       },

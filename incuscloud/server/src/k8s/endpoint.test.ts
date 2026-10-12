@@ -1,3 +1,4 @@
+import { specFromSize } from "./model.ts";
 import { beforeEach, expect, test } from "bun:test";
 import { testDb } from "../db/test-db.ts";
 import type { Db } from "../db/index.ts";
@@ -16,7 +17,7 @@ beforeEach(async () => {
 });
 
 const taken = (port: number, host = "10.0.0.5") =>
-  db.insert(k8sClusters).values({ tenantId, clusterId, name: `k${port}`, namespace: "ic-acme", version: "v1.36.4", controlPlanes: 1, workers: 0, size: "small", endpointHost: host, endpointPort: port, createdBy: "u" });
+  db.insert(k8sClusters).values({ tenantId, clusterId, name: `k${port}`, namespace: "ic-acme", version: "v1.36.4", controlPlanes: 1, workers: 0, size: "small", spec: specFromSize("small"), endpointHost: host, endpointPort: port, createdBy: "u" });
 
 test("a single-member cluster: its address, the lowest free port, no member pinned", async () => {
   await db.insert(clusterMembers).values({ clusterId, name: "lab", url: "", status: "Online" });

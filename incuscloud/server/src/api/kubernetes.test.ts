@@ -32,7 +32,9 @@ test("without a management cluster: versions say so, everything else is 409 kube
   expect(r.body.error.code).toBe("kubernetes_disabled");
   const anyone = await h.user("x@example.com");
   const v = await h.call(anyone, "GET", "/api/v1/kubernetes/versions");
-  expect(v.body).toEqual({ enabled: true, versions: ["v1.34.0", "v1.35.5", "v1.36.4", "v1.37.0"], sizes: { small: { cpu: 2, memoryGiB: 2 }, medium: { cpu: 2, memoryGiB: 4 }, large: { cpu: 4, memoryGiB: 8 } } });
+  expect(v.body).toMatchObject({ enabled: true, versions: ["v1.34.0", "v1.35.5", "v1.36.4", "v1.37.0"], sizes: { small: { cpu: 2, memoryGiB: 2 }, medium: { cpu: 2, memoryGiB: 4 }, large: { cpu: 4, memoryGiB: 8 } } });
+  // The create form starts from a medium cluster's spec.
+  expect(v.body.defaults).toMatchObject({ controlPlane: { flavor: "c2-m4" }, loadBalancer: { type: "lxc" }, podCidr: "10.244.0.0/16" });
 });
 
 test("create: a member gets a cluster on the cluster's address and the first port, and a job carrying its usage", async () => {
@@ -246,4 +248,72 @@ test("a cluster's nodes: its Machines, control plane first, each with its Incus 
   kube.down = true;
   const down = await h.call(viewer, "GET", `/api/v1/kubernetes/${id}/nodes`);
   expect([down.status, down.body.error.code]).toEqual([503, "management_unavailable"]);
+});
+
+/** Incendio's options, as its create form sends them. */
+const spec = (o: Record<string, unknown> = {}) => ({
+  controlPlane: { type: "virtual-machine", flavor: "c4-m8", profiles: ["default"], target: "" },
+  worker: { type: "container", flavor: "c2-m4", profiles: ["default", "gpu"], target: "" },
+  loadBalancer: { type: "lxc", flavor: "c1-m1", profiles: ["default"], target: "" },
+  image: "",
+  privileged: false,
+  flannel: true,
+  installKubeadm: false,
+  podCidr: "10.244.0.0/16",
+  serviceCidr: "10.96.0.0/12",
+  metallb: null,
+  ...o,
+});
+const withSpec = (o: Record<string, unknown> = {}, s: Record<string, unknown> = {}) => {
+  const { size: _size, ...rest } = make({ controlPlanes: 3, workers: 2, ...o });
+  return { ...rest, spec: spec(s) };
+};
+
+test("create with a spec: the quota counts its flavors (and the load balancer only when it is an instance)", async () => {
+  await h.db.update(tenants).set({ quotas: {} }).where(eq(tenants.id, acme.id));
+  const m = await member();
+  let r = await h.call(m, "POST", "/api/v1/kubernetes", withSpec());
+  expect(r.status).toBe(202);
+  expect(r.body.cluster.spec).toMatchObject({ controlPlane: { flavor: "c4-m8", type: "virtual-machine" }, worker: { profiles: ["default", "gpu"] } });
+  let [job] = await h.db.select().from(jobs);
+  expect(job!.payload.usage).toEqual({ instances: 6, cpu: 12 + 4 + 1, memory: (24 + 8 + 1) * GiB, disk: 60 * GiB });
+  r = await h.call(m, "POST", "/api/v1/kubernetes", withSpec({ name: "vip" }, { loadBalancer: { type: "kube-vip", host: "10.0.0.50", interface: "" } }));
+  expect(r.status).toBe(202);
+  job = (await h.db.select().from(jobs)).find((j) => j.payload.name === "vip");
+  expect(job!.payload.usage).toEqual({ instances: 5, cpu: 16, memory: 32 * GiB, disk: 50 * GiB });
+});
+
+test("create: a size or a spec, not both; a bad spec says why; neither is a medium cluster", async () => {
+  await h.db.update(tenants).set({ quotas: {} }).where(eq(tenants.id, acme.id));
+  const m = await member();
+  let r = await h.call(m, "POST", "/api/v1/kubernetes", { ...withSpec(), size: "small" });
+  expect(r.status).toBe(400);
+  r = await h.call(m, "POST", "/api/v1/kubernetes", withSpec({}, { controlPlane: { type: "container", flavor: "c1-m4", profiles: [], target: "" } }));
+  expect([r.status, r.body.error.message]).toEqual([400, "A control plane needs at least 2 CPUs (kubeadm)"]);
+  r = await h.call(m, "POST", "/api/v1/kubernetes", withSpec({ controlPlanes: 2 }));
+  expect(r.status).toBe(400);
+  const { size: _s, ...bare } = make({ name: "bare" });
+  r = await h.call(m, "POST", "/api/v1/kubernetes", bare);
+  expect(r.status).toBe(202);
+  expect(r.body.cluster.spec.controlPlane.flavor).toBe("c2-m4");
+  expect(r.body.cluster.size).toBe("medium");
+  r = await h.call(m, "POST", "/api/v1/kubernetes", make({ name: "five", controlPlanes: 5 }));
+  expect(r.status).toBe(202);
+});
+
+test("scale a spec cluster: growth is checked against its flavors", async () => {
+  const m = await member();
+  await h.db.update(tenants).set({ quotas: { cpu: 30 } }).where(eq(tenants.id, acme.id));
+  const r = await h.call(m, "POST", "/api/v1/kubernetes", withSpec({ controlPlanes: 1, workers: 1 }));
+  expect(r.status).toBe(202);
+  const id = r.body.cluster.id;
+  await h.db.update(k8sClusters).set({ status: "ready" }).where(eq(k8sClusters.id, id));
+  await h.db.delete(jobs);
+  // 4 + 2 + 1 CPUs in use; each worker adds 2.
+  await h.db.update(placements).set({ usage: { instances: 3, cpu: 7, memory: 13 * GiB, disk: 30 * GiB } });
+  expect((await h.call(m, "PATCH", `/api/v1/kubernetes/${id}`, { workers: 12 })).status).toBe(200);
+  await h.db.update(placements).set({ usage: { instances: 14, cpu: 29, memory: 35 * GiB, disk: 140 * GiB } });
+  const over = await h.call(m, "PATCH", `/api/v1/kubernetes/${id}`, { workers: 13 });
+  expect([over.status, over.body.error.message]).toEqual([409, "Over the tenant's quota: cpu: 31 of 30"]);
+  expect((await h.call(m, "GET", `/api/v1/kubernetes/${id}`)).body.spec.worker.flavor).toBe("c2-m4");
 });

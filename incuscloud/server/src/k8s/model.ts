@@ -45,3 +45,109 @@ export function upgradeError(from: string, to: string): string | null {
   if (b > a + 1) return `Upgrade one minor version at a time: ${from} can go to v1.${a + 1} next`;
   return null;
 }
+
+export type MachineType = "container" | "virtual-machine";
+/** One role's instances: `flavor` is CAPN's `c<cores>-m<GiB>`; `target` a member, `@group` or "" (anywhere). */
+export interface MachineSpec {
+  type: MachineType;
+  flavor: string;
+  profiles: string[];
+  target: string;
+}
+/** CAPN's load balancer in front of the control planes: an instance (lxc, oci), or an address (kube-vip, OVN). */
+export type LbSpec =
+  | { type: "lxc" | "oci"; flavor: string; profiles: string[]; target: string }
+  | { type: "kube-vip"; host: string; interface: string }
+  | { type: "ovn"; host: string; networkName: string };
+/** Everything Incendio's create form sets, beyond name, version and counts. */
+export interface K8sSpec {
+  controlPlane: MachineSpec;
+  worker: MachineSpec;
+  loadBalancer: LbSpec;
+  /** "" = CAPN's image for the version. */
+  image: string;
+  privileged: boolean;
+  flannel: boolean;
+  installKubeadm: boolean;
+  podCidr: string;
+  serviceCidr: string;
+  metallb: { addresses: string[] } | null;
+}
+
+export const DEFAULT_POD_CIDR = "10.244.0.0/16";
+export const DEFAULT_SERVICE_CIDR = "10.96.0.0/12";
+/** kubeadm's floor for a control plane (as Incendio checks). */
+const CP_MIN_CPU = 2;
+const CP_MIN_MEMORY_MIB = 1700;
+
+/** CPU and memory of a `c<cores>-m<GiB>` flavor, or null. */
+export function parseFlavor(f: string): { cpu: number; memoryGiB: number } | null {
+  const m = /^c(\d+)-m(\d+(?:\.\d+)?)$/.exec(f.trim());
+  if (!m) return null;
+  const cpu = Number(m[1]);
+  const memoryGiB = Number(m[2]);
+  return cpu > 0 && memoryGiB > 0 ? { cpu, memoryGiB } : null;
+}
+
+/** A size as a spec: what clusters made before specs were. */
+export function specFromSize(size: Size, member = ""): K8sSpec {
+  const machine: MachineSpec = { type: "container", flavor: SIZES[size].flavor, profiles: ["default"], target: member };
+  return {
+    controlPlane: machine,
+    worker: { ...machine },
+    loadBalancer: { type: "lxc", flavor: LB.flavor, profiles: ["default"], target: member },
+    image: "",
+    privileged: false,
+    flannel: true,
+    installKubeadm: false,
+    podCidr: DEFAULT_POD_CIDR,
+    serviceCidr: DEFAULT_SERVICE_CIDR,
+    metallb: null,
+  };
+}
+
+/** Whether the load balancer is an instance of the tenant's (and needs IncusCloud's forward). */
+export const lbIsInstance = (lb: LbSpec): lb is Extract<LbSpec, { type: "lxc" | "oci" }> => lb.type === "lxc" || lb.type === "oci";
+
+const flavorOf = (f: string) => parseFlavor(f) ?? { cpu: 0, memoryGiB: 0 };
+
+/** What a cluster (or, with `lb: false`, added nodes) of this spec counts against the tenant's quota. */
+export function usageOfSpec(spec: K8sSpec, controlPlanes: number, workers: number, opts: { lb?: boolean } = {}): Usage {
+  const cp = flavorOf(spec.controlPlane.flavor);
+  const w = flavorOf(spec.worker.flavor);
+  const lb = opts.lb !== false && lbIsInstance(spec.loadBalancer) ? flavorOf(spec.loadBalancer.flavor) : null;
+  const instances = controlPlanes + workers + (lb ? 1 : 0);
+  return {
+    instances,
+    cpu: controlPlanes * cp.cpu + workers * w.cpu + (lb?.cpu ?? 0),
+    memory: Math.round((controlPlanes * cp.memoryGiB + workers * w.memoryGiB + (lb?.memoryGiB ?? 0)) * GiB),
+    disk: instances * NODE_DISK,
+  };
+}
+
+const IPV4 = /^(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}$/;
+const cidrOk = (c: string) => {
+  const [ip, bits, extra] = c.split("/");
+  return extra === undefined && !!ip && IPV4.test(ip) && /^\d+$/.test(bits ?? "") && Number(bits) <= 32;
+};
+
+/** Why a spec cannot be used, or null. */
+export function specError(s: K8sSpec): string | null {
+  for (const [role, f] of [
+    ["control plane", s.controlPlane.flavor],
+    ["worker", s.worker.flavor],
+    ...(lbIsInstance(s.loadBalancer) ? [["load balancer", s.loadBalancer.flavor]] : []),
+  ] as Array<[string, string]>) {
+    if (!parseFlavor(f)) return `The ${role} flavor "${f}" must be c<cores>-m<GiB>`;
+  }
+  const cp = parseFlavor(s.controlPlane.flavor)!;
+  if (cp.cpu < CP_MIN_CPU) return `A control plane needs at least ${CP_MIN_CPU} CPUs (kubeadm)`;
+  if (cp.memoryGiB * 1024 < CP_MIN_MEMORY_MIB) return `A control plane needs at least ${CP_MIN_MEMORY_MIB} MiB of memory (kubeadm)`;
+  if (!cidrOk(s.podCidr)) return `The pod CIDR "${s.podCidr}" is not an IPv4 CIDR`;
+  if (!cidrOk(s.serviceCidr)) return `The service CIDR "${s.serviceCidr}" is not an IPv4 CIDR`;
+  if (s.loadBalancer.type === "kube-vip" && !s.loadBalancer.host.trim()) return "kube-vip needs its virtual IP address";
+  if (s.loadBalancer.type === "ovn" && (!s.loadBalancer.host.trim() || !s.loadBalancer.networkName.trim()))
+    return "An OVN load balancer needs its address and its OVN network";
+  if (s.metallb && !s.metallb.addresses.length) return "MetalLB needs at least one address range";
+  return null;
+}

@@ -1,5 +1,5 @@
 import type { KubeObject } from "./kube.ts";
-import { CLASS_NAME, CLASS_NAMESPACE, LB, SIZES, namespaceOf, type Size } from "./model.ts";
+import { CLASS_NAME, CLASS_NAMESPACE, LB, namespaceOf, type K8sSpec } from "./model.ts";
 import classYaml from "./clusterclass.yaml" with { type: "text" };
 import flannelYaml from "./flannel-cni.yaml" with { type: "text" };
 
@@ -49,7 +49,7 @@ export interface ClusterSpec {
   version: string;
   controlPlanes: number;
   workers: number;
-  size: Size;
+  spec: K8sSpec;
   endpointHost: string;
   endpointPort: number;
   /** The identity secret's name. */
@@ -82,7 +82,7 @@ export function clusterManifest(c: ClusterSpec, opts: { member?: string }): Kube
           { name: "loadBalancer", value: { lxc } },
           {
             name: "instance",
-            value: { type: "container", flavor: SIZES[c.size].flavor, profiles: ["default"], devices: [], image: "", installKubeadm: false, target: opts.member ?? "" },
+            value: { type: "container", flavor: c.spec.controlPlane.flavor, profiles: ["default"], devices: [], image: "", installKubeadm: false, target: opts.member ?? "" },
           },
         ],
         workers: { machineDeployments: [{ class: "default-worker", name: "md-0", replicas: c.workers }] },

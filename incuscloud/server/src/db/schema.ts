@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { bigint, bigserial, boolean, check, customType, index, integer, jsonb, pgTable, primaryKey, real, text, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import type { Hints } from "../balancing/engine.ts";
 import type { Limits, Usage } from "../tenants/quota.ts";
+import type { K8sSpec } from "../k8s/model.ts";
 
 const citext = customType<{ data: string }>({ dataType: () => "citext" });
 const created = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
@@ -504,7 +505,10 @@ export const k8sClusters = pgTable(
     version: text("version").notNull(),
     controlPlanes: integer("control_planes").notNull(),
     workers: integer("workers").notNull(),
-    size: text("size").$type<"small" | "medium" | "large">().notNull(),
+    /** The size it was made with, before specs ("" never; null for clusters made from a spec). */
+    size: text("size").$type<"small" | "medium" | "large">(),
+    /** Machines, load balancer, networking and MetalLB (Incendio's create options). */
+    spec: jsonb("spec").$type<K8sSpec>().notNull(),
     /** The workload API endpoint: a member's address and a forwarded port. */
     endpointHost: text("endpoint_host").notNull(),
     endpointPort: integer("endpoint_port").notNull(),

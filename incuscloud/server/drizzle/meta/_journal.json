@@ -85,6 +85,13 @@
       "when": 1791765143861,
       "tag": "0011_kubernetes",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1791820162048,
+      "tag": "0012_kubernetes_spec",
+      "breakpoints": true
     }
   ]
 }
