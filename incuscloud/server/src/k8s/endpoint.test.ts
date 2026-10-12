@@ -26,13 +26,14 @@ test("a single-member cluster: its address, the lowest free port, no member pinn
   expect(await pickEndpoint(db, clusterId, [16443, 16446])).toEqual({ host: "10.0.0.5", port: 16444, member: "" });
 });
 
-test("a multi-member cluster: the first online member by name, pinned, on its own address", async () => {
+test("a multi-member cluster is refused until OVN networking: CAPN cannot pin to a member in a restricted project", async () => {
   await db.insert(clusterMembers).values([
+    { clusterId, name: "m1", url: "https://10.0.0.6:8443", status: "Online" },
     { clusterId, name: "m2", url: "https://10.0.0.7:8443", status: "Online" },
-    { clusterId, name: "m1", url: "https://10.0.0.6:8443", status: "Evacuated" },
-    { clusterId, name: "m3", url: "https://[fd00::3]:8443", status: "Online" },
   ]);
-  expect(await pickEndpoint(db, clusterId, [16443, 16446])).toEqual({ host: "10.0.0.7", port: 16443, member: "m2" });
+  await expect(pickEndpoint(db, clusterId, [16443, 16446])).rejects.toThrow(
+    "lab has 2 members: Kubernetes clusters run on single-member Incus clusters until OVN networking comes (P11)",
+  );
 });
 
 test("a full range is refused", async () => {

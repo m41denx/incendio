@@ -20,28 +20,23 @@ const API_PORT = "6443";
 const hostOf = (url: string) => new URL(url).hostname.replace(/^\[|\]$/g, "");
 
 /**
- * An endpoint for a new workload cluster: on a multi-member cluster the
- * first online member by name (the forward is per member), otherwise the
- * cluster's own address; the lowest port in the range not yet used there.
+ * An endpoint for a new workload cluster: the Incus cluster's address and the
+ * lowest port in the range not yet used there. Only single-member clusters:
+ * CAPN cannot pin its load balancer or nodes to a member in a restricted
+ * project, and without OVN each member's bridge is its own network, so nodes
+ * on different members could not reach each other.
  */
 export async function pickEndpoint(db: Db, clusterId: string, [low, high]: [number, number]): Promise<Endpoint> {
-  const members = await db.select().from(clusterMembers).where(eq(clusterMembers.clusterId, clusterId));
-  let host: string;
-  let member = "";
-  if (members.length > 1) {
-    const online = members.filter((m) => m.status === "Online" && m.url).sort((a, b) => a.name.localeCompare(b.name));
-    if (!online.length) throw new ApiError(409, "no_member", "No online member to serve a Kubernetes API endpoint");
-    host = hostOf(online[0]!.url);
-    member = online[0]!.name;
-  } else {
-    const [c] = await db.select({ url: clusters.url }).from(clusters).where(eq(clusters.id, clusterId));
-    if (!c) throw new ApiError(404, "not_found", "Cluster not found");
-    host = hostOf(c.url);
-  }
+  const [c] = await db.select({ name: clusters.name, url: clusters.url }).from(clusters).where(eq(clusters.id, clusterId));
+  if (!c) throw new ApiError(404, "not_found", "Cluster not found");
+  const members = await db.select({ name: clusterMembers.name }).from(clusterMembers).where(eq(clusterMembers.clusterId, clusterId));
+  if (members.length > 1)
+    throw new ApiError(409, "needs_ovn", `${c.name} has ${members.length} members: Kubernetes clusters run on single-member Incus clusters until OVN networking comes (P11)`);
+  const host = hostOf(c.url);
   const used = new Set(
     (await db.select({ port: k8sClusters.endpointPort }).from(k8sClusters).where(and(eq(k8sClusters.clusterId, clusterId), eq(k8sClusters.endpointHost, host)))).map((r) => r.port),
   );
-  for (let port = low; port <= high; port++) if (!used.has(port)) return { host, port, member };
+  for (let port = low; port <= high; port++) if (!used.has(port)) return { host, port, member: "" };
   throw new ApiError(409, "no_port", `No free port for a Kubernetes API endpoint on ${host} (${low}-${high})`);
 }
 

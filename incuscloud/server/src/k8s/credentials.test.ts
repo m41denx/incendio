@@ -68,3 +68,12 @@ test("revoke removes the trust entry, the secret and the row, and tolerates what
   expect(await db.select().from(k8sCredentials).where(eq(k8sCredentials.tenantId, tenant.id))).toHaveLength(0);
   await revokeCredentials(deps(), { tenant, cluster });
 });
+
+test("two creates at once share one certificate: issuing is one at a time per tenant and cluster", async () => {
+  const both = await Promise.all([ensureCredentials(deps(), { tenant, cluster, project: "acme" }), ensureCredentials(deps(), { tenant, cluster, project: "acme" })]);
+  expect(both).toEqual([{ secretName: "incus-lab" }, { secretName: "incus-lab" }]);
+  expect(incus.certificates.size).toBe(1);
+  const [fp] = [...incus.certificates.keys()];
+  expect(fingerprintOf((secretOf() as unknown as { stringData: Record<string, string> }).stringData["client-crt"]!)).toBe(fp!);
+  expect(await db.select().from(k8sCredentials)).toHaveLength(1);
+});

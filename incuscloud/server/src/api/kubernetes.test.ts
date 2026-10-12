@@ -181,3 +181,14 @@ test("a tenant with Kubernetes clusters on a cluster is not removed from it, nor
   r = await h.call(op, "DELETE", `/api/v1/clusters/${lab}?force=true`);
   expect([r.status, r.body.error.message]).toEqual([409, "1 Kubernetes cluster(s) run on this cluster; delete them first"]);
 });
+
+test("create on a multi-member Incus cluster is refused with the reason", async () => {
+  const { clusterMembers } = await import("../db/schema.ts");
+  await h.db.insert(clusterMembers).values([
+    { clusterId: lab, name: "m1", url: "https://10.0.0.6:8443", status: "Online" },
+    { clusterId: lab, name: "m2", url: "https://10.0.0.7:8443", status: "Online" },
+  ]);
+  const r = await h.call(await member(), "POST", "/api/v1/kubernetes", make());
+  expect([r.status, r.body.error.code]).toEqual([409, "needs_ovn"]);
+  expect(await rows()).toHaveLength(0);
+});

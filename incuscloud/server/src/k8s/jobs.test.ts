@@ -122,7 +122,10 @@ test("delete: waits for the Cluster to go, removes its forward port and row; cre
   expect(incus.forwards.get("incusbr0|10.0.0.5")!.ports.map((x) => x.description)).toEqual([`incuscloud k8s ${api.id}`]);
   expect(incus.certificates.size).toBe(1);
 
+  expect(kube.deleted).not.toContain("v1|Namespace||ic-acme");
   await run("delete", api.id, () => void kube.objects.delete("cluster.x-k8s.io/v1beta2|Cluster|ic-acme|api")).p;
+  // The tenant's last Kubernetes cluster anywhere: its namespace goes too.
+  expect(kube.deleted).toContain("v1|Namespace||ic-acme");
   expect(incus.certificates.size).toBe(0);
   expect(incus.forwards.size).toBe(0);
   expect(kube.objects.get("v1|Secret|ic-acme|incus-lab")).toBeUndefined();

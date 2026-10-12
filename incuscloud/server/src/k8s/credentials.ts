@@ -1,6 +1,6 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
-import { k8sCredentials, type clusters, type tenants } from "../db/schema.ts";
+import { k8sClusters, k8sCredentials, type clusters, type tenants } from "../db/schema.ts";
 import { ClusterError, type IncusAdminClient } from "../incus/admin-client.ts";
 import { fingerprintOf, generateClientCertificate } from "../incus/certs.ts";
 import type { Kube } from "./kube.ts";
@@ -31,12 +31,29 @@ const untrust = async (client: IncusAdminClient, fingerprint: string) => {
 };
 
 /**
+ * Runs `fn` holding the lock on one tenant's credentials on one Incus cluster:
+ * two creates must not both issue a certificate (the second secret would
+ * replace the first's key), and a delete's last-one check must not race a create.
+ */
+function locked<T>(db: Db, tenantId: string, clusterId: string, fn: (db: Db) => Promise<T>): Promise<T> {
+  return db.transaction(async (tx) => {
+    const txDb = tx as unknown as Db;
+    await txDb.execute(sql`select pg_advisory_xact_lock(hashtext(${`k8s-credentials:${tenantId}:${clusterId}`}))`);
+    return fn(txDb);
+  });
+}
+
+/**
  * CAPN's way into one Incus cluster for one tenant: a client certificate
  * trusted only for the tenant's project, and the identity secret holding it
  * in the tenant's namespace. Issued once; the key exists only in the secret,
  * so a missing secret means a new certificate (the old one is untrusted).
  */
-export async function ensureCredentials(deps: CredentialDeps, o: { tenant: Tenant; cluster: Cluster; project: string }): Promise<{ secretName: string }> {
+export function ensureCredentials(deps: CredentialDeps, o: { tenant: Tenant; cluster: Cluster; project: string }): Promise<{ secretName: string }> {
+  return locked(deps.db, o.tenant.id, o.cluster.id, (db) => issue({ ...deps, db }, o));
+}
+
+async function issue(deps: CredentialDeps, o: { tenant: Tenant; cluster: Cluster; project: string }): Promise<{ secretName: string }> {
   const { db, kube, client } = deps;
   const namespace = namespaceOf(o.tenant.slug);
   const secretName = secretNameOf(o.cluster);
@@ -61,6 +78,19 @@ export async function ensureCredentials(deps: CredentialDeps, o: { tenant: Tenan
   }
   await db.insert(k8sCredentials).values({ tenantId: o.tenant.id, clusterId: o.cluster.id, fingerprint });
   return { secretName };
+}
+
+/** Revokes the credentials unless a Kubernetes cluster other than `except` still uses them; true when revoked. */
+export function revokeUnlessUsed(deps: CredentialDeps, o: { tenant: Tenant; cluster: Pick<Cluster, "id" | "name">; except: string }): Promise<boolean> {
+  return locked(deps.db, o.tenant.id, o.cluster.id, async (db) => {
+    const others = await db
+      .select({ id: k8sClusters.id })
+      .from(k8sClusters)
+      .where(and(eq(k8sClusters.tenantId, o.tenant.id), eq(k8sClusters.clusterId, o.cluster.id), ne(k8sClusters.id, o.except)));
+    if (others.length) return false;
+    await revokeCredentials({ ...deps, db }, o);
+    return true;
+  });
 }
 
 /** Untrusts the certificate and removes the secret and the record; what is already gone is fine. */

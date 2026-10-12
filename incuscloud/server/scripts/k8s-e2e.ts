@@ -1,15 +1,16 @@
 // Kubernetes (P10) against a live cluster, with scripts/dev.sh running on a
 // management cluster (IC_K8S_KUBECONFIG, see scripts/dev-mgmt.sh):
-//   IC_PUBLIC_URL=… bun scripts/k8s-e2e.ts [cluster-b]
+//   IC_PUBLIC_URL=… bun scripts/k8s-e2e.ts [cluster-b] [container=cluster]
+// (the container is the dev cluster's instance on this host, e.g. d1 for cluster-d).
 // A tenant with a quota: a cluster created through the API, its API answering
 // through the forwarded endpoint with the downloaded kubeconfig, a worker
 // added, scaling over the quota refused, and a delete that leaves nothing on
 // the Incus cluster. Leaves the tenant for scripts/e2e-cleanup.ts k8s-.
 import { readFileSync } from "node:fs";
 import { TestBrowser } from "../src/test/browser.ts";
-import { parseKubeconfig } from "../src/k8s/kube.ts";
+import { KubeClient, parseKubeconfig } from "../src/k8s/kube.ts";
 
-const [clusterName = "cluster-b"] = process.argv.slice(2);
+const [clusterName = "cluster-b", container = clusterName] = process.argv.slice(2);
 const dev = new URL("../../.dev/", import.meta.url);
 const base = process.env.IC_PUBLIC_URL ?? "https://127.0.0.1:7443";
 const run = crypto.randomUUID().slice(0, 5);
@@ -43,7 +44,7 @@ const api = async (method: string, path: string, body?: unknown) => {
   return r.body;
 };
 const incus = async (...args: string[]) => {
-  const p = Bun.spawn(["sudo", "incus", "exec", "--project", "incuscloud-dev", clusterName, "--", "incus", ...args], { stdout: "pipe", stderr: "pipe" });
+  const p = Bun.spawn(["sudo", "incus", "exec", "--project", "incuscloud-dev", container, "--", "incus", ...args], { stdout: "pipe", stderr: "pipe" });
   const [out, , code] = await Promise.all([new Response(p.stdout).text(), new Response(p.stderr).text(), p.exited]);
   return { code, out: out.trim() };
 };
@@ -111,10 +112,15 @@ try {
   check(deleted.state === "succeeded", `the delete job succeeded (${deleted.error || "no error"})`);
   k8sId = "";
   check((await incus("list", "--project", slug, "-f", "csv", "-c", "n")).out === "", "no instances are left in the project");
-  const forwards = await incus("query", "/1.0/networks/incusbr0/forwards?recursion=1");
+  const network = (await incus("profile", "device", "get", "default", "eth0", "network", "--project", slug)).out || "incusbr0";
+  const forwards = await incus("query", `/1.0/networks/${network}/forwards?recursion=1`);
   check(!forwards.out.includes(`incuscloud k8s ${created.cluster.id}`), "its forward port is gone");
   check(!(await incus("config", "trust", "list", "-f", "csv", "-c", "n")).out.includes(`incuscloud-k8s-${slug}`), "its certificate is no longer trusted");
   check(((await api("GET", `/api/v1/kubernetes?tenant=${tenantId}`)) as unknown[]).length === 0, "the API lists nothing");
+  // The tenant's last cluster: its namespace in the management cluster goes too.
+  const mgmt = KubeClient.fromFile(new URL("mgmt.kubeconfig", dev).pathname);
+  const ns = await mgmt.get("v1", "Namespace", undefined, `ic-${slug}`);
+  check(!ns || (ns.status as { phase?: string } | undefined)?.phase === "Terminating", `its namespace ic-${slug} is gone or going`);
   step(`passed; leaves tenant ${slug} for scripts/e2e-cleanup.ts k8s-`);
 } finally {
   if (k8sId) {

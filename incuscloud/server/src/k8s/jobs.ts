@@ -2,7 +2,7 @@ import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { jobs, k8sClusters, placements, tenants } from "../db/schema.ts";
 import type { JobContext, JobHandler } from "../jobs/types.ts";
 import { ApiError } from "../lib/errors.ts";
-import { ensureCredentials, revokeCredentials } from "./credentials.ts";
+import { ensureCredentials, revokeUnlessUsed } from "./credentials.ts";
 import { defaultNetwork, ensureForward, findLb, removeForward } from "./endpoint.ts";
 import type { Kube, KubeObject } from "./kube.ts";
 import { classBundle, clusterManifest, tenantBundle } from "./manifests.ts";
@@ -158,15 +158,12 @@ export function k8sDeleteHandler(o: K8sJobOptions): JobHandler {
     const network = await defaultNetwork(client, project);
     await removeForward(client, { network, member: row.lbMember, host: row.endpointHost, port: row.endpointPort, target: "", id: row.id });
 
-    const others = await ctx.db
-      .select({ id: k8sClusters.id })
-      .from(k8sClusters)
-      .where(and(eq(k8sClusters.tenantId, row.tenantId), eq(k8sClusters.clusterId, row.clusterId), ne(k8sClusters.id, row.id)));
-    if (!others.length) {
-      await ctx.progress({ stage: "credentials", message: `revoking the certificate on ${cluster.name}` });
-      await revokeCredentials({ db: ctx.db, kube, client }, { tenant, cluster });
-    }
+    await ctx.progress({ stage: "credentials", message: `revoking the certificate on ${cluster.name} if no other cluster uses it` });
+    await revokeUnlessUsed({ db: ctx.db, kube, client }, { tenant, cluster, except: row.id });
     await ctx.db.delete(k8sClusters).where(eq(k8sClusters.id, row.id));
+    // The tenant's last Kubernetes cluster anywhere: its namespace (flannel's set) goes too.
+    const [left] = await ctx.db.select({ id: k8sClusters.id }).from(k8sClusters).where(eq(k8sClusters.tenantId, row.tenantId)).limit(1);
+    if (!left) await kube.delete("v1", "Namespace", undefined, row.namespace);
     return { id: row.id };
   };
 }
