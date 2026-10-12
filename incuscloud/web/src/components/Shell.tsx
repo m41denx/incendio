@@ -44,18 +44,24 @@ const NavItem: FC<{ to: string; title: string; icon: string; end?: boolean; chil
 };
 
 const COLLAPSED_KEY = "incuscloud.navCollapsed";
-const remembered = () => {
+/** Incendio's medium-screen breakpoint: below it the navigation starts collapsed. */
+const MEDIUM_SCREEN = 820;
+
+/** The user's last choice, or collapsed on small and medium screens. */
+const initiallyCollapsed = () => {
   try {
-    return localStorage.getItem(COLLAPSED_KEY) === "true";
+    const choice = localStorage.getItem(COLLAPSED_KEY);
+    if (choice !== null) return choice === "true";
   } catch {
-    return false;
+    // No storage: fall back to the screen size.
   }
+  return window.innerWidth < MEDIUM_SCREEN;
 };
 
 /** Incendio's frame: the navigation, the page, and the status bar. */
 const Shell: FC = () => {
   const me = useMe();
-  const [collapsed, setCollapsed] = useState(remembered);
+  const [collapsed, setCollapsed] = useState(initiallyCollapsed);
   const [mobileOpen, setMobileOpen] = useState(false);
   const logout = useRef<HTMLFormElement>(null);
   const toggle = () => {

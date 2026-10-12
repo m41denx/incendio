@@ -72,3 +72,19 @@ test("the navigation collapses and expands, and the choice is remembered", async
   await userEvent.click(screen.getByRole("button", { name: "expand main navigation" }));
   expect(second.container.querySelector("nav.l-navigation")).toHaveClass("is-pinned");
 });
+
+test("on small and medium screens the navigation starts collapsed, as Incendio's does", async () => {
+  mockApi({ "GET /api/v1/me": [200, me()] });
+  localStorage.removeItem("incuscloud.navCollapsed");
+  const width = window.innerWidth;
+  Object.defineProperty(window, "innerWidth", { value: 700, configurable: true });
+  try {
+    const { container } = renderAt(<Shell />);
+    await screen.findByText("Clusters");
+    expect(container.querySelector("nav.l-navigation")).toHaveClass("is-collapsed");
+    await userEvent.click(screen.getByRole("button", { name: "Menu" }));
+    expect(container.querySelector("nav.l-navigation")).toHaveClass("is-pinned");
+  } finally {
+    Object.defineProperty(window, "innerWidth", { value: width, configurable: true });
+  }
+});

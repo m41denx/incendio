@@ -12,6 +12,7 @@ import { AUDIENCE } from "./identity/routes.ts";
 import { HydraTokens } from "./auth/session.ts";
 import { createVerifier, discoverIssuer, remoteJwks } from "./auth/verify.ts";
 import { oidcProxy } from "./auth/oidc-proxy.ts";
+import { webStylesheet } from "./identity/pages.ts";
 import { ensureBootstrapAdmin } from "./bootstrap/admin.ts";
 import { log, setLogLevel } from "./lib/log.ts";
 import { createGateway } from "./gateway/handler.ts";
@@ -99,6 +100,7 @@ const appDeps = {
   hydraPublicUrl: issuerUrl,
   secureCookies: config.publicUrl.startsWith("https://"),
   clusterDomain: config.clusterDomain,
+  stylesheet: config.webDir ? () => webStylesheet(config.webDir!) : undefined,
 };
 const app = createApp(appDeps);
 const requestLog = new RequestLog(db, { sampleReads: config.gatewaySampleReads });

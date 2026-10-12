@@ -11,6 +11,7 @@
 @import "../../../../packages/ui/src/sass/meter";
 @import "../../../../packages/ui/src/sass/empty_state";
 @import "../../../../packages/ui/src/sass/status_bar";
+@import "../../../../packages/ui/src/sass/login";
 @import "../../../../packages/ui/src/sass/shell";
 
 @include vf-p-icon-add-canvas;
@@ -46,6 +47,11 @@
 @include vf-p-icon-pods;
 
 // IncusCloud's own pieces, in the same square style (no rounded corners).
+
+// The sign-in pages (server-rendered into Incendio's login block): a form of readable width.
+.login-page .auth-container {
+  width: min(22rem, 80vw);
+}
 
 // A row of buttons (table rows, panels): Vanilla buttons side by side, vertically centred.
 .ic-actions {

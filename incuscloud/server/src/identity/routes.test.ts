@@ -41,6 +41,18 @@ test("login form renders with the challenge and a CSRF cookie", async () => {
   expect(token.length).toBeGreaterThan(20);
 });
 
+test("pages link the web UI's stylesheet, which the CSP allows (same origin only, nothing inline)", async () => {
+  const styled = new Elysia().use(errorHandling).use(identityRoutes({ db, hydra, secureCookies: true, stylesheet: () => "/assets/index-x.css" }));
+  const r = await styled.handle(new Request(url("/auth/login?login_challenge=L1")));
+  expect(await r.text()).toContain('<link rel="stylesheet" href="/assets/index-x.css">');
+  const csp = r.headers.get("content-security-policy") ?? "";
+  expect(csp).toContain("default-src 'none'");
+  expect(csp).toContain("style-src 'self'");
+  expect(csp).toContain("img-src 'self'");
+  expect(csp).toContain("font-src 'self'");
+  expect(csp).not.toContain("unsafe-inline");
+});
+
 test("good credentials accept the login with the user id as subject", async () => {
   const { cookie, token } = await csrfFrom(await app.handle(new Request(url("/auth/login?login_challenge=L1"))));
   const r = await post("/auth/login", { challenge: "L1", csrf: token, email: "ADA@example.com", password: "pw-good-123456" }, cookie);

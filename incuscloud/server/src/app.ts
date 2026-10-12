@@ -31,6 +31,8 @@ export interface AppDeps extends AuthDeps {
   storeFor?: StoreFor;
   /** Opens a cluster's admin client (balancing plans); tests replace it. */
   clientOf?: ClientOf;
+  /** The platform UI's stylesheet, for the server-rendered sign-in pages. */
+  stylesheet?: () => string | undefined;
 }
 
 /** The platform's HTTP app: identity pages, sessions, platform API, health. */
@@ -39,7 +41,7 @@ export function createApp(deps: AppDeps) {
     .use(errorHandling)
     .get("/healthz", () => ({ status: "ok" }))
     .use(principalPlugin(deps))
-    .use(identityRoutes({ db: deps.db, hydra: deps.hydra, secureCookies: deps.secureCookies }))
+    .use(identityRoutes({ db: deps.db, hydra: deps.hydra, secureCookies: deps.secureCookies, stylesheet: deps.stylesheet }))
     .use(sessionRoutes(deps))
     .use(meRoutes(deps))
     .use(usersRoutes(deps))

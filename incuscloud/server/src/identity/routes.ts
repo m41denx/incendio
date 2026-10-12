@@ -8,13 +8,15 @@ import { randomToken } from "../lib/secrets.ts";
 import { CLIENT_IP_HEADER } from "../front.ts";
 import type { HydraAdminApi, HydraClientRef } from "./hydra-admin.ts";
 import { checkCredentials } from "./passwords.ts";
-import { devicePage, loginPage, messagePage } from "./pages.ts";
+import { devicePage, loginPage, messagePage, page, type View } from "./pages.ts";
 import { LoginThrottle } from "./throttle.ts";
 
 export interface IdentityDeps {
   db: Db;
   hydra: HydraAdminApi;
   secureCookies: boolean;
+  /** The platform UI's stylesheet, so these pages look like the rest of IncusCloud. */
+  stylesheet?: () => string | undefined;
 }
 
 /** Access tokens are for the cluster API; Incus checks this audience (spec D3). */
@@ -22,8 +24,7 @@ export const AUDIENCE = "incuscloud";
 const REMEMBER_S = 8 * 3600;
 const CSRF_COOKIE = "ic_csrf";
 
-const html = (body: string, status = 200, headers: Record<string, string> = {}) =>
-  new Response(body, { status, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "x-frame-options": "DENY", "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; form-action 'self' https:; frame-ancestors 'none'", ...headers } });
+const CSP = "default-src 'none'; style-src 'self'; img-src 'self' data:; font-src 'self'; form-action 'self' https:; frame-ancestors 'none'";
 const redirect = (to: string) => new Response(null, { status: 302, headers: { location: to, "cache-control": "no-store" } });
 
 const cookieOf = (req: Request, name: string) =>
@@ -37,12 +38,14 @@ const isFirstParty = (c: HydraClientRef) => c.metadata?.first_party === true;
 const ipOf = (req: Request) => req.headers.get(CLIENT_IP_HEADER) ?? "";
 
 /** Hydra's login, consent and device-verification pages (spec D2). */
-export function identityRoutes({ db, hydra, secureCookies }: IdentityDeps) {
+export function identityRoutes({ db, hydra, secureCookies, stylesheet }: IdentityDeps) {
+  const html = (view: View, status = 200, headers: Record<string, string> = {}) =>
+    new Response(page(view, stylesheet?.()), { status, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "x-frame-options": "DENY", "content-security-policy": CSP, ...headers } });
   const WINDOW_MS = 15 * 60_000;
   const perEmail = new LoginThrottle({ limit: 10, windowMs: WINDOW_MS });
   const perIp = new LoginThrottle({ limit: 50, windowMs: WINDOW_MS });
   const csrfCookie = (token: string) => `${CSRF_COOKIE}=${token}; Path=/auth; HttpOnly; SameSite=Strict; Max-Age=3600${secureCookies ? "; Secure" : ""}`;
-  const withCsrf = (render: (csrf: string) => string, status = 200) => {
+  const withCsrf = (render: (csrf: string) => View, status = 200) => {
     const csrf = randomToken();
     return html(render(csrf), status, { "set-cookie": csrfCookie(csrf) });
   };
