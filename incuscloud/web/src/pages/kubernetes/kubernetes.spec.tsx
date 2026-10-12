@@ -153,6 +153,33 @@ test("create on a multi-member Incus cluster: its nodes run on one member, chose
   await waitFor(() => expect(api.calls.find((c) => c.method === "POST")?.body).toMatchObject({ clusterId: "c-1", member: "m2" }));
 });
 
+test("create as an operator: every ready Incus cluster, and one the tenant is not on places it", async () => {
+  const api = mockApi({
+    "GET /api/v1/me": [200, me({ platformRole: "operator", tenants: [] })],
+    "GET /api/v1/kubernetes/versions": [200, options()],
+    "GET /api/v1/tenants": [200, [{ id: "t-1", slug: "acme", name: "Acme" }]],
+    "GET /api/v1/tenants/t-1/placements": [200, [{ clusterId: "c-1", clusterName: "lab", project: "acme", status: "ready", statusMessage: "", createdAt: "" }]],
+    "GET /api/v1/clusters": [
+      200,
+      [
+        { id: "c-1", name: "lab", status: "ready" },
+        { id: "c-2", name: "edge", status: "ready" },
+        { id: "c-3", name: "down", status: "error" },
+      ],
+    ],
+    "GET /1.0/cluster/members": [200, { type: "sync", metadata: [] }],
+    "POST /api/v1/kubernetes": [202, { cluster: k8s({ id: "k-9", status: "creating" }), job: { id: "j-1" } }],
+  });
+  renderAt(<CreateKubernetes />);
+  const cluster = await screen.findByLabelText("Incus cluster");
+  await waitFor(() => expect(within(cluster).getAllByRole("option").map((o) => o.textContent)).toEqual(["edge (places the tenant)", "lab"]));
+  await userEvent.selectOptions(cluster, "c-2");
+  expect(screen.getByText(/Acme is placed on edge first/)).toBeInTheDocument();
+  await userEvent.type(screen.getByLabelText("Name"), "web");
+  await userEvent.click(screen.getByRole("button", { name: "Create" }));
+  await waitFor(() => expect(api.calls.find((c) => c.method === "POST")?.body).toMatchObject({ tenantId: "t-1", clusterId: "c-2" }));
+});
+
 test("create refuses names CAPI cannot use", async () => {
   mockApi({
     "GET /api/v1/me": [200, memberOf("member")],

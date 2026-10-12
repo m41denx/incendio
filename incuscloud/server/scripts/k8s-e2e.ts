@@ -65,11 +65,11 @@ try {
   // A tenant with room for a control plane, one worker and the load balancer, not more.
   const me = await api("GET", "/api/v1/me");
   const tenantId = (await api("POST", "/api/v1/tenants", { slug, name: slug, ownerId: me.id, quotas: { instances: 4 } })).id as string;
-  await api("PUT", `/api/v1/clusters/${clusterId}/tenants/${tenantId}`);
-  await until("the tenant's project is ready", async () => ((await api("GET", `/api/v1/tenants/${tenantId}/placements`)) as Array<{ status: string }>)[0]?.status === "ready");
 
-  // 1–2. Create through the API; the job brings the control plane up.
+  // 1–2. Create through the API as an operator, on a cluster the tenant is not on yet: it is
+  // placed there, and the job waits for its project, then brings the control plane up.
   const created = await api("POST", "/api/v1/kubernetes", { tenantId, clusterId, name: "e2e", version: VERSION, controlPlanes: 1, workers: 0, size: "small" });
+  check(((await api("GET", `/api/v1/tenants/${tenantId}/placements`)) as Array<{ clusterId: string }>).some((p) => p.clusterId === clusterId), "the create placed the tenant on the cluster");
   k8sId = created.cluster.id;
   step(`creating e2e on ${created.cluster.endpoint}`);
   const job = await finish(created.job.id, "create");

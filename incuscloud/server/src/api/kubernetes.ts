@@ -15,6 +15,8 @@ import { secretNameOf } from "../k8s/credentials.ts";
 import { pickEndpoint } from "../k8s/endpoint.ts";
 import { pendingOf } from "./tenant-cloud.ts";
 import { audited, uuidParam, visibleTenants } from "./common.ts";
+import { tuples } from "../authz/sync.ts";
+import { requestReconcile } from "../reconcile/requests.ts";
 
 /** A DNS label short enough for CAPI's generated instance names. */
 const NAME = "^[a-z]([a-z0-9-]{0,30}[a-z0-9])?$";
@@ -113,6 +115,9 @@ export function kubernetesRoutes({ db, authz, kube, k8sPorts }: { db: Db; authz:
         await needVisible(authz, p, "viewer", "viewer", `tenant:${body.tenantId}`);
         await needRole(p, body.tenantId, "member");
         const req = usageOf(body.size, body.controlPlanes, body.workers);
+        // Operators create on any ready cluster: the tenant is placed there first, and the job waits for its project.
+        const operator = await platformCan(authz, p, "operator");
+        let placedNow = false;
         const r = await audited(db, { principal: p, request }, "kubernetes.create", { type: "tenant", id: body.tenantId }, () =>
           // One quota decision at a time per tenant, and one port choice at a time per cluster.
           db.transaction(async (tx) => {
@@ -126,8 +131,18 @@ export function kubernetesRoutes({ db, authz, kube, k8sPorts }: { db: Db; authz:
               .from(placements)
               .innerJoin(clusters, eq(clusters.id, placements.clusterId))
               .where(and(eq(placements.tenantId, tenant.id), eq(placements.clusterId, body.clusterId)));
-            if (!placed) throw new ApiError(409, "not_placed", "The tenant is not placed on that cluster");
-            if (placed.status !== "ready") throw new ApiError(409, "not_ready", `The tenant's project on ${placed.clusterName} is not ready yet`);
+            let clusterName = placed?.clusterName;
+            if (!placed) {
+              if (!operator) throw new ApiError(409, "not_placed", "The tenant is not placed on that cluster");
+              const [c] = await tx.select({ name: clusters.name, status: clusters.status }).from(clusters).where(eq(clusters.id, body.clusterId));
+              if (!c) throw notFound("No such cluster");
+              if (c.status !== "ready") throw new ApiError(409, "cluster_not_ready", `${c.name} is not ready`);
+              await tx.insert(placements).values({ tenantId: tenant.id, clusterId: body.clusterId, project: tenant.slug });
+              clusterName = c.name;
+              placedNow = true;
+            } else if (placed.status !== "ready" && !operator) {
+              throw new ApiError(409, "not_ready", `The tenant's project on ${placed.clusterName} is not ready yet`);
+            }
             const [taken] = await tx.select({ id: k8sClusters.id }).from(k8sClusters).where(and(eq(k8sClusters.tenantId, tenant.id), eq(k8sClusters.name, body.name)));
             if (taken) throw new ApiError(409, "conflict", `A Kubernetes cluster named "${body.name}" already exists in ${tenant.slug}`);
             const usage = await tx.select({ usage: placements.usage }).from(placements).where(eq(placements.tenantId, tenant.id));
@@ -159,10 +174,14 @@ export function kubernetesRoutes({ db, authz, kube, k8sPorts }: { db: Db; authz:
               tenantId: tenant.id,
               clusterIds: [body.clusterId],
             });
-            return { cluster: view(row!, tenant.slug, placed.clusterName), job };
+            return { cluster: view(row!, tenant.slug, clusterName!), job };
           }),
         (r) => ({ k8sId: r.cluster.id, name: r.cluster.name }),
         );
+        if (placedNow) {
+          await authz.write([tuples.placement(body.tenantId, body.clusterId)]);
+          await requestReconcile(db, [body.clusterId]);
+        }
         set.status = 202;
         return r;
       },

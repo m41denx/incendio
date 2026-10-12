@@ -6,7 +6,7 @@ import PageLayout from "../../components/PageLayout";
 import { ErrorMessage, Loading } from "../../components/Status";
 import { request } from "../../api/client";
 import { can, useConsoleMembers, useMe } from "../../api/hooks";
-import type { CreateK8sRequest, K8sCluster, K8sSize, Tenant, TenantPlacement, TenantRole } from "../../api/types";
+import type { Cluster, CreateK8sRequest, K8sCluster, K8sSize, Tenant, TenantPlacement, TenantRole } from "../../api/types";
 import { sizeLabel, useK8sOptions } from "./hooks";
 import { clusterOf, nameOf } from "../inventory/tree";
 
@@ -34,6 +34,8 @@ const CreateKubernetes: FC = () => {
   const [picked, setPicked] = useState(params.get("tenant") ?? "");
   const tenantId = choices.some((t) => t.id === picked) ? picked : (choices[0]?.id ?? "");
   const placements = useQuery({ queryKey: ["tenants", tenantId, "placements"], queryFn: () => request<TenantPlacement[]>("GET", `/api/v1/tenants/${tenantId}/placements`), enabled: !!tenantId });
+  // Operators create on any ready cluster; one the tenant is not on places it there first.
+  const allClusters = useQuery({ queryKey: ["clusters"], queryFn: () => request<Cluster[]>("GET", "/api/v1/clusters"), enabled: operator });
 
   const [clusterPick, setClusterPick] = useState("");
   const [memberPick, setMemberPick] = useState("");
@@ -47,8 +49,16 @@ const CreateKubernetes: FC = () => {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
 
-  const ready = (placements.data ?? []).filter((p) => p.status === "ready");
+  const placed = placements.data ?? [];
+  const ready: Array<{ clusterId: string; clusterName: string; places?: boolean }> = operator
+    ? (allClusters.data ?? [])
+        .filter((c) => c.status === "ready")
+        .map((c) => ({ clusterId: c.id, clusterName: c.name, places: !placed.some((p) => p.clusterId === c.id) }))
+        .sort((a, b) => a.clusterName.localeCompare(b.clusterName))
+    : placed.filter((p) => p.status === "ready");
   const clusterId = ready.some((p) => p.clusterId === clusterPick) ? clusterPick : (ready[0]?.clusterId ?? "");
+  const places = ready.find((p) => p.clusterId === clusterId)?.places ?? false;
+  const tenantName = choices.find((t) => t.id === tenantId)?.name ?? "The tenant";
   const clusterName = ready.find((p) => p.clusterId === clusterId)?.clusterName ?? "";
   const members = allMembers.filter((m) => clusterOf(m.server_name) === clusterName).sort((a, b) => a.server_name.localeCompare(b.server_name));
   const member = members.length > 1 && members.some((m) => nameOf(m.server_name) === memberPick && m.status === "Online") ? memberPick : "";
@@ -93,13 +103,17 @@ const CreateKubernetes: FC = () => {
         label="Incus cluster"
         value={clusterId}
         onChange={(e) => setClusterPick(e.target.value)}
-        options={ready.map((p) => ({ value: p.clusterId, label: p.clusterName }))}
+        options={ready.map((p) => ({ value: p.clusterId, label: p.places ? `${p.clusterName} (places the tenant)` : p.clusterName }))}
         help={
-          placements.isPending
+          placements.isPending || (operator && allClusters.isPending)
             ? "Loading…"
-            : ready.length
-              ? "The Incus clusters this tenant is placed on (and ready); its nodes run in the tenant's project there. Place the tenant on more clusters from its page."
-              : "This tenant has no ready Incus cluster: place it on one from its page."
+            : places
+              ? `${tenantName} is placed on ${ready.find((p) => p.clusterId === clusterId)?.clusterName} first: its project there is created, then the cluster.`
+              : ready.length
+                ? operator
+                  ? "Every ready Incus cluster; its nodes run in the tenant's project there."
+                  : "The Incus clusters this tenant is placed on (and ready); its nodes run in the tenant's project there. An operator places it on more."
+                : "This tenant has no ready Incus cluster: an operator places it on one."
         }
       />
       {members.length > 1 ? (

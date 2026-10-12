@@ -69,6 +69,21 @@ test("create is refused: viewers, unplaced or not-ready tenants, names taken, ba
     expect((await h.call(m, "POST", "/api/v1/kubernetes", make({ name: "x", ...bad }))).status).toBe(400);
 });
 
+test("operators create on any ready cluster: the tenant is placed there first, and the job waits for its project", async () => {
+  const op = await h.user("op@example.com", { platformRole: "operator" });
+  const edge = (await h.db.insert(clusters).values({ name: "edge", url: "https://10.0.0.6:8443", fingerprint: "f", serverCert: "", clientCert: "", clientKeyEnc: "", status: "ready" }).returning())[0]!.id;
+  const r = await h.call(op, "POST", "/api/v1/kubernetes", make({ clusterId: edge }));
+  expect(r.status).toBe(202);
+  const [placed] = await h.db.select().from(placements).where(and(eq(placements.tenantId, acme.id), eq(placements.clusterId, edge)));
+  expect(placed).toMatchObject({ project: "acme", status: "pending" });
+  const [c] = await h.db.select({ generation: clusters.reconcileGeneration }).from(clusters).where(eq(clusters.id, edge));
+  expect(c!.generation).toBeGreaterThan(0);
+  // A cluster that is not ready is still refused.
+  const down = (await h.db.insert(clusters).values({ name: "down", url: "https://10.0.0.7:8443", fingerprint: "f", serverCert: "", clientCert: "", clientKeyEnc: "", status: "error" }).returning())[0]!.id;
+  const refused = await h.call(op, "POST", "/api/v1/kubernetes", make({ name: "other", clusterId: down }));
+  expect([refused.status, refused.body.error.code]).toEqual([409, "cluster_not_ready"]);
+});
+
 test("create: over the quota is refused, counting creates still running; concurrent creates get different ports", async () => {
   const m = await member();
   // 6 instances: each small 1+1 cluster takes 3 (with its load balancer).

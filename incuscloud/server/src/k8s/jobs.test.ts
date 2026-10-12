@@ -88,6 +88,34 @@ test("create: namespace and credentials, the Cluster on the preset endpoint, the
   expect(stages).toEqual(["namespace", "credentials", "cluster", "load-balancer", "forward", "control-plane"]);
 });
 
+test("create: a tenant just placed on the cluster (by an operator) is waited for, then the Cluster goes on", async () => {
+  await db.update(placements).set({ status: "pending" }).where(eq(placements.clusterId, cluster.id));
+  const row = await addK8s("web", 16443);
+  const seen: string[] = [];
+  const { p, stages } = run(
+    "create",
+    row.id,
+    async (n) => {
+      if (n === 1) {
+        seen.push(`cluster before ready: ${!!clusterObj("web")}`);
+        await db.update(placements).set({ status: "ready" }).where(eq(placements.clusterId, cluster.id));
+      }
+    },
+    { deadlineMs: 50 },
+  );
+  await expect(p).rejects.toThrow(/load balancer/);
+  expect(seen).toEqual(["cluster before ready: false"]);
+  expect(clusterObj("web")).toBeDefined();
+  expect(stages.slice(0, 2)).toEqual(["placement", "namespace"]);
+});
+
+test("create: a placement that never gets ready fails the job, saying why", async () => {
+  await db.update(placements).set({ status: "error", statusMessage: "no space" }).where(eq(placements.clusterId, cluster.id));
+  const row = await addK8s("web", 16443);
+  await expect(run("create", row.id, () => {}, { deadlineMs: 0 }).p).rejects.toThrow("The tenant's project acme on lab is not ready (error: no space)");
+  expect(clusterObj("web")).toBeUndefined();
+});
+
 test("create: a control plane that never becomes available fails the job and marks the cluster", async () => {
   const row = await addK8s("web", 16443);
   incus.instances.push(lbInstance("web", "10.1.0.9"));

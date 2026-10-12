@@ -81,6 +81,18 @@ export function k8sCreateHandler(o: K8sJobOptions): JobHandler {
     const { row, tenant, project, client, cluster } = await load(ctx);
     const wait = waiter(ctx, o);
     try {
+      // A tenant an operator just placed here: its project comes first.
+      const placement = async () =>
+        (await ctx.db.select({ status: placements.status, message: placements.statusMessage }).from(placements).where(and(eq(placements.tenantId, row.tenantId), eq(placements.clusterId, row.clusterId))))[0];
+      let pl = await placement();
+      if (pl?.status !== "ready") {
+        await ctx.progress({ stage: "placement", message: `waiting for ${project} on ${cluster.name}` });
+        await wait(
+          async () => ((pl = await placement())?.status === "ready" ? true : null),
+          () => `The tenant's project ${project} on ${cluster.name} is not ready (${pl?.status ?? "removed"}${pl?.message ? `: ${pl.message}` : ""})`,
+        );
+      }
+
       await ctx.progress({ stage: "namespace", message: row.namespace });
       for (const obj of [...classBundle(), ...tenantBundle(tenant.slug)]) await kube.apply(obj);
 
