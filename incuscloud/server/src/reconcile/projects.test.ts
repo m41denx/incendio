@@ -22,10 +22,11 @@ beforeEach(() => {
   for (const name of [...fake.projects.keys()]) if (name !== "default") fake.projects.delete(name);
 });
 
-test("project config: restricted, own images/profiles/volumes, shared networks, marker, limits in bytes", () => {
+test("project config: restricted (nesting allowed, for Kubernetes nodes), own images/profiles/volumes, shared networks, marker, limits in bytes", () => {
   expect(projectConfigFor(tenant, limits)).toEqual({
     restricted: "true",
     "restricted.backups": "allow",
+    "restricted.containers.nesting": "allow",
     "features.images": "true",
     "features.profiles": "true",
     "features.storage.volumes": "true",

@@ -78,6 +78,13 @@
       "when": 1791760689913,
       "tag": "0010_tenant_usage",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791765143861,
+      "tag": "0011_kubernetes",
+      "breakpoints": true
     }
   ]
 }

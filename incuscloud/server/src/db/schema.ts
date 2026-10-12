@@ -483,3 +483,61 @@ export const backups = pgTable(
   },
   (t) => [check("backups_state", sql`${t.state} in ('creating', 'ready', 'failed')`), index("backups_policy").on(t.policyId, t.createdAt), index("backups_tenant").on(t.tenantId, t.createdAt)],
 );
+
+export type K8sStatus = "creating" | "provisioning" | "ready" | "degraded" | "deleting" | "error";
+
+/** Tenant Kubernetes clusters (P10), run by CAPI + CAPN in the management cluster on one Incus cluster each. */
+export const k8sClusters = pgTable(
+  "k8s_clusters",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // Restrict: a tenant or Incus cluster with Kubernetes clusters is not removed under them.
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    clusterId: uuid("cluster_id")
+      .notNull()
+      .references(() => clusters.id, { onDelete: "restrict" }),
+    name: text("name").notNull(),
+    /** The management cluster's namespace: `ic-<tenant slug>`. */
+    namespace: text("namespace").notNull(),
+    version: text("version").notNull(),
+    controlPlanes: integer("control_planes").notNull(),
+    workers: integer("workers").notNull(),
+    size: text("size").$type<"small" | "medium" | "large">().notNull(),
+    /** The workload API endpoint: a member's address and a forwarded port. */
+    endpointHost: text("endpoint_host").notNull(),
+    endpointPort: integer("endpoint_port").notNull(),
+    /** The member the load balancer is pinned to ("" on a single-member cluster). */
+    lbMember: text("lb_member").notNull().default(""),
+    status: text("status").$type<K8sStatus>().notNull().default("creating"),
+    statusMessage: text("status_message").notNull().default(""),
+    nodes: integer("nodes").notNull().default(0),
+    nodesReady: integer("nodes_ready").notNull().default(0),
+    createdBy: text("created_by").notNull(),
+    createdAt: created(),
+    syncedAt: timestamp("synced_at", { withTimezone: true }),
+  },
+  (t) => [
+    unique("k8s_clusters_tenant_name").on(t.tenantId, t.name),
+    unique("k8s_clusters_endpoint").on(t.clusterId, t.endpointHost, t.endpointPort),
+    check("k8s_clusters_status", sql`${t.status} in ('creating', 'provisioning', 'ready', 'degraded', 'deleting', 'error')`),
+    check("k8s_clusters_size", sql`${t.size} in ('small', 'medium', 'large')`),
+  ],
+);
+
+/** A project-restricted Incus certificate CAPN uses for one tenant on one cluster; its key lives only in the management cluster. */
+export const k8sCredentials = pgTable(
+  "k8s_credentials",
+  {
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    clusterId: uuid("cluster_id")
+      .notNull()
+      .references(() => clusters.id, { onDelete: "cascade" }),
+    fingerprint: text("fingerprint").notNull(),
+    createdAt: created(),
+  },
+  (t) => [primaryKey({ columns: [t.tenantId, t.clusterId] })],
+);

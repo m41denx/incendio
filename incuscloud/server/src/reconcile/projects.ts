@@ -12,6 +12,8 @@ export function projectConfigFor(tenant: { id: string }, limits: Limits): Record
     restricted: "true",
     // Restricted projects block backups by default, the control plane's included (P7).
     "restricted.backups": "allow",
+    // Kubernetes nodes (P10) are unprivileged containers that need nesting; they stay unprivileged.
+    "restricted.containers.nesting": "allow",
     "features.images": "true",
     "features.profiles": "true",
     "features.storage.volumes": "true",
