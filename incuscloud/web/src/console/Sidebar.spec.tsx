@@ -13,6 +13,8 @@ const labels = async () => {
   return [...nav.querySelectorAll("a")].map((a) => (a.getAttribute("href") === "/profile" ? "Profile" : a.textContent?.trim())).filter(Boolean);
 };
 const ready = () => screen.findByRole("link", { name: "Kubernetes" });
+/** Incendio announces a collapse or expand 500ms later: wait for it, so it does not outlive the test. */
+const toggled = () => new Promise((resolve) => window.addEventListener("menu-collapse-toggle", resolve, { once: true }));
 
 test("platform admins see every section", async () => {
   mockApi({ ...incendioApi(), "GET /api/v1/me": [200, me({ platformRole: "admin" })] });
@@ -69,8 +71,10 @@ test("the navigation collapses and expands", async () => {
   expect(nav()).toHaveClass("is-pinned");
   await userEvent.click(screen.getByRole("button", { name: "collapse main navigation" }));
   expect(nav()).toHaveClass("is-collapsed");
+  const done = toggled();
   await userEvent.click(screen.getByRole("button", { name: "expand main navigation" }));
   expect(nav()).toHaveClass("is-pinned");
+  await done;
 });
 
 test("on small and medium screens the navigation starts collapsed, as Incendio's does", async () => {
@@ -81,8 +85,10 @@ test("on small and medium screens the navigation starts collapsed, as Incendio's
     const { container } = renderInFrame(<Shell />);
     await ready();
     expect(container.querySelector("nav.l-navigation")).toHaveClass("is-collapsed");
+    const done = toggled();
     await userEvent.click(screen.getByRole("button", { name: "Menu" }));
     expect(container.querySelector("nav.l-navigation")).toHaveClass("is-pinned");
+    await done;
   } finally {
     Object.defineProperty(window, "innerWidth", { value: width, configurable: true });
   }
