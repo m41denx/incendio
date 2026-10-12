@@ -5,6 +5,8 @@ import { buildView, type InventoryData, type TreeItem, type View } from "./views
 
 const REFRESH = { staleTime: 15_000, refetchInterval: 30_000 };
 
+const withoutCounts = (t: TreeItem): TreeItem => ({ ...t, count: undefined, children: t.children?.map(withoutCounts) });
+
 /** The cluster list, or none for callers who may not read it (tenant members). */
 const clusterList = async () => {
   try {
@@ -80,8 +82,10 @@ export function useInventory(view: View): { root: TreeItem; isLoading: boolean; 
     kubernetes: (kubernetes.data ?? []).map((k) => ({ name: k.name, project: `${k.project}@${k.clusterName}`, status: k.status })),
   };
   const shown = [clusters, members, ...(withInstances ? [instances] : []), ...(view === "projects" ? [projects, kubernetes] : []), ...(view === "storage" ? [pools] : []), ...(view === "networks" ? networks : [])];
+  // No counts until the instances are in: "0/0" would say there are none.
+  const root = buildView(view, data);
   return {
-    root: buildView(view, data),
+    root: withInstances && instances.isPending ? withoutCounts(root) : root,
     isLoading: shown.some((q) => q.isLoading),
     errors: shown.flatMap((q) => (q.error ? [(q.error as Error).message] : [])),
   };

@@ -18,7 +18,7 @@ const kweb = { id: "k-1", tenantId: "t-1", tenantSlug: "acme", clusterId: "id-1"
 const sync = (metadata: unknown) => [200, { type: "sync", metadata }] as [number, unknown];
 
 /** Two clusters: c1 with members m1 and m2, c2 standalone. */
-const api = (over: Record<string, [number, unknown?]> = {}) =>
+const api = (over: Parameters<typeof mockApi>[0] = {}) =>
   mockApi({
     ...incendioApi(),
     "GET /api/v1/me": [200, me({ platformRole: "admin" })],
@@ -253,4 +253,12 @@ test("a project's Access: its tenant's members; the request names the project", 
   expect(within(acme.getByText("ann").closest("tr")!).getByText("viewer on project p")).toBeInTheDocument();
   expect(screen.queryByRole("region", { name: "Platform roles" })).toBeNull();
   expect(calls.calls.some((c) => c.path === "/api/v1/access?cluster=c1&project=p")).toBe(true);
+});
+
+test("while the instances are loading the tree shows no counts (0/0 would say there are none)", async () => {
+  api({ "GET /1.0/instances": () => new Promise<[number, unknown?]>(() => {}) });
+  renderInFrame(<AppRoutes />, { path: "/" });
+  const m1 = (await nav().findByRole("link", { name: "m1" })).closest(".ic-tree__row")!;
+  expect(m1.querySelector(".ic-tree__count")).toBeNull();
+  expect(nav().getByRole("link", { name: "All clusters" }).closest(".ic-tree__row")!.querySelector(".ic-tree__count")).toBeNull();
 });

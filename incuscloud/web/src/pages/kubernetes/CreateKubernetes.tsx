@@ -110,7 +110,8 @@ const CreateKubernetes: FC = () => {
 
   return (
     <PageLayout title="Create Kubernetes cluster">
-      <Form className="ic-k8s-create" onSubmit={submit}>
+      {/* Incendio's create-form layout (its .kubernetes-form): the sections beside the fields. */}
+      <Form className="kubernetes-form" onSubmit={submit}>
         <div className="form">
           <div className="p-side-navigation--accordion form-navigation">
             <nav aria-label="Kubernetes form navigation">
@@ -121,7 +122,7 @@ const CreateKubernetes: FC = () => {
             </nav>
           </div>
           <Row className="form-contents">
-            <Col size={12}>
+            <Col size={12} className="content-details">
               {section === CLUSTER ? (
                 <>
                   <h2 className="p-heading--4">Cluster</h2>

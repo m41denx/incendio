@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import type { Me } from "../api/types";
 
-type Handler = (body: unknown, url: URL) => [number, unknown?];
+type Handler = (body: unknown, url: URL) => [number, unknown?] | Promise<[number, unknown?]>;
 export interface MockedApi {
   calls: Array<{ method: string; path: string; body: unknown }>;
 }
@@ -28,7 +28,8 @@ export function mockApi(routes: Record<string, Handler | [number, unknown?]>): M
         console.error(`unmocked ${method} ${url.pathname}`);
         return new Response(JSON.stringify({ error: { code: "not_found", message: `unmocked ${method} ${url.pathname}` } }), { status: 404 });
       }
-      const [status, json] = typeof route === "function" ? route(body, url) : route;
+      // A handler may answer later (or never: a request still in flight).
+      const [status, json] = typeof route === "function" ? await route(body, url) : route;
       return new Response(status === 204 || json === undefined ? null : JSON.stringify(json), { status });
     }),
   );
