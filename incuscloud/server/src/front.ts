@@ -3,6 +3,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { Readable, type Duplex } from "node:stream";
 import { log } from "./lib/log.ts";
 import { serveWeb } from "./web.ts";
+import { isOidcPath } from "./auth/oidc-paths.ts";
 
 /**
  * Traffic the gateway owns (cluster API, host- or path-routed). It gets the
@@ -21,6 +22,8 @@ export interface FrontOptions {
   tls: { cert: string | Buffer; key: string | Buffer };
   /** The platform UI build, served at / (outside /api, /auth and the gateway's paths). */
   web?: { dir: string };
+  /** Hydra's public endpoints (`/oauth2/*`, discovery, JWKS, userinfo) when the issuer is the public URL. */
+  oidc?: (request: Request) => Promise<Response>;
 }
 
 /** Set by the front server to the peer address; never taken from the client. */
@@ -61,16 +64,17 @@ export async function writeResponse(res: ServerResponse, response: Response): Pr
 }
 
 /** The single HTTPS listener: gateway traffic to the gateway, the rest to the app. */
-export function createFront({ app, gateway, tls, web }: FrontOptions): Server {
+export function createFront({ app, gateway, tls, web, oidc }: FrontOptions): Server {
   const server = createServer({ cert: tls.cert, key: tls.key });
   // Node's default cuts any request after 300 s; image uploads and
   // `operations/<id>/wait` through the gateway legitimately take longer.
   server.requestTimeout = 0;
   server.on("request", (req, res) => {
     if (gateway?.match(req)) return gateway.request(req, res);
-    if (web && serveWeb(req, res, web)) return;
     const origin = `https://${req.headers.host ?? "localhost"}`;
-    Promise.resolve(app.handle(toRequest(req, origin)))
+    const toOidc = oidc && isOidcPath((req.url ?? "/").split("?")[0]!);
+    if (!toOidc && web && serveWeb(req, res, web)) return;
+    Promise.resolve(toOidc ? oidc(toRequest(req, origin)) : app.handle(toRequest(req, origin)))
       .then((response) => writeResponse(res, response))
       .catch((e: unknown) => {
         log.error("app request failed", { error: String(e), url: req.url });

@@ -4,6 +4,8 @@
 #   its login, consent and device pages. Public :4444, admin :4445 (localhost).
 #   IC_DEV_HOST (default 127.0.0.1) is the issuer's host: use an address your
 #   dev clusters can reach (e.g. the incusbr address) to log in through them.
+#   IC_OIDC_ISSUER overrides the issuer: set it to "$IC_PUBLIC_URL/" and
+#   IncusCloud serves Hydra's public endpoints on its own origin.
 set -eu
 cd "$(dirname "$0")/.."
 DEV="$PWD/.dev"
@@ -19,7 +21,7 @@ serve:
     cert: { path: $DEV/tls/server.crt }
     key: { path: $DEV/tls/server.key }
 urls:
-  self: { issuer: https://${IC_DEV_HOST:-127.0.0.1}:4444/ }
+  self: { issuer: ${IC_OIDC_ISSUER:-https://${IC_DEV_HOST:-127.0.0.1}:4444/} }
   login: $PUB/auth/login
   consent: $PUB/auth/consent
   error: $PUB/auth/error

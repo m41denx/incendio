@@ -11,6 +11,7 @@ import { CLI_CLIENT_ID, ensureClients, webClientSecret } from "./identity/bootst
 import { AUDIENCE } from "./identity/routes.ts";
 import { HydraTokens } from "./auth/session.ts";
 import { createVerifier, discoverIssuer, remoteJwks } from "./auth/verify.ts";
+import { oidcProxy } from "./auth/oidc-proxy.ts";
 import { ensureBootstrapAdmin } from "./bootstrap/admin.ts";
 import { log, setLogLevel } from "./lib/log.ts";
 import { createGateway } from "./gateway/handler.ts";
@@ -48,6 +49,10 @@ const db = await openDb(config.databaseUrl);
 const hydra = new HydraAdmin(config.hydra.adminUrl, { ca: hydraCa });
 await retry("Hydra", () => ensureClients(hydra, { publicUrl: config.publicUrl, secretKey: config.secretKey }));
 const issuer = await retry("Hydra discovery", () => discoverIssuer(config.hydra.publicUrl, hydraCa));
+// Browsers and Incus clients reach Hydra at the issuer. When that is IncusCloud's own
+// origin, the front serves Hydra's public endpoints; back-channel calls go to Hydra directly.
+const issuerUrl = issuer.replace(/\/$/, "");
+const oidcAtPublicUrl = new URL(issuer).origin === new URL(config.publicUrl).origin;
 const authz = await retry("OpenFGA", () => PlatformAuthz.init(config.openfga));
 log.info("authorization store ready", { store: authz.storeId, model: authz.modelId, tuples: await syncAll(db, authz) });
 await ensureBootstrapAdmin(db, authz, config.bootstrapAdmin);
@@ -91,7 +96,7 @@ const appDeps = {
   verify: createVerifier({ issuer, audience: AUDIENCE, jwks: remoteJwks(config.hydra.publicUrl, hydraCa) }),
   secretKey: config.secretKey,
   publicUrl: config.publicUrl,
-  hydraPublicUrl: config.hydra.publicUrl,
+  hydraPublicUrl: issuerUrl,
   secureCookies: config.publicUrl.startsWith("https://"),
   clusterDomain: config.clusterDomain,
 };
@@ -111,6 +116,7 @@ const server = createFront({
   gateway,
   tls: { cert: readFileSync(config.tls.certFile), key: readFileSync(config.tls.keyFile) },
   web: config.webDir ? { dir: config.webDir } : undefined,
+  oidc: oidcAtPublicUrl ? oidcProxy({ upstream: config.hydra.publicUrl, ca: hydraCa }) : undefined,
 });
 if (serveApi) server.listen(config.listen.port, config.listen.host, () => log.info("listening", { ...config.listen, publicUrl: config.publicUrl }));
 

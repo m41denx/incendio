@@ -28,6 +28,10 @@ Licensed under GPL-3.0 (see `LICENSE`).
   (audience `incuscloud`). IncusCloud serves Hydra's login, consent and
   device-code pages and keeps the users. The stock `incus` CLI signs in with
   the device flow; the browser uses a server-side session.
+- **One origin.** Set Hydra's issuer to IncusCloud's public URL (`urls.self.issuer: <IC_PUBLIC_URL>/`). IncusCloud then serves Hydra's public endpoints itself: `/oauth2/*`, `/.well-known/openid-configuration`, `/.well-known/jwks.json` and `/userinfo`.
+  - Browsers, the `incus` CLI and the clusters only ever see the public URL. Hydra's own port need not be exposed.
+  - IncusCloud's back-channel calls (token exchange, JWKS) still go to `IC_HYDRA_PUBLIC_URL` directly.
+  - With an issuer on another origin, IncusCloud redirects there instead.
 - **Clusters trust Hydra directly** (`oidc.issuer`, `oidc.audience=incuscloud`,
   `oidc.claim=sub`, set by the reconciler), so a token works against every
   cluster and each cluster still enforces access itself.

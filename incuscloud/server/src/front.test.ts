@@ -36,7 +36,7 @@ const gateway: GatewayHandler = {
 let server: Server;
 let base: string;
 beforeAll(async () => {
-  server = createFront({ app, gateway, tls });
+  server = createFront({ app, gateway, tls, oidc: async (req) => Response.json({ oidc: new URL(req.url).pathname }) });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   base = `https://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
@@ -59,6 +59,12 @@ test("unknown paths get the JSON error shape", async () => {
 test("request bodies stream to the app", async () => {
   const r = await get("/echo-length", { method: "POST", body: new Uint8Array(5 << 20) });
   expect(await r.json()).toEqual({ bytes: 5 << 20 });
+});
+
+test("Hydra's public paths go to the OIDC proxy, the rest stays with the app", async () => {
+  expect(await (await get("/.well-known/openid-configuration")).json()).toEqual({ oidc: "/.well-known/openid-configuration" });
+  expect(await (await get("/oauth2/auth?x=1")).json()).toEqual({ oidc: "/oauth2/auth" });
+  expect(await (await get("/healthz")).json()).toEqual({ status: "ok" });
 });
 
 test("the gateway gets requests it matches", async () => {

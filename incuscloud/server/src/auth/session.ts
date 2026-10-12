@@ -32,6 +32,7 @@ export interface AuthDeps {
   verify: VerifyToken;
   secretKey: Buffer;
   publicUrl: string;
+  /** Hydra as browsers and clients reach it: the issuer (IncusCloud's own origin when it proxies Hydra). */
   hydraPublicUrl: string;
   secureCookies: boolean;
 }
