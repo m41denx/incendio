@@ -9,6 +9,7 @@ import { usersRoutes } from "./api/users.ts";
 import { tenantsRoutes } from "./api/tenants.ts";
 import { serviceAccountsRoutes } from "./api/service-accounts.ts";
 import { clustersRoutes } from "./api/clusters.ts";
+import { accessRoutes } from "./api/access.ts";
 import { auditRoutes } from "./api/audit.ts";
 import { fleetRoutes } from "./api/fleet.ts";
 import { mobilityRoutes, type Inspect } from "./api/mobility.ts";
@@ -54,6 +55,7 @@ export function createApp(deps: AppDeps) {
     .use(tenantsRoutes(deps))
     .use(serviceAccountsRoutes(deps))
     .use(clustersRoutes(deps))
+    .use(accessRoutes(deps))
     .use(auditRoutes(deps))
     .use(gatewayLogRoutes(deps))
     .use(fleetRoutes(deps))

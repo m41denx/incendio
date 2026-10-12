@@ -53,7 +53,10 @@ test("tabs with several pages have a side menu: every Incendio page of a cluster
   expect(menu("/inventory/cluster-d/groups/placement")).toEqual(["Cluster groups", "[Placement groups]"]);
   expect(menu("/inventory/cluster-d/networks/acls")).toEqual(["Networks", "[ACLs]", "Address sets", "Zones", "IPAM", "Integrations"]);
   expect(menu("/inventory/cluster-d/storage/volumes")).toEqual(["Pools", "[Volumes]", "Buckets", "Custom ISOs"]);
-  expect(menu("/inventory/cluster-d/access/identities")).toEqual(["[Identities]", "Groups", "IdP groups", "Grants", "Check"]);
+  expect(menu("/inventory/cluster-d/access/identities")).toEqual(["Who has access", "[Identities]", "Groups", "IdP groups", "Grants", "Check"]);
+  expect(menu("/ui/project/p%40cluster-d/access/who")).toEqual(["[Who has access]", "Incus access"]);
+  expect(menu("/ui/project/p%40cluster-d/access")).toEqual(["Who has access", "[Incus access]"]);
+  expect(tabsOf(objectOf("/ui/project/p%40cluster-d/instances"), { operator: true }).find((t) => t.label === "Access")!.to).toBe("/ui/project/p%40cluster-d/access/who");
   expect(menu("/inventory/cluster-d/configure/settings")).toEqual(["IncusCloud", "[Server settings]", "Cluster settings", "Cluster links", "Replicators", "Certificates", "Logging", "ACME", "Warnings"]);
   expect(menu("/inventory/cluster-d/configure/settings", false)[0]).toBe("[Server settings]");
   expect(menu("/inventory/cluster-d/members")).toEqual([]);

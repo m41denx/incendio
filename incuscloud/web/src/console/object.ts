@@ -76,6 +76,8 @@ export const CLUSTER_SUBS: Partial<Record<ClusterTab, (p: string) => Sub[]>> = {
   networks: (p) => [...NETWORK_SUBS(p), { sub: "integrations", label: "Integrations", path: "/ui/network-integrations" }],
   storage: STORAGE_SUBS,
   access: () => [
+    // IncusCloud's own page.
+    { sub: "who", label: "Who has access", path: "" },
     { sub: "identities", label: "Identities", path: "/ui/permissions/identities" },
     { sub: "groups", label: "Groups", path: "/ui/permissions/groups" },
     { sub: "idp-groups", label: "IdP groups", path: "/ui/permissions/idp-groups" },
@@ -104,13 +106,18 @@ const PROJECT_TABS: Array<[ProjectTab, string, string]> = [
   ["images", "Images", "local-images"],
   ["kubernetes", "Kubernetes", "kubernetes"],
   ["usage", "Usage", "usage"],
-  ["access", "Access", "access"],
+  ["access", "Access", "access/who"],
   ["configure", "Configure", "configuration"],
 ];
 /** A project tab's side menu: Incendio's pages below the project. */
 const PROJECT_SUBS: Partial<Record<ProjectTab, Sub[]>> = {
   networks: strip(NETWORK_SUBS("P")),
   storage: strip(STORAGE_SUBS("P")),
+  access: [
+    // IncusCloud's own page first: the order also decides which matches `access/who`.
+    { sub: "who", label: "Who has access", path: "access/who" },
+    { sub: "incus", label: "Incus access", path: "access" },
+  ],
   configure: [
     { sub: "configuration", label: "Configuration", path: "configuration" },
     { sub: "placement", label: "Placement groups", path: "placement-groups" },
@@ -132,7 +139,7 @@ function projectSection(rest: string[]): { tab: ProjectTab; sub?: string; detail
   if (first === "storage") return { tab: "storage", sub: second === "pools" || !second ? "pools" : undefined };
   if (first === "configuration") return { tab: "configure", sub: "configuration" };
   void third;
-  const plain: Record<string, ProjectTab> = { "": "instances", instances: "instances", profiles: "profiles", "local-images": "images", kubernetes: "kubernetes", usage: "usage", access: "access" };
+  const plain: Record<string, ProjectTab> = { "": "instances", instances: "instances", profiles: "profiles", "local-images": "images", kubernetes: "kubernetes", usage: "usage" };
   return plain[first] ? { tab: plain[first] } : null;
 }
 

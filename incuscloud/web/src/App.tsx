@@ -29,7 +29,7 @@ import ServiceAccountList from "./pages/service-accounts/ServiceAccountList";
 import AuditLog from "./pages/logs/AuditLog";
 import GatewayLog from "./pages/logs/GatewayLog";
 import { AllWarnings, IncendioAt } from "./console/RenderAt";
-import { ClusterIncendio, ClusterProjects, ClusterRedirect, ClusterRename, ClusterSub, ClusterSummary } from "./console/ClusterPages";
+import { ClusterIncendio, ClusterProjects, ClusterRedirect, ClusterRename, ClusterSub, ClusterSummary, ProjectAccessPage } from "./console/ClusterPages";
 
 
 export const AppRoutes: FC = () => (
@@ -61,6 +61,7 @@ export const AppRoutes: FC = () => (
       <Route path="all/kubernetes" element={<KubernetesList />} />
       <Route path="inventory/:cluster/kubernetes" element={<ScopedKubernetes by="cluster" />} />
       <Route path="ui/project/:project/kubernetes" element={<ScopedKubernetes by="project" />} />
+      <Route path="ui/project/:project/access/who" element={<ProjectAccessPage />} />
       <Route path="ui/project/:project/kubernetes/:name/:tab?" element={<KubernetesDetail />} />
       <Route path="kubernetes" element={<Navigate to="/all/kubernetes" replace />} />
       <Route path="kubernetes/new" element={<CreateKubernetes />} />

@@ -219,3 +219,38 @@ test("old Kubernetes links land on the new pages", async () => {
   renderInFrame(<AppRoutes />, { path: "/kubernetes/k-1" });
   await waitFor(() => expect(screen.getByRole("navigation", { name: "Breadcrumbs" })).toHaveTextContent("kweb"));
 });
+
+const holder = (name: string, role: string, relation: string, kind = "user") => ({ id: `id-${name}`, kind, name, email: `${name}@example.com`, role, relation });
+
+test("a cluster's Access: platform roles on the server, each tenant's members on its project", async () => {
+  api({
+    "GET /api/v1/access": [
+      200,
+      {
+        cluster: "c1",
+        platform: [holder("op", "operator", "operator")],
+        tenants: [{ tenant: { id: "t-1", slug: "acme", name: "Acme" }, project: "p", status: "ready", members: [holder("ann", "owner", "operator"), holder("ci", "member", "operator", "service-account")] }],
+      },
+    ],
+  });
+  renderInFrame(<AppRoutes />, { path: "/inventory/c1/access" });
+  const menu = within(await screen.findByRole("navigation", { name: "Access" }));
+  await waitFor(() => expect(menu.getByRole("link", { name: "Who has access" })).toHaveAttribute("aria-current", "page"));
+  const platform = within(await screen.findByRole("region", { name: "Platform roles" }));
+  expect(within(platform.getByText("op").closest("tr")!).getByText("operator on the server")).toBeInTheDocument();
+  const acme = within(screen.getByRole("region", { name: "Acme" }));
+  expect(acme.getByRole("link", { name: "p" })).toHaveAttribute("href", "/ui/project/p%40c1/instances");
+  expect(within(acme.getByText("ann").closest("tr")!).getByText("operator on project p")).toBeInTheDocument();
+  expect(within(acme.getByText("ci").closest("tr")!).getByText("Service account")).toBeInTheDocument();
+});
+
+test("a project's Access: its tenant's members; the request names the project", async () => {
+  const calls = api({
+    "GET /api/v1/access": [200, { cluster: "c1", tenants: [{ tenant: { id: "t-1", slug: "acme", name: "Acme" }, project: "p", status: "ready", members: [holder("ann", "viewer", "viewer")] }] }],
+  });
+  renderInFrame(<AppRoutes />, { path: "/ui/project/p%40c1/access/who" });
+  const acme = within(await screen.findByRole("region", { name: "Acme" }));
+  expect(within(acme.getByText("ann").closest("tr")!).getByText("viewer on project p")).toBeInTheDocument();
+  expect(screen.queryByRole("region", { name: "Platform roles" })).toBeNull();
+  expect(calls.calls.some((c) => c.path === "/api/v1/access?cluster=c1&project=p")).toBe(true);
+});

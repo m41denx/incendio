@@ -19,6 +19,11 @@ export function groupName(kind: "tenant" | "platform", a: string, b?: string): s
  */
 const PROJECT_RELATION: Record<TenantRole, string> = { owner: "operator", admin: "operator", member: "operator", viewer: "viewer" };
 const TENANT_ROLES = Object.keys(PROJECT_RELATION) as TenantRole[];
+
+/** The Incus relation a tenant role gives on the tenant's project ("" for none). */
+export const projectRelation = (role: string): string => PROJECT_RELATION[role as TenantRole] ?? "";
+/** The Incus relation a platform role gives on the server ("" for none). */
+export const serverRelation = (role: string): string => ((PLATFORM_ROLES as string[]).includes(role) ? role : "");
 const PLATFORM_ROLES: PlatformRole[] = ["admin", "operator", "viewer"];
 
 export interface GrantFacts {

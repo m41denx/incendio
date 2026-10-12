@@ -9,9 +9,11 @@ import PageLayout from "../components/PageLayout";
 import Meter from "../components/Meter";
 import { Loading } from "../components/Status";
 import { UNKNOWN } from "../lib/format";
+import { clusterOf, nameOf } from "../pages/inventory/tree";
 import ClusterDetail from "../pages/clusters/ClusterDetail";
 import { clusterSubs, projectPath } from "./object";
 import { IncendioAt, RenderAt } from "./RenderAt";
+import AccessPage from "./AccessPage";
 import { useInventory } from "./useInventory";
 
 const enc = encodeURIComponent;
@@ -151,6 +153,7 @@ const PlacementGroups: FC<{ cluster: string }> = ({ cluster }) => {
 const OWN: Record<string, (cluster: string) => ReactNode> = {
   "configure/incuscloud": (c) => <ClusterSettings cluster={c} />,
   "groups/placement": (c) => <PlacementGroups cluster={c} />,
+  "access/who": (c) => <AccessPage cluster={c} />,
 };
 
 /** A page of a cluster tab with a side menu (the frame draws the menu); its first page when none or an unknown one is named. */
@@ -180,3 +183,9 @@ export const ClusterRedirect: FC = () => {
 
 /** A cluster tab's old name: the same tab under its new one. */
 export const ClusterRename: FC<{ to: string }> = ({ to }) => <Navigate to={`/inventory/${enc(useCluster())}/${to}`} replace />;
+
+/** A project's Access › Who has access: its tenant's members, from IncusCloud's roles. */
+export const ProjectAccessPage: FC = () => {
+  const { project = "" } = useParams<{ project: string }>();
+  return <AccessPage key={project} cluster={clusterOf(project)} project={nameOf(project)} />;
+};
