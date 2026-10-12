@@ -29,7 +29,7 @@ A vCenter-style console:
 ```
 +----------------+---------------------------------------------+
 | IncusCloud     | cluster-d › default                         |
-| Inst Proj Node |  Instances  Profiles  Networks  Storage     |
+| Inst Proj Memb |  Instances  Profiles  Networks  Storage     |
 | Net  Stor      |  Images  Usage  Configure          More ▾   |
 | v All clusters |---------------------------------------------|
 |  > cluster-b   |  (the selected tab: an Incendio or          |
@@ -61,30 +61,39 @@ Each group is labelled, and the Platform and Account groups stay pinned at the b
 
 The URL is the selection: reloading or sharing a URL restores the same object and tab. Incendio's own routes are kept wherever one exists, so its pages work unchanged.
 
+Incus's own word is used throughout: a cluster has **members** (not "nodes").
+
 | Object | URL | Tabs |
 |---|---|---|
-| **All clusters** (root) | `/` and `/all/<tab>` | Summary (today's Dashboard, `/`) · Clusters (`/all/clusters`, today's Clusters list) · Instances (`/all/instances`, Incendio's list over every cluster and project) · Warnings (`/all/warnings`, every cluster's, with a Cluster column) |
-| **Cluster** | `/inventory/<cluster>/<tab>` | Summary (capacity and status; today's cluster detail page) · Nodes (Incendio's members list) · Projects (that cluster's projects) · Networks (Incendio's networks of its `default` project) · Storage (Incendio's pools) · Operations (Incendio's) · Configure |
-| **Node** | `/ui/cluster/member/<node@cluster>[/<tab>]` | Overview · Hardware: Incendio's member page and its own tab row. The node's instances are in the tree (Instances view). |
-| **Project** | `/ui/project/<p@cluster>/<section>` | Instances · Profiles · Networks · Storage · Images (`local-images`) · Usage · Configure (`configuration`, plus Access) |
+| **All clusters** (root) | `/` and `/all/<tab>` | Summary (the Dashboard) · Clusters (operators) · Instances (every cluster and project) · Kubernetes (every cluster's, with a Cluster column) · Warnings (with a Cluster column) |
+| **Cluster** | `/inventory/<cluster>/<tab>[/<sub>]` | Summary · Members · Groups · Projects · Networks · Storage · Kubernetes · Operations · Access · Configure |
+| **Member** | `/ui/cluster/member/<m@cluster>[/<tab>]` | Incendio's member page with its own tab row |
+| **Project** | `/ui/project/<p@cluster>/<section>` | Instances · Profiles · Networks · Storage · Images · Usage · Access · Configure |
+| **Kubernetes cluster** | `/kubernetes/<id>[/<tab>]` | Summary · Nodes · Activity · Kubeconfig |
 | **Instance** | `/ui/project/<p@cluster>/instance/<name>[/<tab>]` | Incendio's instance page, with its own tabs |
-| Network, pool | Incendio's detail routes under the owning project | Incendio's own tabs |
+| Network, pool, profile | Incendio's detail routes under the owning project | Incendio's own tabs |
 
-**Objects with their own tab row.** Node, instance, network, pool and profile are Incendio detail pages that already have a tab row. The console adds only the breadcrumb above them and no second row, which keeps the one-tab-row rule.
+**Objects with their own tab row.** Member, instance, network, pool and profile are Incendio detail pages that already have a tab row. The console adds only the breadcrumb above them and no second row, which keeps the one-tab-row rule.
 
-**Cluster Configure** has a second side menu:
-- IncusCloud's cluster settings: labels, tenants placed here, enrolment.
-- Incendio's cluster settings (`/ui/cluster/settings`), groups and links.
-- Interconnect.
-- Warnings management.
+**Tabs with a side menu.** A tab that holds several pages shows them in a side menu beside the page (as vSphere's Configure tab does). The side menu is the same component everywhere: square rows, the current one marked. Every page Incendio's own navigation offered for a cluster or a project is reachable this way; none is dropped.
 
-**Project Configure** is Incendio's configuration page, which already has its own side menu, plus Access.
+| Tab | Side menu (each item renders an Incendio page unless noted) |
+|---|---|
+| Cluster › Groups | Cluster groups (`/ui/cluster/groups`) · Placement groups (`/ui/project/<p>/placement-groups`, with a picker over the cluster's projects) |
+| Cluster › Networks | Networks · ACLs · Address sets · Zones · IPAM (each in the `default` project) · Integrations (`/ui/network-integrations`) |
+| Cluster › Storage | Pools · Volumes · Buckets · Custom ISOs (the `default` project) |
+| Cluster › Access | Who has access (IncusCloud's page: platform roles; tenants placed here, their members and the Incus relation each gets) · Identities · Groups · IdP groups · OpenFGA grants · Check |
+| Cluster › Configure | IncusCloud (operators; IncusCloud's page) · Server settings · Cluster links · Replicators · Certificates · Logging · ACME · Warnings |
+| Project › Networks | Networks · ACLs · Address sets · Zones · IPAM |
+| Project › Storage | Pools · Volumes · Buckets · Custom ISOs |
+| Project › Access | IncusCloud's page: the tenant whose project it is, its members and roles, and the Incus relation each role gives |
+| Project › Configure | Configuration · Placement groups · Replicators |
 
-**Rendering cluster tabs.** A cluster tab whose content is an Incendio page renders that page under the console URL, using a synthetic location. For example, `/inventory/cluster-d/nodes` renders Incendio's `/ui/cluster/members`, and `/inventory/cluster-d/networks` renders `/ui/project/default@cluster-d/networks`. Links inside such a page go to Incendio's real routes, which select the object they open. A link to a network, for instance, selects that network's project.
+**Rendering cluster tabs.** A cluster tab whose content is an Incendio page renders that page under the console URL, using a synthetic location. For example, `/inventory/cluster-d/members` renders Incendio's `/ui/cluster/members`, and `/inventory/cluster-d/networks` renders `/ui/project/default@cluster-d/networks`. Links inside such a page go to Incendio's real routes, which select the object they open. A link to a network, for instance, selects that network's project.
 
 **Breadcrumbs.** Each crumb is a link that selects that object:
 - `All clusters › cluster-d`
-- `… › cluster-d › d1` for a node
+- `… › cluster-d › d1` for a member
 - `… › cluster-d › default` for a project
 - `… › default › web-d1` for an instance
 
@@ -94,17 +103,18 @@ Each view is the root "All clusters", then a set of clusters, then:
 
 | View | Below each cluster | Clicking |
 |---|---|---|
-| Instances | node → instance | a node opens the node; an instance opens the instance |
-| Projects | project → instance | a project opens the project (Instances tab) |
-| Nodes | node | the node |
+| Instances | member → instance | a member opens the member; an instance opens the instance |
+| Projects | project → instance, Kubernetes cluster | a project opens the project (Instances tab); a Kubernetes cluster opens it |
+| Members | member | the member |
 | Networks | network | the network (in its project) |
 | Storage | pool | the pool |
 
-Every row shows a status icon and, where it applies, a count (`running/total`). Clicking a cluster or the root opens it, whichever view is active. A row's chevron only expands it. Clicking its label selects it.
+Every row shows its kind's icon (cluster, member, container, virtual machine, Kubernetes cluster, project, network, pool) tinted by its status: green running/online/ready, grey stopped, amber degraded/evacuated/busy, blue frozen, red error/offline. Vanilla's icons are background images that cannot be tinted, so these are IncusCloud's own small square SVGs drawn in `currentColor`. A count (`running/total`) follows where it applies. Clicking a cluster or the root opens it, whichever view is active. A row's chevron only expands it. Clicking its label selects it.
 
 **Data sources.** The tree's own fetches go through the federation facade with an explicit "all clusters" scope (see below), under its own query keys (`["inventory", …]`). It therefore never reads, and never poisons, the cache of the page being shown.
 - Clusters: `/api/v1/clusters`, for the clusters the caller may see, including clusters that answer nothing right now.
-- Nodes: `/1.0/cluster/members?recursion=1`.
+- Members: `/1.0/cluster/members?recursion=1`.
+- Kubernetes clusters: `/api/v1/kubernetes` (Projects view).
 - Projects: `/1.0/projects?recursion=1`, qualified entries only.
 - Instances: `/1.0/instances?all-projects=true&recursion=1`.
 - Networks: `/1.0/networks?project=default@<c>`, per cluster, on demand.
@@ -129,20 +139,35 @@ A view loads only what it shows. A cluster that fails to answer shows its status
 ## What goes away
 
 - **Navigation:** Incendio's navigation (the project selector, the Project and Infrastructure sections) in the console, the Cluster select, and the section labels added on 2026-10-12.
-- **Instance list:** the tree pane beside it (`InventoryTree` as an aside) and the summary tiles above it. Those tiles move to the cluster's and node's Summary tab.
+- **Instance list:** the tree pane beside it (`InventoryTree` as an aside) and the summary tiles above it. Those tiles move to the cluster's Summary tab.
 - **Merged projects,** in both the facade and the UI.
 - **Navigation extension hooks:** the ones that only served the old navigation (`afterProjectSelector`, `serverLabel`, `projects`). They are removed from `packages/ui` when nothing uses them.
 
 ## Tenants
 
-Tenant members see the same console, limited to the clusters they are placed on and their own projects. They see nodes (decided 2026-10-12) and may target them. Platform-only tabs are hidden by role, as today: the root's Clusters tab and the cluster's Configure tab show their IncusCloud parts to operators only.
+Tenant members see the same console, limited to the clusters they are placed on and their own projects. They see members (decided 2026-10-12) and may target them. Platform-only tabs are hidden by role, as today: the root's Clusters tab and the cluster's Configure tab show their IncusCloud parts to operators only.
 
 ## Kept
 
 - **Incendio's pages unchanged** inside tabs: instance, profile, network, storage, image and configuration pages.
-- **Create instance:** Incendio's create form with Cluster and Project pickers. From a selected node, the target is preselected.
+- **Create instance:** Incendio's create form with Cluster and Project pickers. From a selected member, the target is preselected.
 - **Theme:** one theme on every page, with the switcher on the Profile page.
-- **Platform pages:** Kubernetes, Tenants, Jobs and the other platform pages as they are.
+- **Platform pages:** Tenants, Jobs and the other platform pages as they are. Kubernetes leaves the Platform list: it is an inventory object.
+
+## Kubernetes in the console
+
+Kubernetes clusters are inventory objects, not a platform page:
+- the root's Kubernetes tab lists every cluster's, with Cluster, Tenant, Member, Version, Nodes (ready/total) and Status columns, and "Create";
+- a cluster's Kubernetes tab lists that cluster's, and "Create" preselects the cluster;
+- the Projects view shows a tenant project's Kubernetes clusters under it;
+- a Kubernetes cluster's page has Summary (status, endpoint, version, sizes, member, tenant), Nodes (each Cluster API machine: role, its Incus instance linked to Incendio's instance page, phase, version, ready), Activity (its jobs) and Kubeconfig. Scale, Upgrade, Download kubeconfig and Delete are buttons above the tabs, as on Incendio's Kubernetes cluster page;
+- the create form uses Incendio's sectioned form layout (a side menu of sections: Placement, Cluster, Nodes) instead of one long column.
+
+The server adds `GET /api/v1/kubernetes/:id/nodes`: the cluster's Machines from the management cluster, each with its Incus instance name, role, phase, version and readiness.
+
+## Access
+
+IncusCloud's access model is unchanged here: platform roles (admin, operator, viewer) and tenant roles (owner, admin, member, viewer). The reconciler writes them into each cluster's OpenFGA store as `incuscloud-*` groups: platform roles on `server:incus`, tenant roles as `operator` (owner, admin, member) or `viewer` on the tenant's project there. The console shows this where it applies (each cluster's and project's Access tab) and keeps Incendio's permission pages per cluster for grants IncusCloud does not own. Extending the model (roles scoped to one cluster, user groups) is a separate decision, recorded in QUESTIONS.md.
 
 ## Testing
 
@@ -158,10 +183,10 @@ Tenant members see the same console, limited to the clusters they are placed on 
 - **Live checks** on cluster-b, -c and -d (d has two members), in the browser, as admin and as a tenant member:
   - every view and object type;
   - Incendio's operations and warnings on a cluster page come from that cluster only;
-  - create from a node;
+  - create from a member;
   - light and dark themes.
 
 ## Later (not in this change)
 
 - Pool and member names inside a one-cluster page are still qualified (`default@cluster-b`). They could be shown short where the cluster is unambiguous.
-- Server-wide Incendio pages with no cluster tab (permissions, image registries) stay hidden, as today.
+- Image registries and the OS page stay hidden: they are about the host Incendio runs on, not a cluster.

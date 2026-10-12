@@ -377,3 +377,51 @@ export function useInventory(view: View): { root: TreeItem; isLoading: boolean; 
 - [ ] The same pass as a tenant member. Create a member user for the `kspike` tenant with `bun admin-api.ts`, and keep the password in a scratchpad file that is never printed. The tree must show only cluster-b and `kspike@cluster-b`.
 - [ ] Update `incuscloud/README.md`'s console section to describe the tree, views and tabs.
 - [ ] Final commit, then the whole-branch review (executing-plans' final review).
+
+---
+
+## Revision after the user's review (2026-10-12)
+
+The user reviewed the first build and asked for five changes (spec updated in the same commit): tinted kind icons in the tree; Incus's word "members" instead of "nodes"; groups and placement groups in the cluster view (and, generally, every Incendio page reachable); Kubernetes as an inventory object at the cloud and cluster level, as complete as Incendio's own Kubernetes pages; and a view of who can access what. Tasks 8–13 implement them; Task 7 (live pass, README, final review) runs after them.
+
+### Task 8: Members, and tinted kind icons
+
+**Files:** `console/object.ts`, `console/views.ts`, `console/Tree.tsx`, `console/Sidebar.tsx`, `console/ClusterPages.tsx`, `App.tsx`, create `console/KindIcon.tsx`; tests in `object.spec.ts`, `views.spec.ts`, `console.spec.tsx`.
+
+- [ ] Tests first: the view button and cluster tab are "Members"; `/inventory/c/members` is the cluster's Members tab and `/inventory/c/nodes` redirects there; `buildView("members", …)`; each tree item carries `kind` (`root|cluster|member|container|vm|k8s|project|network|pool`) and `tone` (`ok|off|busy|frozen|bad|none`) from its status; `KindIcon` renders an `svg` with class `ic-kind ic-kind--<kind> ic-tone--<tone>`.
+- [ ] Implement: rename `nodes` → `members` (view, tab, URL, labels, Summary); instances carry `type`; `toneOf(status)`; `KindIcon` draws square 16px SVGs in `currentColor`; CSS tones (green `#0e8420`, grey, amber `#c7162b`-free `#f99b11`, blue `#06c`, red `#c7162b`; lighter in the dark sidebar).
+- [ ] Commit `incuscloud web: members, and tree icons by kind tinted by status`.
+
+### Task 9: Tabs with a side menu; every Incendio page reachable
+
+**Files:** `console/object.ts` (tabs gain `subs`), create `console/SideMenu.tsx`, `console/ClusterPages.tsx`, `console/ObjectFrame.tsx`, `App.tsx`; tests in `object.spec.ts`, `console.spec.tsx`.
+
+- [ ] Tests first: `objectOf` maps `/ui/project/p@c/network-acls` to the project's Networks tab with sub `acls`, `/ui/project/p@c/storage/volumes` to Storage › volumes, `/ui/project/p@c/placement-groups` to Configure › placement-groups; `subsOf(obj)` lists the spec's side menus; `/inventory/c/groups/placement` renders Incendio's placement groups for `default@c` with a project picker; `/inventory/c/networks/acls` renders Incendio's ACL list for `default@c`; a project's Networks tab shows the side menu with "ACLs" current on `network-acls`.
+- [ ] Implement the spec's side-menu table; cluster tabs Groups, Networks, Storage, Access, Configure with subs at `/inventory/<c>/<tab>/<sub>`; project subs are Incendio's own URLs, wrapped by the frame in the same `SideMenu`.
+- [ ] Commit `incuscloud web: tabs with side menus; every Incendio page of a cluster or project is reachable`.
+
+### Task 10: Kubernetes nodes API
+
+**Files:** `server/src/api/kubernetes.ts`, `server/src/k8s/worker.ts` (machine → node view), tests in the k8s API test.
+
+- [ ] Test first: `GET /api/v1/kubernetes/:id/nodes` returns `[{ name, role: "control-plane"|"worker", instance, phase, version, ready }]` from the fake kube's Machines (instance from `status.infrastructureRef`/`spec.infrastructureRef` name, role from the `cluster.x-k8s.io/control-plane` label); viewers of the tenant may read it; others get 404.
+- [ ] Implement; commit `incuscloud: a Kubernetes cluster's nodes`.
+
+### Task 11: Kubernetes in the console
+
+**Files:** `pages/kubernetes/*`, `console/object.ts`, `console/views.ts`, `console/useInventory.ts`, `console/Sidebar.tsx`, `console/ClusterPages.tsx`, `App.tsx`; tests in `pages/kubernetes/kubernetes.spec.tsx`, `console.spec.tsx`, `views.spec.ts`.
+
+- [ ] Tests first: root tab Kubernetes at `/all/kubernetes` (`/kubernetes` redirects) lists every cluster's with a Cluster column; `/inventory/c/kubernetes` lists only c's and its Create link carries `?cluster=<id>`; the Projects view lists `k8s` items under their project; `/kubernetes/<id>` has tabs Summary, Nodes, Activity, Kubeconfig and buttons Scale, Upgrade, Kubeconfig, Delete; Nodes lists the API's nodes with instance links to `/ui/project/<tenant>@<cluster>/instance/<instance>`; the create form has a section menu (Placement, Cluster, Nodes) and preselects `?cluster=`; Kubernetes is no longer in the sidebar's Platform list.
+- [ ] Implement with Incendio's components (`MainTable`, `Button`, `Modal`/`ConfirmationButton`, the create form's `form-navigation` layout); commit `incuscloud web: Kubernetes clusters are inventory objects`.
+
+### Task 12: Who has access
+
+**Files:** create `server/src/api/access.ts` (+ test), register it in `app.ts`; create `web/src/console/AccessPage.tsx`; `console/ClusterPages.tsx`, `ObjectFrame.tsx`; tests in `console.spec.tsx`.
+
+- [ ] Test first (server): `GET /api/v1/clusters/:id/access` returns `{ platform: [{ user, role, relation }], tenants: [{ tenant, project, members: [{ user, role, relation }] }] }` from the same facts the reconciler grants (`desiredGrants`' role → relation maps); platform entries only for platform viewers; tenants filtered to those the caller may see; unknown or invisible cluster → 404.
+- [ ] Test first (web): the cluster's Access › Who has access lists platform roles and each tenant's members with their Incus relation; the project's Access tab lists its tenant's members only; Access › Identities renders Incendio's identities page for that cluster.
+- [ ] Implement; commit `incuscloud: who has access to a cluster or project`.
+
+### Task 13: The access model's open questions
+
+- [ ] Write to `QUESTIONS.md` (git-ignored): what the model lacks (roles scoped to one cluster; user groups/teams; per-project roles inside a tenant; custom roles) with a recommendation for each. No code.
