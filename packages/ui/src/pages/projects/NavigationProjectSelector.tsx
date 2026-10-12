@@ -11,6 +11,7 @@ import { defaultFirst } from "util/helpers";
 import { ROOT_PATH } from "util/rootPath";
 import { useProjects } from "context/useProjects";
 import { isAdmin } from "util/permissions";
+import { useNavigationExtension } from "context/navigationExtension";
 
 interface Props {
   activeProject: string;
@@ -22,7 +23,11 @@ const NavigationProjectSelector: FC<Props> = ({
   const navigate = useNavigate();
   const searchRef = useRef<HTMLInputElement>(null);
 
-  const { data: projects = [] } = useProjects();
+  const { data: all = [] } = useProjects();
+  const ext = useNavigationExtension();
+  const filter = ext.projects?.filter;
+  const label = ext.projects?.label ?? ((name: string) => name);
+  const projects = filter ? all.filter((p) => filter(p.name)) : all;
 
   projects.sort(defaultFirst);
 
@@ -42,9 +47,9 @@ const NavigationProjectSelector: FC<Props> = ({
       <ContextualMenu
         dropdownProps={{ "aria-label": "select project" }}
         toggleClassName="toggle is-dark"
-        toggleLabel={activeProject}
+        toggleLabel={label(activeProject)}
         hasToggleIcon
-        title={`Select project (${activeProject})`}
+        title={`Select project (${label(activeProject)})`}
         className="project-select is-dark"
       >
         <div className="list is-dark" key="my-div">
@@ -75,6 +80,7 @@ const NavigationProjectSelector: FC<Props> = ({
           <NavigationProjectSelectorList
             projects={projects}
             onMount={onChildMount}
+            label={label}
           />
           <hr className="is-dark" />
           <Button

@@ -302,6 +302,7 @@ const Navigation: FC = () => {
                           activeProject={projectName}
                         />
                       </li>
+                      {ext.afterProjectSelector?.(softToggleMenu)}
                       <SideNavigationItem>
                         <NavLink
                           to={
@@ -608,6 +609,11 @@ const Navigation: FC = () => {
                           "is-light": isLight,
                         })}
                       />
+                      {ext.serverLabel && (
+                        <li className="navigation-section-label">
+                          {ext.serverLabel}
+                        </li>
+                      )}
                       {isClustered && (
                         <SideNavigationItem>
                           <NavAccordion

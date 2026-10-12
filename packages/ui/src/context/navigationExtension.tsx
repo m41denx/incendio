@@ -22,6 +22,15 @@ export interface NavigationExtension {
   account?: (close: () => void) => ReactNode;
   /** Where "Instances" leads for the selected project. */
   instancesPath?: (project: string) => string;
+  /** Items right after the project selector (a host's own scope pickers). */
+  afterProjectSelector?: (close: () => void) => ReactNode;
+  /** A label above Incendio's server-wide items (clustering, operations, warnings…). */
+  serverLabel?: string;
+  /** Which projects the selector lists, and the name it shows for one. */
+  projects?: {
+    filter?: (name: string) => boolean;
+    label?: (name: string) => string;
+  };
   hide?: NavigationSection[];
 }
 

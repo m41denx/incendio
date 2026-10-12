@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, type FC, type ReactNode } from "react";
-import { Link, Outlet, useLocation, useSearchParams } from "react-router-dom";
-import { Application, CustomLayout, Icon, SideNavigationItem, SkipLink } from "@canonical/react-components";
+import { Link, Outlet, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { Application, CustomLayout, Icon, SideNavigationItem, SkipLink, applyTheme, loadTheme } from "@canonical/react-components";
+import { useProjects } from "@incendio/ui/context/useProjects";
 import Navigation from "@incendio/ui/components/Navigation";
 import Events from "@incendio/ui/Events";
 import StatusBar from "@incendio/ui/components/StatusBar";
@@ -15,6 +16,8 @@ import { ErrorMessage, Loading } from "./Status";
 import InventoryTree from "../pages/inventory/InventoryTree";
 import InventorySummary from "../pages/inventory/InventorySummary";
 import CreateWhere from "../pages/inventory/CreateWhere";
+import ClusterSelect from "../pages/inventory/ClusterSelect";
+import { listedProject, qualifyPath } from "../pages/inventory/scope";
 import { clusterOf, inScope, nameOf, selectionOf } from "../pages/inventory/tree";
 
 /** The cluster a page belongs to: its first qualified path segment (`/ui/project/acme@cluster-b/…`), if any. */
@@ -45,20 +48,17 @@ interface Section {
 }
 
 /**
- * IncusCloud's own sections; the API still decides on every request.
- * `top` come before Incendio's (project, instances, profiles, networking,
- * storage, images…), `platform` after them.
+ * IncusCloud's own sections, after Incendio's (the project's, then the
+ * Incus-wide ones); the API still decides on every request.
  */
-export function sections(me: Me): { top: Section[]; platform: Section[] } {
+export function sections(me: Me): { platform: Section[] } {
   const platformViewer = can(me, "viewer");
   const manages = platformViewer || tenantAdmin(me);
   const only = (xs: Array<Section | false>) => xs.filter((x): x is Section => !!x);
   return {
-    top: [
+    platform: only([
       { label: "Dashboard", icon: "switcher-dashboard", to: "/", end: true },
       { label: "Kubernetes", icon: "kubernetes", to: "/kubernetes" },
-    ],
-    platform: only([
       { label: "Clusters", icon: "cluster-host", to: "/clusters" },
       { label: "Tenants", icon: "switcher-environments", to: "/tenants" },
       { label: "Jobs", icon: "loading-steps", to: "/jobs" },
@@ -87,6 +87,8 @@ const NavItem: FC<{ to: string; title: string; icon: string; end?: boolean; chil
   );
 };
 
+const Label: FC<{ children: string }> = ({ children }) => <li className="navigation-section-label">{children}</li>;
+
 const items = (list: Section[], close: () => void) =>
   list.map((s) => (
     <NavItem key={s.to} to={s.to} title={s.label} icon={s.icon} end={s.end} onClick={close}>
@@ -108,6 +110,21 @@ const Shell: FC = () => {
   const queryClient = useQueryClient();
   const cluster = pageCluster(pathname);
   const lastCluster = useRef(cluster);
+  const navigate = useNavigate();
+  const { data: projectList } = useProjects();
+  const projectNames = useMemo(() => (projectList ?? []).map((p) => p.name), [projectList]);
+  // The cluster last shown, for a merged project's next per-cluster page.
+  const preferred = useRef("");
+  if (cluster) preferred.current = cluster;
+
+  // Every page in Incendio's theme (its setting, else the system's), not only Incendio's own.
+  useEffect(() => applyTheme(loadTheme()), []);
+
+  // Profiles, networks, storage, images… are one cluster's: a merged project goes to one of them.
+  useEffect(() => {
+    const to = qualifyPath(pathname, projectNames, preferred.current);
+    if (to) navigate(to + window.location.search, { replace: true });
+  }, [pathname, projectNames]);
 
   // Another cluster's page: global lists cached for the last one (or for all) are not this one's.
   useEffect(() => {
@@ -117,20 +134,24 @@ const Shell: FC = () => {
   }, [cluster]);
 
   const navigation = useMemo<NavigationExtension>(() => {
-    const s = me.data ? sections(me.data) : { top: [], platform: [] };
+    const s = me.data ? sections(me.data) : { platform: [] };
     return {
       logo: <Logo />,
-      before: (close) => items(s.top, close),
+      serverLabel: "Infrastructure",
+      afterProjectSelector: (close) => <ClusterSelect close={close} />,
+      projects: { filter: listedProject(projectNames), label: nameOf },
       after: (close) =>
         s.platform.length ? (
           <>
             <hr className="navigation-hr" />
+            <Label>Platform</Label>
             {items(s.platform, close)}
           </>
         ) : null,
       account: (close) =>
         me.data ? (
           <>
+            <Label>Account</Label>
             <NavItem to="/profile" title="Profile" icon="user" onClick={close}>
               <span className="u-truncate">{me.data.name || me.data.email || "Profile"}</span>
             </NavItem>
@@ -154,7 +175,7 @@ const Shell: FC = () => {
       // IncusCloud's own, or meaningless across clusters (each cluster's server settings and OpenFGA are IncusCloud's).
       hide: ["kubernetes", "permissions", "settings", "os"],
     };
-  }, [me.data]);
+  }, [me.data, projectNames]);
 
   // The instance list is the inventory: the tree beside it, the selection's summary above it.
   const inventory = useMemo(

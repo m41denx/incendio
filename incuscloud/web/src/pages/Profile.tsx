@@ -1,5 +1,6 @@
 import type { FC } from "react";
 import { Link } from "react-router-dom";
+import { ThemeSwitcher } from "@canonical/react-components";
 import { useQuery } from "@tanstack/react-query";
 import PageLayout from "../components/PageLayout";
 import KeyValues from "../components/KeyValues";
@@ -41,6 +42,11 @@ const Profile: FC = () => {
                 ],
               ]}
             />
+            </Section>
+
+            <Section title="Appearance" id="profile-appearance">
+              <p>Every page of the console, Incendio's included. System follows your device.</p>
+              <ThemeSwitcher />
             </Section>
 
             <Section title="Use from the command line" id="profile-cli">

@@ -54,7 +54,7 @@ const Dashboard: FC = () => {
 
   return (
     <PageLayout title="Dashboard">
-      <Row>
+      <Row className="ic-stat-cards">
         <Col size={width}>
           <StatCard id="dash-clusters" title="Clusters" to="/clusters">
             <Loaded query={clusters}>

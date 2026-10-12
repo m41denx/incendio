@@ -1,5 +1,13 @@
-.project-select-label {
+.project-select-label,
+.navigation-section-label {
   margin-left: $sph--large;
+}
+
+// A host's section labels: like "Project", above its group of items.
+.navigation-section-label {
+  color: $color-mid-light;
+  font-size: 0.875rem;
+  list-style: none;
 }
 
 .project-select {
@@ -78,7 +86,8 @@
 }
 
 @include desktop {
-  .project-select-label {
+  .project-select-label,
+  .navigation-section-label {
     margin-left: $sph--x-large;
   }
 
@@ -94,6 +103,7 @@
 
 .l-navigation.is-collapsed {
   .project-select-label,
+  .navigation-section-label,
   .project-select {
     visibility: hidden;
   }

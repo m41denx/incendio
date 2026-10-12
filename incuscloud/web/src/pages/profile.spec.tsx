@@ -1,5 +1,6 @@
-import { expect, test } from "vitest";
+import { afterEach, expect, test } from "vitest";
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { me, mockApi, renderAt } from "../test/api";
 import type { Cluster } from "../api/types";
 import Profile from "./Profile";
@@ -56,4 +57,19 @@ test("the page is titled with the name and lists email, role and tenants", async
   expect(screen.getByText("ada@example.com", { selector: "td" })).toBeInTheDocument();
   expect(screen.getByText("None", { selector: "td" })).toBeInTheDocument();
   expect(screen.getByText("Acme (member)")).toBeInTheDocument();
+});
+
+afterEach(() => {
+  localStorage.removeItem("theme");
+  document.body.classList.remove("is-dark");
+});
+
+test("appearance: Incendio's theme switcher, applied at once and remembered", async () => {
+  mockApi({ "GET /api/v1/me": [200, me()], "GET /api/v1/clusters": [200, []] });
+  renderAt(<Profile />);
+  await userEvent.click(await screen.findByRole("button", { name: /dark/i }));
+  expect(document.body).toHaveClass("is-dark");
+  expect(localStorage.getItem("theme")).toBe("dark");
+  await userEvent.click(screen.getByRole("button", { name: /light/i }));
+  expect(document.body).not.toHaveClass("is-dark");
 });

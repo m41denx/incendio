@@ -217,3 +217,12 @@
     }
   }
 }
+
+// Dashboard counts: cards as tall as the tallest, with or without a breakdown line.
+.ic-stat-cards > [class*="col-"] {
+  display: flex;
+
+  > .p-card {
+    flex: 1;
+  }
+}

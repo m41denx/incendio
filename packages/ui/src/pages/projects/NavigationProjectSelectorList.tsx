@@ -8,11 +8,14 @@ import { pluralize } from "util/helpers";
 interface Props {
   projects: LxdProject[];
   onMount: (val: Dispatch<SetStateAction<string>>) => void;
+  /** The name shown for a project (a host may shorten it). */
+  label?: (name: string) => string;
 }
 
 const NavigationProjectSelectorList: FC<Props> = ({
   projects,
   onMount,
+  label = (name) => name,
 }): React.JSX.Element => {
   const location = useLocation();
   const [query, setQuery] = useState("");
@@ -47,7 +50,7 @@ const NavigationProjectSelectorList: FC<Props> = ({
               className="p-contextual-menu__link link"
             >
               <div title={project.name} className="u-truncate name">
-                {project.name}
+                {label(project.name)}
               </div>
               <div className="p-text--x-small u-float-right u-no-margin--bottom count">
                 {getInstanceCount(project)}

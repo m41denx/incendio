@@ -1,5 +1,6 @@
-import { expect, test, vi } from "vitest";
-import { screen } from "@testing-library/react";
+import { afterEach, expect, test, vi } from "vitest";
+import { screen, waitFor } from "@testing-library/react";
+import { Route, Routes, useLocation } from "react-router-dom";
 import userEvent from "@testing-library/user-event";
 import { me, mockApi } from "../test/api";
 import { incendioApi, renderInFrame } from "../test/incendio";
@@ -83,4 +84,59 @@ test("on small and medium screens the navigation starts collapsed, as Incendio's
   } finally {
     Object.defineProperty(window, "innerWidth", { value: width, configurable: true });
   }
+});
+
+afterEach(() => {
+  localStorage.removeItem("theme");
+  document.body.classList.remove("is-dark");
+});
+
+test("sections in order, each labelled: the project's, Incus-wide, the platform's (dashboard first), the account", async () => {
+  mockApi({ ...incendioApi(), "GET /api/v1/me": [200, me({ platformRole: "admin" })] });
+  renderInFrame(<Shell />);
+  await screen.findByText("Clusters");
+  const order = [...document.querySelectorAll(".project-select-label, .navigation-section-label, .p-side-navigation__link")].map((e) => e.textContent?.trim());
+  const at = (x: string) => order.findIndex((t) => t === x || t?.endsWith(x));
+  expect(order.filter((t) => ["Project", "Infrastructure", "Platform", "Account"].includes(t ?? ""))).toEqual(["Project", "Infrastructure", "Platform", "Account"]);
+  expect(at("Project")).toBeLessThan(at("Instances"));
+  expect(at("Platform")).toBeLessThan(at("Dashboard"));
+  expect(at("Dashboard")).toBeLessThan(at("Kubernetes"));
+  expect(at("Kubernetes")).toBeLessThan(at("Clusters"));
+  expect(at("Account")).toBeLessThan(at("Sign out"));
+});
+
+test("the saved theme (Incendio's setting) applies on every page, not only Incendio's", async () => {
+  localStorage.setItem("theme", "dark");
+  mockApi({ ...incendioApi(), "GET /api/v1/me": [200, me()] });
+  renderInFrame(<Shell />);
+  await waitFor(() => expect(document.body).toHaveClass("is-dark"));
+});
+
+/** Shows where the app navigated. */
+const Where = () => {
+  const l = useLocation();
+  return <p data-testid="where">{l.pathname + l.search}</p>;
+};
+
+test("a merged project's profiles are one cluster's: the page goes to the project there, and the selector shows it by name", async () => {
+  mockApi({
+    ...incendioApi(),
+    "GET /api/v1/me": [200, me({ platformRole: "admin" })],
+    "GET /1.0/projects": [200, { type: "sync", metadata: ["default", "default@c1", "default@c2", "solo@c2"].map((name) => ({ name, description: "", config: {}, used_by: [] })) }],
+    "GET /1.0/projects/default%40c1": [200, { type: "sync", metadata: { name: "default@c1", description: "", config: {}, used_by: [] } }],
+    "GET /1.0/operations": [200, { type: "sync", metadata: {} }],
+  });
+  renderInFrame(
+    <Routes>
+      <Route element={<Shell />}>
+        <Route path="*" element={<Where />} />
+      </Route>
+    </Routes>,
+    { path: "/ui/project/default/profiles", pattern: "/*" },
+  );
+  await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/ui/project/default%40c1/profiles"));
+  // The project by name, the cluster beside it.
+  await userEvent.click(await screen.findByRole("button", { name: "default" }));
+  expect(screen.getByRole("button", { name: "c1" })).toBeInTheDocument();
+  expect([...document.querySelectorAll(".project-select .projects .name")].map((e) => e.textContent)).toEqual(["default", "solo"]);
 });
