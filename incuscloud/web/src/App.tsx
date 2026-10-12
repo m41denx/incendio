@@ -28,7 +28,7 @@ import UserDetail from "./pages/users/UserDetail";
 import ServiceAccountList from "./pages/service-accounts/ServiceAccountList";
 import AuditLog from "./pages/logs/AuditLog";
 import GatewayLog from "./pages/logs/GatewayLog";
-import { AllWarnings, IncendioAt } from "./console/RenderAt";
+import { AllWarnings, IncendioAt, Redirect } from "./console/RenderAt";
 import { ClusterIncendio, ClusterProjects, ClusterRedirect, ClusterRename, ClusterSub, ClusterSummary, ProjectAccessPage } from "./console/ClusterPages";
 
 
@@ -52,8 +52,8 @@ export const AppRoutes: FC = () => (
       {/* Old links. */}
       <Route path="instances" element={<Navigate to="/all/instances" replace />} />
       <Route path="instances/new" element={<Navigate to="/all/instances" replace />} />
-      <Route path="ui/all-projects/instances" element={<Navigate to="/all/instances" replace />} />
-      <Route path="ui/warnings" element={<Navigate to="/all/warnings" replace />} />
+      <Route path="ui/all-projects/instances" element={<Redirect to="/all/instances" />} />
+      <Route path="ui/warnings" element={<Redirect to="/all/warnings" />} />
       <Route path="clusters" element={<Navigate to="/all/clusters" replace />} />
       <Route path="clusters/:id" element={<ClusterRedirect />} />
       <Route path="instances/:id" element={<InstanceDetail />} />
