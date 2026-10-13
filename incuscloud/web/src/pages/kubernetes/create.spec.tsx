@@ -2,7 +2,7 @@ import { afterEach, expect, test, vi } from "vitest";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { me, mockApi, renderAt } from "../../test/api";
-import CreateKubernetes from "./CreateKubernetes";
+import CreateKubernetes from "./KubernetesCreate";
 import { k8sCluster, k8sOptions } from "./fixtures";
 
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });

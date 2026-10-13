@@ -37,12 +37,12 @@ export const useK8sClusterStatus = (id: string) =>
 export const useK8sNodes = (id: string) =>
   useQuery({ queryKey: [...KEY, id, "nodes"], queryFn: () => request<K8sNode[]>("GET", `/api/v1/kubernetes/${id}/nodes`), enabled: !!id, refetchInterval: POLL_MS, retry: false });
 
-export const useK8sClusterActivity = (id: string) =>
+export const useK8sClusterActivity = (id: string, enabled = true, interval = POLL_MS) =>
   useQuery({
     queryKey: [...KEY, id, "activity"],
     queryFn: async () => (await request<{ entries: K8sActivityEntry[] }>("GET", `/api/v1/kubernetes/${id}/activity`)).entries,
-    enabled: !!id,
-    refetchInterval: POLL_MS,
+    enabled: !!id && enabled,
+    refetchInterval: interval,
     retry: false,
   });
 
@@ -103,3 +103,6 @@ export const canDelete = (me: Me | undefined, tenantId: string) => can(me, "oper
 export const busy = (k: Pick<K8sCluster, "status">) => k.status === "creating" || k.status === "provisioning" || k.status === "deleting";
 
 export const clusterUrl = (id: string) => `/kubernetes/${encodeURIComponent(id)}`;
+
+/** Requested explicitly; never poll cluster-admin credentials. */
+export const useK8sKubeconfig = (id: string, enabled: boolean) => useQuery({ queryKey: [...KEY,id,"kubeconfig"], queryFn: () => fetchKubeconfig(id), enabled: !!id && enabled, retry: false, gcTime: 0 });
