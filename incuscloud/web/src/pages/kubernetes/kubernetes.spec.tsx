@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { Route, Routes, useLocation } from "react-router-dom";
 import { me, mockApi, renderAt } from "../../test/api";
 import type { K8sCluster, K8sOptions, Me } from "../../api/types";
+import { k8sSpec } from "./fixtures";
 import KubernetesList from "./KubernetesList";
 import CreateKubernetes from "./CreateKubernetes";
 import KubernetesDetail from "./KubernetesDetail";
@@ -32,6 +33,7 @@ const k8s = (over: Partial<K8sCluster> = {}): K8sCluster => ({
   controlPlanes: 1,
   workers: 2,
   size: "small",
+  spec: k8sSpec(),
   endpoint: "https://10.0.0.5:16443",
   status: "ready",
   statusMessage: "",
