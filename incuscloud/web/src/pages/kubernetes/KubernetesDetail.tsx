@@ -65,7 +65,7 @@ const Summary: FC<{ k: K8sCluster }> = ({ k }) => {
             ["Incus cluster", <Link to={`/inventory/${enc(k.clusterName)}`}>{k.clusterName}</Link>],
             ["Project", <Link to={projectPath(project, "instances")}>{k.project}</Link>],
             ...(k.member ? [["Member", <Link to={`/ui/cluster/member/${enc(`${k.member}@${k.clusterName}`)}`}>{k.member}</Link>] as [string, ReactNode]] : []),
-            ["Node size", sizeLabel(options.data, k.size)],
+            ["Node size", k.size ? sizeLabel(options.data, k.size) : k.spec.controlPlane.flavor],
             ["Control plane", plural(k.controlPlanes, "node")],
             ["Workers", plural(k.workers, "node")],
             ["Nodes ready", `${k.nodesReady} of ${k.controlPlanes + k.workers}`],
@@ -174,20 +174,15 @@ const Kubeconfig: FC<{ k: K8sCluster; download: () => void; downloading: boolean
 
 /** One Kubernetes cluster, an inventory object in its project: its tabs, and scale, upgrade, kubeconfig, delete. */
 const KubernetesDetail: FC = () => {
-  const { project = "", name = "", tab = "" } = useParams();
+  const { id = "", tab = "" } = useParams();
   const { data: me } = useMe();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const options = useK8sOptions();
-  // Found by where it is (its project and name); then followed by id.
-  const list = useQuery({ queryKey: ["kubernetes"], queryFn: () => request<K8sCluster[]>("GET", "/api/v1/kubernetes") });
-  const found = list.data?.find((x) => `${x.project}@${x.clusterName}` === project && x.name === name);
-  const id = found?.id ?? "";
   const cluster = useQuery({
-    queryKey: ["kubernetes", id],
+    queryKey: ["kubernetes", id, "old"],
     queryFn: () => request<K8sCluster>("GET", `/api/v1/kubernetes/${id}`),
     enabled: !!id,
-    initialData: found,
     refetchInterval: (q) => (q.state.data && busy(q.state.data) ? POLL_MS : false),
   });
   const [dialog, setDialog] = useState<"scale" | "upgrade" | null>(null);
@@ -216,8 +211,8 @@ const KubernetesDetail: FC = () => {
     }
   };
 
-  if (list.error) return <PageLayout title={name}>{<ErrorMessage error={list.error} />}</PageLayout>;
-  if (!k) return <PageLayout title={name}>{list.isPending ? <Loading /> : <Notification severity="caution" title="Not found">No Kubernetes cluster {name} in {nameOf(project)} is available to you.</Notification>}</PageLayout>;
+  if (cluster.error) return <PageLayout title="Kubernetes cluster">{<ErrorMessage error={cluster.error} />}</PageLayout>;
+  if (!k) return <PageLayout title="Kubernetes cluster">{cluster.isPending ? <Loading /> : <Notification severity="caution" title="Not found">No such Kubernetes cluster is available to you.</Notification>}</PageLayout>;
 
   return (
     <PageLayout
@@ -319,14 +314,6 @@ const KubernetesDetail: FC = () => {
       ) : null}
     </PageLayout>
   );
-};
-
-/** Old links (`/kubernetes/<id>`): the cluster's page in its project. */
-export const KubernetesRedirect: FC = () => {
-  const { id = "" } = useParams();
-  const k = useQuery({ queryKey: ["kubernetes", id], queryFn: () => request<K8sCluster>("GET", `/api/v1/kubernetes/${id}`) });
-  if (k.isPending) return <Loading />;
-  return <Navigate to={k.data ? k8sPath(k.data) : "/all/kubernetes"} replace />;
 };
 
 export default KubernetesDetail;

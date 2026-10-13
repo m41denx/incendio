@@ -4,15 +4,10 @@ import Shell from "./components/Shell";
 import IncendioPages from "./components/IncendioPages";
 import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
-import KubernetesList from "./pages/kubernetes/KubernetesList";
-
-/** A cluster's or a project's Kubernetes tab: the list, scoped by the URL. */
-const ScopedKubernetes: FC<{ by: "cluster" | "project" }> = ({ by }) => {
-  const p = useParams();
-  return <KubernetesList key={p[by]} scope={{ [by]: p[by] }} />;
-};
+import K8sClusterList from "./pages/kubernetes/ClusterList";
 import CreateKubernetes from "./pages/kubernetes/CreateKubernetes";
-import KubernetesDetail, { KubernetesRedirect } from "./pages/kubernetes/KubernetesDetail";
+import KubernetesDetail from "./pages/kubernetes/KubernetesDetail";
+import { K8sListRedirect, K8sNameRedirect } from "./pages/kubernetes/redirects";
 import InstanceDetail from "./pages/instances/InstanceDetail";
 import JobList from "./pages/jobs/JobList";
 import JobDetail from "./pages/jobs/JobDetail";
@@ -57,15 +52,16 @@ export const AppRoutes: FC = () => (
       <Route path="clusters" element={<Navigate to="/all/clusters" replace />} />
       <Route path="clusters/:id" element={<ClusterRedirect />} />
       <Route path="instances/:id" element={<InstanceDetail />} />
-      {/* Kubernetes clusters: inventory objects in their project; the root's and each cluster's tab list them. */}
-      <Route path="all/kubernetes" element={<KubernetesList />} />
-      <Route path="inventory/:cluster/kubernetes" element={<ScopedKubernetes by="cluster" />} />
-      <Route path="ui/project/:project/kubernetes" element={<ScopedKubernetes by="project" />} />
       <Route path="ui/project/:project/access/who" element={<ProjectAccessPage />} />
-      <Route path="ui/project/:project/kubernetes/:name/:tab?" element={<KubernetesDetail />} />
-      <Route path="kubernetes" element={<Navigate to="/all/kubernetes" replace />} />
+      {/* Kubernetes: a platform page (Incendio's list, create form and cluster page). */}
+      <Route path="kubernetes" element={<K8sClusterList />} />
       <Route path="kubernetes/new" element={<CreateKubernetes />} />
-      <Route path="kubernetes/:id" element={<KubernetesRedirect />} />
+      <Route path="kubernetes/:id/:tab?" element={<KubernetesDetail />} />
+      {/* Old links from when Kubernetes clusters were inventory objects. */}
+      <Route path="all/kubernetes" element={<Redirect to="/kubernetes" />} />
+      <Route path="inventory/:cluster/kubernetes" element={<K8sListRedirect by="cluster" />} />
+      <Route path="ui/project/:project/kubernetes" element={<K8sListRedirect by="project" />} />
+      <Route path="ui/project/:project/kubernetes/:name/*" element={<K8sNameRedirect />} />
       <Route path="jobs" element={<JobList />} />
       <Route path="jobs/:id" element={<JobDetail />} />
       <Route path="replication" element={<PolicyList />} />

@@ -109,7 +109,10 @@ test("the tree first, then Platform and Account, each labelled; the dashboard an
   expect(at("All clusters")).toBeLessThan(at("Platform"));
   expect(at("Platform")).toBeLessThan(at("Tenants"));
   expect(at("Account")).toBeLessThan(at("Sign out"));
-  for (const gone of ["Dashboard", "Clusters", "Kubernetes", "Infrastructure", "Project"]) expect(order).not.toContain(gone);
+  // Kubernetes is a platform page.
+  expect(at("Platform")).toBeLessThan(at("Kubernetes"));
+  expect(at("Kubernetes")).toBeLessThan(at("Account"));
+  for (const gone of ["Dashboard", "Clusters", "Infrastructure", "Project"]) expect(order).not.toContain(gone);
 });
 
 test("the saved theme (Incendio's setting) applies on every page, not only Incendio's", async () => {

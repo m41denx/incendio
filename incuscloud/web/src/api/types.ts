@@ -468,8 +468,11 @@ export interface K8sCluster {
   version: string;
   controlPlanes: number;
   workers: number;
-  size: K8sSize;
-  /** https://host:port, forwarded to the cluster's load balancer. */
+  /** The size it was made with; null when made from a spec. */
+  size: K8sSize | null;
+  /** Its machines, load balancer, networking and MetalLB (Incendio's create options). */
+  spec: K8sSpec;
+  /** https://host:port: a forward to its load balancer, or a kube-vip / OVN address. */
   endpoint: string;
   status: K8sStatus;
   statusMessage: string;
@@ -496,6 +499,62 @@ export interface K8sOptions {
   enabled: boolean;
   versions: string[];
   sizes: Record<K8sSize, { cpu: number; memoryGiB: number }>;
+  /** What the create form starts from. */
+  defaults?: K8sSpec;
+}
+
+/** One role's instances: `flavor` is CAPN's `c<cores>-m<GiB>`; `target` a member, `@group` or "" (anywhere). */
+export interface K8sMachineSpec {
+  type: "container" | "virtual-machine";
+  flavor: string;
+  profiles: string[];
+  target: string;
+}
+export type K8sLbSpec =
+  | { type: "lxc" | "oci"; flavor: string; profiles: string[]; target: string }
+  | { type: "kube-vip"; host: string; interface: string }
+  | { type: "ovn"; host: string; networkName: string };
+export interface K8sSpec {
+  controlPlane: K8sMachineSpec;
+  worker: K8sMachineSpec;
+  loadBalancer: K8sLbSpec;
+  image: string;
+  privileged: boolean;
+  flannel: boolean;
+  installKubeadm: boolean;
+  podCidr: string;
+  serviceCidr: string;
+  metallb: { addresses: string[] } | null;
+}
+
+/** GET /api/v1/kubernetes/:id/status. */
+export interface K8sClusterStatus {
+  phase: string;
+  /** Why it is not available yet ("" when it is). */
+  message: string;
+  endpoint: string;
+  conditions: Array<{ type: string; status: string; reason: string; message: string; lastTransitionTime: string }>;
+}
+
+/** GET /api/v1/kubernetes/:id/activity: Incendio's activity entries. */
+export interface K8sActivityEntry {
+  time: string;
+  lastTime?: string;
+  level: "info" | "warning" | "error";
+  source: string;
+  object?: string;
+  message: string;
+  count: number;
+}
+
+/** GET /api/v1/kubernetes/:id/metallb. */
+export interface K8sMetalLB {
+  /** The addresses asked for (null: no MetalLB asked for). */
+  requested: string[] | null;
+  installed: boolean;
+  ready: boolean;
+  addresses: string[];
+  message: string;
 }
 
 /** POST /api/v1/kubernetes. */
@@ -504,9 +563,10 @@ export interface CreateK8sRequest {
   clusterId: string;
   name: string;
   version: string;
-  controlPlanes: 1 | 3;
+  controlPlanes: 1 | 3 | 5;
   workers: number;
-  size: K8sSize;
+  size?: K8sSize;
+  spec?: K8sSpec;
   /** On a multi-member Incus cluster: the member its load balancer and nodes run on (default: chosen). */
   member?: string;
 }

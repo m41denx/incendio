@@ -58,20 +58,6 @@ export function useInventory(view: View): { root: TreeItem; isLoading: boolean; 
     enabled: view === "storage",
     ...REFRESH,
   });
-  // Kubernetes clusters (none when IncusCloud has no management cluster).
-  const kubernetes = useQuery({
-    queryKey: ["inventory", "kubernetes"],
-    queryFn: async () => {
-      try {
-        return await request<Array<{ name: string; project: string; clusterName: string; status: string }>>("GET", "/api/v1/kubernetes");
-      } catch (e) {
-        if (e instanceof ApiError && e.status === 409) return [];
-        throw e;
-      }
-    },
-    enabled: view === "projects",
-    ...REFRESH,
-  });
   const projectNames = (projects.data ?? []).map((p) => p.name);
   const names = [...new Set([...(clusters.data ?? []).map((c) => c.name), ...(members.data ?? []).map((m) => clusterOf(m.server_name))])].filter(Boolean).sort();
   const networks = useQueries({
@@ -90,9 +76,8 @@ export function useInventory(view: View): { root: TreeItem; isLoading: boolean; 
     instances: instances.data ?? [],
     networks: Object.fromEntries(names.map((c, i) => [c, (networks[i]?.data ?? []).map((n) => ({ ...n, name: nameOf(n.name) }))])),
     pools: pools.data ?? [],
-    kubernetes: (kubernetes.data ?? []).map((k) => ({ name: k.name, project: `${k.project}@${k.clusterName}`, status: k.status })),
   };
-  const shown = [clusters, members, ...(withInstances ? [instances] : []), ...(view === "projects" ? [kubernetes] : []), ...(view === "projects" || view === "networks" || view === "storage" ? [projects] : []), ...(view === "storage" ? [pools] : []), ...(view === "networks" ? networks : [])];
+  const shown = [clusters, members, ...(withInstances ? [instances] : []), ...(view === "projects" || view === "networks" || view === "storage" ? [projects] : []), ...(view === "storage" ? [pools] : []), ...(view === "networks" ? networks : [])];
   // No counts until the instances are in: "0/0" would say there are none.
   const root = buildView(view, data);
   return {

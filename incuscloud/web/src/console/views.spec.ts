@@ -19,7 +19,6 @@ const data = (over: Partial<InventoryData> = {}): InventoryData => ({
   ],
   networks: { "cluster-d": [{ name: "incusbr0", managed: true }, { name: "eth0", managed: false }] },
   pools: [{ name: "default@cluster-d", status: "Created" }],
-  kubernetes: [],
   ...over,
 });
 
@@ -113,11 +112,10 @@ test("every row has its kind and a tone from its status", () => {
   expect(kinds(buildView("storage", data())).slice(-1)).toEqual(["default:pool/ok"]);
 });
 
-test("the projects view lists a project's Kubernetes clusters after its instances", () => {
-  const t = buildView("projects", data({ kubernetes: [{ name: "web", project: "kspike@cluster-b", status: "degraded" }] }));
+test("the projects view lists a project's instances only: Kubernetes is a platform page", () => {
+  const t = buildView("projects", data());
   const kspike = t.children!.find((c) => c.label === "cluster-b")!.children!.find((p) => p.label === "kspike")!;
-  expect(kids(kspike)).toEqual(["web-b:container/ok", "web:k8s/busy"]);
-  expect(kspike.children!.at(-1)!.to).toBe("/ui/project/kspike%40cluster-b/kubernetes/web");
+  expect(kids(kspike)).toEqual(["web-b:container/ok"]);
 });
 
 const kids = (t: TreeItem) => (t.children ?? []).map((c) => `${c.label}:${c.kind}/${c.tone}`);

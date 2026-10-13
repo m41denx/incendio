@@ -8,6 +8,7 @@ import { me, mockApi } from "../test/api";
 import { incendioApi, renderInFrame } from "../test/incendio";
 import { AppRoutes } from "../App";
 import { fitTabs } from "./ObjectFrame";
+import { k8sSpec } from "../pages/kubernetes/fixtures";
 
 afterEach(() => {
   localStorage.removeItem("ic.view");
@@ -15,7 +16,7 @@ afterEach(() => {
 });
 
 /** A Kubernetes cluster in project p on c1. */
-const kweb = { id: "k-1", tenantId: "t-1", tenantSlug: "acme", clusterId: "id-1", clusterName: "c1", project: "p", member: "", name: "kweb", version: "v1.37.0", controlPlanes: 1, workers: 1, size: "small", endpoint: "https://10.0.0.1:16443", status: "ready", statusMessage: "", nodes: 2, nodesReady: 2, createdBy: "u", createdAt: "2026-10-12T10:00:00Z", syncedAt: null };
+const kweb = { id: "k-1", tenantId: "t-1", tenantSlug: "acme", clusterId: "id-1", clusterName: "c1", project: "p", member: "", name: "kweb", version: "v1.37.0", controlPlanes: 1, workers: 1, size: "small", spec: k8sSpec(), endpoint: "https://10.0.0.1:16443", status: "ready", statusMessage: "", nodes: 2, nodesReady: 2, createdBy: "u", createdAt: "2026-10-12T10:00:00Z", syncedAt: null };
 
 const sync = (metadata: unknown) => [200, { type: "sync", metadata }] as [number, unknown];
 
@@ -62,8 +63,8 @@ test("the sidebar: tree views, the tree, then Platform and Account; the view is 
   expect(await clusterLink("c2")).toBeInTheDocument();
   for (const v of ["Instances", "Projects", "Members", "Networks", "Storage"]) expect(n.getByRole("button", { name: v })).toBeInTheDocument();
   for (const l of ["Tenants", "Jobs", "Sign out"]) expect(n.getByRole("link", { name: l })).toBeInTheDocument();
-  // Kubernetes clusters are inventory objects (the root's and each cluster's tab), not a platform page.
-  expect(n.queryByRole("link", { name: "Kubernetes" })).not.toBeInTheDocument();
+  // Kubernetes is a platform page.
+  expect(n.getByRole("link", { name: "Kubernetes" })).toHaveAttribute("href", "/kubernetes");
   // The root's tabs, not the sidebar, lead to the dashboard and the cluster list.
   expect(n.queryByRole("link", { name: "Dashboard" })).not.toBeInTheDocument();
   expect(n.queryByRole("link", { name: "Clusters" })).not.toBeInTheDocument();
@@ -200,26 +201,28 @@ test("a project's tab with several pages shows them in a side menu", async () =>
   expect(menu.getByRole("link", { name: "IPAM" })).toHaveAttribute("href", "/ui/project/p%40c1/network-ipam");
 });
 
-test("Kubernetes: the root's tab lists every cluster's, a cluster's tab its own, with Create for that cluster", async () => {
-  api();
+test("old inventory Kubernetes links land on the platform's pages", async () => {
+  api({ "GET /api/v1/kubernetes/k-1": [200, kweb] });
   const all = renderInFrame(<AppRoutes />, { path: "/all/kubernetes" });
-  const row = (await screen.findByRole("link", { name: "kweb" })).closest("tr")!;
-  expect(within(row).getByRole("link", { name: "c1" })).toHaveAttribute("href", "/inventory/c1");
-  expect(within(row).getByRole("link", { name: "kweb" })).toHaveAttribute("href", "/ui/project/p%40c1/kubernetes/kweb");
+  expect(await screen.findByRole("heading", { name: "Kubernetes clusters" })).toBeInTheDocument();
+  expect(await screen.findByRole("link", { name: "kweb" })).toHaveAttribute("href", "/kubernetes/k-1");
   all.unmount();
-  renderInFrame(<AppRoutes />, { path: "/inventory/c1/kubernetes" });
-  expect(await screen.findByRole("link", { name: "kweb" })).toBeInTheDocument();
-  expect(screen.queryByRole("columnheader", { name: "Incus cluster" })).toBeNull();
-  expect(screen.getByRole("link", { name: "Create cluster" })).toHaveAttribute("href", "/kubernetes/new?cluster=c1");
+  const c1 = renderInFrame(<AppRoutes />, { path: "/inventory/c1/kubernetes" });
+  expect(await screen.findByRole("link", { name: "Create cluster" })).toHaveAttribute("href", "/kubernetes/new?cluster=c1");
+  c1.unmount();
+  renderInFrame(<AppRoutes />, { path: "/ui/project/p%40c1/kubernetes/kweb" });
+  expect(await screen.findByRole("heading", { name: /kweb/ })).toBeInTheDocument();
+  expect(document.querySelector(".ic-tabs")).toBeNull();
 });
 
-test("old Kubernetes links land on the new pages", async () => {
+test("Kubernetes pages are platform pages: no inventory tabs above them", async () => {
   api({ "GET /api/v1/kubernetes/k-1": [200, kweb] });
   const list = renderInFrame(<AppRoutes />, { path: "/kubernetes" });
-  await waitFor(async () => expect((await tabRow()).getByRole("link", { name: "Kubernetes" })).toHaveAttribute("aria-current", "page"));
+  expect(await screen.findByRole("link", { name: "kweb" })).toBeInTheDocument();
+  expect(document.querySelector(".ic-tabs")).toBeNull();
   list.unmount();
   renderInFrame(<AppRoutes />, { path: "/kubernetes/k-1" });
-  await waitFor(() => expect(screen.getByRole("navigation", { name: "Breadcrumbs" })).toHaveTextContent("kweb"));
+  expect(await screen.findByRole("heading", { name: /kweb/ })).toBeInTheDocument();
 });
 
 const holder = (name: string, role: string, relation: string, kind = "user") => ({ id: `id-${name}`, kind, name, email: `${name}@example.com`, role, relation });

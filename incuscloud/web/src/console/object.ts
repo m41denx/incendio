@@ -11,19 +11,12 @@ export type Obj =
   | { kind: "project"; cluster: string; project: string; tab: ProjectTab; sub?: string; detail?: string }
   | { kind: "instance"; cluster: string; project: string; name: string }
   | { kind: "network" | "pool" | "profile"; cluster: string; project: string; name: string }
-  | { kind: "k8s"; cluster: string; project: string; name: string; tab: K8sTab }
   | { kind: "none" };
 
-type RootTab = "summary" | "clusters" | "instances" | "kubernetes" | "warnings";
-type ClusterTab = "summary" | "members" | "groups" | "projects" | "networks" | "storage" | "kubernetes" | "operations" | "access" | "configure";
-type ProjectTab = "instances" | "profiles" | "networks" | "storage" | "images" | "kubernetes" | "usage" | "access" | "configure";
-type K8sTab = "summary" | "nodes" | "activity" | "kubeconfig";
-const K8S_TABS: Array<[K8sTab, string]> = [
-  ["summary", "Summary"],
-  ["nodes", "Nodes"],
-  ["activity", "Activity"],
-  ["kubeconfig", "Kubeconfig"],
-];
+// Kubernetes is a platform page (/kubernetes), not an inventory object.
+type RootTab = "summary" | "clusters" | "instances" | "warnings";
+type ClusterTab = "summary" | "members" | "groups" | "projects" | "networks" | "storage" | "operations" | "access" | "configure";
+type ProjectTab = "instances" | "profiles" | "networks" | "storage" | "images" | "usage" | "access" | "configure";
 
 /** A page in a tab's side menu: its key in the URL (a cluster's) or Incendio's path below the project (a project's). */
 interface Sub {
@@ -59,7 +52,6 @@ const ROOT_TABS: Array<[RootTab, string, string]> = [
   ["summary", "Summary", "/"],
   ["clusters", "Clusters", "/all/clusters"],
   ["instances", "Instances", "/all/instances"],
-  ["kubernetes", "Kubernetes", "/all/kubernetes"],
   ["warnings", "Warnings", "/all/warnings"],
 ];
 const CLUSTER_TABS: Array<[ClusterTab, string]> = [
@@ -69,7 +61,6 @@ const CLUSTER_TABS: Array<[ClusterTab, string]> = [
   ["projects", "Projects"],
   ["networks", "Networks"],
   ["storage", "Storage"],
-  ["kubernetes", "Kubernetes"],
   ["operations", "Operations"],
   ["access", "Access"],
   ["configure", "Configure"],
@@ -125,7 +116,6 @@ const PROJECT_TABS: Array<[ProjectTab, string, string]> = [
   ["networks", "Networks", "networks"],
   ["storage", "Storage", "storage/pools"],
   ["images", "Images", "local-images"],
-  ["kubernetes", "Kubernetes", "kubernetes"],
   ["usage", "Usage", "usage"],
   ["access", "Access", "access/who"],
   ["configure", "Configure", "configuration"],
@@ -160,7 +150,7 @@ function projectSection(rest: string[]): { tab: ProjectTab; sub?: string; detail
   if (first === "storage") return { tab: "storage", sub: second === "pools" || !second ? "pools" : undefined };
   if (first === "configuration") return { tab: "configure", sub: "configuration" };
   void third;
-  const plain: Record<string, ProjectTab> = { "": "instances", instances: "instances", profiles: "profiles", "local-images": "images", kubernetes: "kubernetes", usage: "usage" };
+  const plain: Record<string, ProjectTab> = { "": "instances", instances: "instances", profiles: "profiles", "local-images": "images", usage: "usage" };
   return plain[first] ? { tab: plain[first] } : null;
 }
 
@@ -203,7 +193,6 @@ export function objectOf(pathname: string): Obj {
     // member/<m>/network/<n>
     if (first === "member" && third === "network" && segs[6]) return { kind: "network", ...base, name: segs[6] };
     if (first === "storage" && second === "pool" && third) return { kind: "pool", ...base, name: third };
-    if (first === "kubernetes" && second) return { kind: "k8s", ...base, name: second, tab: K8S_TABS.find(([t]) => t === third)?.[0] ?? "summary" };
     const section = projectSection(rest);
     return section ? { kind: "project", ...base, ...section } : { kind: "none" };
   }
@@ -224,10 +213,6 @@ export function tabsOf(o: Obj, who: Who): Tab[] {
     // A tab of pages the caller may see none of is not shown.
     return CLUSTER_TABS.filter(([t]) => !CLUSTER_SUBS[t] || clusterSubs(o.cluster, t, who).length).map(([t, label]) => ({ label, to: `/inventory/${enc(o.cluster)}${t === "summary" ? "" : `/${t}`}`, active: o.tab === t }));
   if (o.kind === "project") return PROJECT_TABS.map(([t, label, rest]) => ({ label, to: projectPath(o.project, rest), active: o.tab === t }));
-  if (o.kind === "k8s") {
-    const at = projectPath(o.project, `kubernetes/${enc(o.name)}`);
-    return K8S_TABS.map(([t, label]) => ({ label, to: t === "summary" ? at : `${at}/${t}`, active: o.tab === t }));
-  }
   return [];
 }
 
@@ -263,7 +248,6 @@ export function crumbsOf(o: Obj): Crumb[] {
     instance: `instance/${enc(o.name)}`,
     network: `network/${enc(o.name)}`,
     pool: `storage/pool/${enc(o.name)}`,
-    k8s: `kubernetes/${enc(o.name)}`,
     profile: `profile/${enc(o.name)}`,
   };
   return [...crumbs, { label: o.kind === "pool" ? nameOf(o.name) : o.name, to: projectPath(o.project, at[o.kind]) }];

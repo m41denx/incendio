@@ -18,19 +18,17 @@ test("URLs select objects", () => {
   expect(objectOf("/ui/project/default%40cluster-d/instance/web-d1/terminal")).toEqual({ kind: "instance", cluster: "cluster-d", project: "default@cluster-d", name: "web-d1" });
   expect(objectOf("/ui/project/default%40cluster-d/network/incusbr0")).toMatchObject({ kind: "network", name: "incusbr0" });
   expect(objectOf("/ui/project/default%40cluster-d/storage/pool/default%40cluster-d")).toMatchObject({ kind: "pool" });
-  expect(objectOf("/all/kubernetes")).toEqual({ kind: "root", tab: "kubernetes" });
-  expect(objectOf("/ui/project/acme%40cluster-d/kubernetes")).toMatchObject({ kind: "project", tab: "kubernetes" });
-  expect(objectOf("/ui/project/acme%40cluster-d/kubernetes/web")).toEqual({ kind: "k8s", cluster: "cluster-d", project: "acme@cluster-d", name: "web", tab: "summary" });
-  for (const p of ["/kubernetes/new", "/tenants/x", "/ui/project/default/profiles", "/profile"]) expect(objectOf(p)).toEqual({ kind: "none" });
+  // Kubernetes is a platform page; its old inventory URLs only redirect.
+  for (const p of ["/kubernetes", "/kubernetes/new", "/kubernetes/k-1", "/all/kubernetes", "/ui/project/acme%40cluster-d/kubernetes/web", "/tenants/x", "/ui/project/default/profiles", "/profile"])
+    expect(objectOf(p)).toEqual({ kind: "none" });
 });
 
 test("tabs: one row per object; operators see the root's Clusters; objects with their own row get none", () => {
   const labels = (p: string, operator = true) => tabsOf(objectOf(p), { operator }).map((t) => (t.active ? `[${t.label}]` : t.label));
-  expect(labels("/")).toEqual(["[Summary]", "Clusters", "Instances", "Kubernetes", "Warnings"]);
-  expect(labels("/", false)).toEqual(["[Summary]", "Instances", "Kubernetes", "Warnings"]);
-  expect(labels("/inventory/cluster-d/members")).toEqual(["Summary", "[Members]", "Groups", "Projects", "Networks", "Storage", "Kubernetes", "Operations", "Access", "Configure"]);
-  expect(labels("/ui/project/default%40cluster-d/local-images")).toEqual(["Instances", "Profiles", "Networks", "Storage", "Images", "Kubernetes", "Usage", "Access", "Configure"].map((l) => (l === "Images" ? "[Images]" : l)));
-  expect(labels("/ui/project/acme%40cluster-d/kubernetes/web/nodes")).toEqual(["Summary", "[Nodes]", "Activity", "Kubeconfig"]);
+  expect(labels("/")).toEqual(["[Summary]", "Clusters", "Instances", "Warnings"]);
+  expect(labels("/", false)).toEqual(["[Summary]", "Instances", "Warnings"]);
+  expect(labels("/inventory/cluster-d/members")).toEqual(["Summary", "[Members]", "Groups", "Projects", "Networks", "Storage", "Operations", "Access", "Configure"]);
+  expect(labels("/ui/project/default%40cluster-d/local-images")).toEqual(["Instances", "Profiles", "Networks", "Storage", "Images", "Usage", "Access", "Configure"].map((l) => (l === "Images" ? "[Images]" : l)));
   expect(tabsOf(objectOf("/ui/project/default%40cluster-d/storage/pools"), { operator: true }).find((t) => t.label === "Storage")!.to).toBe("/ui/project/default%40cluster-d/storage/pools");
   for (const p of ["/ui/cluster/member/d1%40cluster-d", "/ui/project/default%40cluster-d/instance/web-d1"]) expect(tabsOf(objectOf(p), { operator: true })).toEqual([]);
 });
@@ -73,15 +71,6 @@ test("tabs with several pages have a side menu: every Incendio page of a cluster
 
 test("a detail page in a project's tab has a breadcrumb of its own", () => {
   expect(crumbsOf(objectOf("/ui/project/p%40cluster-d/network-acl/web")).map((c) => c.label)).toEqual(["All clusters", "cluster-d", "p", "web"]);
-});
-
-test("a Kubernetes cluster sits in its project", () => {
-  expect(crumbsOf(objectOf("/ui/project/acme%40cluster-d/kubernetes/web/activity")).map((c) => c.to)).toEqual([
-    "/",
-    "/inventory/cluster-d",
-    "/ui/project/acme%40cluster-d/instances",
-    "/ui/project/acme%40cluster-d/kubernetes/web",
-  ]);
 });
 
 test("tenant members get no server-wide Incus pages: they have no rights there", () => {

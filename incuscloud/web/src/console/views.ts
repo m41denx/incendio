@@ -32,8 +32,6 @@ export interface InventoryData {
   instances: Array<{ name: string; project: string; location: string; status: string; type?: string }>;
   networks: Record<string, Array<{ name: string; managed: boolean }>>;
   pools: Array<{ name: string; status: string }>;
-  /** Kubernetes clusters, each in its project (`p@cluster`). */
-  kubernetes: Array<{ name: string; project: string; status: string }>;
 }
 
 const enc = encodeURIComponent;
@@ -86,11 +84,7 @@ export function buildView(view: View, d: InventoryData): TreeItem {
         .filter((p) => clusterOf(p.name) === cluster)
         .map((p) => {
           const mine = instances.filter((i) => i.project === p.name);
-          const k8s = d.kubernetes
-            .filter((k) => k.project === p.name)
-            .map((k): TreeItem => ({ key: `k:${k.project}/${k.name}`, label: k.name, kind: "k8s", tone: toneOf(k.status), status: k.status, to: projectPath(k.project, `kubernetes/${enc(k.name)}`) }))
-            .sort(byLabel);
-          return { key: `p:${p.name}`, label: nameOf(p.name), kind: "project", tone: "none", to: projectPath(p.name, "instances"), count: String(mine.length), children: [...mine.map(instanceItem).sort(byLabel), ...k8s] };
+          return { key: `p:${p.name}`, label: nameOf(p.name), kind: "project", tone: "none", to: projectPath(p.name, "instances"), count: String(mine.length), children: mine.map(instanceItem).sort(byLabel) };
         });
     } else if (view === "members") {
       children = members.map((m) => nodeItem(m.server_name, m.status));

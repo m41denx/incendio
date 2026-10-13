@@ -2,7 +2,7 @@ import type { FC, ReactNode } from "react";
 import classnames from "classnames";
 
 /** What an inventory row is. */
-export type Kind = "root" | "cluster" | "member" | "container" | "vm" | "k8s" | "project" | "network" | "pool";
+export type Kind = "root" | "cluster" | "member" | "container" | "vm" | "project" | "network" | "pool";
 /** How it is doing: running/online, stopped, in between, frozen, failing, or no status. */
 export type Tone = "ok" | "off" | "busy" | "frozen" | "bad" | "none";
 
@@ -61,13 +61,6 @@ const SHAPES: Record<Kind, ReactNode> = {
     <g {...S}>
       <rect x="1.75" y="2.25" width="12.5" height="9" />
       <path d="M5 14h6M8 11.25V14" />
-    </g>
-  ),
-  k8s: (
-    <g {...S}>
-      <path d="M8 1.5l5.5 2.75 1.25 6L11 14.5H5l-3.75-4.25 1.25-6z" />
-      <circle cx="8" cy="8.25" r="1.75" />
-      <path d="M8 3.75v2.75M8 10v2.5M3.75 6.75l2.6 .9M12.25 6.75l-2.6 .9M5 12l1.8-2.3M11 12l-1.8-2.3" />
     </g>
   ),
   project: <path {...S} d="M1.75 3.25h4.5l1.5 1.75h6.5v8.25H1.75z" />,

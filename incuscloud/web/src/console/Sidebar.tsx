@@ -27,6 +27,7 @@ export function platformSections(me: Me): Section[] {
   const only = (xs: Array<Section | false>) => xs.filter((x): x is Section => !!x);
   return only([
     { label: "Tenants", icon: "switcher-environments", to: "/tenants" },
+    { label: "Kubernetes", icon: "pods", to: "/kubernetes" },
     { label: "Jobs", icon: "loading-steps", to: "/jobs" },
     { label: "Replication", icon: "restart", to: "/replication" },
     { label: "Backups", icon: "archive", to: "/backups" },
