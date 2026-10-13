@@ -55,8 +55,11 @@ export function withQuery(path: string, q: Record<string, string | number | unde
  * caller may reach, whatever page asks (the console's inventory tree).
  * Returns the response's `metadata`.
  */
-export async function incusAll<T>(path: string): Promise<T> {
-  const res = await fetch(path, { credentials: "same-origin", headers: { accept: "application/json", "x-incuscloud-scope": "all" } });
+export const incusAll = <T>(path: string): Promise<T> => incusAt<T>("all", path);
+
+/** Read one cluster through the facade; names and projects remain qualified. */
+export async function incusAt<T>(cluster: string, path: string): Promise<T> {
+  const res = await fetch(path, { credentials: "same-origin", headers: { accept: "application/json", "x-incuscloud-scope": cluster } });
   if (res.status === 401) {
     window.location.assign(signInUrl());
     return new Promise<T>(() => {});
