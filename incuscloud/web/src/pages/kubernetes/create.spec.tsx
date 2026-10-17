@@ -64,3 +64,8 @@ test("kubeadm minimum and malformed flavors disable Create", async () => {
   fireEvent.change(within(cp).getByLabelText("Flavor"), { target: { value: "t3.medium" } });
   expect(screen.getByRole("button", { name: "Create cluster" })).toHaveAttribute("aria-disabled", "true");
 });
+
+test("the image name is a text field, styled as the others", async () => {
+  setup();
+  expect(await screen.findByLabelText("Image name")).toHaveAttribute("type", "text");
+});

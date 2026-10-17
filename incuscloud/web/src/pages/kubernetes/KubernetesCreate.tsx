@@ -327,7 +327,7 @@ const KubernetesCreate: FC = () => {
                   }}
                 />
                 <Select label="Kubernetes version" value={config.kubernetesVersion} options={options.data.versions.map(v => ({label:v,value:v}))} onChange={e => update("kubernetesVersion",e.target.value)} />
-                <Input label="Image name" value={config.imageName} help="Optional image alias, or <remote>:<image>, for the node image." onChange={e => update("imageName",e.target.value)} />
+                <Input type="text" label="Image name" value={config.imageName} help="Optional image alias, or <remote>:<image>, for the node image." onChange={e => update("imageName",e.target.value)} />
                 <Select
                   label="Load balancer"
                   value={config.loadBalancer}

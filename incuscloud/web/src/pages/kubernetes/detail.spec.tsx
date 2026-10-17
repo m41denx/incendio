@@ -62,3 +62,21 @@ test("viewer has no mutation controls or admin kubeconfig; member cannot delete"
   setup("viewer"); await screen.findByRole("heading", { name: "General" });
   for (const name of ["Scale", "Upgrade", "Delete", "Change addresses", "Show kubeconfig"]) expect(screen.queryByRole("button", { name })).toBeNull();
 });
+
+test("a cluster still being created shows no phase before CAPI has its Cluster ('Missing')", async () => {
+  mockApi({
+    "GET /api/v1/me": [200, me({ platformRole: null, tenants: [{ id: "t-1", slug: "acme", name: "Acme", role: "admin" }] })],
+    "GET /api/v1/kubernetes/k-1": [200, k8sCluster({ status: "creating", nodes: 0, nodesReady: 0 })],
+    "GET /api/v1/kubernetes/versions": [200, k8sOptions()],
+    "GET /api/v1/kubernetes/k-1/status": [200, { phase: "Missing", message: "", endpoint: "https://10.0.0.5:16443", conditions: [] }],
+    "GET /api/v1/kubernetes/k-1/nodes": [200, []],
+    "GET /api/v1/kubernetes/k-1/activity": [200, { entries: [] }],
+    "GET /api/v1/kubernetes/k-1/metallb": [200, { requested: null, installed: false, ready: false, addresses: [], message: "" }],
+    "GET /1.0/instances": [200, { metadata: [] }],
+  });
+  renderAt(<KubernetesDetail />, { path: "/kubernetes/k-1", pattern: "/kubernetes/:id" });
+  const status = (await screen.findByText("Status", { selector: "th" })).closest("tr")!;
+  // Every read answered.
+  await new Promise((r) => setTimeout(r, 300));
+  expect(status.querySelector("td")!.textContent!.trim()).toBe("Creating");
+});

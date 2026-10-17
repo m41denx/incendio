@@ -105,7 +105,8 @@ const ClusterDetail: FC = () => {
                 <th className="u-text--muted">Status</th>
                 <td>
                   <ClusterStatusLabel status={clusterStatus} />
-                  {status?.phase ? (
+                  {/* "Missing": CAPI has no Cluster yet, which is no news while IncusCloud is still creating it. */}
+                  {status?.phase && !(status.phase === "Missing" && clusterStatus === "creating") ? (
                     <span className="u-text--muted"> · {status.phase}</span>
                   ) : null}
                 </td>
