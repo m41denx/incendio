@@ -15,7 +15,8 @@ export interface Entry {
  * Proxmox's resolution: walking the chain from the most specific path, the
  * first level holding an entry for one of the subject's keys decides; its
  * roles are combined. At that level the subject's own entries (its first
- * key) beat its groups'. Entries on ancestors count only when they propagate.
+ * key) beat its groups', and No access among them means nothing. Entries
+ * on ancestors count only when they propagate.
  */
 export function resolve(subjects: string[], entriesByPath: Map<string, Entry[]>, chain: string[]): { privileges: Set<Privilege>; decidedBy: Entry[] } {
   const keys = new Set(subjects);
@@ -25,7 +26,8 @@ export function resolve(subjects: string[], entriesByPath: Map<string, Entry[]>,
     const own = here.filter((e) => e.subject === subjects[0]);
     if (own.length) here = own;
     const privileges = new Set<Privilege>();
-    for (const e of here) for (const p of ROLES[e.role].privileges) privileges.add(p);
+    // No access there means nothing (spec "Resolution" 2).
+    if (!here.some((e) => e.role === "no-access")) for (const e of here) for (const p of ROLES[e.role].privileges) privileges.add(p);
     return { privileges, decidedBy: here };
   }
   return { privileges: new Set(), decidedBy: [] };

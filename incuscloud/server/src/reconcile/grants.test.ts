@@ -89,3 +89,8 @@ describe("explicitRelations", () => {
     expect(isManaged({ user: "user:x", relation: "member", object: `group:${aclGroup("viewer", "project:a")}` })).toBe(true);
   });
 });
+
+test("explicitRelations: no access beside another role at the same level gives nothing", () => {
+  const d = (p: string) => (p === "/clusters/c" ? { roles: ["operator", "no-access"] as RoleId[], at: "/clusters/c" } : { roles: [] as RoleId[] });
+  expect(explicitRelations("c", [], d)).toEqual([]);
+});

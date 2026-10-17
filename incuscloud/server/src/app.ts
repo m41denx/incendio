@@ -6,6 +6,7 @@ import { principalPlugin } from "./auth/principal.ts";
 import { sessionRoutes, type AuthDeps } from "./auth/session.ts";
 import { identityRoutes } from "./identity/routes.ts";
 import { meRoutes } from "./api/me.ts";
+import { aclRoutes } from "./api/acl.ts";
 import { usersRoutes } from "./api/users.ts";
 import { tenantsRoutes } from "./api/tenants.ts";
 import { serviceAccountsRoutes } from "./api/service-accounts.ts";
@@ -56,6 +57,7 @@ export function createApp(deps: AppDeps) {
     .use(identityRoutes({ db: deps.db, hydra: deps.hydra, secureCookies: deps.secureCookies, stylesheet: deps.stylesheet }))
     .use(sessionRoutes(deps))
     .use(meRoutes(deps))
+    .use(aclRoutes(deps))
     .use(usersRoutes(deps))
     .use(tenantsRoutes(deps))
     .use(serviceAccountsRoutes(deps))

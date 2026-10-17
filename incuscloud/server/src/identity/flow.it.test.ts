@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
+import { Acl } from "../acl/acl.ts";
 import { readFileSync } from "node:fs";
 import type { Server } from "node:https";
 import { Elysia } from "elysia";
@@ -50,7 +51,7 @@ beforeAll(async () => {
     .use(principalPlugin(authDeps))
     .use(identityRoutes({ db, hydra, secureCookies: true }))
     .use(sessionRoutes(authDeps))
-    .use(meRoutes({ db, clusterDomain: "clusters.test", publicUrl: "https://127.0.0.1:7443" }));
+    .use(meRoutes({ db, acl: new Acl(db), clusterDomain: "clusters.test", publicUrl: "https://127.0.0.1:7443" }));
   server = createFront({ app, tls: { cert: readFileSync(new URL("tls/server.crt", dev)), key: readFileSync(new URL("tls/server.key", dev)) } });
   await new Promise<void>((r) => server!.listen(7443, "127.0.0.1", r));
 });

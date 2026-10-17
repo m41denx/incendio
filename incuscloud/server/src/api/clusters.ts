@@ -1,7 +1,8 @@
 import { Elysia, t } from "elysia";
 import { and, eq } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
-import { clusters, k8sClusters, placements, tenants } from "../db/schema.ts";
+import { aclEntries, clusters, k8sClusters, placements, tenants } from "../db/schema.ts";
+import { entriesUnder } from "./acl.ts";
 import type { Authz } from "../authz/platform.ts";
 import { tuples } from "../authz/sync.ts";
 import { forbidden, needPriv, notFound } from "../authz/guards.ts";
@@ -118,6 +119,7 @@ export function clustersRoutes({ db, authz, acl, secretKey }: { db: Db; authz: A
           }
           await db.transaction(async (tx) => {
             await tx.delete(clusters).where(eq(clusters.id, row.id));
+            await tx.delete(aclEntries).where(entriesUnder(`/clusters/${row.name}`));
             await authz.write([], [tuples.cluster(row.id), ...placed.map((x) => tuples.placement(x.tenantId, row.id))]);
           });
         });

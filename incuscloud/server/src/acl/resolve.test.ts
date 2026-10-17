@@ -13,6 +13,12 @@ const INSTANCE = ["/clusters/c/projects/acme/instances/web", "/clusters/c/projec
 const me = ["user:me"];
 
 describe("resolution", () => {
+  test("no access at the deciding level means nothing, whatever else is there", () => {
+    const r = resolve(me, byPath(entry("/tenants/acme", "user:me", "unrestricted-user"), entry("/tenants/acme", "user:me", "no-access")), INSTANCE);
+    expect(r.privileges).toEqual(new Set());
+    expect(r.decidedBy.map((e) => e.role).sort()).toEqual(["no-access", "unrestricted-user"]);
+  });
+
   test("an entry on / reaches everything below when it propagates", () => {
     expect(resolve(me, byPath(entry("/", "user:me", "operator")), INSTANCE).privileges).toEqual(new Set(ROLES.operator.privileges));
   });

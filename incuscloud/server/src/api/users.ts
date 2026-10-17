@@ -1,5 +1,5 @@
 import { Elysia, t } from "elysia";
-import { and, eq, ne } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
 import { platformRoles, sessions, tenantMembers, users } from "../db/schema.ts";
 import type { Authz } from "../authz/platform.ts";
@@ -11,6 +11,7 @@ import type { HydraAdminApi } from "../identity/hydra-admin.ts";
 import { ApiError } from "../lib/errors.ts";
 import { audited, created, noContent, uuidParam } from "./common.ts";
 import { requestReconcile } from "../reconcile/requests.ts";
+import { keepAnAdministrator } from "../acl/admins.ts";
 
 const PlatformRole = t.Union([t.Literal("admin"), t.Literal("operator"), t.Literal("viewer")]);
 
@@ -35,16 +36,6 @@ export function usersRoutes({ db, authz, hydra }: { db: Db; authz: Authz; hydra:
     const [row] = await db.select({ u: users, role: platformRoles.role }).from(users).leftJoin(platformRoles, eq(platformRoles.userId, users.id)).where(eq(users.id, uuidParam(id)));
     if (!row) throw notFound("No such user");
     return row;
-  };
-  /** Refuses changes that would leave no enabled platform admin. */
-  const keepAnAdmin = async (userId: string) => {
-    const others = await db
-      .select({ id: users.id })
-      .from(platformRoles)
-      .innerJoin(users, eq(users.id, platformRoles.userId))
-      .where(and(eq(platformRoles.role, "admin"), ne(users.id, userId), eq(users.disabled, false)))
-      .limit(1);
-    if (!others.length) throw new ApiError(409, "last_admin", "This is the last platform administrator");
   };
 
   return new Elysia({ name: "users" })
@@ -98,8 +89,9 @@ export function usersRoutes({ db, authz, hydra }: { db: Db; authz: Authz; hydra:
         return audited(db, { principal: p, request }, "user.update", { type: "user", id: params.id }, async () => {
           await needPlatform(p, "admin");
           const { u, role } = await load(params.id);
-          const losesAdmin = role === "admin" && ((body.platformRole !== undefined && body.platformRole !== "admin") || body.disabled === true);
-          if (losesAdmin) await keepAnAdmin(u.id);
+          // Administrator entries on / count too (permissions).
+          const dropsRole = body.platformRole !== undefined && body.platformRole !== "admin";
+          await keepAnAdministrator(db, (h) => h.userId === u.id && (body.disabled === true || (h.via === "role" && dropsRole)));
           const res = await db.transaction(async (tx) => {
             const patch: Partial<UserRow> = {};
             if (body.name !== undefined) patch.name = body.name;
@@ -139,7 +131,7 @@ export function usersRoutes({ db, authz, hydra }: { db: Db; authz: Authz; hydra:
       await audited(db, { principal: p, request }, "user.delete", { type: "user", id: params.id }, async () => {
         await needPlatform(p, "admin");
         const { u, role } = await load(params.id);
-        if (role === "admin") await keepAnAdmin(u.id);
+        await keepAnAdministrator(db, (h) => h.userId === u.id);
         const memberships = await db.select().from(tenantMembers).where(eq(tenantMembers.userId, u.id));
         await db.transaction(async (tx) => {
           await tx.delete(users).where(eq(users.id, u.id));

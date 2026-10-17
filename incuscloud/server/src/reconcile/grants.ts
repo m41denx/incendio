@@ -45,7 +45,7 @@ const RANK: Record<string, number> = { "": 0, viewer: 1, operator: 2, admin: 3 }
 const SERVER: Partial<Record<RoleId, string>> = { administrator: "admin", "cluster-owner": "admin", operator: "operator", "unrestricted-user": "operator", auditor: "viewer" };
 // Never project admin (see PROJECT_RELATION).
 const PROJECT: Partial<Record<RoleId, string>> = { administrator: "operator", "cluster-owner": "operator", operator: "operator", "unrestricted-user": "operator", "tenant-admin": "operator", auditor: "viewer" };
-const strongest = (map: Partial<Record<RoleId, string>>, roles: RoleId[]) => roles.map((r) => map[r] ?? "").reduce((a, b) => (RANK[b]! > RANK[a]! ? b : a), "");
+const strongest = (map: Partial<Record<RoleId, string>>, roles: RoleId[]) => (roles.includes("no-access") ? [] : roles).map((r) => map[r] ?? "").reduce((a, b) => (RANK[b]! > RANK[a]! ? b : a), "");
 
 /**
  * The Incus relations a subject's permissions give on one cluster. `decide(path)`

@@ -1,7 +1,8 @@
 import { Elysia, t } from "elysia";
 import { and, eq } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
-import { clusters, placements, serviceAccounts, tenantMembers, tenants, users } from "../db/schema.ts";
+import { aclEntries, clusters, placements, serviceAccounts, tenantMembers, tenants, users } from "../db/schema.ts";
+import { entriesUnder } from "./acl.ts";
 import type { Authz } from "../authz/platform.ts";
 import { tuples } from "../authz/sync.ts";
 import { can, forbidden, needVisible, notFound, platformCan } from "../authz/guards.ts";
@@ -105,7 +106,7 @@ export function tenantsRoutes({ db, authz, hydra }: { db: Db; authz: Authz; hydr
     .delete("/api/v1/tenants/:id", async ({ principal, request, params, set }) => {
       const p = authed(principal);
       await audited(db, { principal: p, request }, "tenant.delete", { type: "tenant", id: params.id }, async () => {
-        await load(p, params.id, "viewer");
+        const tenant = await load(p, params.id, "viewer");
         await needOwnerPower(p, params.id);
         if ((await db.select().from(placements).where(eq(placements.tenantId, params.id)).limit(1)).length) {
           throw new ApiError(409, "tenant_placed", "Remove this tenant from its clusters first");
@@ -115,6 +116,7 @@ export function tenantsRoutes({ db, authz, hydra }: { db: Db; authz: Authz; hydr
         for (const sa of accounts) await hydra.deleteClient(sa.clientId).catch((e) => log.warn("could not delete Hydra client", { clientId: sa.clientId, error: String(e) }));
         await db.transaction(async (tx) => {
           await tx.delete(tenants).where(eq(tenants.id, params.id));
+          await tx.delete(aclEntries).where(entriesUnder(`/tenants/${tenant.slug}`));
           await authz.write([], [tuples.tenant(params.id), ...members.map((m) => tuples.member(params.id, m.userId, m.role)), ...accounts.map((a) => tuples.member(params.id, a.id, "member"))]);
         });
       });
