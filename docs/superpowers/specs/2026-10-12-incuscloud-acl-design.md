@@ -209,6 +209,7 @@ The new quotas start unset, which means unlimited, as quotas are today.
 2. Migrated tenant members keep today's reach: *Unrestricted user* on their tenant.
 3. Production makes cluster APIs reachable only through the gateway (a documented network policy), so every limit holds.
 4. Leases are future work: a table of expiries and a scheduled worker (Elysia's cron) that powers off or deletes, per tenant, with extensions.
+5. Users never see other users' instances. In Incus, `can_view` on a project comes only from project `viewer`, which also gives `viewer` on every instance in it, so a *User* gets no project `viewer`. They get `can_create_instances` and the volume and bucket creates on the project, `can_view` on each of its profiles, networks and images, and `operator` on what they own. IncusCloud's console shows the project page from its own records, since Incus refuses the project itself to them. (Measured on the dev stack, 2026-10-17.)
 
 ## Phasing
 
