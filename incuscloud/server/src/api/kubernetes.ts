@@ -252,7 +252,7 @@ export function kubernetesRoutes({ db, authz, kube, k8sPorts, workloadKube = kub
                 endpointHost: ep.host,
                 endpointPort: ep.port,
                 lbMember: ep.member,
-                createdBy: p.id,
+                createdBy: `${p.kind}:${p.id}`,
               })
               .returning();
             const job = await enqueueJob(txDb, {

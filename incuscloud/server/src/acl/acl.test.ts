@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { testDb } from "../db/test-db.ts";
 import type { Db } from "../db/index.ts";
 import { aclEntries, clusters, placements, platformRoles, serviceAccounts, tenantMembers, tenants, users } from "../db/schema.ts";
+import { recordOwner } from "./owners.ts";
 import type { Principal } from "../auth/principal.ts";
 import { ROLES } from "./catalog.ts";
 import { Acl } from "./acl.ts";
@@ -135,4 +136,25 @@ test("a failed load is not cached: the next call loads again", async () => {
   const acl = new Acl(flaky as typeof db);
   await expect(acl.entries()).rejects.toThrow("database blip");
   expect(await acl.entries()).toEqual([]);
+});
+
+test("a User on /tenants/acme creates in acme's project, and acts only on an instance they own", async () => {
+  const u = await user("u@x");
+  await grant(u, "/tenants/acme", "user");
+  const [c] = await db.select().from(clusters).where(eq(clusters.name, "c"));
+  await recordOwner(db, { clusterId: c!.id, project: "acme-c", name: "mine" }, `user:${u.id}`, "event");
+  acl.invalidate();
+  expect(await acl.can(u, "instance.create", "/clusters/c/projects/acme-c")).toBe(true);
+  expect(await acl.can(u, "instance.console", "/clusters/c/projects/acme-c/instances/mine")).toBe(true);
+  expect(await acl.can(u, "instance.view", "/clusters/c/projects/acme-c/instances/theirs")).toBe(false);
+  expect(await acl.can(u, "instance.console", "/clusters/c/projects/acme-c")).toBe(false);
+});
+
+test("ownedOnly on other objects follows the owner passed in", async () => {
+  const u = await user("u@x");
+  await grant(u, "/tenants/acme", "user");
+  expect(await acl.can(u, "backup.restore", "/clusters/c/projects/acme-c/instances/web", { owner: `user:${u.id}` })).toBe(true);
+  expect(await acl.can(u, "backup.restore", "/clusters/c/projects/acme-c/instances/web", { owner: "user:someone-else" })).toBe(false);
+  expect(await acl.can(u, "k8s.delete", "/tenants/acme/kubernetes/k1", { owner: `user:${u.id}` })).toBe(true);
+  expect(await acl.can(u, "k8s.delete", "/tenants/acme/kubernetes/k1")).toBe(false);
 });

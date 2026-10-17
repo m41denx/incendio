@@ -16,9 +16,10 @@ export interface Entry {
  * first level holding an entry for one of the subject's keys decides; its
  * roles are combined. At that level the subject's own entries (its first
  * key) beat its groups', and No access among them means nothing. Entries
- * on ancestors count only when they propagate.
+ * on ancestors count only when they propagate. `owned`: the object is the
+ * subject's, so roles' owner-only privileges count too.
  */
-export function resolve(subjects: string[], entriesByPath: Map<string, Entry[]>, chain: string[]): { privileges: Set<Privilege>; decidedBy: Entry[] } {
+export function resolve(subjects: string[], entriesByPath: Map<string, Entry[]>, chain: string[], owned = false): { privileges: Set<Privilege>; decidedBy: Entry[] } {
   const keys = new Set(subjects);
   for (const [i, path] of chain.entries()) {
     let here = (entriesByPath.get(path) ?? []).filter((e) => keys.has(e.subject) && (i === 0 || e.propagate));
@@ -27,7 +28,12 @@ export function resolve(subjects: string[], entriesByPath: Map<string, Entry[]>,
     if (own.length) here = own;
     const privileges = new Set<Privilege>();
     // No access there means nothing (spec "Resolution" 2).
-    if (!here.some((e) => e.role === "no-access")) for (const e of here) for (const p of ROLES[e.role].privileges) privileges.add(p);
+    if (!here.some((e) => e.role === "no-access"))
+      for (const e of here) {
+        for (const p of ROLES[e.role].privileges) privileges.add(p);
+        // Roles that act only on what the subject owns (User), when it does.
+        if (owned) for (const p of ROLES[e.role].ownedOnly ?? []) privileges.add(p);
+      }
     return { privileges, decidedBy: here };
   }
   return { privileges: new Set(), decidedBy: [] };

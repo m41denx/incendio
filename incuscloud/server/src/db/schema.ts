@@ -99,6 +99,8 @@ export const tenantMembers = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     role: text("role").notNull(),
+    /** Who joined first: the backfill gives unclaimed instances to the earliest owner. */
+    createdAt: created(),
   },
   (t) => [primaryKey({ columns: [t.tenantId, t.userId] }), check("tenant_role_valid", sql`${t.role} in ('owner', 'admin', 'member', 'viewer')`)],
 );
@@ -138,6 +140,32 @@ export const aclEntries = pgTable(
     check("acl_entry_one_subject", sql`num_nonnulls(${t.userId}, ${t.serviceAccountId}) = 1`),
     unique("acl_entry_unique").on(t.path, t.userId, t.serviceAccountId, t.role).nullsNotDistinct(),
     index("acl_entries_path").on(t.path),
+  ],
+);
+
+/**
+ * Who owns an instance (permissions: roles that act only on what the subject
+ * owns). Recorded by IncusCloud's jobs, from the clusters' lifecycle events,
+ * or by backfill to the tenant's first owner. Both subjects null: unowned
+ * (its owner was deleted).
+ */
+export const instanceOwners = pgTable(
+  "instance_owners",
+  {
+    clusterId: uuid("cluster_id")
+      .notNull()
+      .references(() => clusters.id, { onDelete: "cascade" }),
+    project: text("project").notNull(),
+    name: text("name").notNull(),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    serviceAccountId: uuid("service_account_id").references(() => serviceAccounts.id, { onDelete: "set null" }),
+    source: text("source").notNull(),
+    createdAt: created(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.clusterId, t.project, t.name] }),
+    check("instance_owner_one_subject", sql`num_nonnulls(${t.userId}, ${t.serviceAccountId}) <= 1`),
+    check("instance_owner_source", sql`${t.source} in ('incuscloud', 'event', 'backfill')`),
   ],
 );
 

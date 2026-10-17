@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
-import { aclEntries, clusters, placements, platformRoles, serviceAccounts, tenantMembers, tenants, users } from "../db/schema.ts";
+import { aclEntries, clusters, instanceOwners, k8sClusters, placements, platformRoles, serviceAccounts, tenantMembers, tenants, users } from "../db/schema.ts";
 import type { Principal } from "../auth/principal.ts";
 import { isRoleId, type Privilege, type RoleId } from "./catalog.ts";
 import { chain, parsePath } from "./paths.ts";
@@ -23,6 +23,8 @@ interface Snapshot {
   /** Tenant slug → its project paths (`/clusters/<c>/projects/<p>`). */
   projectsOf: Map<string, string[]>;
   ids: Lookup;
+  /** Owned objects' paths (instances, Kubernetes clusters) → owner subject. */
+  owners: Map<string, string>;
 }
 
 /** Ids to names, for callers that hold ids (the `Authz` adapter). */
@@ -32,6 +34,10 @@ export interface Lookup {
   serviceAccounts: Set<string>;
   /** `<tenantId>:<userId>` of tenant owners. */
   owners: Set<string>;
+}
+
+interface DecideOpts {
+  owner?: string;
 }
 
 const push = <K, V>(m: Map<K, V[]>, k: K, v: V) => m.set(k, [...(m.get(k) ?? []), v]);
@@ -74,7 +80,7 @@ export class Acl {
   private async load(): Promise<Snapshot> {
     const at = this.now();
     const db = this.db;
-    const [explicit, roles, members, accounts, people, places, allTenants, allClusters] = await Promise.all([
+    const [explicit, roles, members, accounts, people, places, allTenants, allClusters, owned, k8s] = await Promise.all([
       db.select().from(aclEntries),
       db.select().from(platformRoles),
       db.select({ tenantId: tenantMembers.tenantId, userId: tenantMembers.userId, role: tenantMembers.role, slug: tenants.slug }).from(tenantMembers).innerJoin(tenants, eq(tenants.id, tenantMembers.tenantId)),
@@ -83,6 +89,8 @@ export class Acl {
       db.select({ cluster: clusters.name, project: placements.project, slug: tenants.slug }).from(placements).innerJoin(clusters, eq(clusters.id, placements.clusterId)).innerJoin(tenants, eq(tenants.id, placements.tenantId)),
       db.select({ id: tenants.id, slug: tenants.slug }).from(tenants),
       db.select({ id: clusters.id, name: clusters.name }).from(clusters),
+      db.select({ cluster: clusters.name, project: instanceOwners.project, name: instanceOwners.name, userId: instanceOwners.userId, serviceAccountId: instanceOwners.serviceAccountId }).from(instanceOwners).innerJoin(clusters, eq(clusters.id, instanceOwners.clusterId)),
+      db.select({ slug: tenants.slug, name: k8sClusters.name, createdBy: k8sClusters.createdBy }).from(k8sClusters).innerJoin(tenants, eq(tenants.id, k8sClusters.tenantId)),
     ]);
     const entries: Entry[] = [];
     for (const e of explicit)
@@ -113,21 +121,29 @@ export class Acl {
       serviceAccounts: new Set(accounts.map((a) => a.id)),
       owners: new Set(members.filter((m) => m.role === "owner").map((m) => `${m.tenantId}:${m.userId}`)),
     };
-    return { at, entries, byPath, bySubject, disabled, tenantOf, projectsOf, ids };
+    const owners = new Map<string, string>();
+    for (const o of owned) {
+      const subject = o.userId ? `user:${o.userId}` : o.serviceAccountId ? `service:${o.serviceAccountId}` : null;
+      if (subject) owners.set(`/clusters/${o.cluster}/projects/${o.project}/instances/${o.name}`, subject);
+    }
+    for (const k of k8s) owners.set(`/tenants/${k.slug}/kubernetes/${k.name}`, k.createdBy);
+    return { at, entries, byPath, bySubject, disabled, tenantOf, projectsOf, ids, owners };
   }
 
-  private decide(s: Snapshot, subject: string, path: string) {
+  /** `opts.owner`: the object's owner, for objects without a path of their own (backups); owned paths are looked up. */
+  private decide(s: Snapshot, subject: string, path: string, opts: DecideOpts = {}) {
     const parsed = parsePath(path);
     if (!parsed || s.disabled.has(subject)) return { privileges: new Set<Privilege>(), decidedBy: [] as Entry[] };
-    return resolve([subject], s.byPath, chain(parsed, (c, p) => s.tenantOf.get(`${c}/${p}`)));
+    const owner = opts.owner ?? s.owners.get(path);
+    return resolve([subject], s.byPath, chain(parsed, (c, p) => s.tenantOf.get(`${c}/${p}`)), owner === subject);
   }
 
-  async privileges(p: Pick<Principal, "kind" | "id">, path: string): Promise<Set<Privilege>> {
-    return this.decide(await this.snapshot(), subjectOf(p), path).privileges;
+  async privileges(p: Pick<Principal, "kind" | "id">, path: string, opts?: DecideOpts): Promise<Set<Privilege>> {
+    return this.decide(await this.snapshot(), subjectOf(p), path, opts).privileges;
   }
 
-  async can(p: Pick<Principal, "kind" | "id">, privilege: Privilege, path: string): Promise<boolean> {
-    return (await this.privileges(p, path)).has(privilege);
+  async can(p: Pick<Principal, "kind" | "id">, privilege: Privilege, path: string, opts?: DecideOpts): Promise<boolean> {
+    return (await this.privileges(p, path, opts)).has(privilege);
   }
 
   /** What a subject holds at `path` or on any path above it: what a change at `path` must not reach past. */

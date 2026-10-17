@@ -44,7 +44,7 @@ test("create: a member gets a cluster on the cluster's address and the first por
   expect(r.body.cluster).toMatchObject({ name: "web", tenantSlug: "acme", clusterName: "lab", project: "acme", status: "creating", endpoint: "https://10.0.0.5:16443", nodes: 0, nodesReady: 0 });
   expect(r.body.job.type).toBe("k8s-create");
   const [row] = await rows();
-  expect(row).toMatchObject({ namespace: "ic-acme", endpointHost: "10.0.0.5", endpointPort: 16443, lbMember: "", createdBy: m.id });
+  expect(row).toMatchObject({ namespace: "ic-acme", endpointHost: "10.0.0.5", endpointPort: 16443, lbMember: "", createdBy: `user:${m.id}` });
   const [job] = await h.db.select().from(jobs);
   expect(job!.payload).toEqual({ k8sId: row!.id, name: "web", clusterId: lab, usage: { instances: 3, cpu: 5, memory: 5 * GiB, disk: 30 * GiB } });
   const [a] = await h.db.select().from(auditLog).where(eq(auditLog.action, "kubernetes.create"));
