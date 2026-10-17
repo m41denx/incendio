@@ -1,0 +1,99 @@
+# IncusCloud's chart. Required: publicHost, clusterDomain, admin.email, openfga.clusterUrl.
+# See incuscloud/docs/INSTALL.md, "Kubernetes (Helm)".
+
+# Where people reach IncusCloud (the UI, the API, sign-in): https://<publicHost>.
+publicHost: ""
+# Each cluster's API is at https://<cluster>.<clusterDomain>: wildcard DNS to IncusCloud's service.
+clusterDomain: ""
+
+image:
+  repository: ghcr.io/m41denx/incuscloud
+  tag: ""          # default: the chart's appVersion
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+admin:
+  # The first platform administrator, created while there is none.
+  email: ""
+  # Empty: generated, kept in the <release>-incuscloud secret (key admin-password).
+  password: ""
+
+# IncusCloud's certificate: it must cover publicHost and *.clusterDomain.
+tls:
+  # A kubernetes.io/tls secret (e.g. from cert-manager). Empty: a certificate signed by the chart's
+  # internal CA, which browsers, incus clients and every Incus cluster must then trust.
+  existingSecret: ""
+
+# Seals cluster client keys and refresh tokens. Empty: generated once and kept. Back it up.
+secretKey: ""
+
+service:
+  # IncusCloud terminates TLS itself (clients use their own TLS to the cluster APIs through it):
+  # expose it with a LoadBalancer or a TLS-passthrough ingress, never a TLS-terminating one.
+  type: LoadBalancer
+  port: 443
+  annotations: {}
+  loadBalancerIP: ""
+
+settings:
+  reconcileInterval: 60
+  inventoryInterval: 60
+  metricsRetention: 24
+  jobConcurrency: 2
+  logLevel: info
+  imageServer: https://images.linuxcontainers.org
+  # Any other IC_* variable (incuscloud/server/.env.example).
+  extraEnv: {}
+
+kubernetes:
+  # A secret holding the management cluster's kubeconfig (key: kubeconfig). Empty: Kubernetes is off.
+  kubeconfigSecret: ""
+  ports: 16443-16999
+
+resources:
+  requests: { cpu: 100m, memory: 256Mi }
+  limits: { memory: 1Gi }
+nodeSelector: {}
+tolerations: []
+affinity: {}
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+hydra:
+  image: oryd/hydra:v26.2.0
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits: { memory: 256Mi }
+
+openfga:
+  image: openfga/openfga:v1.22.0
+  # OpenFGA as the Incus clusters reach it (they connect to it themselves), e.g. http://10.0.0.20:8080.
+  clusterUrl: ""
+  service:
+    # How the clusters reach it. Restrict it to the cluster networks (loadBalancerSourceRanges).
+    type: LoadBalancer
+    port: 8080
+    annotations: {}
+    loadBalancerIP: ""
+    loadBalancerSourceRanges: []
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits: { memory: 512Mi }
+
+# A single Postgres for the three databases, for small installs. Disable it to use your own.
+postgres:
+  enabled: true
+  image: postgres:17-alpine
+  storage: 10Gi
+  storageClass: ""
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { memory: 1Gi }
+
+# With postgres.enabled=false: a secret with the keys incuscloud-url (postgres://…),
+# hydra-dsn (postgres://…?sslmode=…) and openfga-uri (postgres://…).
+externalDatabase:
+  existingSecret: ""

@@ -1,0 +1,10 @@
+apiVersion: v2
+name: incuscloud
+description: IncusCloud, a multi-cluster control plane for Incus, with Ory Hydra, OpenFGA and (optionally) Postgres.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/m41denx/incendio/tree/incuscloud/incuscloud
+sources:
+  - https://github.com/m41denx/incendio
+keywords: [incus, lxc, virtualization, cloud, multi-cluster]

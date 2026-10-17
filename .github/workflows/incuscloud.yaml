@@ -1,0 +1,116 @@
+name: Release IncusCloud
+
+# A tag `incuscloud-v<version>` (e.g. incuscloud-v0.1.0) publishes:
+#   ghcr.io/<owner>/incuscloud:<version> and :latest (linux/amd64, linux/arm64)
+#   the Helm chart at oci://ghcr.io/<owner>/charts/incuscloud
+#   a GitHub release with the chart and the Docker Compose bundle
+on:
+  push:
+    tags:
+      - "incuscloud-v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to build (no push to the registry)"
+        required: true
+        default: "0.0.0-dev"
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Version
+        id: v
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = tag ]; then v="${GITHUB_REF_NAME#incuscloud-v}"; push=true; else v="${{ inputs.version }}"; push=false; fi
+          owner=$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "push=$push" >> "$GITHUB_OUTPUT"
+          echo "image=ghcr.io/$owner/incuscloud" >> "$GITHUB_OUTPUT"
+          echo "charts=oci://ghcr.io/$owner/charts" >> "$GITHUB_OUTPUT"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        if: steps.v.outputs.push == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push the image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: incuscloud/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          build-args: GIT_HASH=${{ github.sha }}
+          push: ${{ steps.v.outputs.push == 'true' }}
+          tags: |
+            ${{ steps.v.outputs.image }}:${{ steps.v.outputs.version }}
+            ${{ steps.v.outputs.image }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.19.0
+
+      - name: Package the chart and the Compose bundle
+        run: |
+          v=${{ steps.v.outputs.version }}
+          mkdir -p dist
+          helm lint incuscloud/deploy/helm/incuscloud
+          helm package incuscloud/deploy/helm/incuscloud --version "$v" --app-version "$v" -d dist
+          b=dist/incuscloud-compose-$v
+          mkdir -p "$b"
+          cp -r incuscloud/deploy/compose/. "$b/"
+          cp -r incuscloud/deploy/management "$b/management"
+          cp incuscloud/docs/INSTALL.md "$b/"
+          sed -i "s#ghcr.io/m41denx/incuscloud:latest#${{ steps.v.outputs.image }}:$v#" "$b/setup.sh"
+          rm -f "$b/.gitignore" "$b/docker-compose.build.yml"
+          tar -C dist -czf "dist/incuscloud-compose-$v.tar.gz" "incuscloud-compose-$v"
+          (cd dist && sha256sum *.tgz *.tar.gz > SHA256SUMS)
+
+      - name: Push the chart
+        if: steps.v.outputs.push == 'true'
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
+          helm push dist/incuscloud-${{ steps.v.outputs.version }}.tgz ${{ steps.v.outputs.charts }}
+
+      - name: Upload the bundle
+        if: steps.v.outputs.push != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: incuscloud-${{ steps.v.outputs.version }}
+          path: dist/
+
+      - name: Release
+        if: steps.v.outputs.push == 'true'
+        uses: softprops/action-gh-release@v3
+        with:
+          name: IncusCloud ${{ steps.v.outputs.version }}
+          prerelease: ${{ contains(steps.v.outputs.version, '-') }}
+          body: |
+            Image: `${{ steps.v.outputs.image }}:${{ steps.v.outputs.version }}`
+            Chart: `helm install incuscloud ${{ steps.v.outputs.charts }}/incuscloud --version ${{ steps.v.outputs.version }}`
+            Docker Compose: `incuscloud-compose-${{ steps.v.outputs.version }}.tar.gz`
+
+            Installation: [INSTALL.md](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/incuscloud/docs/INSTALL.md)
+          files: |
+            dist/*.tgz
+            dist/*.tar.gz
+            dist/SHA256SUMS

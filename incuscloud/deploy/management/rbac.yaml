@@ -1,0 +1,56 @@
+# IncusCloud's access to the Kubernetes management cluster (Cluster API + CAPN installed).
+# It creates a namespace per tenant (ic-<slug>) and incuscloud-system, and in them Cluster API
+# objects, secrets (CAPN's credentials, kubeconfigs) and config maps (ClusterResourceSets).
+#   kubectl apply -f rbac.yaml && ./kubeconfig.sh > mgmt.kubeconfig
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: incuscloud-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: incuscloud
+  namespace: incuscloud-system
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: incuscloud-token
+  namespace: incuscloud-system
+  annotations:
+    kubernetes.io/service-account.name: incuscloud
+type: kubernetes.io/service-account-token
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: incuscloud
+rules:
+  - apiGroups: [""]
+    resources: [namespaces, secrets, configmaps]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [""]
+    resources: [events]
+    verbs: [get, list, watch]
+  - apiGroups:
+      - cluster.x-k8s.io
+      - infrastructure.cluster.x-k8s.io
+      - bootstrap.cluster.x-k8s.io
+      - controlplane.cluster.x-k8s.io
+      - addons.cluster.x-k8s.io
+    resources: ["*"]
+    verbs: [get, list, watch, create, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: incuscloud
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: incuscloud
+subjects:
+  - kind: ServiceAccount
+    name: incuscloud
+    namespace: incuscloud-system

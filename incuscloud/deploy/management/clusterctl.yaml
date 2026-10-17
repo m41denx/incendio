@@ -1,0 +1,5 @@
+# ~/.cluster-api/clusterctl.yaml: CAPN is not in clusterctl's built-in provider list.
+providers:
+  - name: incus
+    type: InfrastructureProvider
+    url: https://github.com/lxc/cluster-api-provider-incus/releases/latest/infrastructure-components.yaml

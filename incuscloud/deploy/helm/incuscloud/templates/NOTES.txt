@@ -1,0 +1,21 @@
+IncusCloud is starting at https://{{ .Values.publicHost }}
+
+1. Point DNS at the {{ include "incuscloud.fullname" . }} service's address:
+     {{ .Values.publicHost }}        → the service
+     *.{{ .Values.clusterDomain }}   → the service
+   kubectl -n {{ .Release.Namespace }} get svc {{ include "incuscloud.fullname" . }}
+
+2. Sign in as {{ .Values.admin.email }}. The password:
+   kubectl -n {{ .Release.Namespace }} get secret {{ include "incuscloud.fullname" . }} -o jsonpath='{.data.admin-password}' | base64 -d; echo
+
+3. The Incus clusters must reach OpenFGA at {{ .Values.openfga.clusterUrl }}
+   kubectl -n {{ .Release.Namespace }} get svc {{ include "incuscloud.openfgaHost" . }}
+{{- if not .Values.tls.existingSecret }}
+
+4. IncusCloud's certificate is signed by the chart's internal CA. Browsers, incus clients and
+   every Incus cluster member must trust it:
+   kubectl -n {{ .Release.Namespace }} get secret {{ include "incuscloud.fullname" . }}-internal-tls -o jsonpath='{.data.ca\.crt}' | base64 -d > incuscloud-ca.crt
+{{- end }}
+
+Back up the {{ include "incuscloud.fullname" . }} secret (secret-key): without it, enrolled clusters are lost.
+Then enrol clusters: incuscloud/docs/INSTALL.md, "Enrolling clusters".

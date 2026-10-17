@@ -7,6 +7,8 @@ with tenants, service accounts and an audit log. Design:
 
 Licensed under GPL-3.0 (see `LICENSE`).
 
+**Installing:** [`docs/INSTALL.md`](docs/INSTALL.md) (Docker Compose or Helm).
+
 ## Status
 
 | Phase | What | State |
@@ -24,6 +26,9 @@ Licensed under GPL-3.0 (see `LICENSE`).
 | P10 | Kubernetes: clusters on any Incus cluster through one Cluster API install, no appliance per cluster | done |
 | ACL 1 | Permissions: privileges, roles and paths with Proxmox-style resolution; entries on the platform, clusters and tenants, granted in Incus too | done |
 | ACL 2 | Permissions: ownership, the User role, project, instance and Kubernetes paths; every API call by privilege | done |
+| ACL 3 | Permissions: groups, tenants' default groups, cluster-group paths, `restricted.cluster.groups` | done |
+| ACL 4 | Quotas: per instance, snapshots, backups, Kubernetes clusters, users' shares inside a tenant | done |
+| P13 | Packaging: image, Docker Compose, Helm chart, release workflow, installation guide | done |
 
 ## How it fits together
 

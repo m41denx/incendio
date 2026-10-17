@@ -16,6 +16,8 @@ if (fs.existsSync(".env.local")) {
 const scssSettings = fs.readFileSync("src/sass/_settings.scss", "utf-8").trim();
 
 const getGitHash = () => {
+  // Container builds have no .git: they pass the hash in.
+  if (process.env.UI_GIT_HASH) return JSON.stringify(process.env.UI_GIT_HASH);
   // set permissions for workshop, ignore this in other environments
   execSync(
     "[ -d /home/ubuntu/lxd-ui ] && git config --global --add safe.directory /home/ubuntu/lxd-ui || true",

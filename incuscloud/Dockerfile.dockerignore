@@ -1,0 +1,12 @@
+**/node_modules
+.git
+.superpowers
+incuscloud/.dev
+incuscloud/spikes
+build
+packages/ui/build
+packages/api/dist
+packages/k8s/dist
+incuscloud/web/build
+firecloud
+QUESTIONS.md

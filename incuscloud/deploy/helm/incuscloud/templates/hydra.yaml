@@ -1,0 +1,100 @@
+{{- $name := include "incuscloud.hydraHost" . -}}
+{{- $secret := include "incuscloud.fullname" . -}}
+{{- $pub := printf "https://%s" .Values.publicHost -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}
+  labels: {{- include "incuscloud.labels" . | nindent 4 }}
+data:
+  hydra.yml: |
+    serve:
+      public: { port: 4444, host: 0.0.0.0 }
+      admin: { port: 4445, host: 0.0.0.0 }
+      tls:
+        enabled: true
+        cert: { path: /certs/hydra.crt }
+        key: { path: /certs/hydra.key }
+    urls:
+      # One origin: the issuer is IncusCloud's public URL, which serves Hydra's public endpoints.
+      self: { issuer: {{ $pub }}/ }
+      login: {{ $pub }}/auth/login
+      consent: {{ $pub }}/auth/consent
+      error: {{ $pub }}/auth/error
+      logout: {{ $pub }}/auth/logout
+      post_logout_redirect: {{ $pub }}/
+      device:
+        verification: {{ $pub }}/auth/device
+        success: {{ $pub }}/auth/device/done
+    strategies:
+      access_token: jwt
+    oauth2:
+      allowed_top_level_claims: [email, name]
+      mirror_top_level_claims: false
+      client_credentials:
+        default_grant_allowed_scope: true
+    log: { level: warn, format: json }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels: {{- include "incuscloud.labels" . | nindent 4 }}
+spec:
+  selector: {{- include "incuscloud.selector" (dict "ctx" . "component" "hydra") | nindent 4 }}
+  ports:
+    - { name: public, port: 4444, targetPort: 4444 }
+    - { name: admin, port: 4445, targetPort: 4445 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels: {{- include "incuscloud.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {{- include "incuscloud.selector" (dict "ctx" . "component" "hydra") | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "incuscloud.selector" (dict "ctx" . "component" "hydra") | nindent 8 }}
+      annotations:
+        checksum/config: {{ .Values.publicHost | sha256sum }}
+    spec:
+      securityContext: {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      initContainers:
+        - name: migrate
+          image: {{ .Values.hydra.image }}
+          args: ["migrate", "sql", "up", "-e", "--yes"]
+          env:
+            - name: DSN
+              valueFrom: { secretKeyRef: { name: {{ include "incuscloud.dbSecret" . }}, key: hydra-dsn } }
+      containers:
+        - name: hydra
+          image: {{ .Values.hydra.image }}
+          args: ["serve", "all", "-c", "/etc/hydra/hydra.yml"]
+          env:
+            - name: DSN
+              valueFrom: { secretKeyRef: { name: {{ include "incuscloud.dbSecret" . }}, key: hydra-dsn } }
+            - name: SECRETS_SYSTEM
+              valueFrom: { secretKeyRef: { name: {{ $secret }}, key: hydra-secret } }
+          ports:
+            - { name: public, containerPort: 4444 }
+            - { name: admin, containerPort: 4445 }
+          readinessProbe:
+            httpGet: { path: /health/ready, port: admin, scheme: HTTPS }
+            periodSeconds: 5
+          volumeMounts:
+            - { name: config, mountPath: /etc/hydra, readOnly: true }
+            - { name: tls, mountPath: /certs, readOnly: true }
+          resources: {{- toYaml .Values.hydra.resources | nindent 12 }}
+      volumes:
+        - name: config
+          configMap: { name: {{ $name }} }
+        - name: tls
+          secret:
+            secretName: {{ include "incuscloud.fullname" . }}-internal-tls
+            defaultMode: 0440
+            items:
+              - { key: hydra.crt, path: hydra.crt }
+              - { key: hydra.key, path: hydra.key }

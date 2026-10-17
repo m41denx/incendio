@@ -1,0 +1,27 @@
+{{- $name := printf "%s-internal-tls" (include "incuscloud.fullname" .) -}}
+{{- $old := (lookup "v1" "Secret" .Release.Namespace $name).data | default dict -}}
+{{- $hydra := include "incuscloud.hydraHost" . -}}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $name }}
+  labels: {{- include "incuscloud.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep
+type: Opaque
+data:
+{{- if hasKey $old "ca.crt" }}
+  {{- range $k, $v := $old }}
+  {{ $k }}: {{ $v }}
+  {{- end }}
+{{- else }}
+  {{- $ca := genCA "IncusCloud internal CA" 3650 }}
+  {{- $h := genSignedCert $hydra nil (list $hydra (printf "%s.%s.svc" $hydra .Release.Namespace) (printf "%s.%s.svc.cluster.local" $hydra .Release.Namespace)) 3650 $ca }}
+  {{- $p := genSignedCert .Values.publicHost nil (list .Values.publicHost (printf "*.%s" .Values.clusterDomain)) 825 $ca }}
+  ca.crt: {{ $ca.Cert | b64enc }}
+  ca.key: {{ $ca.Key | b64enc }}
+  hydra.crt: {{ $h.Cert | b64enc }}
+  hydra.key: {{ $h.Key | b64enc }}
+  tls.crt: {{ $p.Cert | b64enc }}
+  tls.key: {{ $p.Key | b64enc }}
+{{- end }}

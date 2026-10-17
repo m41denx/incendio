@@ -37,7 +37,7 @@ import { scheduleBackups } from "./backups/backup-job.ts";
 import { scheduleBalancing } from "./balancing/jobs.ts";
 import { openClusterStore } from "./reconcile/cluster-store.ts";
 
-/** Retries start-up steps whose dependency may still be starting (Hydra, OpenFGA). */
+/** Retries start-up steps whose dependency may still be starting (Postgres, Hydra, OpenFGA). */
 async function retry<T>(what: string, fn: () => Promise<T>, attempts = 30): Promise<T> {
   for (let i = 1; ; i++) {
     try {
@@ -54,7 +54,7 @@ const config = loadConfig(process.env);
 setLogLevel(config.logLevel);
 
 const hydraCa = config.hydra.caFile ? readFileSync(config.hydra.caFile, "utf8") : undefined;
-const db = await openDb(config.databaseUrl);
+const db = await retry("Postgres", () => openDb(config.databaseUrl));
 const hydra = new HydraAdmin(config.hydra.adminUrl, { ca: hydraCa });
 await retry("Hydra", () => ensureClients(hydra, { publicUrl: config.publicUrl, secretKey: config.secretKey }));
 const issuer = await retry("Hydra discovery", () => discoverIssuer(config.hydra.publicUrl, hydraCa));
