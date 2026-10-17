@@ -1,5 +1,5 @@
 import { beforeEach, expect, test } from "bun:test";
-import { aclEntries, clusters, instances, jobs, placements } from "../db/schema.ts";
+import { aclEntries, backups, backupTargets, clusters, instances, jobs, placements } from "../db/schema.ts";
 import { recordOwner } from "../acl/owners.ts";
 import type { SourceInstance, TargetFacts } from "../mobility/preflight.ts";
 import { harness, type Actor } from "../test/harness.ts";
@@ -83,4 +83,35 @@ test("self-service create: a User is placed automatically; naming a cluster need
   expect((await h.call(m, "POST", `/api/v1/tenants/${acme.id}/instances`, { ...body, name: "new3", clusterId: edge })).status).toBe(202);
   const stranger = await h.user("s@x.test");
   expect((await h.call(stranger, "POST", `/api/v1/tenants/${acme.id}/instances`, { ...body, name: "new4" })).status).toBe(404);
+});
+
+// Task 5: backups, Kubernetes and jobs.
+const backupOf = async (name: string, createdBy: string) =>
+  (await h.db.insert(backups).values({ tenantId: acme.id, targetId: tgt, objectKey: `k/${name}/${createdBy}`, clusterId: lab, project: "acme", instanceName: name, instanceType: "container", state: "ready", createdBy }).returning())[0]!.id;
+let tgt: string;
+
+test("a User sees and restores only their own instances' backups", async () => {
+  tgt = (await h.db.insert(backupTargets).values({ name: "t", endpoint: "http://s3", bucket: "b", accessKeyId: "a", secretKeyEnc: "x" }).returning())[0]!.id;
+  const mine = await backupOf("mine", "system:backups");
+  const theirs = await backupOf("theirs", "system:backups");
+  const list = (await h.call(u, "GET", "/api/v1/backups")).body.map((b: { id: string }) => b.id);
+  expect(list).toEqual([mine]);
+  expect((await h.call(u, "GET", `/api/v1/backups/${theirs}`)).status).toBe(404);
+  expect((await h.call(u, "POST", `/api/v1/backups/${theirs}/restore`, { targetClusterId: lab })).status).toBe(404);
+  expect((await h.call(u, "POST", `/api/v1/backups/${mine}/restore`, { targetClusterId: lab, targetName: "mine2" })).status).toBe(202);
+  expect((await h.call(u, "POST", `/api/v1/instances/${ids.mine}/backups`, { targetId: tgt })).status).toBe(202);
+  expect((await h.call(u, "POST", `/api/v1/instances/${ids.theirs}/backups`, { targetId: tgt })).status).toBe(404);
+});
+
+test("a User's job list holds their jobs and their instances' only", async () => {
+  const other = await h.user("o@x.test", { tenants: { [acme.id]: "member" } });
+  const mk = (actor: Actor | null, key: string | null) =>
+    h.db.insert(jobs).values({ type: "t", payload: {}, tenantId: acme.id, actorType: actor ? "user" : "system", actorId: actor?.id ?? "x", instanceKey: key, clusterIds: [lab] });
+  await mk(u, null);
+  await mk(null, `${lab}/acme/mine`);
+  await mk(other, `${lab}/acme/theirs`);
+  await mk(other, null);
+  expect((await h.call(u, "GET", "/api/v1/jobs")).body).toHaveLength(2);
+  // A tenant member keeps today's view: every job of the tenant.
+  expect((await h.call(other, "GET", "/api/v1/jobs")).body).toHaveLength(4);
 });

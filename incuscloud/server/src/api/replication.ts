@@ -3,13 +3,13 @@ import type { Acl } from "../acl/acl.ts";
 import { and, desc, eq, inArray, type SQL } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
 import { replicationPolicies } from "../db/schema.ts";
-import type { Authz } from "../authz/platform.ts";
-import { can, forbidden, notFound, platformCan } from "../authz/guards.ts";
+import { forbidden, notFound } from "../authz/guards.ts";
+import type { Privilege } from "../acl/catalog.ts";
 import { authed, principalContext, type Principal } from "../auth/principal.ts";
 import { ApiError } from "../lib/errors.ts";
 import { enqueueJob } from "../jobs/queue.ts";
 import { policyInstanceKey } from "../mobility/replication.ts";
-import { audited, created, noContent, uuidParam, visibleTenants } from "./common.ts";
+import { audited, created, filterAsync, noContent, uuidParam } from "./common.ts";
 import { resolveTarget, visibleInventoryInstance } from "./mobility.ts";
 
 const NAME = "^[a-zA-Z][a-zA-Z0-9-]{0,62}$";
@@ -20,26 +20,22 @@ const uniqueViolation = (e: unknown) => {
   return x.code === "23505" || x.cause?.code === "23505";
 };
 
-/** Replication policies (P6): readable like their tenant; managed by its owners and admins, and platform operators. */
-export function replicationRoutes({ db, authz, acl }: { db: Db; authz: Authz; acl: Acl }) {
-  const visibility = async (p: Principal): Promise<SQL | undefined | null> => {
-    const v = await visibleTenants(db, authz, p);
-    if (v === "all") return undefined;
-    return v.length ? inArray(replicationPolicies.tenantId, v) : null;
-  };
+/** Replication policies (P6): replication.view and replication.manage on the instance replicated. */
+export function replicationRoutes({ db, acl }: { db: Db; acl: Acl }) {
+  type Row = typeof replicationPolicies.$inferSelect;
+  const may = (p: Principal, privilege: Privilege, r: Row) =>
+    acl.canOnInstance(p, privilege, { clusterId: r.sourceClusterId, tenantId: r.tenantId, project: r.sourceProject, name: r.instanceName, createdBy: r.createdBy });
   const load = async (p: Principal, id: string) => {
-    const vis = await visibility(p);
-    if (vis === null) throw notFound("Policy not found");
     const [row] = await db
       .select()
       .from(replicationPolicies)
-      .where(and(eq(replicationPolicies.id, uuidParam(id, "Policy not found")), vis));
-    if (!row) throw notFound("Policy not found");
+      .where(eq(replicationPolicies.id, uuidParam(id, "Policy not found")));
+    if (!row || !(await may(p, "replication.view", row))) throw notFound("Policy not found");
     return row;
   };
   const manage = async (p: Principal, id: string) => {
     const row = await load(p, id);
-    if (!(await platformCan(authz, p, "operator")) && !(row.tenantId && (await can(authz, p, "admin", `tenant:${row.tenantId}`)))) throw forbidden();
+    if (!(await may(p, "replication.manage", row))) throw forbidden();
     return row;
   };
   const target = (id: string) => ({ type: "replication_policy", id });
@@ -47,9 +43,8 @@ export function replicationRoutes({ db, authz, acl }: { db: Db; authz: Authz; ac
   return new Elysia({ name: "replication" })
     .use(principalContext)
     .get("/api/v1/replication-policies", async ({ principal }) => {
-      const vis = await visibility(authed(principal));
-      if (vis === null) return [];
-      return db.select().from(replicationPolicies).where(vis).orderBy(desc(replicationPolicies.createdAt));
+      const p = authed(principal);
+      return filterAsync(await db.select().from(replicationPolicies).orderBy(desc(replicationPolicies.createdAt)), (r) => may(p, "replication.view", r));
     })
     .post(
       "/api/v1/replication-policies",
@@ -57,7 +52,7 @@ export function replicationRoutes({ db, authz, acl }: { db: Db; authz: Authz; ac
         const p = authed(principal);
         const row = await audited(db, { principal: p, request }, "replication.create", (r) => r && target(r.id), async () => {
           const inst = await visibleInventoryInstance(db, acl, p, body.instanceId);
-          const to = await resolveTarget(db, acl, p, inst, { targetClusterId: body.targetClusterId, mode: "copy", targetProject: body.targetProject });
+          const to = await resolveTarget(db, acl, p, inst, { targetClusterId: body.targetClusterId, mode: "copy", targetProject: body.targetProject }, "replication.manage");
           try {
             const [r] = await db
               .insert(replicationPolicies)

@@ -3,8 +3,8 @@ import type { Acl } from "../acl/acl.ts";
 import { and, desc, eq, inArray, type SQL } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
 import { backupPolicies, backups, backupTargets, clusters, placements } from "../db/schema.ts";
-import type { Authz } from "../authz/platform.ts";
-import { can, forbidden, notFound, platformCan } from "../authz/guards.ts";
+import { forbidden, notFound } from "../authz/guards.ts";
+import type { Privilege } from "../acl/catalog.ts";
 import { authed, principalContext, type Principal } from "../auth/principal.ts";
 import { ApiError } from "../lib/errors.ts";
 import { seal } from "../lib/secrets.ts";
@@ -12,7 +12,7 @@ import { enqueueJob } from "../jobs/queue.ts";
 import type { BackupPayload } from "../backups/backup-job.ts";
 import type { RestorePayload } from "../backups/restore-job.ts";
 import { s3StoreFor, type StoreFor } from "../backups/store.ts";
-import { audited, created, noContent, uuidParam, visibleTenants } from "./common.ts";
+import { audited, created, filterAsync, noContent, uuidParam } from "./common.ts";
 import { visibleInventoryInstance } from "./mobility.ts";
 
 const NAME = "^[a-zA-Z][a-zA-Z0-9-]{0,62}$";
@@ -35,19 +35,14 @@ const TargetFields = {
 };
 
 /** Backups (P7): targets for platform admins; backups, restores and policies like the tenant's instances. */
-export function backupsRoutes({ db, authz, acl, secretKey, storeFor }: { db: Db; authz: Authz; acl: Acl; secretKey: Buffer; storeFor?: StoreFor }) {
+export function backupsRoutes({ db, acl, secretKey, storeFor }: { db: Db; acl: Acl; secretKey: Buffer; storeFor?: StoreFor }) {
   const stores = storeFor ?? s3StoreFor(secretKey);
 
-  /** Rows of `table` whose tenant the caller sees: a condition, none (all), or null (nothing). */
-  const visibility = async (p: Principal, col: typeof backups.tenantId | typeof backupPolicies.tenantId): Promise<SQL | undefined | null> => {
-    const v = await visibleTenants(db, authz, p);
-    if (v === "all") return undefined;
-    return v.length ? inArray(col, v) : null;
-  };
-  /** Platform operators, or the tenant's owners and admins. */
-  const manages = async (p: Principal, tenantId: string | null) => (await platformCan(authz, p, "operator")) || (!!tenantId && (await can(authz, p, "admin", `tenant:${tenantId}`)));
+  /** A backup's or policy's privilege, on the instance it is of (a backup the caller made counts as theirs). */
+  const may = (p: Principal, privilege: Privilege, r: { clusterId: string | null; tenantId: string | null; project: string; instanceName: string; createdBy?: string }) =>
+    acl.canOnInstance(p, privilege, { clusterId: r.clusterId, tenantId: r.tenantId, project: r.project, name: r.instanceName, createdBy: r.createdBy });
   const requireAdmin = async (p: Principal) => {
-    if (!(await platformCan(authz, p, "admin"))) throw forbidden();
+    if (!(await acl.can(p, "platform.settings", "/"))) throw forbidden();
   };
   const loadTarget = async (id: string) => {
     const [row] = await db.select().from(backupTargets).where(eq(backupTargets.id, uuidParam(id, "Target not found")));
@@ -60,28 +55,24 @@ export function backupsRoutes({ db, authz, acl, secretKey, storeFor }: { db: Db;
     return row;
   };
   const loadBackup = async (p: Principal, id: string) => {
-    const vis = await visibility(p, backups.tenantId);
-    if (vis === null) throw notFound("Backup not found");
     const [row] = await db
       .select()
       .from(backups)
-      .where(and(eq(backups.id, uuidParam(id, "Backup not found")), vis));
-    if (!row) throw notFound("Backup not found");
+      .where(eq(backups.id, uuidParam(id, "Backup not found")));
+    if (!row || !(await may(p, "backup.view", row))) throw notFound("Backup not found");
     return row;
   };
   const loadPolicy = async (p: Principal, id: string) => {
-    const vis = await visibility(p, backupPolicies.tenantId);
-    if (vis === null) throw notFound("Policy not found");
     const [row] = await db
       .select()
       .from(backupPolicies)
-      .where(and(eq(backupPolicies.id, uuidParam(id, "Policy not found")), vis));
-    if (!row) throw notFound("Policy not found");
+      .where(eq(backupPolicies.id, uuidParam(id, "Policy not found")));
+    if (!row || !(await may(p, "backup.view", row))) throw notFound("Policy not found");
     return row;
   };
   const managedPolicy = async (p: Principal, id: string) => {
     const row = await loadPolicy(p, id);
-    if (!(await manages(p, row.tenantId))) throw forbidden();
+    if (!(await may(p, "backup.schedule", row))) throw forbidden();
     return row;
   };
 
@@ -96,10 +87,11 @@ export function backupsRoutes({ db, authz, acl, secretKey, storeFor }: { db: Db;
     });
 
   /**
-   * Where a caller may restore a backup: platform operators anywhere (the
-   * project they name, else the tenant's placement there, else the backup's
-   * project); tenant owners and admins into their tenant's ready placement,
-   * the same cluster included, without choosing a pool.
+   * Where a caller may restore a backup: whoever may create instances
+   * anywhere on the target cluster chooses (the project they name, else the
+   * tenant's placement there, else the backup's project, and the pool);
+   * others into their tenant's ready placement, the same cluster included,
+   * holding instance.create on it.
    */
   const restoreTarget = async (p: Principal, b: typeof backups.$inferSelect, body: { targetClusterId: string; targetProject?: string; pool?: string }) => {
     const [dst] = await db
@@ -109,11 +101,11 @@ export function backupsRoutes({ db, authz, acl, secretKey, storeFor }: { db: Db;
     if (!dst) throw notFound("Target cluster not found");
     if (dst.status === "disabled") throw new ApiError(400, "invalid_request", "The target cluster is disabled");
     const [placement] = b.tenantId ? await db.select().from(placements).where(and(eq(placements.tenantId, b.tenantId), eq(placements.clusterId, dst.id))) : [];
-    if (await platformCan(authz, p, "operator")) return { dst, project: body.targetProject ?? placement?.project ?? b.project, pool: body.pool };
-    if (!b.tenantId || !(await can(authz, p, "admin", `tenant:${b.tenantId}`))) throw forbidden();
+    if (await acl.can(p, "instance.create", `/clusters/${dst.name}`)) return { dst, project: body.targetProject ?? placement?.project ?? b.project, pool: body.pool };
     if (body.pool) throw new ApiError(403, "forbidden", "Only platform operators choose the storage pool");
     if (placement?.status !== "ready") throw new ApiError(403, "forbidden", "The tenant is not placed on that cluster");
     if (body.targetProject && body.targetProject !== placement.project) throw forbidden();
+    if (!(await acl.can(p, "instance.create", `/clusters/${dst.name}/projects/${placement.project}`))) throw forbidden();
     return { dst, project: placement.project, pool: undefined };
   };
 
@@ -125,7 +117,7 @@ export function backupsRoutes({ db, authz, acl, secretKey, storeFor }: { db: Db;
       .get("/api/v1/backup-targets", async ({ principal }) => {
         const p = authed(principal);
         const rows = await db.select().from(backupTargets).orderBy(backupTargets.name);
-        if (await platformCan(authz, p, "viewer")) return rows.map(publicTarget);
+        if (await acl.can(p, "platform.view", "/")) return rows.map(publicTarget);
         return rows.filter((r) => r.enabled).map((r) => ({ id: r.id, name: r.name }));
       })
       .post(
@@ -212,8 +204,8 @@ export function backupsRoutes({ db, authz, acl, secretKey, storeFor }: { db: Db;
           const p = authed(principal);
           const job = await audited(db, { principal: p, request }, "backup.create", { type: "instance", id: params.id }, async () => {
             const inst = await visibleInventoryInstance(db, acl, p, params.id);
-            if (!(await manages(p, inst.tenantId))) throw forbidden();
-            if (body.transport && body.transport !== "auto" && !(await platformCan(authz, p, "operator"))) throw new ApiError(403, "forbidden", "Only platform operators choose the transport");
+            if (!(await acl.can(p, "backup.create", inst.path))) throw forbidden();
+            if (body.transport && body.transport !== "auto" && !(await acl.can(p, "cluster.configure", `/clusters/${inst.clusterName}`))) throw new ApiError(403, "forbidden", "Only platform operators choose the transport");
             const target = await usableTarget(body.targetId);
             return queueBackup(p, inst.tenantId, { clusterId: inst.clusterId, project: inst.project, instanceName: inst.name, targetId: target.id, instanceOnly: body.instanceOnly ?? false, transport: body.transport ?? "auto" });
           });
@@ -233,9 +225,7 @@ export function backupsRoutes({ db, authz, acl, secretKey, storeFor }: { db: Db;
         "/api/v1/backups",
         async ({ principal, query }) => {
           const p = authed(principal);
-          const vis = await visibility(p, backups.tenantId);
-          if (vis === null) return [];
-          const where: (SQL | undefined)[] = [vis];
+          const where: (SQL | undefined)[] = [];
           if (query.instance) {
             const inst = await visibleInventoryInstance(db, acl, p, query.instance);
             where.push(eq(backups.clusterId, inst.clusterId), eq(backups.project, inst.project), eq(backups.instanceName, inst.name));
@@ -248,9 +238,9 @@ export function backupsRoutes({ db, authz, acl, secretKey, storeFor }: { db: Db;
             .innerJoin(backupTargets, eq(backupTargets.id, backups.targetId))
             .leftJoin(clusters, eq(clusters.id, backups.clusterId))
             .where(and(...where))
-            .orderBy(desc(backups.createdAt))
-            .limit(500);
-          return rows.map((r) => ({ ...r.b, targetName: r.targetName, clusterName: r.clusterName }));
+            .orderBy(desc(backups.createdAt));
+          const seen = await filterAsync(rows, (r) => may(p, "backup.view", r.b));
+          return seen.slice(0, 500).map((r) => ({ ...r.b, targetName: r.targetName, clusterName: r.clusterName }));
         },
         { query: t.Object({ instance: t.Optional(t.String()), tenant: t.Optional(t.String()), policy: t.Optional(t.String()) }) },
       )
@@ -259,7 +249,7 @@ export function backupsRoutes({ db, authz, acl, secretKey, storeFor }: { db: Db;
         const p = authed(principal);
         await audited(db, { principal: p, request }, "backup.delete", { type: "backup", id: params.id }, async () => {
           const b = await loadBackup(p, params.id);
-          if (!(await manages(p, b.tenantId))) throw forbidden();
+          if (!(await may(p, "backup.delete", b))) throw forbidden();
           if (b.state === "creating") throw new ApiError(409, "conflict", "This backup is still being made");
           // Object first: a row without its object is harmless, an object without its row is lost space.
           await stores(await loadTarget(b.targetId)).delete(b.objectKey);
@@ -273,7 +263,7 @@ export function backupsRoutes({ db, authz, acl, secretKey, storeFor }: { db: Db;
           const p = authed(principal);
           const job = await audited(db, { principal: p, request }, "backup.restore", { type: "backup", id: params.id }, async () => {
             const b = await loadBackup(p, params.id);
-            if (!(await manages(p, b.tenantId))) throw forbidden();
+            if (!(await may(p, "backup.restore", b))) throw forbidden();
             if (b.state !== "ready") throw new ApiError(409, "conflict", `Only a ready backup can be restored (this one is ${b.state})`);
             const to = await restoreTarget(p, b, body);
             const payload: RestorePayload = { backupId: b.id, targetClusterId: to.dst.id, targetProject: to.project, targetName: body.targetName ?? b.instanceName, start: body.start ?? false, ...(to.pool && { pool: to.pool }) };
@@ -296,9 +286,8 @@ export function backupsRoutes({ db, authz, acl, secretKey, storeFor }: { db: Db;
 
       // Policies
       .get("/api/v1/backup-policies", async ({ principal }) => {
-        const vis = await visibility(authed(principal), backupPolicies.tenantId);
-        if (vis === null) return [];
-        return db.select().from(backupPolicies).where(vis).orderBy(desc(backupPolicies.createdAt));
+        const p = authed(principal);
+        return filterAsync(await db.select().from(backupPolicies).orderBy(desc(backupPolicies.createdAt)), (r) => may(p, "backup.view", r));
       })
       .post(
         "/api/v1/backup-policies",
@@ -306,7 +295,7 @@ export function backupsRoutes({ db, authz, acl, secretKey, storeFor }: { db: Db;
           const p = authed(principal);
           const row = await audited(db, { principal: p, request }, "backup_policy.create", (r) => r && { type: "backup_policy", id: r.id }, async () => {
             const inst = await visibleInventoryInstance(db, acl, p, body.instanceId);
-            if (!(await manages(p, inst.tenantId))) throw forbidden();
+            if (!(await acl.can(p, "backup.schedule", inst.path))) throw forbidden();
             const target = await usableTarget(body.targetId);
             try {
               const [r] = await db

@@ -61,3 +61,9 @@ export async function visibleTenants(db: Db, authz: Authz, p: Principal): Promis
   if (p.kind === "service") return p.tenantId ? [p.tenantId] : [];
   return (await db.select({ id: tenantMembers.tenantId }).from(tenantMembers).where(eq(tenantMembers.userId, p.id))).map((r) => r.id);
 }
+
+/** The rows `keep` says yes to, in order (permission checks read one snapshot, so this stays cheap). */
+export async function filterAsync<T>(rows: T[], keep: (r: T) => Promise<boolean>): Promise<T[]> {
+  const ok = await Promise.all(rows.map(keep));
+  return rows.filter((_, i) => ok[i]);
+}

@@ -157,6 +157,23 @@ export class Acl {
     return (await this.privileges(p, path, opts)).has(privilege);
   }
 
+  /** The permission path of an instance on a cluster known by id; null for a cluster IncusCloud does not know. */
+  async instancePath(clusterId: string, project: string, name: string): Promise<string | null> {
+    const cluster = (await this.snapshot()).ids.clusterNames.get(clusterId);
+    return cluster ? `/clusters/${cluster}/projects/${project}/instances/${name}` : null;
+  }
+
+  /**
+   * Whether `p` holds `privilege` on an instance (by cluster id); a row `p` made (`createdBy`, a backup's) counts as
+   * theirs too. A row whose cluster is gone (a backup outliving it) is decided on its tenant, else on /.
+   */
+  async canOnInstance(p: Pick<Principal, "kind" | "id">, privilege: Privilege, row: { clusterId: string | null; project: string; name: string; tenantId?: string | null; createdBy?: string | null }): Promise<boolean> {
+    const slug = row.tenantId ? (await this.snapshot()).ids.tenantSlugs.get(row.tenantId) : undefined;
+    const path = (row.clusterId && (await this.instancePath(row.clusterId, row.project, row.name))) || (slug ? `/tenants/${slug}` : "/");
+    const mine = row.createdBy === subjectOf(p);
+    return (await this.can(p, privilege, path)) || (mine && (await this.can(p, privilege, path, { owner: subjectOf(p) })));
+  }
+
   /** The instances `p` holds `privilege` on, for filtering lists in SQL. */
   async instanceScope(p: Pick<Principal, "kind" | "id">, privilege: Privilege = "instance.view"): Promise<InstanceScope> {
     const s = await this.snapshot();

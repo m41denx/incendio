@@ -1,20 +1,46 @@
 import { Elysia, t } from "elysia";
-import { and, desc, eq, inArray, lt, or, type SQL } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, lt, notInArray, or, sql, type SQL } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
 import { jobs } from "../db/schema.ts";
-import type { Authz } from "../authz/platform.ts";
-import { can, forbidden, notFound, platformCan } from "../authz/guards.ts";
+import type { Acl } from "../acl/acl.ts";
+import { forbidden, notFound } from "../authz/guards.ts";
 import { authed, principalContext, type Principal } from "../auth/principal.ts";
 import { ApiError } from "../lib/errors.ts";
-import { audited, uuidParam, visibleTenants } from "./common.ts";
+import { audited, uuidParam } from "./common.ts";
 
-/** Jobs (P6): platform viewers see all; others their tenants' jobs and their own. */
-export function jobsRoutes({ db, authz }: { db: Db; authz: Authz }) {
-  const visibility = async (p: Principal): Promise<SQL | undefined> => {
-    const v = await visibleTenants(db, authz, p);
-    if (v === "all") return undefined;
-    const own = and(eq(jobs.actorType, p.kind), eq(jobs.actorId, p.id));
-    return v.length ? or(own, inArray(jobs.tenantId, v)) : own;
+/**
+ * Jobs (P6): a caller sees their own, those on instances they may view, their
+ * tenants' jobs on no instance (with instance.view on the whole tenant, so not
+ * a User's), and the jobs of clusters they may view that belong to no tenant.
+ */
+export function jobsRoutes({ db, acl }: { db: Db; acl: Acl }) {
+  const visibility = async (p: Principal): Promise<SQL> => {
+    const own = and(eq(jobs.actorType, p.kind), eq(jobs.actorId, p.id))!;
+    const [scope, ids] = await Promise.all([acl.instanceScope(p), acl.lookup()]);
+    // Scope keys name clusters; job keys carry their ids.
+    const idOf = new Map([...ids.clusterNames].map(([id, name]) => [name, id]));
+    const byId = (k: string) => {
+      const [cluster, ...rest] = k.split("/");
+      const id = idOf.get(cluster!);
+      return id ? [id, ...rest].join("/") : null;
+    };
+    const keys = (list: string[]) => list.map(byId).filter((k): k is string => !!k);
+    const projects = keys(scope.projects).map((k) => sql`starts_with(${jobs.instanceKey}, ${`${k}/`})`);
+    const exclude = keys(scope.exclude);
+    const include = keys(scope.include);
+    const tenantIds: string[] = [];
+    for (const [id, slug] of ids.tenantSlugs) if (await acl.can(p, "instance.view", `/tenants/${slug}`)) tenantIds.push(id);
+    const clusterIds: string[] = [];
+    for (const [id, name] of ids.clusterNames) if (await acl.can(p, "cluster.view", `/clusters/${name}`)) clusterIds.push(id);
+    return or(
+      own,
+      projects.length ? and(or(...projects), exclude.length ? notInArray(jobs.instanceKey, exclude) : undefined) : undefined,
+      include.length ? inArray(jobs.instanceKey, include) : undefined,
+      tenantIds.length ? and(isNull(jobs.instanceKey), inArray(jobs.tenantId, tenantIds)) : undefined,
+      // Platform staff: the platform's own jobs, on no cluster too.
+      (await acl.can(p, "cluster.view", "/")) ? isNull(jobs.tenantId) : undefined,
+      clusterIds.length ? and(isNull(jobs.tenantId), sql`jsonb_exists_any(${jobs.clusterIds}, array[${sql.join(clusterIds.map((id) => sql`${id}`), sql`, `)}]::text[])`) : undefined,
+    )!;
   };
   const load = async (p: Principal, id: string) => {
     const [row] = await db
@@ -58,7 +84,13 @@ export function jobsRoutes({ db, authz }: { db: Db; authz: Authz }) {
       const p = authed(principal);
       const row = await audited(db, { principal: p, request }, "job.cancel", { type: "job", id: params.id }, async () => {
         const job = await load(p, params.id);
-        const allowed = (job.actorType === p.kind && job.actorId === p.id) || (await platformCan(authz, p, "operator")) || (job.tenantId && (await can(authz, p, "admin", `tenant:${job.tenantId}`)));
+        const ids = await acl.lookup();
+        const slug = job.tenantId && ids.tenantSlugs.get(job.tenantId);
+        const configures = async () => {
+          for (const id of job.clusterIds) if (await acl.can(p, "cluster.configure", `/clusters/${ids.clusterNames.get(id)}`)) return true;
+          return false;
+        };
+        const allowed = (job.actorType === p.kind && job.actorId === p.id) || (slug && (await acl.can(p, "tenant.manage", `/tenants/${slug}`))) || (await configures());
         if (!allowed) throw forbidden();
         // A queued job is cancelled now; a running one when its handler sees the request.
         const [queued] = await db

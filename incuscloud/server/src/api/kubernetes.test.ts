@@ -1,6 +1,6 @@
 import { beforeEach, expect, test } from "bun:test";
 import { and, eq } from "drizzle-orm";
-import { auditLog, clusters, jobs, k8sClusters, placements, tenants } from "../db/schema.ts";
+import { aclEntries, auditLog, clusters, jobs, k8sClusters, placements, tenants } from "../db/schema.ts";
 import { harness } from "../test/harness.ts";
 import { FakeKube } from "../k8s/fake-kube.ts";
 
@@ -483,4 +483,17 @@ test("MetalLB's state is read from the workload cluster; before its kubeconfig e
   workload.put({ apiVersion: "metallb.io/v1beta1", kind: "IPAddressPool", metadata: { name: "incendio", namespace: "metallb-system" }, spec: { addresses: ["10.0.0.200/29"] } });
   r = await off.call(m, "GET", `/api/v1/kubernetes/${id}/metallb`);
   expect(r.body).toEqual({ requested: null, installed: true, ready: true, addresses: ["10.0.0.200/29"], message: "" });
+});
+
+test("a User sees and deletes their own Kubernetes cluster, not another's", async () => {
+  const u = await h.user("u@example.com");
+  await h.db.insert(aclEntries).values({ path: "/tenants/acme", role: "user", userId: u.id });
+  const mine = (await h.call(u, "POST", "/api/v1/kubernetes", make({ name: "mine" }))).body.cluster.id as string;
+  const m = await member();
+  const theirs = (await h.call(m, "POST", "/api/v1/kubernetes", make({ name: "theirs" }))).body.cluster.id as string;
+  await h.db.update(jobs).set({ state: "failed" });
+  expect((await h.call(u, "GET", "/api/v1/kubernetes")).body.map((c: { name: string }) => c.name)).toEqual(["mine"]);
+  expect((await h.call(u, "GET", `/api/v1/kubernetes/${theirs}`)).status).toBe(404);
+  expect((await h.call(u, "DELETE", `/api/v1/kubernetes/${theirs}`)).status).toBe(404);
+  expect((await h.call(u, "DELETE", `/api/v1/kubernetes/${mine}`)).status).toBe(202);
 });

@@ -3,7 +3,9 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
 import { clusters, jobs, k8sClusters, placements, tenants } from "../db/schema.ts";
 import type { Authz } from "../authz/platform.ts";
-import { can, forbidden, needVisible, notFound, platformCan } from "../authz/guards.ts";
+import { forbidden, notFound } from "../authz/guards.ts";
+import type { Acl } from "../acl/acl.ts";
+import type { Privilege } from "../acl/catalog.ts";
 import { authed, principalContext, type Principal } from "../auth/principal.ts";
 import { ApiError } from "../lib/errors.ts";
 import { enqueueJob } from "../jobs/queue.ts";
@@ -17,7 +19,7 @@ import { kubeFromKubeconfig, metallbState, workloadKubeconfig } from "../k8s/met
 import { parseRange } from "@incendio/k8s/src/lib/metallb.ts";
 import { pendingOf } from "./tenant-cloud.ts";
 import { eventActivity, mergeActivity, type ActivityEntry, type K8sEventList } from "@incendio/k8s/src/lib/activity.ts";
-import { audited, uuidParam, visibleTenants } from "./common.ts";
+import { audited, filterAsync, uuidParam } from "./common.ts";
 import { tuples } from "../authz/sync.ts";
 import { requestReconcile } from "../reconcile/requests.ts";
 
@@ -133,15 +135,17 @@ function nodeOf(m: KubeObject) {
   };
 }
 
-export function kubernetesRoutes({ db, authz, kube, k8sPorts, workloadKube = kubeFromKubeconfig }: { db: Db; authz: Authz; kube?: Kube; k8sPorts?: [number, number]; workloadKube?: (kubeconfig: string) => Kube }) {
+export function kubernetesRoutes({ db, authz, acl, kube, k8sPorts, workloadKube = kubeFromKubeconfig }: { db: Db; authz: Authz; acl: Acl; kube?: Kube; k8sPorts?: [number, number]; workloadKube?: (kubeconfig: string) => Kube }) {
   const ports = k8sPorts ?? DEFAULT_PORTS;
   const enabled = (): Kube => {
     if (!kube) throw new ApiError(409, "kubernetes_disabled", "Kubernetes is not enabled: IncusCloud has no management cluster (IC_K8S_KUBECONFIG)");
     return kube;
   };
-  /** Tenant members (or a stronger role) and platform operators. */
-  const needRole = async (p: Principal, tenantId: string, role: "member" | "admin") => {
-    if (!(await can(authz, p, role, `tenant:${tenantId}`)) && !(await platformCan(authz, p, "operator"))) throw forbidden();
+  /** A privilege on a Kubernetes cluster (`/tenants/<t>/kubernetes/<name>`); whoever created it owns it. */
+  const may = (p: Principal, privilege: Privilege, x: { row: typeof k8sClusters.$inferSelect; tenantSlug: string }) =>
+    acl.can(p, privilege, `/tenants/${x.tenantSlug}/kubernetes/${x.row.name}`, { owner: x.row.createdBy });
+  const need = async (p: Principal, privilege: Privilege, x: Parameters<typeof may>[2]) => {
+    if (!(await may(p, privilege, x))) throw forbidden();
   };
   const select = (where?: ReturnType<typeof and>) =>
     db
@@ -155,9 +159,7 @@ export function kubernetesRoutes({ db, authz, kube, k8sPorts, workloadKube = kub
   const load = async (p: Principal, id: string) => {
     enabled();
     const [found] = await select(eq(k8sClusters.id, uuidParam(id, "Kubernetes cluster not found")));
-    if (!found) throw notFound("Kubernetes cluster not found");
-    const v = await visibleTenants(db, authz, p);
-    if (v !== "all" && !v.includes(found.row.tenantId)) throw notFound("Kubernetes cluster not found");
+    if (!found || !(await may(p, "k8s.view", found))) throw notFound("Kubernetes cluster not found");
     return found;
   };
 
@@ -178,10 +180,8 @@ export function kubernetesRoutes({ db, authz, kube, k8sPorts, workloadKube = kub
       async ({ principal, query }) => {
         const p = authed(principal);
         enabled();
-        const v = await visibleTenants(db, authz, p);
-        if (v !== "all" && !v.length) return [];
-        const conds = [v === "all" ? undefined : inArray(k8sClusters.tenantId, v), query.tenant ? eq(k8sClusters.tenantId, uuidParam(query.tenant)) : undefined];
-        return (await select(and(...conds))).map((x) => view(x.row, x.tenantSlug, x.clusterName, x.project));
+        const rows = await select(query.tenant ? eq(k8sClusters.tenantId, uuidParam(query.tenant)) : undefined);
+        return (await filterAsync(rows, (x) => may(p, "k8s.view", x))).map((x) => view(x.row, x.tenantSlug, x.clusterName, x.project));
       },
       { query: t.Object({ tenant: t.Optional(t.String()) }) },
     )
@@ -194,8 +194,10 @@ export function kubernetesRoutes({ db, authz, kube, k8sPorts, workloadKube = kub
       async ({ principal, request, body, set }) => {
         const p = authed(principal);
         enabled();
-        await needVisible(authz, p, "viewer", "viewer", `tenant:${body.tenantId}`);
-        await needRole(p, body.tenantId, "member");
+        const ids = await acl.lookup();
+        const slug = ids.tenantSlugs.get(body.tenantId);
+        if (!slug || !(await acl.can(p, "tenant.view", `/tenants/${slug}`))) throw notFound();
+        if (!(await acl.can(p, "k8s.provision", `/tenants/${slug}`))) throw forbidden();
         if (body.size && body.spec) throw new ApiError(400, "invalid_request", "Give a size or a spec, not both");
         const size: Size | null = body.spec ? null : (body.size ?? "medium");
         const given = body.spec as K8sSpec | undefined;
@@ -203,7 +205,7 @@ export function kubernetesRoutes({ db, authz, kube, k8sPorts, workloadKube = kub
         if (why) throw new ApiError(400, "invalid_request", why);
         const req = usageOfSpec(given ?? specFromSize(size!), body.controlPlanes, body.workers);
         // Operators create on any ready cluster: the tenant is placed there first, and the job waits for its project.
-        const operator = await platformCan(authz, p, "operator");
+        const operator = await acl.can(p, "cluster.configure", `/clusters/${ids.clusterNames.get(body.clusterId) ?? ""}`);
         let placedNow = false;
         const r = await audited(db, { principal: p, request }, "kubernetes.create", { type: "tenant", id: body.tenantId }, () =>
           // One quota decision at a time per tenant, and one port choice at a time per cluster.
@@ -294,8 +296,9 @@ export function kubernetesRoutes({ db, authz, kube, k8sPorts, workloadKube = kub
       "/api/v1/kubernetes/:id",
       async ({ principal, request, params, body }) => {
         const p = authed(principal);
-        const { row, tenantSlug, clusterName, project } = await load(p, params.id);
-        await needRole(p, row.tenantId, "member");
+        const x = await load(p, params.id);
+        const { row, tenantSlug, clusterName, project } = x;
+        await need(p, "k8s.provision", x);
         const action = body.version && body.version !== row.version ? "kubernetes.upgrade" : "kubernetes.scale";
         const updated = await audited(db, { principal: p, request }, action, { type: "tenant", id: row.tenantId }, () =>
           db.transaction(async (tx) => {
@@ -339,8 +342,9 @@ export function kubernetesRoutes({ db, authz, kube, k8sPorts, workloadKube = kub
     )
     .delete("/api/v1/kubernetes/:id", async ({ principal, request, params, set }) => {
       const p = authed(principal);
-      const { row } = await load(p, params.id);
-      await needRole(p, row.tenantId, "admin");
+      const x = await load(p, params.id);
+      const { row } = x;
+      await need(p, "k8s.delete", x);
       const job = await audited(db, { principal: p, request }, "kubernetes.delete", { type: "tenant", id: row.tenantId }, () =>
         db.transaction(async (tx) => {
           const txDb = tx as unknown as Db;
@@ -410,8 +414,9 @@ export function kubernetesRoutes({ db, authz, kube, k8sPorts, workloadKube = kub
       "/api/v1/kubernetes/:id/metallb",
       async ({ principal, request, params, body, set }) => {
         const p = authed(principal);
-        const { row, tenantSlug, clusterName, project } = await load(p, params.id);
-        await needRole(p, row.tenantId, "member");
+        const x = await load(p, params.id);
+        const { row, tenantSlug, clusterName, project } = x;
+        await need(p, "k8s.provision", x);
         const addresses = body.addresses.map((a) => a.trim());
         const bad = addresses.find((a) => parseRange(a) === null);
         if (bad !== undefined) throw new ApiError(400, "invalid_request", `"${bad}" is not an IPv4 range (a.b.c.d-e.f.g.h), CIDR or address`);
@@ -431,8 +436,9 @@ export function kubernetesRoutes({ db, authz, kube, k8sPorts, workloadKube = kub
     )
     .get("/api/v1/kubernetes/:id/kubeconfig", async ({ principal, request, params }) => {
       const p = authed(principal);
-      const { row } = await load(p, params.id);
-      await needRole(p, row.tenantId, "member");
+      const x = await load(p, params.id);
+      const { row } = x;
+      await need(p, "k8s.kubeconfig", x);
       const text = await audited(db, { principal: p, request }, "kubernetes.kubeconfig", { type: "tenant", id: row.tenantId }, async () => {
         // CAPI writes the admin kubeconfig once the control plane is up.
         const secret = (await enabled().get("v1", "Secret", row.namespace, `${row.name}-kubeconfig`)) as { data?: { value?: string } } | null;
