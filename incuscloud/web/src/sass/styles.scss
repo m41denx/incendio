@@ -230,6 +230,8 @@
 // The console's sidebar: Incendio's dark navigation panel, as wide as dragged (240–360px),
 // with the inventory (view buttons, then the tree, which scrolls) above Platform and Account.
 .l-navigation.ic-sidebar .l-navigation__drawer {
+  // The same line as the sidebar's own separators, between it and the page.
+  border-right: 1px solid $colors--dark-theme--border-default;
   position: relative;
 }
 
