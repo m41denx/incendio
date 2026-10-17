@@ -92,6 +92,13 @@
       "when": 1791820162048,
       "tag": "0012_kubernetes_spec",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1792231075789,
+      "tag": "0013_acl_entries",
+      "breakpoints": true
     }
   ]
 }

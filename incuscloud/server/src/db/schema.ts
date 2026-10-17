@@ -116,6 +116,31 @@ export const serviceAccounts = pgTable("service_accounts", {
   createdAt: created(),
 });
 
+/**
+ * Explicit permission entries (spec: IncusCloud permissions). Today's roles
+ * (platform_roles, tenant_members, service accounts) are entries too, read
+ * as such by the resolver. A subject is a user or a service account; their
+ * deletion removes their entries.
+ */
+export const aclEntries = pgTable(
+  "acl_entries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    path: text("path").notNull(),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
+    serviceAccountId: uuid("service_account_id").references(() => serviceAccounts.id, { onDelete: "cascade" }),
+    role: text("role").notNull(),
+    propagate: boolean("propagate").notNull().default(true),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: created(),
+  },
+  (t) => [
+    check("acl_entry_one_subject", sql`num_nonnulls(${t.userId}, ${t.serviceAccountId}) = 1`),
+    unique("acl_entry_unique").on(t.path, t.userId, t.serviceAccountId, t.role).nullsNotDistinct(),
+    index("acl_entries_path").on(t.path),
+  ],
+);
+
 /** A tenant placed on a cluster: the reconciler (P3) creates its Incus project there. */
 export const placements = pgTable(
   "placements",
