@@ -41,6 +41,8 @@ export interface InstanceSnapshot {
   hints: Hints;
   /** A VM that can move live (migration.stateful). */
   stateful: boolean;
+  /** How many snapshots it has (quotas). */
+  snapshots?: number;
 }
 
 export interface PoolSnapshot {
@@ -83,6 +85,7 @@ interface IncusInstance {
   architecture: string;
   created_at: string;
   expanded_config?: Record<string, string>;
+  snapshots?: unknown[] | null;
   state?: {
     cpu?: { usage?: number };
     memory?: { usage?: number; total?: number };
@@ -153,6 +156,7 @@ function instanceOf(i: IncusInstance): InstanceSnapshot {
     addresses: nics.flatMap((n) => (n.addresses ?? []).map((a) => a.address)).filter((a) => !linkLocal(a)),
     hints: hintsOf(cfg),
     stateful: i.type === "virtual-machine" && cfg["migration.stateful"] === "true",
+    snapshots: i.snapshots?.length ?? 0,
   };
 }
 

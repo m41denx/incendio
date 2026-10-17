@@ -1,6 +1,6 @@
-import { and, eq, inArray, isNotNull } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
-import { aclEntries, clusterGrants, clusters, groupMembers, instances, placements, platformRoles, serviceAccounts, tenantMembers, tenants, users } from "../db/schema.ts";
+import { type Quotas, aclEntries, clusterGrants, clusters, groupMembers, instances, placements, platformRoles, serviceAccounts, tenantMembers, tenants, users } from "../db/schema.ts";
 import { clusterClient } from "../clusters/enroll.ts";
 import type { IncusServer } from "../incus/admin-client.ts";
 import { ApiError } from "../lib/errors.ts";
@@ -109,7 +109,7 @@ async function ensurePlacements(deps: ReconcileDeps, clusterId: string, clusterN
       await deps.db.update(placements).set({ usage }).where(here);
       const all = await deps.db.select({ clusterId: placements.clusterId, usage: placements.usage }).from(placements).where(eq(placements.tenantId, p.tenantId));
       const limits = splitLimits(p.quotas, all.map((x) => x.usage))[all.findIndex((x) => x.clusterId === clusterId)]!;
-      await ensureProject(client, p.project, { id: p.tenantId, slug: p.slug }, limits, await tenantGroupsOn(deps.db, p.tenantId, clusterName));
+      await ensureProject(client, p.project, { id: p.tenantId, slug: p.slug }, limits, await tenantGroupsOn(deps.db, p.tenantId, clusterName), { snapshotsFull: await snapshotsFull(deps.db, p.tenantId, p.quotas) });
       await deps.db.update(placements).set({ limits }).where(here);
       await ensureDefaultProfile(client, p.project, p.quotas);
     } catch (e) {
@@ -273,4 +273,15 @@ async function tenantGroupsOn(db: Db, tenantId: string, cluster: string): Promis
   if (here.some((r) => r.path === `/clusters/${cluster}` || r.path === "/")) return [];
   const prefix = `/clusters/${cluster}/groups/`;
   return [...new Set(here.filter((r) => r.path.startsWith(prefix)).map((r) => r.path.slice(prefix.length)))];
+}
+
+/** Whether a tenant has as many snapshots as its quota allows, across its clusters (from the inventory). */
+async function snapshotsFull(db: Db, tenantId: string, quotas: Quotas): Promise<boolean> {
+  if (quotas.snapshots === undefined) return false;
+  const [r] = await db
+    .select({ n: sql<number>`coalesce(sum(${instances.snapshots}), 0)`.mapWith(Number) })
+    .from(instances)
+    .innerJoin(placements, and(eq(placements.clusterId, instances.clusterId), eq(placements.project, instances.project)))
+    .where(eq(placements.tenantId, tenantId));
+  return (r?.n ?? 0) >= quotas.snapshots;
 }

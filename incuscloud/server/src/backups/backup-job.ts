@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
+import { needBackupQuota, needUserQuota } from "../tenants/limits.ts";
 import { and, desc, eq, isNull, or, sql } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
-import { backupPolicies, backups, backupTargets } from "../db/schema.ts";
+import { backupPolicies, backups, backupTargets, tenants } from "../db/schema.ts";
 import { ClusterError } from "../incus/admin-client.ts";
 import { ApiError } from "../lib/errors.ts";
 import { open } from "../lib/secrets.ts";
@@ -89,6 +90,12 @@ export function backupHandler(deps: { storeFor?: StoreFor; directWaitMs?: number
     const [target] = await ctx.db.select().from(backupTargets).where(eq(backupTargets.id, p.targetId));
     if (!target) throw new ApiError(404, "not_found", "The backup target no longer exists");
     if (!target.enabled) throw new ApiError(409, "conflict", `The backup target "${target.name}" is disabled`);
+    // The tenant's backup count and storage, and the user's own count (schedules and manual backups alike).
+    if (ctx.job.tenantId) {
+      const [t] = await ctx.db.select({ quotas: tenants.quotas }).from(tenants).where(eq(tenants.id, ctx.job.tenantId));
+      await needBackupQuota(ctx.db, ctx.job.tenantId, t?.quotas ?? {});
+      if (ctx.job.actorType === "user" && ctx.job.actorId) await needUserQuota(ctx.db, ctx.job.tenantId, ctx.job.actorId, { backups: 1 });
+    }
     const store = storeFor(target);
     const { client } = await ctx.clientFor(p.clusterId);
     const setPolicy = (set: Partial<typeof backupPolicies.$inferInsert>) => (p.policyId ? ctx.db.update(backupPolicies).set(set).where(eq(backupPolicies.id, p.policyId)) : undefined);

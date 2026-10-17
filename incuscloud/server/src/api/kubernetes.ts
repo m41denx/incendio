@@ -1,4 +1,5 @@
 import { Elysia, t } from "elysia";
+import { needInstanceCaps, needKubernetesQuota } from "../tenants/limits.ts";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
 import { clusters, jobs, k8sClusters, placements, tenants } from "../db/schema.ts";
@@ -215,6 +216,13 @@ export function kubernetesRoutes({ db, authz, acl, kube, k8sPorts, workloadKube 
             await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`k8s-endpoint:${body.clusterId}`}))`);
             const [tenant] = await tx.select().from(tenants).where(eq(tenants.id, body.tenantId));
             if (!tenant) throw notFound();
+            await needKubernetesQuota(txDb, tenant.id, tenant.quotas);
+            // Each node is an instance: the per-instance maximums hold for its flavors.
+            const spec = given ?? specFromSize(size!);
+            for (const f of [spec.controlPlane.flavor, spec.worker.flavor]) {
+              const one = usageOfSpec({ ...spec, controlPlane: { ...spec.controlPlane, flavor: f } } as K8sSpec, 1, 0, { lb: false });
+              needInstanceCaps(tenant.quotas, one);
+            }
             const [placed] = await tx
               .select({ project: placements.project, status: placements.status, clusterName: clusters.name })
               .from(placements)

@@ -1,7 +1,7 @@
 import { Elysia, t } from "elysia";
 import { and, eq } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
-import { aclEntries, clusters, placements, platformRoles, serviceAccounts, tenantMembers, tenants, users } from "../db/schema.ts";
+import { aclEntries, clusters, placements, platformRoles, serviceAccounts, tenantMembers, tenants, userQuotas, users } from "../db/schema.ts";
 import { entriesUnder } from "./acl.ts";
 import type { Acl } from "../acl/acl.ts";
 import { needOutrank } from "../acl/outrank.ts";
@@ -14,13 +14,18 @@ import type { HydraAdminApi } from "../identity/hydra-admin.ts";
 import { ApiError } from "../lib/errors.ts";
 import { log } from "../lib/log.ts";
 import { audited, created, filterAsync, noContent, uuidParam } from "./common.ts";
+import { userUsage } from "../tenants/limits.ts";
 import { requestReconcile } from "../reconcile/requests.ts";
 
 /** Tenant slugs become Incus project names (spec D5): DNS-label-like, not reserved. */
 const SLUG = "^[a-z][a-z0-9-]{1,30}[a-z0-9]$";
 const RESERVED = new Set(["default", "incuscloud", "admin", "system"]);
 const TenantRole = t.Union([t.Literal("owner"), t.Literal("admin"), t.Literal("member"), t.Literal("viewer")]);
-const Quotas = t.Object({ instances: t.Optional(t.Integer({ minimum: 0 })), cpu: t.Optional(t.Integer({ minimum: 0 })), memory: t.Optional(t.Integer({ minimum: 0 })), disk: t.Optional(t.Integer({ minimum: 0 })) }, { additionalProperties: false });
+const Count = t.Optional(t.Integer({ minimum: 0 }));
+const Quotas = t.Object(
+  { instances: Count, cpu: Count, memory: Count, disk: Count, maxInstanceCpu: Count, maxInstanceMemory: Count, maxInstanceDisk: Count, snapshots: Count, backups: Count, backupGiB: Count, kubernetes: Count },
+  { additionalProperties: false },
+);
 
 type TenantRow = typeof tenants.$inferSelect;
 const view = (x: TenantRow) => ({ id: x.id, slug: x.slug, name: x.name, quotas: x.quotas, createdAt: x.createdAt });
@@ -140,6 +145,39 @@ export function tenantsRoutes({ db, authz, acl, hydra }: { db: Db; authz: Authz;
         .where(eq(placements.tenantId, params.id))
         .orderBy(clusters.name);
     })
+    // Users' quotas inside the tenant (permissions phase 4): set by tenant.quota holders there, never above the tenant's.
+    .get("/api/v1/tenants/:id/user-quotas", async ({ principal, params }) => {
+      const p = authed(principal);
+      const t = await load(p, params.id);
+      const manage = await acl.can(p, "tenant.quota", `/tenants/${t.slug}`);
+      const rows = await db.select({ userId: userQuotas.userId, quotas: userQuotas.quotas, email: users.email }).from(userQuotas).innerJoin(users, eq(users.id, userQuotas.userId)).where(eq(userQuotas.tenantId, t.id));
+      // Others see only their own.
+      const shown = manage ? rows : rows.filter((r) => r.userId === p.id);
+      return Promise.all(shown.map(async (r) => ({ ...r, used: await userUsage(db, t.id, r.userId) })));
+    })
+    .put(
+      "/api/v1/tenants/:id/user-quotas/:userId",
+      async ({ principal, request, params, body }) => {
+        const p = authed(principal);
+        return audited(db, { principal: p, request }, "tenant.user_quota.set", { type: "tenant", id: params.id }, async () => {
+          const t = await load(p, params.id, "tenant.quota");
+          const userId = uuidParam(params.userId, "No such user");
+          if (!(await db.select({ id: users.id }).from(users).where(eq(users.id, userId))).length) throw notFound("No such user");
+          for (const k of ["instances", "cpu", "memory"] as const) {
+            const cap = t.quotas[k];
+            if (body.quotas[k] !== undefined && cap !== undefined && body.quotas[k]! > cap) throw new ApiError(400, "invalid_request", `A user's ${k} cannot be above the tenant's (${cap})`);
+          }
+          if (body.quotas.backups !== undefined && t.quotas.backups !== undefined && body.quotas.backups > t.quotas.backups) throw new ApiError(400, "invalid_request", `A user's backups cannot be above the tenant's (${t.quotas.backups})`);
+          if (!Object.keys(body.quotas).length) {
+            await db.delete(userQuotas).where(and(eq(userQuotas.tenantId, t.id), eq(userQuotas.userId, userId)));
+          } else {
+            await db.insert(userQuotas).values({ tenantId: t.id, userId, quotas: body.quotas }).onConflictDoUpdate({ target: [userQuotas.tenantId, userQuotas.userId], set: { quotas: body.quotas } });
+          }
+          return { userId, quotas: body.quotas };
+        });
+      },
+      { body: t.Object({ quotas: t.Object({ instances: Count, cpu: Count, memory: Count, backups: Count }, { additionalProperties: false }) }) },
+    )
     .get("/api/v1/tenants/:id/members", async ({ principal, params }) => {
       await load(authed(principal), params.id);
       return db

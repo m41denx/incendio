@@ -1,8 +1,9 @@
 import { Elysia, t } from "elysia";
+import { needBackupQuota, needUserQuota } from "../tenants/limits.ts";
 import type { Acl } from "../acl/acl.ts";
 import { and, desc, eq, inArray, type SQL } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
-import { backupPolicies, backups, backupTargets, clusters, placements } from "../db/schema.ts";
+import { backupPolicies, backups, backupTargets, clusters, placements, tenants } from "../db/schema.ts";
 import { forbidden, notFound } from "../authz/guards.ts";
 import type { Privilege } from "../acl/catalog.ts";
 import { authed, principalContext, type Principal } from "../auth/principal.ts";
@@ -207,6 +208,12 @@ export function backupsRoutes({ db, acl, secretKey, storeFor }: { db: Db; acl: A
             if (!(await acl.can(p, "backup.create", inst.path))) throw forbidden();
             if (body.transport && body.transport !== "auto" && !(await acl.can(p, "cluster.configure", `/clusters/${inst.clusterName}`))) throw new ApiError(403, "forbidden", "Only platform operators choose the transport");
             const target = await usableTarget(body.targetId);
+            // Refused now rather than by the job: the tenant's backup count and storage, and the user's own count.
+            if (inst.tenantId) {
+              const [t] = await db.select({ quotas: tenants.quotas }).from(tenants).where(eq(tenants.id, inst.tenantId));
+              await needBackupQuota(db, inst.tenantId, t?.quotas ?? {});
+              if (p.kind === "user") await needUserQuota(db, inst.tenantId, p.id, { backups: 1 });
+            }
             return queueBackup(p, inst.tenantId, { clusterId: inst.clusterId, project: inst.project, instanceName: inst.name, targetId: target.id, instanceOnly: body.instanceOnly ?? false, transport: body.transport ?? "auto" });
           });
           set.status = 202;

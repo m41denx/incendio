@@ -1,6 +1,16 @@
 export type PlatformRole = "admin" | "operator" | "viewer";
 export type TenantRole = "owner" | "admin" | "member" | "viewer";
-export type Quotas = Partial<Record<"instances" | "cpu" | "memory" | "disk", number>>;
+export type Quotas = Partial<
+  Record<"instances" | "cpu" | "memory" | "disk" | "maxInstanceCpu" | "maxInstanceMemory" | "maxInstanceDisk" | "snapshots" | "backups" | "backupGiB" | "kubernetes", number>
+>;
+export type UserQuotas = Partial<Record<"instances" | "cpu" | "memory" | "backups", number>>;
+export interface UserQuotaRow {
+  userId: string;
+  email: string;
+  quotas: UserQuotas;
+  /** Memory in bytes; the rest are counts. */
+  used: Required<UserQuotas>;
+}
 
 export interface Me {
   id: string;

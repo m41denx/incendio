@@ -12,6 +12,7 @@ import { can, tenantRole, useMe } from "../../api/hooks";
 import type { Tenant, TenantPlacement } from "../../api/types";
 import ClusterStatus from "../clusters/ClusterStatus";
 import Members from "./Members";
+import UserQuotas from "./UserQuotas";
 import TenantUsage from "./TenantUsage";
 import { QuotaFields, type QuotaDraft, draftOf, draftValid, quotasOf } from "./quotas";
 import { roleName } from "./roles";
@@ -108,6 +109,7 @@ const TenantDetail: FC = () => {
             </Section>
 
             <Members tenant={t} canManage={canManage} ownerPower={ownerPower} />
+            <UserQuotas tenant={t} canManage={canManage} />
 
             {canManage ? (
               <Section title="Administration" id="tenant-admin">

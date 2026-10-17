@@ -1,4 +1,5 @@
 import { Elysia, t } from "elysia";
+import { needInstanceCaps, needUserQuota } from "../tenants/limits.ts";
 import type { Acl } from "../acl/acl.ts";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
@@ -104,6 +105,8 @@ export function tenantCloudRoutes({ db, authz, acl }: { db: Db; authz: Authz; ac
             const used = sumUsage([...placed.map((x) => x.usage), await pendingOf(txDb, tenant.id)]);
             const over = exceeds(tenant.quotas, used, req);
             if (over.length) throw new ApiError(409, "quota_exceeded", `Over the tenant's quota: ${over.join(", ")}`);
+            needInstanceCaps(tenant.quotas, req);
+            if (p.kind === "user") await needUserQuota(txDb, tenant.id, p.id, { instances: 1, cpu: req.cpu, memory: req.memory });
             const where = choose(await candidatesOf(txDb, tenant.id), { memory: req.memory }, { clusterId: body.clusterId, labels: body.labels });
             if (!where.ok) throw new ApiError(409, "no_placement", where.reason);
             const { clusterId, clusterName, project } = where.pick;

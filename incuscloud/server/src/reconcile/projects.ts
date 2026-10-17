@@ -31,8 +31,10 @@ export function projectConfigFor(tenant: { id: string }, limits: Limits): Record
 const UPDATABLE = (k: string) => k.startsWith("restricted") || k.startsWith("limits.") || k === TENANT_KEY;
 
 /** Creates the tenant's project, or brings its limits in line. Refuses a same-named project that is not this tenant's. */
-export async function ensureProject(client: IncusAdminClient, name: string, tenant: { id: string; slug: string }, limits: Limits, clusterGroups: string[] = []): Promise<"created" | "updated" | "unchanged"> {
+export async function ensureProject(client: IncusAdminClient, name: string, tenant: { id: string; slug: string }, limits: Limits, clusterGroups: string[] = [], o: { snapshotsFull?: boolean } = {}): Promise<"created" | "updated" | "unchanged"> {
   const want = projectConfigFor(tenant, limits);
+  // Snapshots up to the tenant's count (permissions phase 4): Incus blocks them in restricted projects by default.
+  want["restricted.snapshots"] = o.snapshotsFull ? "block" : "allow";
   // Permissions: a tenant whose default group is given only cluster groups here runs on those groups' members.
   if (clusterGroups.length) want["restricted.cluster.groups"] = [...clusterGroups].sort().join(",");
   let current: Record<string, string>;

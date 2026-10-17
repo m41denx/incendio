@@ -79,7 +79,16 @@ export const platformRoles = pgTable(
   (t) => [check("platform_role_valid", sql`${t.role} in ('admin', 'operator', 'viewer')`)],
 );
 
-export type Quotas = Partial<Record<"instances" | "cpu" | "memory" | "disk", number>>;
+/**
+ * A tenant's quotas (unset = unlimited). The pool (instances, cpu, memory and disk GiB) is shared across
+ * clusters; the per-instance maximums (cores, GiB), snapshots (count), backups (count and GiB) and
+ * Kubernetes clusters (count) are permissions phase 4's.
+ */
+export type Quotas = Partial<
+  Record<"instances" | "cpu" | "memory" | "disk" | "maxInstanceCpu" | "maxInstanceMemory" | "maxInstanceDisk" | "snapshots" | "backups" | "backupGiB" | "kubernetes", number>
+>;
+/** A user's share inside a tenant, set by its admins, never above the tenant's own. */
+export type UserQuotas = Partial<Record<"instances" | "cpu" | "memory" | "backups", number>>;
 
 export const tenants = pgTable("tenants", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -88,6 +97,21 @@ export const tenants = pgTable("tenants", {
   quotas: jsonb("quotas").$type<Quotas>().notNull().default({}),
   createdAt: created(),
 });
+
+/** Users' quotas inside a tenant (permissions phase 4). */
+export const userQuotas = pgTable(
+  "user_quotas",
+  {
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    quotas: jsonb("quotas").$type<UserQuotas>().notNull().default({}),
+  },
+  (t) => [primaryKey({ columns: [t.tenantId, t.userId] })],
+);
 
 export const tenantMembers = pgTable(
   "tenant_members",
@@ -325,6 +349,7 @@ export const instances = pgTable(
     addresses: jsonb("addresses").$type<string[]>().notNull().default([]),
     /** Balancing hints from the instance's user.incuscloud.* keys. */
     hints: jsonb("hints").$type<Hints>().notNull().default({}),
+    snapshots: integer("snapshots").notNull().default(0),
     /** Lower-case haystack for the global search. */
     search: text("search").notNull(),
     seenAt: timestamp("seen_at", { withTimezone: true }).notNull().defaultNow(),
