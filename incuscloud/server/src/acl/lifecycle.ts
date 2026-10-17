@@ -139,7 +139,8 @@ export class Lifecycle {
         ws.on("close", () => this.retry(row, s));
       },
       (e) => {
-        log.warn("lifecycle stream failed", { cluster: row.name, error: (e as Error).message });
+        // A cluster that stays down is reported once, then quietly retried.
+        (s.backoff === this.o.minBackoffMs ? log.warn : log.debug)("lifecycle stream failed", { cluster: row.name, error: (e as Error).message });
         this.retry(row, s);
       },
     );
