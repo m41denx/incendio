@@ -76,9 +76,7 @@
 @include vf-p-icon-user-group;
 @include vf-p-icon-video-play;
 @include vf-p-icon-warning-grey;
-
 @import "borders";
-
 @import "authentication_setup";
 @import "authentication_options";
 @import "certificate_add";
@@ -182,7 +180,6 @@
 @import "warnings_table";
 @import "yaml_type_selector";
 @import "use_oci_modal";
-
 @import "shell";
 
 .u-vertical-align-middle {

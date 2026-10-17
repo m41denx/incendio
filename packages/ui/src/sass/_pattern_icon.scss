@@ -31,7 +31,6 @@
 
   .p-icon--kubernetes {
     @extend %icon;
-
     @include incendio-icon-kubernetes-themed;
   }
 }
