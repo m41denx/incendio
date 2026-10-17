@@ -43,21 +43,17 @@ const WORKLOAD: Privilege[] = [
   ...of("project"), ...of("backup"), ...of("replication"), ...of("k8s"),
 ];
 
-const TENANT_ADMINS_CALL = new Set<Privilege>(["instance.relocate", "backup.create", "backup.restore", "backup.delete", "backup.schedule", "replication.manage", "k8s.delete"]);
-
 export const ROLES: Record<RoleId, Role> = {
   administrator: { name: "Administrator", privileges: all(PRIVILEGES) },
   operator: { name: "Operator", privileges: all(PRIVILEGES.filter((p) => !["acl.manage", "platform.users", "platform.settings"].includes(p))) },
   "cluster-owner": { name: "Cluster owner", privileges: all(WORKLOAD, "storage.pools", of("node"), of("cluster"), of("acl")) },
   "group-owner": { name: "Group owner", privileges: all(WORKLOAD, "node.view", "node.maintain", "cluster.view", of("acl")) },
-  // Today's tenant member (spec: migrated members keep today's reach): not moving between clusters, which spends the
-  // tenant's placements, nor backups, restores, replication or deleting Kubernetes clusters — the tenant admins' calls.
-  "unrestricted-user": { name: "Unrestricted user", privileges: all(WORKLOAD.filter((p) => !TENANT_ADMINS_CALL.has(p)), "cluster.view", "tenant.view") },
+  // Every workload privilege (spec's role table); migrated tenant members get it on their tenant.
+  "unrestricted-user": { name: "Unrestricted user", privileges: all(WORKLOAD, "cluster.view", "tenant.view") },
   user: {
     name: "User",
     privileges: all("instance.create", "storage.view", "storage.allocate", "network.view", "network.use", "image.view", "project.view", "k8s.provision", "cluster.view", "tenant.view"),
-    // Not instance.relocate, as for Unrestricted user: moving between clusters is the tenant admins' call.
-    ownedOnly: all(of("instance").filter((p) => p !== "instance.relocate"), of("backup"), of("k8s")),
+    ownedOnly: all(of("instance"), of("backup"), of("k8s")),
   },
   "tenant-admin": { name: "Tenant admin", privileges: all(WORKLOAD, of("tenant"), of("acl"), "cluster.view") },
   auditor: { name: "Auditor", privileges: all(VIEWS, "platform.audit") },
