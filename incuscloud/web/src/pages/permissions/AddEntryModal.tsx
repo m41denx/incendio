@@ -6,13 +6,14 @@ import FormModal from "../../components/FormModal";
 import {
   GIVABLE,
   useAclRoles,
+  useClusterGroups,
   useClusterInstances,
   useClusterNames,
   useSubjects,
   useTenantList,
 } from "./usePermissions";
 
-type Kind = "root" | "cluster" | "project" | "instance" | "tenant";
+type Kind = "root" | "cluster" | "group" | "project" | "instance" | "tenant";
 
 /** Adds an explicit entry. `fixedPath` (a tenant's or cluster's Access tab) skips the path choice. */
 const AddEntryModal: FC<{ onClose: () => void; fixedPath?: string }> = ({
@@ -21,7 +22,7 @@ const AddEntryModal: FC<{ onClose: () => void; fixedPath?: string }> = ({
 }) => {
   const qc = useQueryClient();
   const roles = useAclRoles().data ?? [];
-  const subjects = useSubjects();
+  const subjects = useSubjects({ groups: true });
   const clusters = useClusterNames().data ?? [];
   const tenants = useTenantList().data ?? [];
   const [kind, setKind] = useState<Kind>("root");
@@ -31,7 +32,9 @@ const AddEntryModal: FC<{ onClose: () => void; fixedPath?: string }> = ({
   const [propagate, setPropagate] = useState(true);
   const [project, setProject] = useState("");
   const [instance, setInstance] = useState("");
-  const inCluster = kind === "cluster" || kind === "project" || kind === "instance";
+  const inCluster = kind === "cluster" || kind === "group" || kind === "project" || kind === "instance";
+  const [group, setGroup] = useState("");
+  const clusterGroups = useClusterGroups(kind === "group" ? clusters.find((c) => c.name === object)?.id : undefined).data ?? [];
   const inventory = useClusterInstances(
     kind === "project" || kind === "instance"
       ? clusters.find((c) => c.name === object)?.id
@@ -48,11 +51,13 @@ const AddEntryModal: FC<{ onClose: () => void; fixedPath?: string }> = ({
     if (!object) return "";
     if (kind === "tenant") return `/tenants/${object}`;
     if (kind === "cluster") return `/clusters/${object}`;
+    if (kind === "group") return group ? `/clusters/${object}/groups/${group}` : "";
     if (!project) return "";
     if (kind === "project") return `/clusters/${object}/projects/${project}`;
     return instance ? `/clusters/${object}/projects/${project}/instances/${instance}` : "";
   };
   const path = fixedPath ?? pathOf();
+  const onGroup = /^\/clusters\/[^/]+\/groups\/[^/]+$/.test(path) || (!fixedPath && kind === "group");
   const submit = async () => {
     const [type, id] = subject.split(":");
     await request("POST", "/api/v1/acl/entries", {
@@ -83,12 +88,14 @@ const AddEntryModal: FC<{ onClose: () => void; fixedPath?: string }> = ({
               setKind(e.target.value as Kind);
               setObject("");
               setProject("");
+              setGroup("");
               setInstance("");
               if (role === "unrestricted-user") setRole("");
             }}
             options={[
               { value: "root", label: "Everything" },
               { value: "cluster", label: "A cluster" },
+              { value: "group", label: "A cluster group (its members and what runs on them)" },
               { value: "project", label: "A project on a cluster" },
               { value: "instance", label: "An instance" },
               { value: "tenant", label: "A tenant" },
@@ -102,12 +109,22 @@ const AddEntryModal: FC<{ onClose: () => void; fixedPath?: string }> = ({
               onChange={(e) => {
                 setObject(e.target.value);
                 setProject("");
+              setGroup("");
                 setInstance("");
               }}
               options={[
                 ...choose("Choose a cluster"),
                 ...clusters.map((c) => ({ value: c.name, label: c.name })),
               ]}
+            />
+          ) : null}
+          {kind === "group" && object ? (
+            <Select
+              id="acl-group"
+              label="Cluster group"
+              value={group}
+              onChange={(e) => setGroup(e.target.value)}
+              options={[...choose("Choose a cluster group"), ...clusterGroups.map((g) => ({ value: g, label: g }))]}
             />
           ) : null}
           {(kind === "project" || kind === "instance") && object ? (
@@ -168,7 +185,7 @@ const AddEntryModal: FC<{ onClose: () => void; fixedPath?: string }> = ({
         options={[
           ...choose("Choose a role"),
           ...roles
-            .filter((r) => GIVABLE.includes(r.id) && (r.id !== "unrestricted-user" || narrow))
+            .filter((r) => GIVABLE.includes(r.id) && (r.id !== "unrestricted-user" || narrow) && (r.id !== "group-owner" || onGroup))
             .map((r) => ({ value: r.id, label: r.name })),
         ]}
         help="Administrator and Cluster owner can only be given by administrators."

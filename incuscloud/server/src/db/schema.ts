@@ -124,6 +124,27 @@ export const serviceAccounts = pgTable("service_accounts", {
  * as such by the resolver. A subject is a user or a service account; their
  * deletion removes their entries.
  */
+/** IncusCloud's own groups of users and service accounts (permissions: entries can name a group). */
+export const groups = pgTable("groups", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull().unique(),
+  description: text("description").notNull().default(""),
+  createdAt: created(),
+});
+
+export const groupMembers = pgTable(
+  "group_members",
+  {
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => groups.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
+    serviceAccountId: uuid("service_account_id").references(() => serviceAccounts.id, { onDelete: "cascade" }),
+    createdAt: created(),
+  },
+  (t) => [check("group_member_one", sql`num_nonnulls(${t.userId}, ${t.serviceAccountId}) = 1`), unique("group_member_unique").on(t.groupId, t.userId, t.serviceAccountId).nullsNotDistinct()],
+);
+
 export const aclEntries = pgTable(
   "acl_entries",
   {
@@ -131,14 +152,17 @@ export const aclEntries = pgTable(
     path: text("path").notNull(),
     userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
     serviceAccountId: uuid("service_account_id").references(() => serviceAccounts.id, { onDelete: "cascade" }),
+    groupId: uuid("group_id").references(() => groups.id, { onDelete: "cascade" }),
+    /** A tenant's default group (`<tenant>/members`): its members and service accounts, always. */
+    tenantGroupId: uuid("tenant_group_id").references(() => tenants.id, { onDelete: "cascade" }),
     role: text("role").notNull(),
     propagate: boolean("propagate").notNull().default(true),
     createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
     createdAt: created(),
   },
   (t) => [
-    check("acl_entry_one_subject", sql`num_nonnulls(${t.userId}, ${t.serviceAccountId}) = 1`),
-    unique("acl_entry_unique").on(t.path, t.userId, t.serviceAccountId, t.role).nullsNotDistinct(),
+    check("acl_entry_one_subject", sql`num_nonnulls(${t.userId}, ${t.serviceAccountId}, ${t.groupId}, ${t.tenantGroupId}) = 1`),
+    unique("acl_entry_unique").on(t.path, t.userId, t.serviceAccountId, t.groupId, t.tenantGroupId, t.role).nullsNotDistinct(),
     index("acl_entries_path").on(t.path),
   ],
 );
@@ -258,6 +282,8 @@ export const clusterMembers = pgTable(
     url: text("url").notNull().default(""),
     status: text("status").notNull(),
     roles: jsonb("roles").$type<string[]>().notNull().default([]),
+    /** Incus cluster groups this member is in. */
+    groups: jsonb("groups").$type<string[]>().notNull().default([]),
     architecture: text("architecture").notNull().default(""),
     cpuThreads: integer("cpu_threads").notNull().default(0),
     memoryTotal: big("memory_total").notNull().default(0),

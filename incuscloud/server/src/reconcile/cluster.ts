@@ -1,6 +1,6 @@
 import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
-import { clusterGrants, clusters, instances, placements, platformRoles, serviceAccounts, tenantMembers, tenants, users } from "../db/schema.ts";
+import { aclEntries, clusterGrants, clusters, groupMembers, instances, placements, platformRoles, serviceAccounts, tenantMembers, tenants, users } from "../db/schema.ts";
 import { clusterClient } from "../clusters/enroll.ts";
 import type { IncusServer } from "../incus/admin-client.ts";
 import { ApiError } from "../lib/errors.ts";
@@ -74,7 +74,7 @@ export async function reconcileCluster(deps: ReconcileDeps, clusterId: string): 
       clusterConfigFor({ ...deps.oidc, openfgaUrl: deps.openfga.clusterUrl, openfgaToken: deps.openfga.clusterToken, storeId: store.storeId }),
     );
 
-    const placed = await ensurePlacements(deps, clusterId, client, problems);
+    const placed = await ensurePlacements(deps, clusterId, row.name, client, problems);
     const facts = await grantFacts(db, placed);
     await addExplicit(db, facts, row.name, client, clusterId);
 
@@ -91,7 +91,7 @@ export async function reconcileCluster(deps: ReconcileDeps, clusterId: string): 
 }
 
 /** Creates or updates each placed tenant's project; returns the placements that may be granted. */
-async function ensurePlacements(deps: ReconcileDeps, clusterId: string, client: ReturnType<typeof clusterClient>, problems: string[]) {
+async function ensurePlacements(deps: ReconcileDeps, clusterId: string, clusterName: string, client: ReturnType<typeof clusterClient>, problems: string[]) {
   const rows = await deps.db
     .select({ tenantId: placements.tenantId, project: placements.project, slug: tenants.slug, quotas: tenants.quotas })
     .from(placements)
@@ -109,7 +109,7 @@ async function ensurePlacements(deps: ReconcileDeps, clusterId: string, client: 
       await deps.db.update(placements).set({ usage }).where(here);
       const all = await deps.db.select({ clusterId: placements.clusterId, usage: placements.usage }).from(placements).where(eq(placements.tenantId, p.tenantId));
       const limits = splitLimits(p.quotas, all.map((x) => x.usage))[all.findIndex((x) => x.clusterId === clusterId)]!;
-      await ensureProject(client, p.project, { id: p.tenantId, slug: p.slug }, limits);
+      await ensureProject(client, p.project, { id: p.tenantId, slug: p.slug }, limits, await tenantGroupsOn(deps.db, p.tenantId, clusterName));
       await deps.db.update(placements).set({ limits }).where(here);
       await ensureDefaultProfile(client, p.project, p.quotas);
     } catch (e) {
@@ -169,8 +169,24 @@ async function grantFacts(db: Db, placed: GrantFacts["placements"]): Promise<Gra
  */
 async function addExplicit(db: Db, facts: GrantFacts, cluster: string, client: ReturnType<typeof clusterClient>, clusterId: string) {
   const acl = new Acl(db, { ttlMs: 60_000 });
-  const keys = [...new Set((await acl.entries()).filter((e) => e.source === "acl").map((e) => e.subject))];
-  if (!keys.length) return;
+  const named = [...new Set((await acl.entries()).filter((e) => e.source === "acl").map((e) => e.subject))];
+  if (!named.length) return;
+  // An entry for a group (or a tenant's default group) makes each of its members explicit.
+  const [grouped, tenanted, tenantAccounts] = await Promise.all([
+    db.select().from(groupMembers),
+    db.select({ tenantId: tenantMembers.tenantId, userId: tenantMembers.userId }).from(tenantMembers),
+    db.select({ id: serviceAccounts.id, tenantId: serviceAccounts.tenantId }).from(serviceAccounts),
+  ]);
+  const keys = [
+    ...new Set(
+      named.flatMap((k) => {
+        const [kind, id] = k.split(":") as [string, string];
+        if (kind === "group") return grouped.filter((m) => m.groupId === id).map((m) => (m.userId ? `user:${m.userId}` : `service:${m.serviceAccountId}`));
+        if (kind === "tenant") return [...tenanted.filter((m) => m.tenantId === id).map((m) => `user:${m.userId}`), ...tenantAccounts.filter((a) => a.tenantId === id).map((a) => `service:${a.id}`)];
+        return [k];
+      }),
+    ),
+  ];
   const { disabled } = await acl.lookup();
   const accounts = new Map((await db.select({ id: serviceAccounts.id, clientId: serviceAccounts.clientId }).from(serviceAccounts)).map((a) => [a.id, a.clientId]));
   // Never a project that is another's: a tenant's placement here that could not be granted.
@@ -245,4 +261,16 @@ async function sharedObjects(client: ReturnType<typeof clusterClient>, project: 
     ...networks.filter((x) => x.managed !== false).map((x) => `network:${x.project || project}/${x.name}`),
     ...images.map((x) => `image:${x.project || project}/${x.fingerprint}`),
   ];
+}
+
+/**
+ * The Incus cluster groups a tenant is limited to on a cluster (`restricted.cluster.groups`):
+ * those its default group has entries on, unless it has one on the whole cluster ([] = no limit).
+ */
+async function tenantGroupsOn(db: Db, tenantId: string, cluster: string): Promise<string[]> {
+  const rows = await db.select({ path: aclEntries.path, role: aclEntries.role }).from(aclEntries).where(eq(aclEntries.tenantGroupId, tenantId));
+  const here = rows.filter((r) => r.role !== "no-access");
+  if (here.some((r) => r.path === `/clusters/${cluster}` || r.path === "/")) return [];
+  const prefix = `/clusters/${cluster}/groups/`;
+  return [...new Set(here.filter((r) => r.path.startsWith(prefix)).map((r) => r.path.slice(prefix.length)))];
 }

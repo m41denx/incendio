@@ -31,8 +31,10 @@ export function projectConfigFor(tenant: { id: string }, limits: Limits): Record
 const UPDATABLE = (k: string) => k.startsWith("restricted") || k.startsWith("limits.") || k === TENANT_KEY;
 
 /** Creates the tenant's project, or brings its limits in line. Refuses a same-named project that is not this tenant's. */
-export async function ensureProject(client: IncusAdminClient, name: string, tenant: { id: string; slug: string }, limits: Limits): Promise<"created" | "updated" | "unchanged"> {
+export async function ensureProject(client: IncusAdminClient, name: string, tenant: { id: string; slug: string }, limits: Limits, clusterGroups: string[] = []): Promise<"created" | "updated" | "unchanged"> {
   const want = projectConfigFor(tenant, limits);
+  // Permissions: a tenant whose default group is given only cluster groups here runs on those groups' members.
+  if (clusterGroups.length) want["restricted.cluster.groups"] = [...clusterGroups].sort().join(",");
   let current: Record<string, string>;
   let description: string;
   try {
@@ -50,7 +52,7 @@ export async function ensureProject(client: IncusAdminClient, name: string, tena
   const patch: Record<string, string> = {};
   for (const k of Object.keys(want)) if (UPDATABLE(k) && current[k] !== want[k]) patch[k] = want[k]!;
   // Quotas removed since: unset their limits.
-  for (const k of Object.keys(current)) if (k.startsWith("limits.") && !(k in want)) patch[k] = "";
+  for (const k of Object.keys(current)) if ((k.startsWith("limits.") || k === "restricted.cluster.groups") && !(k in want)) patch[k] = "";
   if (!Object.keys(patch).length) return "unchanged";
   // The whole config, never a PATCH: Incus (7.5, and main as of 2026-10) applies a project PATCH's
   // config as the complete config, so a PATCH of the limits alone would drop `restricted` and the rest.

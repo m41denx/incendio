@@ -7,6 +7,8 @@ export interface MemberSnapshot {
   url: string;
   status: string;
   roles: string[];
+  /** Incus cluster groups (a standalone server is in "default"). */
+  groups?: string[];
   architecture: string;
   cpuThreads: number;
   memoryTotal: number;
@@ -183,11 +185,11 @@ export async function collectInventory(c: Client): Promise<Snapshot> {
   const members: MemberSnapshot[] = [];
   const pools: PoolSnapshot[] = [];
   if (clustered) {
-    const list = (await maybe<Array<{ server_name: string; url: string; status: string; roles?: string[]; architecture?: string }>>(c, "/1.0/cluster/members?recursion=1")) ?? [];
+    const list = (await maybe<Array<{ server_name: string; url: string; status: string; roles?: string[]; groups?: string[]; architecture?: string }>>(c, "/1.0/cluster/members?recursion=1")) ?? [];
     for (const m of list) {
       const name = encodeURIComponent(m.server_name);
       const [res, state] = await Promise.all([maybe<IncusResources>(c, `/1.0/resources?target=${name}`), maybe<IncusMemberState>(c, `/1.0/cluster/members/${name}/state`)]);
-      members.push(memberOf({ name: m.server_name, url: m.url ?? "", status: m.status, roles: m.roles ?? [], architecture: m.architecture ?? "" }, res, state));
+      members.push(memberOf({ name: m.server_name, url: m.url ?? "", status: m.status, roles: m.roles ?? [], groups: m.groups ?? [], architecture: m.architecture ?? "" }, res, state));
       for (const p of poolList) {
         const space = state?.storage_pools?.[p.name]?.space;
         if (space) pools.push({ member: m.server_name, name: p.name, driver: p.driver, status: p.status, spaceTotal: space.total ?? null, spaceUsed: space.used ?? null });
@@ -195,7 +197,7 @@ export async function collectInventory(c: Client): Promise<Snapshot> {
     }
   } else {
     const name = server.environment.server_name;
-    members.push(memberOf({ name, url: "", status: "Online", roles: [], architecture: "" }, await maybe<IncusResources>(c, "/1.0/resources")));
+    members.push(memberOf({ name, url: "", status: "Online", roles: [], groups: ["default"], architecture: "" }, await maybe<IncusResources>(c, "/1.0/resources")));
     for (const p of poolList) {
       const r = await maybe<{ space?: { total?: number; used?: number } }>(c, `/1.0/storage-pools/${encodeURIComponent(p.name)}/resources`);
       pools.push({ member: name, name: p.name, driver: p.driver, status: p.status, spaceTotal: r?.space?.total ?? null, spaceUsed: r?.space?.used ?? null });

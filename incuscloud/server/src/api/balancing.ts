@@ -3,7 +3,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
 import { balancingPolicies, clusterMembers, clusters, instances, placements, tenants } from "../db/schema.ts";
 import type { Authz } from "../authz/platform.ts";
-import { needPriv, notFound } from "../authz/guards.ts";
+import { forbidden, needPriv, notFound } from "../authz/guards.ts";
 import type { Acl } from "../acl/acl.ts";
 import type { Privilege } from "../acl/catalog.ts";
 import { authed, principalContext, type Principal } from "../auth/principal.ts";
@@ -45,12 +45,16 @@ export function balancingRoutes({ db, authz, acl, secretKey, clientOf }: { db: D
     return row ?? { clusterId, enabled: false, intervalS: 3600, ...DEFAULT_POLICY, lastRunAt: null, lastSuccessAt: null, lastError: "", lastJobId: null, updatedBy: "", updatedAt: null };
   };
   const memberJob = async (p: Principal, request: Request, clusterId: string, member: string, type: "evacuate" | "restore-member", mode?: MemberPayload["mode"]) => {
-    const c = await loadCluster(p, clusterId, "node.maintain");
+    const [c] = await db.select().from(clusters).where(eq(clusters.id, uuidParam(clusterId, "Cluster not found")));
+    if (!c || !(await acl.sees(p, `/clusters/${c.name}`))) throw notFound("Cluster not found");
     const [m] = await db
       .select()
       .from(clusterMembers)
       .where(and(eq(clusterMembers.clusterId, c.id), eq(clusterMembers.name, member)));
     if (!m) throw notFound("Member not found");
+    // node.maintain on the cluster, or on one of the member's cluster groups (a Group owner's members).
+    const paths = [`/clusters/${c.name}`, ...(m.groups ?? []).map((g) => `/clusters/${c.name}/groups/${g}`)];
+    if (!(await Promise.all(paths.map((x) => acl.can(p, "node.maintain", x)))).some(Boolean)) throw forbidden();
     const payload: MemberPayload = { clusterId: c.id, member, ...(mode && { mode }) };
     return audited(db, { principal: p, request }, type === "evacuate" ? "cluster_member.evacuate" : "cluster_member.restore", { type: "cluster", id: c.id }, () =>
       enqueueJob(db, { type, payload: payload as unknown as Record<string, unknown>, actor: { type: p.kind, id: p.id }, tenantId: null, clusterIds: [c.id], instanceKey: `member:${c.id}/${member}` }),

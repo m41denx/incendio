@@ -48,8 +48,14 @@ export function createHandler(opts: { imageServer?: string } = {}): JobHandler {
     const root = Object.values(profile.devices ?? {}).find((d) => d.type === "disk" && d.path === "/");
     if (!root?.pool) throw new ApiError(409, "conflict", `The default profile of ${p.project} has no root disk to size`);
 
+    // A tenant limited to cluster groups (permissions) is placed in the first of them.
+    const project = (await client.request<{ config?: Record<string, string> }>("GET", `/1.0/projects/${encodeURIComponent(p.project)}`)).metadata;
+    // "default" alone is every member (and a standalone server cannot be targeted by group).
+    const allowed = (project.config?.["restricted.cluster.groups"] ?? "").split(",").filter((g) => g && g !== "default");
+    const target = allowed.length ? `&target=${encodeURIComponent(`@${allowed[0]}`)}` : "";
+
     await ctx.progress({ stage: "creating", message: `${p.name} from ${p.image}` });
-    const r = await client.request("POST", `/1.0/instances${q}`, {
+    const r = await client.request("POST", `/1.0/instances${q}${target}`, {
       name: p.name,
       type: p.type,
       source: { type: "image", alias: p.image, server, protocol: "simplestreams" },

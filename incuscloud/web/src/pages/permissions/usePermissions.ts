@@ -14,6 +14,7 @@ export const GIVABLE = [
   "administrator",
   "operator",
   "cluster-owner",
+  "group-owner",
   "unrestricted-user",
   "user",
   "tenant-admin",
@@ -50,8 +51,20 @@ export function useRoleName() {
   return (id: string) => roles?.find((r) => r.id === id)?.name ?? id;
 }
 
-/** Users and service accounts as `<type>:<id>` options, for subject pickers. */
-export function useSubjects() {
+/** Users and service accounts (and, with `groups`, groups and tenants' default groups) as `<type>:<id>` options, for subject pickers. */
+export function useSubjects(o: { groups?: boolean } = {}) {
+  // Groups are the platform's: others are refused, and offered none.
+  const groups = useQuery({
+    queryKey: ["groups"],
+    enabled: !!o.groups,
+    retry: false,
+    queryFn: () => request<Array<{ id: string; name: string }>>("GET", "/api/v1/groups"),
+  });
+  const tenants = useQuery({
+    queryKey: ["tenants"],
+    enabled: !!o.groups,
+    queryFn: () => request<Tenant[]>("GET", "/api/v1/tenants"),
+  });
   const users = useQuery({
     queryKey: ["users"],
     queryFn: () => request<User[]>("GET", "/api/v1/users"),
@@ -69,8 +82,27 @@ export function useSubjects() {
       value: `service:${a.id}`,
       label: `${a.name} (service account)`,
     })),
+    ...(o.groups ? (groups.data ?? []) : []).map((g) => ({
+      value: `group:${g.id}`,
+      label: `${g.name} (group)`,
+    })),
+    ...(o.groups ? (tenants.data ?? []) : []).map((t) => ({
+      value: `tenant:${t.id}`,
+      label: `${t.slug}/members (tenant's members)`,
+    })),
   ];
 }
+
+/** A cluster's Incus cluster groups, from the inventory's members ("default" on a standalone server). */
+export const useClusterGroups = (clusterId: string | undefined) =>
+  useQuery({
+    queryKey: ["cluster-groups", clusterId],
+    enabled: !!clusterId,
+    queryFn: async () => {
+      const inv = await request<{ members: Array<{ groups?: string[] }> }>("GET", `/api/v1/clusters/${clusterId}/inventory`);
+      return [...new Set(["default", ...inv.members.flatMap((m) => m.groups ?? [])])].sort();
+    },
+  });
 
 export const useClusterNames = () =>
   useQuery({

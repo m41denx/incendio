@@ -34,6 +34,7 @@ export function platformSections(me: Me): Section[] {
     { label: "Balancing", icon: "fork", to: "/balancing" },
     platformViewer && { label: "Backup targets", icon: "storage-bucket", to: "/backup-targets" },
     platformViewer && { label: "Users", icon: "user-group", to: "/users" },
+    platformViewer && { label: "Groups", icon: "user-group", to: "/groups" },
     canAtRoot(me, "acl.view") && { label: "Permissions", icon: "lock-locked", to: "/permissions" },
     manages && { label: "Service accounts", icon: "applications", to: "/service-accounts" },
     manages && { label: "Audit log", icon: "show", to: "/audit" },

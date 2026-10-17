@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
-import { aclEntries, clusters, instanceOwners, instances, k8sClusters, placements, platformRoles, serviceAccounts, tenantMembers, tenants, users } from "../db/schema.ts";
+import { aclEntries, clusterMembers, clusters, groupMembers, instanceOwners, instances, k8sClusters, placements, platformRoles, serviceAccounts, tenantMembers, tenants, users } from "../db/schema.ts";
 import type { Principal } from "../auth/principal.ts";
 import { isRoleId, type Privilege, type RoleId } from "./catalog.ts";
 import { chain, parsePath } from "./paths.ts";
@@ -27,6 +27,12 @@ interface Snapshot {
   owners: Map<string, string>;
   /** Every project path IncusCloud knows of (placements and the inventory). */
   projects: string[];
+  /** A user's or service account's groups: `group:<id>` and its tenants' default groups `tenant:<id>`. */
+  groupsOf: Map<string, string[]>;
+  /** An instance path → the group paths (`/clusters/<c>/groups/<g>`) of the member it runs on: its second parent. */
+  locatedIn: Map<string, string[]>;
+  /** A group path → the instance paths on its members. */
+  onGroup: Map<string, string[]>;
 }
 
 /** Which instances a subject may act on with one privilege: whole projects, minus and plus single instances (keys `<cluster>/<project>[/<name>]`). */
@@ -89,7 +95,7 @@ export class Acl {
   private async load(): Promise<Snapshot> {
     const at = this.now();
     const db = this.db;
-    const [explicit, roles, members, accounts, people, places, allTenants, allClusters, owned, k8s, inventoried] = await Promise.all([
+    const [explicit, roles, members, accounts, people, places, allTenants, allClusters, owned, k8s, inventoried, grouped, memberGroups, located] = await Promise.all([
       db.select().from(aclEntries),
       db.select().from(platformRoles),
       db.select({ tenantId: tenantMembers.tenantId, userId: tenantMembers.userId, role: tenantMembers.role, slug: tenants.slug }).from(tenantMembers).innerJoin(tenants, eq(tenants.id, tenantMembers.tenantId)),
@@ -101,10 +107,13 @@ export class Acl {
       db.select({ cluster: clusters.name, project: instanceOwners.project, name: instanceOwners.name, userId: instanceOwners.userId, serviceAccountId: instanceOwners.serviceAccountId }).from(instanceOwners).innerJoin(clusters, eq(clusters.id, instanceOwners.clusterId)),
       db.select({ slug: tenants.slug, name: k8sClusters.name, createdBy: k8sClusters.createdBy }).from(k8sClusters).innerJoin(tenants, eq(tenants.id, k8sClusters.tenantId)),
       db.selectDistinct({ cluster: clusters.name, project: instances.project }).from(instances).innerJoin(clusters, eq(clusters.id, instances.clusterId)),
+      db.select().from(groupMembers),
+      db.select({ cluster: clusters.name, name: clusterMembers.name, groups: clusterMembers.groups }).from(clusterMembers).innerJoin(clusters, eq(clusters.id, clusterMembers.clusterId)),
+      db.select({ cluster: clusters.name, project: instances.project, name: instances.name, location: instances.location }).from(instances).innerJoin(clusters, eq(clusters.id, instances.clusterId)),
     ]);
     const entries: Entry[] = [];
     for (const e of explicit)
-      if (isRoleId(e.role)) entries.push({ id: e.id, path: e.path, subject: e.userId ? `user:${e.userId}` : `service:${e.serviceAccountId}`, role: e.role, propagate: e.propagate, source: "acl" });
+      if (isRoleId(e.role)) entries.push({ id: e.id, path: e.path, subject: entrySubject(e), role: e.role, propagate: e.propagate, source: "acl" });
     for (const r of roles) if (PLATFORM_ROLE[r.role]) entries.push({ id: `platform-role:${r.userId}`, path: "/", subject: `user:${r.userId}`, role: PLATFORM_ROLE[r.role]!, propagate: true, source: "platform-role" });
     for (const m of members)
       if (TENANT_ROLE[m.role]) entries.push({ id: `tenant-membership:${m.tenantId}:${m.userId}`, path: `/tenants/${m.slug}`, subject: `user:${m.userId}`, role: TENANT_ROLE[m.role]!, propagate: true, source: "tenant-membership" });
@@ -138,15 +147,52 @@ export class Acl {
     }
     for (const k of k8s) owners.set(`/tenants/${k.slug}/kubernetes/${k.name}`, k.createdBy);
     const projects = [...new Set([...places, ...inventoried].map((x) => `/clusters/${x.cluster}/projects/${x.project}`))];
-    return { at, entries, byPath, bySubject, disabled, tenantOf, projectsOf, ids, owners, projects };
+    // Groups: IncusCloud's, and each tenant's default group (its members and service accounts, always).
+    const groupsOf = new Map<string, string[]>();
+    for (const g of grouped) push(groupsOf, g.userId ? `user:${g.userId}` : `service:${g.serviceAccountId}`, `group:${g.groupId}`);
+    for (const m of members) push(groupsOf, `user:${m.userId}`, `tenant:${m.tenantId}`);
+    for (const a of accounts) if (a.tenantId) push(groupsOf, `service:${a.id}`, `tenant:${a.tenantId}`);
+    // Instances' second parent: the Incus cluster groups of the member they run on.
+    const groupsAt = new Map(memberGroups.map((m) => [`${m.cluster}/${m.name}`, (m.groups ?? []).length ? m.groups! : ["default"]]));
+    const locatedIn = new Map<string, string[]>();
+    const onGroup = new Map<string, string[]>();
+    for (const i of located) {
+      const path = `/clusters/${i.cluster}/projects/${i.project}/instances/${i.name}`;
+      const gs = (groupsAt.get(`${i.cluster}/${i.location}`) ?? []).map((g) => `/clusters/${i.cluster}/groups/${g}`);
+      if (!gs.length) continue;
+      locatedIn.set(path, gs);
+      for (const g of gs) push(onGroup, g, path);
+    }
+    return { at, entries, byPath, bySubject, disabled, tenantOf, projectsOf, ids, owners, projects, groupsOf, locatedIn, onGroup };
   }
 
   /** `opts.owner`: the object's owner, for objects without a path of their own (backups); owned paths are looked up. */
   private decide(s: Snapshot, subject: string, path: string, opts: DecideOpts = {}) {
     const parsed = parsePath(path);
     if (!parsed || s.disabled.has(subject)) return { privileges: new Set<Privilege>(), decidedBy: [] as Entry[] };
-    const owner = opts.owner ?? s.owners.get(path);
-    return resolve([subject], s.byPath, chain(parsed, (c, p) => s.tenantOf.get(`${c}/${p}`)), owner === subject);
+    const owned = (opts.owner ?? s.owners.get(path)) === subject;
+    const keys = this.keysOf(s, subject);
+    const full = chain(parsed, (c, p) => s.tenantOf.get(`${c}/${p}`));
+    const sides = parsed.kind === "instance" ? (s.locatedIn.get(path) ?? []) : [];
+    if (!sides.length) return resolve(keys, s.byPath, full, owned);
+    // An instance has two parents (spec "Resolution" 4): its project, and the groups of the member it runs on.
+    // Its own entries decide alone; otherwise each side is resolved and the results are combined. A group side
+    // counts only the group's own entries, so it never brings back what a tenant or project entry narrowed away.
+    const own = resolve(keys, s.byPath, [path], owned);
+    if (own.decidedBy.length) return own;
+    const results = [resolve(keys, s.byPath, full, owned), ...sides.map((g) => resolve(keys, s.byPath, [path, g], owned))];
+    const privileges = new Set<Privilege>();
+    const decidedBy: Entry[] = [];
+    for (const r of results) {
+      for (const p of r.privileges) privileges.add(p);
+      for (const e of r.decidedBy) if (!decidedBy.includes(e)) decidedBy.push(e);
+    }
+    return { privileges, decidedBy };
+  }
+
+  /** The subject and its groups: whose entries count for it. */
+  private keysOf(s: Snapshot, subject: string): string[] {
+    return [subject, ...(s.groupsOf.get(subject) ?? [])];
   }
 
   async privileges(p: Pick<Principal, "kind" | "id">, path: string, opts?: DecideOpts): Promise<Set<Privilege>> {
@@ -181,9 +227,14 @@ export class Acl {
     const key = (path: string) => path.slice("/clusters/".length).replace("/projects/", "/").replace("/instances/", "/");
     const out: InstanceScope = { projects: [], exclude: [], include: [] };
     for (const path of s.projects) if (this.decide(s, subject, path).privileges.has(privilege)) out.projects.push(key(path));
-    // Single instances: those with the subject's own entries, and those it owns.
+    // Single instances: those with entries of the subject (or its groups), those on its groups' cluster groups, and those it owns.
     const singles = new Set<string>();
-    for (const e of s.bySubject.get(subject) ?? []) if (parsePath(e.path)?.kind === "instance") singles.add(e.path);
+    for (const k of this.keysOf(s, subject))
+      for (const e of s.bySubject.get(k) ?? []) {
+        const kind = parsePath(e.path)?.kind;
+        if (kind === "instance") singles.add(e.path);
+        if (kind === "group") for (const i of s.onGroup.get(e.path) ?? []) singles.add(i);
+      }
     for (const [path, owner] of s.owners) if (owner === subject && path.startsWith("/clusters/")) singles.add(path);
     const inProject = new Set(out.projects);
     for (const path of singles) {
@@ -223,10 +274,12 @@ export class Acl {
     if (this.decide(s, subject, path).privileges.size) return true;
     const below = (x: string) => path === "/" || x.startsWith(`${path}/`);
     const candidates = new Set<string>();
-    for (const e of s.bySubject.get(subject) ?? []) {
+    for (const e of this.keysOf(s, subject).flatMap((k) => s.bySubject.get(k) ?? [])) {
       const at = [e.path];
       const t = /^\/tenants\/([^/]+)$/.exec(e.path)?.[1];
       if (t) at.push(...(s.projectsOf.get(t) ?? []));
+      // A cluster group reaches the instances on its members.
+      at.push(...(s.onGroup.get(e.path) ?? []));
       for (const x of at) if (below(x)) candidates.add(x);
     }
     for (const x of candidates) if (this.decide(s, subject, x).privileges.size) return true;
@@ -243,3 +296,7 @@ export class Acl {
     return (await this.snapshot()).entries;
   }
 }
+
+/** An explicit entry's subject key: a user, a service account, a group, or a tenant's default group. */
+export const entrySubject = (e: { userId: string | null; serviceAccountId: string | null; groupId: string | null; tenantGroupId: string | null }) =>
+  e.userId ? `user:${e.userId}` : e.serviceAccountId ? `service:${e.serviceAccountId}` : e.groupId ? `group:${e.groupId}` : `tenant:${e.tenantGroupId}`;
