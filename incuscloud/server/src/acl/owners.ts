@@ -79,3 +79,18 @@ export async function backfillOwners(db: Db, clusterId: string): Promise<number>
   }
   return n;
 }
+
+/** A job's actor as an owner subject; system jobs (schedules) have none. */
+export const actorOf = (job: { actorType?: string; actorId?: string }): string | null =>
+  (job.actorType === "user" || job.actorType === "service") && job.actorId ? `${job.actorType}:${job.actorId}` : null;
+
+/** Gives `to` the owner `from` has (a replica, a moved instance); with `move`, `from` is forgotten. */
+export async function carryOwner(db: Db, from: InstanceKey, to: InstanceKey, opts: { move?: boolean } = {}): Promise<void> {
+  const [r] = await db.select().from(instanceOwners).where(at(from));
+  if (!r) return;
+  await db.transaction(async (tx) => {
+    await tx.delete(instanceOwners).where(at(to));
+    await tx.insert(instanceOwners).values({ ...to, userId: r.userId, serviceAccountId: r.serviceAccountId, source: "incuscloud" });
+    if (opts.move) await tx.delete(instanceOwners).where(at(from));
+  });
+}

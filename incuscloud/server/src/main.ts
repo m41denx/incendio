@@ -28,6 +28,8 @@ import { serveUi } from "./gateway/ui.ts";
 import { createFacade } from "./federation/handler.ts";
 import { Worker } from "./reconcile/worker.ts";
 import { FleetWorker } from "./fleet/worker.ts";
+import { Lifecycle } from "./acl/lifecycle.ts";
+import { requestReconcile } from "./reconcile/requests.ts";
 import { JobRunner } from "./jobs/runner.ts";
 import { jobHandlers } from "./jobs/handlers.ts";
 import { scheduleReplication } from "./mobility/replication.ts";
@@ -85,6 +87,9 @@ const fleet =
     ? new FleetWorker({ db, secretKey: config.secretKey }, { holder: `${hostname()}/${process.pid}`, intervalMs: config.inventoryIntervalMs, retentionMs: config.metricsRetentionMs })
     : undefined;
 fleet?.start();
+// Owners of instances created straight against a cluster (permissions), from its lifecycle events.
+const lifecycle = config.role !== "api" ? new Lifecycle({ db, secretKey: config.secretKey, onOwnerChange: (id) => requestReconcile(db, [id]) }) : undefined;
+lifecycle?.start();
 // Schedulers queue due replication runs and backups before each pass.
 const scheduleDue = async () => {
   await scheduleReplication(db);
@@ -160,7 +165,7 @@ for (const sig of ["SIGINT", "SIGTERM"] as const) {
     log.info("shutting down", { signal: sig });
     const closeServer = serveApi ? new Promise<void>((resolve) => server.close(() => resolve())) : Promise.resolve();
     // The worker releases its lease so another replica takes over at once.
-    Promise.all([closeServer.then(() => requestLog.stop()), worker?.stop(), fleet?.stop(), jobRunner?.stop(), k8sWorker?.stop()]).finally(() => process.exit(0));
+    Promise.all([closeServer.then(() => requestLog.stop()), worker?.stop(), fleet?.stop(), lifecycle?.stop(), jobRunner?.stop(), k8sWorker?.stop()]).finally(() => process.exit(0));
     setTimeout(() => process.exit(0), 10_000).unref();
   });
 }

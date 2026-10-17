@@ -1,4 +1,5 @@
 import { inArray } from "drizzle-orm";
+import { actorOf, carryOwner, recordOwner } from "../acl/owners.ts";
 import { clusters } from "../db/schema.ts";
 import { ApiError } from "../lib/errors.ts";
 import type { IncusAdminClient } from "../incus/admin-client.ts";
@@ -104,6 +105,12 @@ export function migrateHandler(deps: MigrateDeps = {}): JobHandler {
         await ctx.progress({ stage: "deleting the source" });
         await incusDo(src.client, "DELETE", instancePath(p.sourceProject, p.name));
       }
+      // A move keeps its owner; a copy is whoever made it.
+      const from = { clusterId: p.sourceClusterId, project: p.sourceProject, name: p.name };
+      const to = { clusterId: p.targetClusterId, project: p.targetProject, name: p.targetName };
+      const actor = actorOf(ctx.job);
+      if (p.mode === "move") await carryOwner(ctx.db, from, to, { move: true });
+      else if (actor) await recordOwner(ctx.db, to, actor, "incuscloud");
     } catch (e) {
       if (!committed) {
         await ctx.progress({ stage: "rolling back" });

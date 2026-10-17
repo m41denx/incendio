@@ -2,7 +2,8 @@ import { beforeEach, expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
 import { testDb } from "../db/test-db.ts";
 import type { Db } from "../db/index.ts";
-import { clusters, jobs, replicationPolicies } from "../db/schema.ts";
+import { clusters, jobs, replicationPolicies, users } from "../db/schema.ts";
+import { ownerOf, recordOwner } from "../acl/owners.ts";
 import { enqueueJob } from "../jobs/queue.ts";
 import type { JobContext } from "../jobs/types.ts";
 import { stubCluster, type StubInstance } from "../test/stub-cluster.ts";
@@ -124,4 +125,12 @@ test("the scheduler queues due policies once; not while a run is active; not dis
   await enqueueJob(db, { type: "migrate", payload: {}, actor: { type: "user", id: "u" }, instanceKey: `${ids.a}/acme/web` });
   await scheduleReplication(db);
   expect((await db.select().from(jobs)).filter((j) => j.type === "replicate")).toHaveLength(2);
+});
+
+test("a replica belongs to its source's owner; a failover keeps it", async () => {
+  const [owner] = await db.insert(users).values({ email: "own@x", name: "o" }).returning();
+  await recordOwner(db, { clusterId: ids.a, project: "acme", name: "web" }, `user:${owner!.id}`, "event");
+  const s = setup();
+  await s.replicate();
+  expect(await ownerOf(db, { clusterId: ids.b, project: "acme", name: "web-dr" })).toBe(`user:${owner!.id}`);
 });

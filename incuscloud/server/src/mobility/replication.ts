@@ -1,4 +1,5 @@
 import { and, eq, isNull, or, sql } from "drizzle-orm";
+import { carryOwner } from "../acl/owners.ts";
 import type { Db } from "../db/index.ts";
 import { replicationPolicies } from "../db/schema.ts";
 import { ApiError } from "../lib/errors.ts";
@@ -65,6 +66,8 @@ export function replicateHandler(deps: MigrateDeps = {}): JobHandler {
         onProgress: (message) => ctx.progress({ stage: existing ? "refreshing" : "copying", message }),
       });
       await ctx.db.update(replicationPolicies).set({ lastSuccessAt: new Date(), lastError: "" }).where(eq(replicationPolicies.id, p.id));
+      // The replica is the source's owner's, as the instance it stands in for.
+      if (!existing) await carryOwner(ctx.db, { clusterId: p.sourceClusterId, project: p.sourceProject, name: p.instanceName }, { clusterId: p.targetClusterId, project: p.targetProject, name: p.targetName });
       return { transport, refreshed: !!existing };
     } catch (e) {
       // A first copy this run left behind goes; an existing replica stays as it was.

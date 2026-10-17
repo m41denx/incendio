@@ -1,0 +1,17 @@
+{
+ "type": "lifecycle",
+ "timestamp": "2026-10-17T13:03:44.908076924Z",
+ "metadata": {
+  "action": "instance-deleted",
+  "source": "/1.0/instances/evt-probe2?project=kspike",
+  "requestor": {
+   "username": "REQUESTOR",
+   "protocol": "oidc",
+   "address": "10.133.241.1"
+  },
+  "name": "evt-probe2",
+  "project": "kspike"
+ },
+ "location": "none",
+ "project": "kspike"
+}

@@ -1,7 +1,8 @@
 import { beforeEach, expect, test } from "bun:test";
 import { testDb } from "../db/test-db.ts";
 import type { Db } from "../db/index.ts";
-import { backups, backupTargets, clusters } from "../db/schema.ts";
+import { backups, backupTargets, clusters, users } from "../db/schema.ts";
+import { ownerOf } from "../acl/owners.ts";
 import type { JobContext } from "../jobs/types.ts";
 import { stubCluster, type StubBackups } from "../test/stub-cluster.ts";
 import { restoreHandler, TAG_RESTORED_FROM } from "./restore-job.ts";
@@ -57,7 +58,7 @@ let transfers: TransferOptions[];
 let transferFails: string | undefined;
 let targetFacts: TargetFacts;
 
-function run(payload: Record<string, unknown> = {}, o: StubBackups & { existing?: string[] } = {}, signal = new AbortController().signal) {
+function run(payload: Record<string, unknown> = {}, o: StubBackups & { existing?: string[]; actor?: string } = {}, signal = new AbortController().signal) {
   const b = stubCluster("B", Object.fromEntries((o.existing ?? []).map((n) => [n, { status: "Running", type: "container", config: {} }])), log, o);
   transfers = [];
   const deps = {
@@ -75,7 +76,7 @@ function run(payload: Record<string, unknown> = {}, o: StubBackups & { existing?
   const ctx = {
     db,
     secretKey: Buffer.alloc(32),
-    job: { id: "job-1", payload: { backupId, targetClusterId: clusterId, targetProject: "acme", targetName: "web2", start: false, ...payload } },
+    job: { id: "job-1", actorType: o.actor ? "user" : "system", actorId: o.actor ?? "scheduler", payload: { backupId, targetClusterId: clusterId, targetProject: "acme", targetName: "web2", start: false, ...payload } },
     signal,
     progress: async () => {},
     clientFor: async () => ({ client: b, row: { id: clusterId, name: "B" } }),
@@ -123,4 +124,10 @@ test("cancelled during the upload", async () => {
   const ac = new AbortController();
   ac.abort(new Error("Cancelled"));
   expect(await msg(run({}, {}, ac.signal).result)).toBe("Cancelled");
+});
+
+test("whoever restores owns the restored instance", async () => {
+  const [u] = await db.insert(users).values({ email: "r@x", name: "r" }).returning();
+  await run({}, { actor: u!.id }).result;
+  expect(await ownerOf(db, { clusterId, project: "acme", name: "web2" })).toBe(`user:${u!.id}`);
 });

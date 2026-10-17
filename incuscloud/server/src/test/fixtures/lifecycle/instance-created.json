@@ -1,0 +1,22 @@
+{
+ "type": "lifecycle",
+ "timestamp": "2026-10-17T13:03:44.767482115Z",
+ "metadata": {
+  "action": "instance-created",
+  "source": "/1.0/instances/evt-probe?project=kspike",
+  "context": {
+   "location": "none",
+   "storage-pool": "default",
+   "type": "container"
+  },
+  "requestor": {
+   "username": "REQUESTOR",
+   "protocol": "oidc",
+   "address": "10.133.241.1"
+  },
+  "name": "evt-probe",
+  "project": "kspike"
+ },
+ "location": "none",
+ "project": "kspike"
+}

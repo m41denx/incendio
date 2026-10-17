@@ -1,10 +1,11 @@
 import { beforeEach, expect, test } from "bun:test";
 import { testDb } from "../db/test-db.ts";
 import type { Db } from "../db/index.ts";
-import { clusters } from "../db/schema.ts";
+import { clusters, instanceOwners, users } from "../db/schema.ts";
 import { stubCluster, type StubInstance } from "../test/stub-cluster.ts";
 import type { JobContext } from "../jobs/types.ts";
 import type { SourceInstance, TargetFacts } from "./preflight.ts";
+import { ownerOf, recordOwner } from "../acl/owners.ts";
 import { migrateHandler, type MigratePayload } from "./migrate-job.ts";
 
 let db: Db;
@@ -27,7 +28,7 @@ const source = (status = "Running", type: "container" | "virtual-machine" = "con
 });
 const target = (over: Partial<TargetFacts> = {}): TargetFacts => ({ projectExists: true, architectures: ["aarch64"], pools: ["default"], networks: [], profiles: ["default"], instanceNames: [], defaultProfileDevices: {}, apiExtensions: [], ...over });
 
-function setup(o: { status?: string; mode?: "copy" | "move"; target?: Partial<TargetFacts>; transfer?: (dst: ReturnType<typeof cluster>, request: { name: string; config: Record<string, string> }) => Promise<void>; abort?: boolean }) {
+function setup(o: { actor?: string; status?: string; mode?: "copy" | "move"; target?: Partial<TargetFacts>; transfer?: (dst: ReturnType<typeof cluster>, request: { name: string; config: Record<string, string> }) => Promise<void>; abort?: boolean }) {
   const a = cluster("A", { web: { status: o.status ?? "Running", type: "container", config: {} } });
   const b = cluster("B", {});
   const abort = new AbortController();
@@ -47,7 +48,7 @@ function setup(o: { status?: string; mode?: "copy" | "move"; target?: Partial<Ta
   const ctx = {
     db,
     secretKey: Buffer.alloc(32),
-    job: { id: "job-1", payload },
+    job: { id: "job-1", payload, actorType: o.actor ? "user" : "system", actorId: o.actor ?? "scheduler" },
     signal: abort.signal,
     progress: async () => {},
     clientFor: async (id: string) => ({ client: id === ids.a ? a : b, row: { id, name: id === ids.a ? "A" : "B", serverCert: "PEM", url: id === ids.a ? a.url : b.url } }),
@@ -117,4 +118,18 @@ test("pre-flight is checked again when the job runs; problems stop it before any
   const { run } = setup({ target: { instanceNames: ["web"] } });
   await expect(run()).rejects.toThrow('An instance named "web" already exists on the target');
   expect(log).toEqual([]);
+});
+
+test("a move keeps the instance's owner; a copy belongs to whoever copied", async () => {
+  const [owner] = await db.insert(users).values({ email: "own@x", name: "o" }).returning();
+  const [mover] = await db.insert(users).values({ email: "mov@x", name: "m" }).returning();
+  await recordOwner(db, { clusterId: ids.a, project: "acme", name: "web" }, `user:${owner!.id}`, "event");
+  await setup({ actor: mover!.id }).run();
+  expect(await ownerOf(db, { clusterId: ids.b, project: "acme", name: "web" })).toBe(`user:${owner!.id}`);
+  expect(await ownerOf(db, { clusterId: ids.a, project: "acme", name: "web" })).toBeNull();
+  await db.delete(instanceOwners);
+  await recordOwner(db, { clusterId: ids.a, project: "acme", name: "web" }, `user:${owner!.id}`, "event");
+  await setup({ actor: mover!.id, mode: "copy" }).run();
+  expect(await ownerOf(db, { clusterId: ids.b, project: "acme", name: "web" })).toBe(`user:${mover!.id}`);
+  expect(await ownerOf(db, { clusterId: ids.a, project: "acme", name: "web" })).toBe(`user:${owner!.id}`);
 });

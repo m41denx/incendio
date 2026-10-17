@@ -2,9 +2,10 @@ import { beforeEach, expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
 import { testDb } from "../db/test-db.ts";
 import type { Db } from "../db/index.ts";
-import { clusters, placements, tenants } from "../db/schema.ts";
+import { clusters, placements, tenants, users } from "../db/schema.ts";
 import { ClusterError } from "../incus/admin-client.ts";
 import type { JobContext } from "../jobs/types.ts";
+import { ownerOf } from "../acl/owners.ts";
 import { createHandler, type CreatePayload } from "./create-job.ts";
 
 const GiB = 1024 ** 3;
@@ -94,4 +95,18 @@ test("a taken name is refused before anything is created", async () => {
 
 test("a project whose default profile has no root disk is reported", async () => {
   await expect(run(fakeCluster({ pool: null }), payload())).rejects.toThrow(/no root disk/);
+});
+
+test("the instance belongs to whoever asked for it", async () => {
+  const [u] = await db.insert(users).values({ email: "owner@x", name: "o" }).returning();
+  const c = fakeCluster({});
+  await createHandler({ imageServer: "https://images.example" })({
+    db,
+    secretKey: Buffer.alloc(32),
+    job: { id: "00000000-0000-4000-8000-00000000000d", tenantId, payload: payload(), actorType: "user", actorId: u!.id },
+    signal: new AbortController().signal,
+    progress: async () => {},
+    clientFor: async () => ({ client: c, row: { id: lab, name: "lab" } }),
+  } as unknown as JobContext);
+  expect(await ownerOf(db, { clusterId: lab, project: "acme", name: "web" })).toBe(`user:${u!.id}`);
 });

@@ -1,4 +1,5 @@
 import { and, eq } from "drizzle-orm";
+import { actorOf, recordOwner } from "../acl/owners.ts";
 import { placements } from "../db/schema.ts";
 import { ClusterError } from "../incus/admin-client.ts";
 import { ApiError } from "../lib/errors.ts";
@@ -57,6 +58,8 @@ export function createHandler(opts: { imageServer?: string } = {}): JobHandler {
       start: p.start,
     });
     if (r.type === "async" && r.operation) await waitOp(client, r.operation, ctx.signal);
+    const owner = actorOf(ctx.job);
+    if (owner) await recordOwner(ctx.db, { clusterId: p.clusterId, project: p.project, name: p.name }, owner, "incuscloud");
 
     const usage = await projectUsage(client, p.project).catch(() => null);
     if (usage) await ctx.db.update(placements).set({ usage }).where(and(eq(placements.tenantId, p.tenantId), eq(placements.clusterId, p.clusterId)));

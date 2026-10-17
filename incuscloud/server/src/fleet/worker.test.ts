@@ -2,7 +2,8 @@ import { beforeEach, expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
 import { testDb } from "../db/test-db.ts";
 import type { Db } from "../db/index.ts";
-import { clusters, instances, leases } from "../db/schema.ts";
+import { clusters, instances, leases, placements, tenantMembers, tenants, users } from "../db/schema.ts";
+import { ownerOf } from "../acl/owners.ts";
 import { acquireLease } from "../reconcile/lease.ts";
 import type { Snapshot } from "./collect.ts";
 import { FleetWorker } from "./worker.ts";
@@ -81,4 +82,16 @@ test("without the lease nothing is collected; stop releases it", async () => {
   await w.stop();
   expect(seen.sort()).toEqual(["c1", "c2"]);
   expect(await db.select().from(leases)).toEqual([]);
+});
+
+test("after a pass, instances nobody claimed go to their tenant's first owner, and the cluster is reconciled", async () => {
+  const [c1] = await db.select().from(clusters).where(eq(clusters.name, "c1"));
+  const [t] = await db.insert(tenants).values({ slug: "default", name: "D" }).returning();
+  await db.insert(placements).values({ tenantId: t!.id, clusterId: c1!.id, project: "default" });
+  const [u] = await db.insert(users).values({ email: "o@x", name: "o" }).returning();
+  await db.insert(tenantMembers).values({ tenantId: t!.id, userId: u!.id, role: "owner" });
+  await worker().tick();
+  expect(await ownerOf(db, { clusterId: c1!.id, project: "default", name: "c1-vm" })).toBe(`user:${u!.id}`);
+  const [after] = await db.select().from(clusters).where(eq(clusters.id, c1!.id));
+  expect(after!.reconcileRequestedAt).not.toBeNull();
 });

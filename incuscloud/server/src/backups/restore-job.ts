@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { actorOf, recordOwner } from "../acl/owners.ts";
 import { backups, backupTargets } from "../db/schema.ts";
 import { ClusterError } from "../incus/admin-client.ts";
 import { ApiError } from "../lib/errors.ts";
@@ -106,6 +107,9 @@ export function restoreHandler(deps: MigrateDeps & { storeFor?: StoreFor } = {})
       } else {
         await restoreViaStaging();
       }
+      // A restore is a new instance: whoever restored it owns it.
+      const owner = actorOf(ctx.job);
+      if (owner) await recordOwner(ctx.db, { clusterId: p.targetClusterId, project: p.targetProject, name: p.targetName }, owner, "incuscloud");
       if (p.start) {
         await ctx.progress({ stage: "starting" });
         await setState(client, p.targetProject, p.targetName, "start");
