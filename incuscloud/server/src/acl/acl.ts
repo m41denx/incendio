@@ -22,6 +22,16 @@ interface Snapshot {
   tenantOf: Map<string, string>;
   /** Tenant slug → its project paths (`/clusters/<c>/projects/<p>`). */
   projectsOf: Map<string, string[]>;
+  ids: Lookup;
+}
+
+/** Ids to names, for callers that hold ids (the `Authz` adapter). */
+export interface Lookup {
+  tenantSlugs: Map<string, string>;
+  clusterNames: Map<string, string>;
+  serviceAccounts: Set<string>;
+  /** `<tenantId>:<userId>` of tenant owners. */
+  owners: Set<string>;
 }
 
 const push = <K, V>(m: Map<K, V[]>, k: K, v: V) => m.set(k, [...(m.get(k) ?? []), v]);
@@ -59,13 +69,15 @@ export class Acl {
   private async load(): Promise<Snapshot> {
     const at = this.now();
     const db = this.db;
-    const [explicit, roles, members, accounts, people, places] = await Promise.all([
+    const [explicit, roles, members, accounts, people, places, allTenants, allClusters] = await Promise.all([
       db.select().from(aclEntries),
       db.select().from(platformRoles),
       db.select({ tenantId: tenantMembers.tenantId, userId: tenantMembers.userId, role: tenantMembers.role, slug: tenants.slug }).from(tenantMembers).innerJoin(tenants, eq(tenants.id, tenantMembers.tenantId)),
       db.select({ id: serviceAccounts.id, tenantId: serviceAccounts.tenantId, platformRole: serviceAccounts.platformRole, disabled: serviceAccounts.disabled, slug: tenants.slug }).from(serviceAccounts).leftJoin(tenants, eq(tenants.id, serviceAccounts.tenantId)),
       db.select({ id: users.id, disabled: users.disabled }).from(users),
       db.select({ cluster: clusters.name, project: placements.project, slug: tenants.slug }).from(placements).innerJoin(clusters, eq(clusters.id, placements.clusterId)).innerJoin(tenants, eq(tenants.id, placements.tenantId)),
+      db.select({ id: tenants.id, slug: tenants.slug }).from(tenants),
+      db.select({ id: clusters.id, name: clusters.name }).from(clusters),
     ]);
     const entries: Entry[] = [];
     for (const e of explicit)
@@ -90,7 +102,13 @@ export class Acl {
       tenantOf.set(`${p.cluster}/${p.project}`, p.slug);
       push(projectsOf, p.slug, `/clusters/${p.cluster}/projects/${p.project}`);
     }
-    return { at, entries, byPath, bySubject, disabled, tenantOf, projectsOf };
+    const ids: Lookup = {
+      tenantSlugs: new Map(allTenants.map((t) => [t.id, t.slug])),
+      clusterNames: new Map(allClusters.map((c) => [c.id, c.name])),
+      serviceAccounts: new Set(accounts.map((a) => a.id)),
+      owners: new Set(members.filter((m) => m.role === "owner").map((m) => `${m.tenantId}:${m.userId}`)),
+    };
+    return { at, entries, byPath, bySubject, disabled, tenantOf, projectsOf, ids };
   }
 
   private decide(s: Snapshot, subject: string, path: string) {
@@ -132,6 +150,11 @@ export class Acl {
     }
     for (const x of candidates) if (this.decide(s, subject, x).privileges.size) return true;
     return false;
+  }
+
+  async lookup(): Promise<Lookup & { disabled: Set<string> }> {
+    const s = await this.snapshot();
+    return { ...s.ids, disabled: s.disabled };
   }
 
   /** Every entry, explicit and virtual. */

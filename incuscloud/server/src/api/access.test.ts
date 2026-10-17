@@ -1,7 +1,6 @@
 import { beforeEach, expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
 import { clusters, placements, serviceAccounts, users } from "../db/schema.ts";
-import { syncAll } from "../authz/sync.ts";
 import { harness } from "../test/harness.ts";
 
 let h: Awaited<ReturnType<typeof harness>>;
@@ -18,7 +17,6 @@ beforeEach(async () => {
     { tenantId: acme.id, clusterId: lab, project: "acme", status: "ready" },
     { tenantId: beta.id, clusterId: lab, project: "beta-lab", status: "ready" },
   ]);
-  await syncAll(h.db, h.authz);
 });
 
 const who = (r: { body: { platform?: Array<{ name: string; role: string; relation: string }>; tenants: Array<{ tenant: { slug: string }; project: string; members: Array<{ name: string; kind: string; role: string; relation: string }> }> } }) => ({
@@ -57,7 +55,6 @@ test("an unknown cluster, or one the caller cannot reach, is not found", async (
   const ann = await h.user("ann@example.com", { tenants: { [acme.id]: "member" } });
   expect((await h.call(ann, "GET", "/api/v1/access?cluster=nope")).status).toBe(404);
   const edge = (await h.db.insert(clusters).values({ name: "edge", url: "https://10.0.0.6:8443", fingerprint: "f", serverCert: "", clientCert: "", clientKeyEnc: "", status: "ready" }).returning())[0]!.id;
-  await syncAll(h.db, h.authz);
   void edge;
   expect((await h.call(ann, "GET", "/api/v1/access?cluster=edge")).status).toBe(404);
   expect((await h.call(null, "GET", "/api/v1/access?cluster=lab")).status).toBe(401);

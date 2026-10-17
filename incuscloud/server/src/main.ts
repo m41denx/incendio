@@ -4,8 +4,8 @@ import { loadConfig } from "./config.ts";
 import { createApp } from "./app.ts";
 import { createFront } from "./front.ts";
 import { openDb } from "./db/index.ts";
-import { PlatformAuthz } from "./authz/platform.ts";
-import { syncAll } from "./authz/sync.ts";
+import { Acl } from "./acl/acl.ts";
+import { AclAuthz } from "./authz/acl-authz.ts";
 import { HydraAdmin } from "./identity/hydra-admin.ts";
 import { CLI_CLIENT_ID, ensureClients, webClientSecret } from "./identity/bootstrap.ts";
 import { AUDIENCE } from "./identity/routes.ts";
@@ -60,8 +60,8 @@ const issuer = await retry("Hydra discovery", () => discoverIssuer(config.hydra.
 // origin, the front serves Hydra's public endpoints; back-channel calls go to Hydra directly.
 const issuerUrl = issuer.replace(/\/$/, "");
 const oidcAtPublicUrl = new URL(issuer).origin === new URL(config.publicUrl).origin;
-const authz = await retry("OpenFGA", () => PlatformAuthz.init(config.openfga));
-log.info("authorization store ready", { store: authz.storeId, model: authz.modelId, tuples: await syncAll(db, authz) });
+const acl = new Acl(db);
+const authz = new AclAuthz(db, acl);
 await ensureBootstrapAdmin(db, authz, config.bootstrapAdmin);
 
 const serveApi = config.role !== "worker";
@@ -116,6 +116,7 @@ if (fleet) log.info("inventory started", { intervalMs: config.inventoryIntervalM
 
 const appDeps = {
   db,
+  acl,
   authz,
   hydra,
   tokens: new HydraTokens({ hydraPublicUrl: config.hydra.publicUrl, clientSecret: webClientSecret(config.secretKey), ca: hydraCa }),

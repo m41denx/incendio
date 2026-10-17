@@ -15,7 +15,6 @@
     "@incendio/api": "workspace:*",
     "@incendio/k8s": "workspace:*",
     "@openfga/sdk": "0.9.7",
-    "@openfga/syntax-transformer": "0.2.2",
     "@peculiar/x509": "^2.1.0",
     "drizzle-orm": "0.45.4",
     "elysia": "1.4.30",

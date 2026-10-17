@@ -6,7 +6,6 @@ import type { Server } from "node:https";
 import { connect } from "node:tls";
 import { eq } from "drizzle-orm";
 import { clusters, placements, sessions } from "../db/schema.ts";
-import { syncAll } from "../authz/sync.ts";
 import { createFront } from "../front.ts";
 import { FakeIncus } from "../clusters/fake-incus.ts";
 import { harness, type Actor } from "../test/harness.ts";
@@ -40,7 +39,6 @@ beforeEach(async () => {
   await h.db.insert(placements).values({ tenantId: t.id, clusterId, project: "acme" });
   member = await h.user("m@example.com", { tenants: { [t.id]: "member" } });
   outsider = await h.user("o@example.com");
-  await syncAll(h.db, h.authz);
   cache = new ClusterCache(h.db, 0);
   logged = [];
   const gateway = createGateway({ ...h.deps, clusterDomain: "clusters.test", clusters: cache, upstreams: new Upstreams(), onRequest: (r) => logged.push(r), oidc: OIDC });

@@ -36,11 +36,10 @@ Licensed under GPL-3.0 (see `LICENSE`).
 - **Clusters trust Hydra directly** (`oidc.issuer`, `oidc.audience=incuscloud`,
   `oidc.claim=sub`, set by the reconciler), so a token works against every
   cluster and each cluster still enforces access itself.
-- **Authorization**: one OpenFGA store (`incuscloud-platform`) holds platform,
-  tenant and cluster roles. Each enrolled cluster also has its own store
-  (`incuscloud-cluster-<cluster id>`) with the grants the reconciler writes
-  for it. The database is the source of truth; tuples are its projection,
-  re-synced at start.
+- **Authorization**: IncusCloud's permissions (see [Permissions](#permissions))
+  live in its database and are resolved by IncusCloud itself. Each enrolled
+  cluster has its own OpenFGA store (`incuscloud-cluster-<cluster id>`) with
+  the grants the reconciler writes for it, so Incus enforces them too.
 - **Enrolment**: `incus config trust add incuscloud` on the cluster gives a
   token; `POST /api/v1/clusters` redeems it with a client certificate
   generated for that cluster, pinned by fingerprint.
@@ -487,9 +486,10 @@ Hydra pages: `/auth/login`, `/auth/consent`, `/auth/device`.
   static token (`authorization.openfga.api.token`), so the reconciler writes
   the same token to every cluster. Root on any enrolled cluster can read it,
   and OpenFGA accepts a preshared key for every store, so with it root can
-  read or write tuples in any store on that OpenFGA: other clusters' stores
-  and the platform store alike. That is, root on one cluster can grant itself
-  access elsewhere.
+  read or write tuples in any store on that OpenFGA, so in other clusters'
+  stores. That is, root on one cluster can grant itself access to other
+  clusters' Incus. IncusCloud's own permissions are not in OpenFGA, so it
+  cannot grant itself rights in IncusCloud.
 - What helps today:
   1. A separate `IC_OPENFGA_CLUSTER_TOKEN` keeps the platform's own token off
      the clusters, so it can be rotated independently. It does not limit what

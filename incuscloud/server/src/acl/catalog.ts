@@ -48,7 +48,7 @@ export const ROLES: Record<RoleId, Role> = {
   operator: { name: "Operator", privileges: all(PRIVILEGES.filter((p) => !["acl.manage", "platform.users", "platform.settings"].includes(p))) },
   "cluster-owner": { name: "Cluster owner", privileges: all(WORKLOAD, "storage.pools", of("node"), of("cluster"), of("acl")) },
   "group-owner": { name: "Group owner", privileges: all(WORKLOAD, "node.view", "node.maintain", "cluster.view", of("acl")) },
-  "unrestricted-user": { name: "Unrestricted user", privileges: all(WORKLOAD, "cluster.view") },
+  "unrestricted-user": { name: "Unrestricted user", privileges: all(WORKLOAD, "cluster.view", "tenant.view") },
   user: {
     name: "User",
     privileges: all("instance.create", "storage.view", "storage.allocate", "network.view", "network.use", "image.view", "project.view", "backup.create", "k8s.provision", "cluster.view", "tenant.view"),

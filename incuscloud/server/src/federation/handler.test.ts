@@ -4,7 +4,6 @@ import { readFileSync } from "node:fs";
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:https";
 import { clusters, placements, sessions } from "../db/schema.ts";
-import { syncAll } from "../authz/sync.ts";
 import { createFront } from "../front.ts";
 import { FakeIncus } from "../clusters/fake-incus.ts";
 import { harness, type Actor } from "../test/harness.ts";
@@ -69,7 +68,6 @@ beforeEach(async () => {
   admin = await h.user("root@example.com", { platformRole: "admin" });
   alice = await h.user("alice@example.com", { tenants: { [acme.id]: "member" } });
   bob = await h.user("bob@example.com", { tenants: { [beta.id]: "member" } });
-  await syncAll(h.db, h.authz);
   const facade = createFacade({ ...h.deps, clusters: new ClusterCache(h.db, 0), upstreams: new Upstreams(), imageServers: ["https://images.linuxcontainers.org", "https://mirror.example"] });
   server = createFront({ app: h.app, facade, tls });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));

@@ -16,7 +16,6 @@ const base = {
 test("applies defaults", () => {
   const c = loadConfig(base);
   expect(c.listen).toEqual({ host: "0.0.0.0", port: 8443 });
-  expect(c.openfga.storeName).toBe("incuscloud-platform");
   expect(c.secretKey.length).toBe(32);
   expect(c.bootstrapAdmin).toBeUndefined();
   expect(c.gatewaySampleReads).toBe(0);

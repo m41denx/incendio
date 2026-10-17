@@ -12,7 +12,7 @@ export interface Config {
   secretKey: Buffer;
   hydra: { publicUrl: string; adminUrl: string; caFile?: string };
   /** OpenFGA; clusterUrl and clusterToken are as the Incus clusters reach it (they connect to it themselves). */
-  openfga: { url: string; token?: string; storeName: string; clusterUrl: string; clusterToken?: string };
+  openfga: { url: string; token?: string; clusterUrl: string; clusterToken?: string };
   /** Every cluster is reconciled at least this often. */
   reconcileIntervalMs: number;
   /** Each cluster's inventory is read this often (P5); 0 turns inventory off. */
@@ -59,7 +59,6 @@ const schema = z
     IC_OPENFGA_TOKEN: z.string().optional(),
     IC_OPENFGA_CLUSTER_URL: url.optional(),
     IC_OPENFGA_CLUSTER_TOKEN: z.string().optional(),
-    IC_OPENFGA_STORE: z.string().default("incuscloud-platform"),
     IC_RECONCILE_INTERVAL: z.coerce.number().int().min(10).max(86400).default(60),
     IC_INVENTORY_INTERVAL: z.coerce
       .number()
@@ -122,7 +121,6 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
     openfga: {
       url: openfgaUrl,
       token: v.IC_OPENFGA_TOKEN,
-      storeName: v.IC_OPENFGA_STORE,
       clusterUrl: v.IC_OPENFGA_CLUSTER_URL?.replace(/\/$/, "") ?? openfgaUrl,
       clusterToken: v.IC_OPENFGA_CLUSTER_TOKEN ?? v.IC_OPENFGA_TOKEN,
     },

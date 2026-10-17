@@ -1,7 +1,7 @@
 import { testDb } from "../db/test-db.ts";
 import { platformRoles, tenantMembers, tenants, users } from "../db/schema.ts";
-import { FakeAuthz } from "../authz/fake.ts";
-import { syncAll } from "../authz/sync.ts";
+import { Acl } from "../acl/acl.ts";
+import { AclAuthz } from "../authz/acl-authz.ts";
 import { FakeHydra } from "../identity/fake-hydra.ts";
 import { FakeTokens } from "../auth/fake-tokens.ts";
 import { createVerifier } from "../auth/verify.ts";
@@ -13,14 +13,17 @@ export interface Actor {
   token: string;
 }
 
-/** A full app over PGlite, the fake authorizer and a fake Hydra. */
+/** A full app over PGlite, the ACL (re-read on every check) and a fake Hydra. */
 export async function harness(over: Partial<AppDeps> = {}) {
   const db = await testDb();
-  const authz = new FakeAuthz();
+  // Tests change the database directly: no snapshot reuse.
+  const acl = new Acl(db, { ttlMs: 0 });
+  const authz = new AclAuthz(db, acl);
   const hydra = new FakeHydra();
   const { jwks, sign } = await testKeys();
   const deps: AppDeps = {
     db,
+    acl,
     authz,
     hydra,
     tokens: new FakeTokens((c) => sign(c)),
@@ -48,20 +51,18 @@ export async function harness(over: Partial<AppDeps> = {}) {
     return { status: r.status, body: json };
   };
 
-  /** Creates a user, optionally with a platform role and tenant roles, and syncs authz. */
+  /** Creates a user, optionally with a platform role and tenant roles. */
   const user = async (email: string, o: { platformRole?: "admin" | "operator" | "viewer"; tenants?: Record<string, string> } = {}): Promise<Actor> => {
     const [u] = await db.insert(users).values({ email, name: email.split("@")[0]! }).returning();
     if (o.platformRole) await db.insert(platformRoles).values({ userId: u!.id, role: o.platformRole });
     for (const [tenantId, role] of Object.entries(o.tenants ?? {})) await db.insert(tenantMembers).values({ tenantId, userId: u!.id, role });
-    await syncAll(db, authz);
     return { id: u!.id, token: await sign({ sub: u!.id }) };
   };
 
   const tenant = async (slug: string) => {
     const [t] = await db.insert(tenants).values({ slug, name: slug.toUpperCase() }).returning();
-    await syncAll(db, authz);
     return t!;
   };
 
-  return { db, authz, hydra, deps, app, call, user, tenant, sign };
+  return { db, acl, authz, hydra, deps, app, call, user, tenant, sign };
 }
