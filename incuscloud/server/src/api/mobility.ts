@@ -3,7 +3,9 @@ import { and, eq } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
 import { clusters, instances, placements } from "../db/schema.ts";
 import type { Authz } from "../authz/platform.ts";
-import { can, forbidden, notFound, platformCan } from "../authz/guards.ts";
+import { forbidden, notFound } from "../authz/guards.ts";
+import type { Acl } from "../acl/acl.ts";
+import type { Privilege } from "../acl/catalog.ts";
 import { authed, principalContext, type Principal } from "../auth/principal.ts";
 import { clusterClient, type ClusterRow } from "../clusters/enroll.ts";
 import { ApiError } from "../lib/errors.ts";
@@ -11,7 +13,7 @@ import { enqueueJob } from "../jobs/queue.ts";
 import { sourceFacts, targetFacts } from "../mobility/facts.ts";
 import { preflight, type SourceInstance, type TargetFacts } from "../mobility/preflight.ts";
 import type { MigratePayload } from "../mobility/migrate-job.ts";
-import { audited, uuidParam, visibleTenants } from "./common.ts";
+import { audited, uuidParam } from "./common.ts";
 
 /** Reads what pre-flight needs from both clusters (replaced in tests). */
 export type Inspect = (src: ClusterRow, dst: ClusterRow, sourceProject: string, name: string, targetProject: string) => Promise<{ source: SourceInstance; target: TargetFacts }>;
@@ -36,25 +38,29 @@ const MigrationBody = t.Object({
 });
 type Body = typeof MigrationBody.static;
 
-/** An instance in the inventory with its tenant (through placements), if the caller may see it. */
-export async function visibleInventoryInstance(db: Db, authz: Authz, p: Principal, id: string) {
+/** An instance in the inventory with its tenant (through placements) and permission path, if the caller may see it. */
+export async function visibleInventoryInstance(db: Db, acl: Acl, p: Principal, id: string) {
   const [row] = await db
-    .select({ id: instances.id, clusterId: instances.clusterId, project: instances.project, name: instances.name, tenantId: placements.tenantId })
+    .select({ id: instances.id, clusterId: instances.clusterId, clusterName: clusters.name, project: instances.project, name: instances.name, tenantId: placements.tenantId })
     .from(instances)
+    .innerJoin(clusters, eq(clusters.id, instances.clusterId))
     .leftJoin(placements, and(eq(placements.clusterId, instances.clusterId), eq(placements.project, instances.project)))
     .where(eq(instances.id, uuidParam(id, "Instance not found")));
-  const visible = await visibleTenants(db, authz, p);
-  if (!row || (visible !== "all" && !(row.tenantId && visible.includes(row.tenantId)))) throw notFound("Instance not found");
-  return row;
+  const path = row && `/clusters/${row.clusterName}/projects/${row.project}/instances/${row.name}`;
+  if (!row || !path || !(await acl.can(p, "instance.view", path))) throw notFound("Instance not found");
+  return { ...row, path };
 }
 
 /**
- * Where a caller may send an instance: platform operators anywhere (the
- * project they name, else the tenant's placement there, else the same
- * project); tenant owners and admins to their tenant's ready placement on
- * another cluster, with the defaults for pool and transport.
+ * Where a caller may send an instance (`privilege` on it, instance.relocate
+ * for a move between clusters): whoever may create instances anywhere on the
+ * target cluster chooses freely (the project they name, else the tenant's
+ * placement there, else the same project); others only to the tenant's ready
+ * placement there, holding instance.create on it, with the defaults for pool
+ * and transport.
  */
-export async function resolveTarget(db: Db, authz: Authz, p: Principal, inst: Awaited<ReturnType<typeof visibleInventoryInstance>>, body: Body) {
+export async function resolveTarget(db: Db, acl: Acl, p: Principal, inst: Awaited<ReturnType<typeof visibleInventoryInstance>>, body: Body, privilege: Privilege = "instance.relocate") {
+  if (!(await acl.can(p, privilege, inst.path))) throw forbidden();
   const targetClusterId = uuidParam(body.targetClusterId, "Target cluster not found");
   if (targetClusterId === inst.clusterId) throw new ApiError(400, "invalid_request", "The instance is already on that cluster");
   const [dst] = await db.select().from(clusters).where(eq(clusters.id, targetClusterId));
@@ -62,23 +68,22 @@ export async function resolveTarget(db: Db, authz: Authz, p: Principal, inst: Aw
   if (dst.status === "disabled") throw new ApiError(400, "invalid_request", "The target cluster is disabled");
   const [placement] = inst.tenantId ? await db.select().from(placements).where(and(eq(placements.tenantId, inst.tenantId), eq(placements.clusterId, targetClusterId))) : [];
 
-  const operator = await platformCan(authz, p, "operator");
-  if (operator) {
+  if (await acl.can(p, "instance.create", `/clusters/${dst.name}`)) {
     return { dst, targetProject: body.targetProject ?? placement?.project ?? inst.project, pool: body.pool, transport: body.transport ?? "auto" };
   }
-  if (!inst.tenantId || !(await can(authz, p, "admin", `tenant:${inst.tenantId}`))) throw forbidden();
   if (placement?.status !== "ready") throw new ApiError(403, "forbidden", "The tenant is not placed on that cluster");
+  if (!(await acl.can(p, "instance.create", `/clusters/${dst.name}/projects/${placement.project}`))) throw forbidden();
   if (body.targetProject && body.targetProject !== placement.project) throw forbidden();
   return { dst, targetProject: placement.project, pool: undefined, transport: "auto" as const };
 }
 
 /** Cross-cluster migration (P6): pre-flight now, the move itself as a job. */
-export function mobilityRoutes({ db, authz, secretKey, inspect }: { db: Db; authz: Authz; secretKey: Buffer; inspect?: Inspect }) {
+export function mobilityRoutes({ db, acl, secretKey, inspect }: { db: Db; acl: Acl; secretKey: Buffer; inspect?: Inspect }) {
   const read = inspect ?? liveInspect(secretKey);
 
   const plan = async (p: Principal, id: string, body: Body) => {
-    const inst = await visibleInventoryInstance(db, authz, p, id);
-    const target = await resolveTarget(db, authz, p, inst, body);
+    const inst = await visibleInventoryInstance(db, acl, p, id);
+    const target = await resolveTarget(db, acl, p, inst, body);
     const [src] = await db.select().from(clusters).where(eq(clusters.id, inst.clusterId));
     const targetName = body.targetName ?? inst.name;
     const facts = await read(src!, target.dst, inst.project, inst.name, target.targetProject);

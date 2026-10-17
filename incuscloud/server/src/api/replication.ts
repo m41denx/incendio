@@ -1,4 +1,5 @@
 import { Elysia, t } from "elysia";
+import type { Acl } from "../acl/acl.ts";
 import { and, desc, eq, inArray, type SQL } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
 import { replicationPolicies } from "../db/schema.ts";
@@ -20,7 +21,7 @@ const uniqueViolation = (e: unknown) => {
 };
 
 /** Replication policies (P6): readable like their tenant; managed by its owners and admins, and platform operators. */
-export function replicationRoutes({ db, authz }: { db: Db; authz: Authz }) {
+export function replicationRoutes({ db, authz, acl }: { db: Db; authz: Authz; acl: Acl }) {
   const visibility = async (p: Principal): Promise<SQL | undefined | null> => {
     const v = await visibleTenants(db, authz, p);
     if (v === "all") return undefined;
@@ -55,8 +56,8 @@ export function replicationRoutes({ db, authz }: { db: Db; authz: Authz }) {
       async ({ principal, request, body, set }) => {
         const p = authed(principal);
         const row = await audited(db, { principal: p, request }, "replication.create", (r) => r && target(r.id), async () => {
-          const inst = await visibleInventoryInstance(db, authz, p, body.instanceId);
-          const to = await resolveTarget(db, authz, p, inst, { targetClusterId: body.targetClusterId, mode: "copy", targetProject: body.targetProject });
+          const inst = await visibleInventoryInstance(db, acl, p, body.instanceId);
+          const to = await resolveTarget(db, acl, p, inst, { targetClusterId: body.targetClusterId, mode: "copy", targetProject: body.targetProject });
           try {
             const [r] = await db
               .insert(replicationPolicies)

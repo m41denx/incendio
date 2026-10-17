@@ -1,4 +1,5 @@
 import { Elysia, t } from "elysia";
+import type { Acl } from "../acl/acl.ts";
 import { and, desc, eq, inArray, type SQL } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
 import { backupPolicies, backups, backupTargets, clusters, placements } from "../db/schema.ts";
@@ -34,7 +35,7 @@ const TargetFields = {
 };
 
 /** Backups (P7): targets for platform admins; backups, restores and policies like the tenant's instances. */
-export function backupsRoutes({ db, authz, secretKey, storeFor }: { db: Db; authz: Authz; secretKey: Buffer; storeFor?: StoreFor }) {
+export function backupsRoutes({ db, authz, acl, secretKey, storeFor }: { db: Db; authz: Authz; acl: Acl; secretKey: Buffer; storeFor?: StoreFor }) {
   const stores = storeFor ?? s3StoreFor(secretKey);
 
   /** Rows of `table` whose tenant the caller sees: a condition, none (all), or null (nothing). */
@@ -210,7 +211,7 @@ export function backupsRoutes({ db, authz, secretKey, storeFor }: { db: Db; auth
         async ({ principal, request, params, body, set }) => {
           const p = authed(principal);
           const job = await audited(db, { principal: p, request }, "backup.create", { type: "instance", id: params.id }, async () => {
-            const inst = await visibleInventoryInstance(db, authz, p, params.id);
+            const inst = await visibleInventoryInstance(db, acl, p, params.id);
             if (!(await manages(p, inst.tenantId))) throw forbidden();
             if (body.transport && body.transport !== "auto" && !(await platformCan(authz, p, "operator"))) throw new ApiError(403, "forbidden", "Only platform operators choose the transport");
             const target = await usableTarget(body.targetId);
@@ -236,7 +237,7 @@ export function backupsRoutes({ db, authz, secretKey, storeFor }: { db: Db; auth
           if (vis === null) return [];
           const where: (SQL | undefined)[] = [vis];
           if (query.instance) {
-            const inst = await visibleInventoryInstance(db, authz, p, query.instance);
+            const inst = await visibleInventoryInstance(db, acl, p, query.instance);
             where.push(eq(backups.clusterId, inst.clusterId), eq(backups.project, inst.project), eq(backups.instanceName, inst.name));
           }
           if (query.tenant) where.push(eq(backups.tenantId, uuidParam(query.tenant, "Tenant not found")));
@@ -304,7 +305,7 @@ export function backupsRoutes({ db, authz, secretKey, storeFor }: { db: Db; auth
         async ({ principal, request, body, set }) => {
           const p = authed(principal);
           const row = await audited(db, { principal: p, request }, "backup_policy.create", (r) => r && { type: "backup_policy", id: r.id }, async () => {
-            const inst = await visibleInventoryInstance(db, authz, p, body.instanceId);
+            const inst = await visibleInventoryInstance(db, acl, p, body.instanceId);
             if (!(await manages(p, inst.tenantId))) throw forbidden();
             const target = await usableTarget(body.targetId);
             try {

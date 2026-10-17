@@ -48,11 +48,13 @@ export const ROLES: Record<RoleId, Role> = {
   operator: { name: "Operator", privileges: all(PRIVILEGES.filter((p) => !["acl.manage", "platform.users", "platform.settings"].includes(p))) },
   "cluster-owner": { name: "Cluster owner", privileges: all(WORKLOAD, "storage.pools", of("node"), of("cluster"), of("acl")) },
   "group-owner": { name: "Group owner", privileges: all(WORKLOAD, "node.view", "node.maintain", "cluster.view", of("acl")) },
-  "unrestricted-user": { name: "Unrestricted user", privileges: all(WORKLOAD, "cluster.view", "tenant.view") },
+  // Not instance.relocate: moving between clusters spends the tenant's placements, which its admins decide (as before permissions).
+  "unrestricted-user": { name: "Unrestricted user", privileges: all(WORKLOAD.filter((p) => p !== "instance.relocate"), "cluster.view", "tenant.view") },
   user: {
     name: "User",
     privileges: all("instance.create", "storage.view", "storage.allocate", "network.view", "network.use", "image.view", "project.view", "backup.create", "k8s.provision", "cluster.view", "tenant.view"),
-    ownedOnly: all(of("instance"), of("backup"), of("k8s")),
+    // Not instance.relocate, as for Unrestricted user: moving between clusters is the tenant admins' call.
+    ownedOnly: all(of("instance").filter((p) => p !== "instance.relocate"), of("backup"), of("k8s")),
   },
   "tenant-admin": { name: "Tenant admin", privileges: all(WORKLOAD, of("tenant"), of("acl"), "cluster.view") },
   auditor: { name: "Auditor", privileges: all(VIEWS, "platform.audit") },

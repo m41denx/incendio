@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
-import { aclEntries, clusters, instanceOwners, k8sClusters, placements, platformRoles, serviceAccounts, tenantMembers, tenants, users } from "../db/schema.ts";
+import { aclEntries, clusters, instanceOwners, instances, k8sClusters, placements, platformRoles, serviceAccounts, tenantMembers, tenants, users } from "../db/schema.ts";
 import type { Principal } from "../auth/principal.ts";
 import { isRoleId, type Privilege, type RoleId } from "./catalog.ts";
 import { chain, parsePath } from "./paths.ts";
@@ -25,6 +25,15 @@ interface Snapshot {
   ids: Lookup;
   /** Owned objects' paths (instances, Kubernetes clusters) → owner subject. */
   owners: Map<string, string>;
+  /** Every project path IncusCloud knows of (placements and the inventory). */
+  projects: string[];
+}
+
+/** Which instances a subject may act on with one privilege: whole projects, minus and plus single instances (keys `<cluster>/<project>[/<name>]`). */
+export interface InstanceScope {
+  projects: string[];
+  exclude: string[];
+  include: string[];
 }
 
 /** Ids to names, for callers that hold ids (the `Authz` adapter). */
@@ -80,7 +89,7 @@ export class Acl {
   private async load(): Promise<Snapshot> {
     const at = this.now();
     const db = this.db;
-    const [explicit, roles, members, accounts, people, places, allTenants, allClusters, owned, k8s] = await Promise.all([
+    const [explicit, roles, members, accounts, people, places, allTenants, allClusters, owned, k8s, inventoried] = await Promise.all([
       db.select().from(aclEntries),
       db.select().from(platformRoles),
       db.select({ tenantId: tenantMembers.tenantId, userId: tenantMembers.userId, role: tenantMembers.role, slug: tenants.slug }).from(tenantMembers).innerJoin(tenants, eq(tenants.id, tenantMembers.tenantId)),
@@ -91,6 +100,7 @@ export class Acl {
       db.select({ id: clusters.id, name: clusters.name }).from(clusters),
       db.select({ cluster: clusters.name, project: instanceOwners.project, name: instanceOwners.name, userId: instanceOwners.userId, serviceAccountId: instanceOwners.serviceAccountId }).from(instanceOwners).innerJoin(clusters, eq(clusters.id, instanceOwners.clusterId)),
       db.select({ slug: tenants.slug, name: k8sClusters.name, createdBy: k8sClusters.createdBy }).from(k8sClusters).innerJoin(tenants, eq(tenants.id, k8sClusters.tenantId)),
+      db.selectDistinct({ cluster: clusters.name, project: instances.project }).from(instances).innerJoin(clusters, eq(clusters.id, instances.clusterId)),
     ]);
     const entries: Entry[] = [];
     for (const e of explicit)
@@ -127,7 +137,8 @@ export class Acl {
       if (subject) owners.set(`/clusters/${o.cluster}/projects/${o.project}/instances/${o.name}`, subject);
     }
     for (const k of k8s) owners.set(`/tenants/${k.slug}/kubernetes/${k.name}`, k.createdBy);
-    return { at, entries, byPath, bySubject, disabled, tenantOf, projectsOf, ids, owners };
+    const projects = [...new Set([...places, ...inventoried].map((x) => `/clusters/${x.cluster}/projects/${x.project}`))];
+    return { at, entries, byPath, bySubject, disabled, tenantOf, projectsOf, ids, owners, projects };
   }
 
   /** `opts.owner`: the object's owner, for objects without a path of their own (backups); owned paths are looked up. */
@@ -144,6 +155,28 @@ export class Acl {
 
   async can(p: Pick<Principal, "kind" | "id">, privilege: Privilege, path: string, opts?: DecideOpts): Promise<boolean> {
     return (await this.privileges(p, path, opts)).has(privilege);
+  }
+
+  /** The instances `p` holds `privilege` on, for filtering lists in SQL. */
+  async instanceScope(p: Pick<Principal, "kind" | "id">, privilege: Privilege = "instance.view"): Promise<InstanceScope> {
+    const s = await this.snapshot();
+    const subject = subjectOf(p);
+    const key = (path: string) => path.slice("/clusters/".length).replace("/projects/", "/").replace("/instances/", "/");
+    const out: InstanceScope = { projects: [], exclude: [], include: [] };
+    for (const path of s.projects) if (this.decide(s, subject, path).privileges.has(privilege)) out.projects.push(key(path));
+    // Single instances: those with the subject's own entries, and those it owns.
+    const singles = new Set<string>();
+    for (const e of s.bySubject.get(subject) ?? []) if (parsePath(e.path)?.kind === "instance") singles.add(e.path);
+    for (const [path, owner] of s.owners) if (owner === subject && path.startsWith("/clusters/")) singles.add(path);
+    const inProject = new Set(out.projects);
+    for (const path of singles) {
+      const k = key(path);
+      const has = this.decide(s, subject, path).privileges.has(privilege);
+      const covered = inProject.has(k.slice(0, k.lastIndexOf("/")));
+      if (has && !covered) out.include.push(k);
+      if (!has && covered) out.exclude.push(k);
+    }
+    return out;
   }
 
   /** What a subject holds at `path` or on any path above it: what a change at `path` must not reach past. */

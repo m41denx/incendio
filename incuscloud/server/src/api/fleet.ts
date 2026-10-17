@@ -1,10 +1,11 @@
 import { Elysia, t } from "elysia";
-import { and, asc, eq, gte, inArray, sql, type SQL } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, notInArray, or, sql, type SQL } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
 import { clusterMembers, clusters, instances, metricsSamples, networks, placements, storagePools, tenants } from "../db/schema.ts";
 import type { Authz } from "../authz/platform.ts";
 import { needPriv, notFound } from "../authz/guards.ts";
 import type { Acl } from "../acl/acl.ts";
+import type { Privilege } from "../acl/catalog.ts";
 import { authed, principalContext, type Principal } from "../auth/principal.ts";
 import { uuidParam, visibleTenants } from "./common.ts";
 
@@ -50,11 +51,14 @@ const ON = {
 };
 const fromInstances = (db: Db) => db.select(instanceColumns).from(instances).innerJoin(clusters, ON.cluster).leftJoin(placements, ON.placement).leftJoin(tenants, ON.tenant);
 
-/** The visibility condition for a caller; null when they can see nothing. */
-async function visibility(db: Db, authz: Authz, p: Principal): Promise<SQL | undefined | null> {
-  const v = await visibleTenants(db, authz, p);
-  if (v === "all") return undefined;
-  return v.length ? inArray(placements.tenantId, v) : null;
+/** The instances a caller may see, as a condition over instances joined with clusters; null when none. */
+export async function visibility(acl: Acl, p: Principal, privilege: Privilege = "instance.view"): Promise<SQL | null> {
+  const s = await acl.instanceScope(p, privilege);
+  const project = sql`${clusters.name} || '/' || ${instances.project}`;
+  const one = sql`${clusters.name} || '/' || ${instances.project} || '/' || ${instances.name}`;
+  const whole = s.projects.length ? and(inArray(project, s.projects), s.exclude.length ? notInArray(one, s.exclude) : undefined) : undefined;
+  const single = s.include.length ? inArray(one, s.include) : undefined;
+  return whole && single ? or(whole, single)! : (whole ?? single ?? null);
 }
 
 
@@ -72,7 +76,7 @@ export function fleetRoutes({ db, authz, acl }: { db: Db; authz: Authz; acl: Acl
     return c;
   };
   const visibleInstance = async (p: Principal, id: string) => {
-    const vis = await visibility(db, authz, p);
+    const vis = await visibility(acl, p);
     if (vis === null) throw notFound("Instance not found");
     const [row] = await fromInstances(db).where(and(eq(instances.id, uuidParam(id, "Instance not found")), vis));
     if (!row) throw notFound("Instance not found");
@@ -90,7 +94,7 @@ export function fleetRoutes({ db, authz, acl }: { db: Db; authz: Authz; acl: Acl
       "/api/v1/instances",
       async ({ principal, query }) => {
         const p = authed(principal);
-        const vis = await visibility(db, authz, p);
+        const vis = await visibility(acl, p);
         if (vis === null) return { items: [], total: 0 };
         const where: Array<SQL | undefined> = [vis];
         if (query.cluster) where.push(eq(instances.clusterId, uuidParam(query.cluster)));
@@ -166,14 +170,14 @@ export function fleetRoutes({ db, authz, acl }: { db: Db; authz: Authz; acl: Acl
     )
     .get("/api/v1/fleet/summary", async ({ principal }) => {
       const p = authed(principal);
-      const vis = await visibility(db, authz, p);
+      const vis = await visibility(acl, p);
       const byStatus: Record<string, number> = {};
       let total = 0;
       if (vis !== null) {
         const rows = await db
           .select({ status: instances.status, n: int(sql`count(*)`) })
           .from(instances)
-          .leftJoin(placements, ON.placement)
+          .innerJoin(clusters, ON.cluster)
           .where(vis)
           .groupBy(instances.status);
         for (const r of rows) {
@@ -182,7 +186,8 @@ export function fleetRoutes({ db, authz, acl }: { db: Db; authz: Authz; acl: Acl
         }
       }
       const summary: { instances: { total: number; byStatus: Record<string, number> }; clusters?: unknown[] } = { instances: { total, byStatus } };
-      if (vis !== undefined) return summary;
+      // Capacity is the platform's: for those who see every cluster.
+      if (!(await acl.can(p, "cluster.view", "/"))) return summary;
 
       const sum = (x: SQL | typeof clusterMembers.cpuThreads) => int(sql`coalesce(sum(${x}), 0)`);
       const [list, inst, mem, pool] = await Promise.all([

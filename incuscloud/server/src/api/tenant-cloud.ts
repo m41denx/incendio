@@ -1,4 +1,5 @@
 import { Elysia, t } from "elysia";
+import type { Acl } from "../acl/acl.ts";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
 import { clusterMembers, clusters, instances, jobs, placements, tenants } from "../db/schema.ts";
@@ -65,7 +66,7 @@ export async function candidatesOf(db: Db, tenantId: string): Promise<Candidate[
 }
 
 /** The tenant cloud (P9): usage against the quota across clusters. */
-export function tenantCloudRoutes({ db, authz }: { db: Db; authz: Authz }) {
+export function tenantCloudRoutes({ db, authz, acl }: { db: Db; authz: Authz; acl: Acl }) {
   const loadTenant = async (p: Principal, id: string, relation: string) => {
     uuidParam(id);
     await needVisible(authz, p, "viewer", relation, `tenant:${id}`);
@@ -85,8 +86,12 @@ export function tenantCloudRoutes({ db, authz }: { db: Db; authz: Authz }) {
       async ({ principal, request, params, body, set }) => {
         const p = authed(principal);
         uuidParam(params.id);
-        await needVisible(authz, p, "viewer", "viewer", `tenant:${params.id}`);
-        if (!(await can(authz, p, "member", `tenant:${params.id}`)) && !(await platformCan(authz, p, "operator"))) throw forbidden();
+        const [slug] = await db.select({ slug: tenants.slug }).from(tenants).where(eq(tenants.id, params.id));
+        const at = slug && `/tenants/${slug.slug}`;
+        if (!at || !(await acl.can(p, "tenant.view", at))) throw notFound();
+        if (!(await acl.can(p, "instance.create", at))) throw forbidden();
+        // Naming the cluster (or a label selector) is choosing the placement; without it, placement chooses.
+        if ((body.clusterId || body.labels) && !(await acl.can(p, "placement.choose", at))) throw forbidden();
         const req: Usage = { instances: 1, cpu: body.cpu, memory: Math.round(body.memoryGiB * 1024) * 1024 ** 2, disk: body.diskGiB * GiB };
         const job = await audited(db, { principal: p, request }, "instance.create", { type: "tenant", id: params.id }, () =>
           // One quota decision at a time per tenant: usage, pending creates and this one, then the job.
