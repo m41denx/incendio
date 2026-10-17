@@ -23,6 +23,7 @@ Licensed under GPL-3.0 (see `LICENSE`).
 | P9 | Tenant cloud: one quota across clusters, usage, self-service create with placement | done |
 | P10 | Kubernetes: clusters on any Incus cluster through one Cluster API install, no appliance per cluster | done |
 | ACL 1 | Permissions: privileges, roles and paths with Proxmox-style resolution; entries on the platform, clusters and tenants, granted in Incus too | done |
+| ACL 2 | Permissions: ownership, the User role, project, instance and Kubernetes paths; every API call by privilege | done |
 
 ## How it fits together
 
@@ -377,17 +378,32 @@ Incus's own `cluster.rebalance.*` live-migrates VMs with no notion of these hint
 Who may do what is a set of **entries**: a role for a user or service
 account on a path. The design is
 [the permissions spec](../docs/superpowers/specs/2026-10-12-incuscloud-acl-design.md);
-phase 1 is in.
+phases 1 and 2 are in.
 
 - **Privileges** are `<object>.<action>` (`instance.console`,
   `cluster.configure`, `acl.manage`, …). **Roles** bundle them:
-  Administrator, Operator, Cluster owner, Unrestricted user, Tenant admin,
-  Auditor and No access can be given now; User and Group owner come with
-  ownership and groups.
-- **Paths:** `/` (everything), `/clusters/<name>` and `/tenants/<slug>`.
-  Unrestricted user goes on tenants only for now: on a cluster it would
-  reach every tenant's projects there. A tenant entry applies to the tenant's projects on
-  every cluster, between the project and the cluster.
+  Administrator, Operator, Cluster owner, Unrestricted user, User, Tenant
+  admin, Auditor and No access can be given now; Group owner comes with
+  groups. Unrestricted user is today's tenant member: it does everything in
+  the tenant's projects except what tenant admins decide (moving instances
+  between clusters, backups and restores, replication, backup schedules,
+  deleting Kubernetes clusters).
+- **Paths:** `/` (everything), `/clusters/<name>`,
+  `/clusters/<name>/projects/<project>`,
+  `/clusters/<name>/projects/<project>/instances/<instance>`,
+  `/tenants/<slug>` and `/tenants/<slug>/kubernetes/<name>`. A path must
+  name something that exists. Unrestricted user goes on tenants and
+  projects only for now: on a cluster it would reach every tenant's
+  projects there. A tenant entry applies to the tenant's projects on every
+  cluster, between the project and the cluster.
+- **Ownership and the User role.** Instances and Kubernetes clusters have
+  an owner: whoever created them, through IncusCloud (self-service create,
+  restore, copy; a move keeps its owner, a replica takes its source's) or
+  straight against a cluster (its lifecycle events name the caller).
+  Instances nobody claimed go to their tenant's first owner. A **User** may
+  create in the tenant (placement chooses where) and acts only on what they
+  own: they never see other users' instances, in IncusCloud or in Incus.
+  Renaming an instance moves its entries; deleting it deletes them.
 - **Resolution** (Proxmox's): the most specific path with an entry for the
   subject decides. Entries further up count only if they propagate.
   No access there means nothing.
@@ -405,7 +421,15 @@ phase 1 is in.
   the tenant's projects (`operator` or `viewer`, never project `admin`). When
   a tenant or project entry gives less than the cluster's, the server
   relation is replaced by project relations on every other project there.
-  Subjects without explicit entries keep exactly today's grants.
+  An instance entry gives an instance relation (`operator` with
+  `instance.configure`, `user` with the console only, `viewer`); one that
+  gives less than its project replaces the project relation by relations
+  on its other instances. A User gets no project relation (in Incus that
+  would show every instance in it): the project's create and event
+  entitlements, `can_view` on its profiles, networks and images, and
+  `operator` on what they own. The console fills in the project page Incus
+  refuses them. Subjects without explicit entries keep exactly today's
+  grants.
 - **Rules.** Changing an entry needs `acl.manage` on its path; only
   administrators give Administrator or Cluster owner (Cluster owner is root
   on that cluster's hosts). A change never reaches someone above the caller:
@@ -417,8 +441,17 @@ phase 1 is in.
   Deleting a cluster, tenant, user or service account deletes its entries.
 - **Console.** Platform › Permissions (for `acl.view` on `/`): Entries
   (filter, add, remove), Roles, and Check (what a subject may do on a path,
-  and which entries decided it). A cluster's Access tab lists the entries
-  that reach it, with what each gives in Incus.
+  and which entries decided it), with project and instance pickers. A
+  cluster's or project's Access tab lists the entries that reach it, with
+  what each gives in Incus, and adds or removes them for whoever holds
+  `acl.manage` there. An instance's page names its owner.
+- **The API** checks every call by privilege on the object's path:
+  instances (`instance.view`, `instance.relocate` to move between
+  clusters, `instance.create` on the tenant to create, `placement.choose`
+  to pick the cluster), backups and replication on the instance, jobs on
+  their instance or tenant, Kubernetes clusters on their own path, tenants,
+  users, service accounts and the logs. Lists show only what the caller may
+  view.
 
 ## Configuration
 
@@ -503,9 +536,9 @@ All under `/api/v1`, bearer token or session cookie. Errors are
 | `GET/POST tenants`, `GET/PATCH/DELETE tenants/:id` | operators create; tenant admins rename; operators set quotas; owners delete |
 | `GET tenants/:id/members`, `POST tenants/:id/members` (by email), `PUT/DELETE tenants/:id/members/:userId` | tenant admins; owners manage owners |
 | `GET tenants/:id/placements` | anyone who can see the tenant: its clusters, projects and their status |
-| `GET instances?q&cluster&tenant&status&type&limit&offset` | the global instance search: platform viewers see all, others their tenants' projects; `q` words must all match (name, project, cluster, member, description, image, addresses) |
-| `GET instances/:id`, `GET instances/:id/metrics?hours` | one instance and its CPU (cores), memory and network history |
-| `GET access?cluster&project` | who has access to a cluster (or one project on it): platform roles (platform viewers only), each visible tenant's members, and the permission entries that reach it (those the caller may read), each with the Incus relation it gives |
+| `GET instances?q&cluster&tenant&status&type&limit&offset` | the global instance search: what the caller holds `instance.view` on (a User: their own); `q` words must all match (name, project, cluster, member, description, image, addresses) |
+| `GET instances/:id`, `GET instances/:id/metrics?hours` | one instance (with its `owner`) and its CPU (cores), memory and network history |
+| `GET access?cluster&project` | who has access to a cluster (or one project on it): platform roles (platform viewers only), each visible tenant's members, and the permission entries that reach it (those the caller may read), each with the Incus relation it gives; project and instance entries too; `canManage` when the caller holds `acl.manage` on the page's path |
 | `GET kubernetes?tenant`, `GET kubernetes/:id`, `GET kubernetes/versions` | anyone who can see the tenant: clusters with their spec; versions, whether Kubernetes is on, and the default spec |
 | `POST kubernetes`, `PATCH kubernetes/:id`, `DELETE kubernetes/:id` | tenant members create (a spec or a size; 202, a job), scale and upgrade; tenant admins delete (a job) |
 | `GET kubernetes/:id/nodes`, `GET kubernetes/:id/status`, `GET kubernetes/:id/activity` | anyone who can see the tenant: machines with their Incus instances, phase, version and readiness; CAPI's phase and conditions; events and jobs |
@@ -514,7 +547,7 @@ All under `/api/v1`, bearer token or session cookie. Errors are
 | `GET clusters/:id/inventory`, `GET clusters/:id/metrics?hours` | `cluster.view` on the cluster: members, storage pools, networks, instance counts; member memory and load history |
 | `GET fleet/summary` | instance counts by status (what the caller sees); per-cluster capacity for platform viewers |
 | `POST instances/:id/migrations/preflight`, `POST instances/:id/migrations` | check, then start a move or copy to another cluster (202, a job) |
-| `GET jobs`, `GET jobs/:id`, `POST jobs/:id/cancel` | jobs: platform viewers see all, others their tenants' and their own |
+| `GET jobs`, `GET jobs/:id`, `POST jobs/:id/cancel` | jobs: one's own, those on instances one may view, a tenant's jobs on no instance for `instance.view` on the whole tenant; cancel by the actor, `tenant.manage` or `cluster.configure` |
 | `GET/POST replication-policies`, `GET/PATCH/DELETE replication-policies/:id`, `POST …/:id/run`, `POST …/:id/failover` | replication policies, a run now, a failover (jobs) |
 | `GET/POST backup-targets`, `PATCH/DELETE backup-targets/:id`, `POST …/:id/check` | S3 targets (platform admins; others see names) |
 | `POST instances/:id/backups`, `GET backups`, `GET/DELETE backups/:id`, `POST backups/:id/restore` | back up now, list, delete, restore (jobs) |

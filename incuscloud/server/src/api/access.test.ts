@@ -98,3 +98,11 @@ test("project and instance entries show on their project's Access tab; canManage
   const m = await h.user("m@example.com", { tenants: { [acme.id]: "member" } });
   expect((await h.call(m, "GET", "/api/v1/access?cluster=lab&project=acme")).body.canManage).toBe(false);
 });
+
+test("a User entry says what it gives in Incus: creating there and operating their own", async () => {
+  const admin = await h.user("root@example.com", { platformRole: "admin" });
+  const u = await h.user("eve@example.com");
+  await h.db.insert(aclEntries).values({ path: "/tenants/acme", role: "user", userId: u.id });
+  const r = await h.call(admin, "GET", "/api/v1/access?cluster=lab&project=acme");
+  expect(r.body.entries.map((e: any) => `${e.role}→${e.relation} on ${e.on}`)).toEqual(["user→create, operate own on project acme"]);
+});

@@ -90,7 +90,8 @@ export function accessRoutes({ db, authz, acl }: { db: Db; authz: Authz; acl: Ac
         .map((e) => {
           const [type, id] = e.subject.split(":") as [string, string];
           const on = placeOf(e.path)!;
-          const relation = on.startsWith("instance ") ? instanceRelation(ROLES[e.role].privileges) : roleRelation(e.role, on === "server" ? "server" : "project");
+          // A User has no project relation (they would see everyone's instances): they create there and operate their own.
+          const relation = e.role === "user" ? "create, operate own" : on.startsWith("instance ") ? instanceRelation(ROLES[e.role].privileges) : roleRelation(e.role, on === "server" ? "server" : "project");
           return { id: e.id, path: e.path, subject: { type, id, name: named.get(e.subject) ?? id }, role: e.role, propagate: e.propagate, relation, on };
         })
         .sort((a, b) => a.path.localeCompare(b.path) || a.subject.name.localeCompare(b.subject.name));
