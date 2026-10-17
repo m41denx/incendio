@@ -1,10 +1,12 @@
 import { Elysia, t } from "elysia";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
 import { clusters, k8sClusters, placements, tenants } from "../db/schema.ts";
 import type { Authz } from "../authz/platform.ts";
 import { tuples } from "../authz/sync.ts";
-import { forbidden, needVisible, notFound, platformCan, subject } from "../authz/guards.ts";
+import { forbidden, needPriv, notFound } from "../authz/guards.ts";
+import type { Acl } from "../acl/acl.ts";
+import type { Privilege } from "../acl/catalog.ts";
 import { authed, principalContext, type Principal } from "../auth/principal.ts";
 import { clusterClient, enrollCluster, type ClusterRow } from "../clusters/enroll.ts";
 import { fingerprintOf } from "../incus/certs.ts";
@@ -36,32 +38,37 @@ const view = (c: ClusterRow) => ({
 });
 
 /** Cluster registry, enrolment and tenant placement. */
-export function clustersRoutes({ db, authz, secretKey }: { db: Db; authz: Authz; secretKey: Buffer }) {
-  const load = async (p: Principal, id: string, relation: string) => {
+export function clustersRoutes({ db, authz, acl, secretKey }: { db: Db; authz: Authz; acl: Acl; secretKey: Buffer }) {
+  /** The cluster, if the caller sees it (404 otherwise) and holds `privilege` on it (403 otherwise). */
+  const load = async (p: Principal, id: string, privilege: Privilege | "see") => {
     uuidParam(id);
-    await needVisible(authz, p, "can_access", relation, `cluster:${id}`);
     const [row] = await db.select().from(clusters).where(eq(clusters.id, id));
     if (!row) throw notFound();
+    const path = `/clusters/${row.name}`;
+    if (privilege === "see") {
+      if (!(await acl.sees(p, path))) throw notFound();
+    } else await needPriv(acl, p, privilege, path);
     return row;
   };
-  const needOperator = async (p: Principal) => {
-    if (!(await platformCan(authz, p, "operator"))) throw forbidden();
+  /** Enrolment and deletion are platform settings. */
+  const needSettings = async (p: Principal) => {
+    if (!(await acl.can(p, "platform.settings", "/"))) throw forbidden();
   };
 
   return new Elysia({ name: "clusters" })
     .use(principalContext)
     .get("/api/v1/clusters", async ({ principal }) => {
       const p = authed(principal);
-      if (await platformCan(authz, p, "viewer")) return (await db.select().from(clusters).orderBy(clusters.name)).map(view);
-      const ids = (await authz.listObjects(subject(p), "can_access", "cluster")).map((o) => o.slice("cluster:".length));
-      return ids.length ? (await db.select().from(clusters).where(inArray(clusters.id, ids)).orderBy(clusters.name)).map(view) : [];
+      const all = await db.select().from(clusters).orderBy(clusters.name);
+      const seen = await Promise.all(all.map((c) => acl.sees(p, `/clusters/${c.name}`)));
+      return all.filter((_, i) => seen[i]).map(view);
     })
     .post(
       "/api/v1/clusters",
       async ({ principal, request, body, set }) => {
         const p = authed(principal);
         const res = await audited(db, { principal: p, request }, "cluster.enroll", (r) => r && { type: "cluster", id: r.id }, async () => {
-          if (!(await platformCan(authz, p, "admin"))) throw forbidden();
+          await needSettings(p);
           const row = await enrollCluster({ db, secretKey }, { name: body.name, token: body.token, labels: body.labels });
           await authz.write([tuples.cluster(row.id)]);
           await requestReconcile(db, [row.id]);
@@ -71,13 +78,13 @@ export function clustersRoutes({ db, authz, secretKey }: { db: Db; authz: Authz;
       },
       { body: t.Object({ name: t.String({ pattern: NAME }), token: t.String({ minLength: 1, maxLength: 8192 }), labels: t.Optional(Labels) }) },
     )
-    .get("/api/v1/clusters/:id", async ({ principal, params }) => view(await load(authed(principal), params.id, "can_access")))
+    .get("/api/v1/clusters/:id", async ({ principal, params }) => view(await load(authed(principal), params.id, "see")))
     .patch(
       "/api/v1/clusters/:id",
       async ({ principal, request, params, body }) => {
         const p = authed(principal);
         return audited(db, { principal: p, request }, "cluster.update", { type: "cluster", id: params.id }, async () => {
-          await load(p, params.id, "admin");
+          await load(p, params.id, "cluster.configure");
           const [row] = await db.update(clusters).set({ labels: body.labels, updatedAt: new Date() }).where(eq(clusters.id, params.id)).returning();
           return view(row!);
         });
@@ -89,7 +96,8 @@ export function clustersRoutes({ db, authz, secretKey }: { db: Db; authz: Authz;
       async ({ principal, request, params, query, set }) => {
         const p = authed(principal);
         await audited(db, { principal: p, request }, "cluster.delete", { type: "cluster", id: params.id }, async () => {
-          const row = await load(p, params.id, "admin");
+          const row = await load(p, params.id, "see");
+          await needSettings(p);
           const placed = await db.select().from(placements).where(eq(placements.clusterId, row.id));
           // Not even with force: CAPN's nodes, forwards and certificates there would be orphaned.
           const k8s = await db.select({ id: k8sClusters.id }).from(k8sClusters).where(eq(k8sClusters.clusterId, row.id));
@@ -118,7 +126,7 @@ export function clustersRoutes({ db, authz, secretKey }: { db: Db; authz: Authz;
       { query: t.Object({ force: t.Optional(t.String()) }) },
     )
     .get("/api/v1/clusters/:id/tenants", async ({ principal, params }) => {
-      await load(authed(principal), params.id, "viewer");
+      await load(authed(principal), params.id, "cluster.view");
       return db
         .select({ tenantId: placements.tenantId, slug: tenants.slug, project: placements.project, status: placements.status, statusMessage: placements.statusMessage, createdAt: placements.createdAt })
         .from(placements)
@@ -129,8 +137,7 @@ export function clustersRoutes({ db, authz, secretKey }: { db: Db; authz: Authz;
     .put("/api/v1/clusters/:id/tenants/:tenantId", async ({ principal, request, params }) => {
       const p = authed(principal);
       return audited(db, { principal: p, request }, "cluster.tenant.place", { type: "cluster", id: params.id }, async () => {
-        await load(p, params.id, "can_access");
-        await needOperator(p);
+        await load(p, params.id, "cluster.configure");
         const [tenant] = await db.select().from(tenants).where(eq(tenants.id, uuidParam(params.tenantId, "No such tenant")));
         if (!tenant) throw notFound("No such tenant");
         await db.insert(placements).values({ tenantId: tenant.id, clusterId: params.id, project: tenant.slug }).onConflictDoNothing();
@@ -143,8 +150,7 @@ export function clustersRoutes({ db, authz, secretKey }: { db: Db; authz: Authz;
     .delete("/api/v1/clusters/:id/tenants/:tenantId", async ({ principal, request, params, set }) => {
       const p = authed(principal);
       await audited(db, { principal: p, request }, "cluster.tenant.remove", { type: "cluster", id: params.id }, async () => {
-        await load(p, params.id, "can_access");
-        await needOperator(p);
+        await load(p, params.id, "cluster.configure");
         const k8s = await db
           .select({ slug: tenants.slug })
           .from(k8sClusters)
@@ -161,8 +167,7 @@ export function clustersRoutes({ db, authz, secretKey }: { db: Db; authz: Authz;
     .post("/api/v1/clusters/:id/reconcile", async ({ principal, request, params, set }) => {
       const p = authed(principal);
       await audited(db, { principal: p, request }, "cluster.reconcile", { type: "cluster", id: params.id }, async () => {
-        await load(p, params.id, "can_access");
-        await needOperator(p);
+        await load(p, params.id, "cluster.configure");
         await requestReconcile(db, [params.id]);
       });
       set.status = 202;

@@ -3,7 +3,8 @@ import { and, asc, eq, gte, inArray, sql, type SQL } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
 import { clusterMembers, clusters, instances, metricsSamples, networks, placements, storagePools, tenants } from "../db/schema.ts";
 import type { Authz } from "../authz/platform.ts";
-import { forbidden, notFound, platformCan } from "../authz/guards.ts";
+import { needPriv, notFound } from "../authz/guards.ts";
+import type { Acl } from "../acl/acl.ts";
 import { authed, principalContext, type Principal } from "../auth/principal.ts";
 import { uuidParam, visibleTenants } from "./common.ts";
 
@@ -56,9 +57,6 @@ async function visibility(db: Db, authz: Authz, p: Principal): Promise<SQL | und
   return v.length ? inArray(placements.tenantId, v) : null;
 }
 
-async function needPlatformViewer(authz: Authz, p: Principal) {
-  if (!(await platformCan(authz, p, "viewer"))) throw forbidden();
-}
 
 const hoursQuery = t.Object({ hours: t.Optional(t.Numeric({ minimum: 1, maximum: 168 })) });
 const since = (hours = 24) => new Date(Date.now() - hours * HOUR);
@@ -66,7 +64,13 @@ const sampleColumns = { at: metricsSamples.at, cpuCores: metricsSamples.cpuCores
 const int = (x: SQL) => sql<number>`cast(${x} as bigint)`.mapWith(Number);
 
 /** Fleet inventory and metrics (P5): a global instance search; cluster capacity for platform viewers. */
-export function fleetRoutes({ db, authz }: { db: Db; authz: Authz }) {
+export function fleetRoutes({ db, authz, acl }: { db: Db; authz: Authz; acl: Acl }) {
+  /** A cluster's inventory and member metrics: `cluster.view` on it. */
+  const viewCluster = async (p: Principal, id: string) => {
+    const c = await loadCluster(id);
+    await needPriv(acl, p, "cluster.view", `/clusters/${c.name}`, "Cluster not found");
+    return c;
+  };
   const visibleInstance = async (p: Principal, id: string) => {
     const vis = await visibility(db, authz, p);
     if (vis === null) throw notFound("Instance not found");
@@ -133,8 +137,7 @@ export function fleetRoutes({ db, authz }: { db: Db; authz: Authz }) {
       { query: hoursQuery },
     )
     .get("/api/v1/clusters/:id/inventory", async ({ principal, params }) => {
-      await needPlatformViewer(authz, authed(principal));
-      const c = await loadCluster(params.id);
+      const c = await viewCluster(authed(principal), params.id);
       const [members, pools, nets, [counts]] = await Promise.all([
         db.select().from(clusterMembers).where(eq(clusterMembers.clusterId, c.id)).orderBy(asc(clusterMembers.name)),
         db.select().from(storagePools).where(eq(storagePools.clusterId, c.id)).orderBy(asc(storagePools.name), asc(storagePools.member)),
@@ -149,8 +152,7 @@ export function fleetRoutes({ db, authz }: { db: Db; authz: Authz }) {
     .get(
       "/api/v1/clusters/:id/metrics",
       async ({ principal, params, query }) => {
-        await needPlatformViewer(authz, authed(principal));
-        const c = await loadCluster(params.id);
+        const c = await viewCluster(authed(principal), params.id);
         const rows = await db
           .select({ ref: metricsSamples.ref, ...sampleColumns })
           .from(metricsSamples)

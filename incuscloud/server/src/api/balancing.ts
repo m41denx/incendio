@@ -3,7 +3,9 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
 import { balancingPolicies, clusterMembers, clusters, instances, placements, tenants } from "../db/schema.ts";
 import type { Authz } from "../authz/platform.ts";
-import { forbidden, notFound, platformCan } from "../authz/guards.ts";
+import { needPriv, notFound } from "../authz/guards.ts";
+import type { Acl } from "../acl/acl.ts";
+import type { Privilege } from "../acl/catalog.ts";
 import { authed, principalContext, type Principal } from "../auth/principal.ts";
 import { clusterClient, type ClusterRow } from "../clusters/enroll.ts";
 import type { IncusAdminClient } from "../incus/admin-client.ts";
@@ -29,16 +31,13 @@ const PolicyFields = {
 };
 
 /** Balancing (P8): per-cluster policies, plans and runs, member maintenance — platform staff; cross-cluster suggestions — anyone, for their tenants. */
-export function balancingRoutes({ db, authz, secretKey, clientOf }: { db: Db; authz: Authz; secretKey: Buffer; clientOf?: ClientOf }) {
+export function balancingRoutes({ db, authz, acl, secretKey, clientOf }: { db: Db; authz: Authz; acl: Acl; secretKey: Buffer; clientOf?: ClientOf }) {
   const client = clientOf ?? ((row: ClusterRow) => clusterClient({ secretKey }, row));
-  const staff = async (p: Principal, role: "viewer" | "operator") => {
-    if (await platformCan(authz, p, role)) return;
-    // Viewers learn nothing about clusters from a refusal; others are told no.
-    throw (await platformCan(authz, p, "viewer")) ? forbidden() : notFound("Cluster not found");
-  };
-  const loadCluster = async (id: string) => {
+  /** The cluster, if the caller sees it (404) and holds `privilege` on it (403). */
+  const loadCluster = async (p: Principal, id: string, privilege: Privilege) => {
     const [row] = await db.select().from(clusters).where(eq(clusters.id, uuidParam(id, "Cluster not found")));
     if (!row) throw notFound("Cluster not found");
+    await needPriv(acl, p, privilege, `/clusters/${row.name}`, "Cluster not found");
     return row;
   };
   const policyView = async (clusterId: string) => {
@@ -46,8 +45,7 @@ export function balancingRoutes({ db, authz, secretKey, clientOf }: { db: Db; au
     return row ?? { clusterId, enabled: false, intervalS: 3600, ...DEFAULT_POLICY, lastRunAt: null, lastSuccessAt: null, lastError: "", lastJobId: null, updatedBy: "", updatedAt: null };
   };
   const memberJob = async (p: Principal, request: Request, clusterId: string, member: string, type: "evacuate" | "restore-member", mode?: MemberPayload["mode"]) => {
-    await staff(p, "operator");
-    const c = await loadCluster(clusterId);
+    const c = await loadCluster(p, clusterId, "node.maintain");
     const [m] = await db
       .select()
       .from(clusterMembers)
@@ -63,15 +61,13 @@ export function balancingRoutes({ db, authz, secretKey, clientOf }: { db: Db; au
     new Elysia()
       .use(principalContext)
       .get("/api/v1/clusters/:id/balancing", async ({ principal, params }) => {
-        await staff(authed(principal), "viewer");
-        return policyView((await loadCluster(params.id)).id);
+        return policyView((await loadCluster(authed(principal), params.id, "cluster.view")).id);
       })
       .put(
         "/api/v1/clusters/:id/balancing",
         async ({ principal, request, params, body }) => {
           const p = authed(principal);
-          await staff(p, "operator");
-          const c = await loadCluster(params.id);
+          const c = await loadCluster(p, params.id, "cluster.configure");
           return audited(db, { principal: p, request }, "balancing_policy.update", { type: "cluster", id: c.id }, async () => {
             const v = { ...body, updatedBy: `${p.kind}:${p.id}`, updatedAt: new Date() };
             const [row] = await db
@@ -87,8 +83,7 @@ export function balancingRoutes({ db, authz, secretKey, clientOf }: { db: Db; au
       .post(
         "/api/v1/clusters/:id/balancing/plan",
         async ({ principal, params, body }) => {
-          await staff(authed(principal), "operator");
-          const c = await loadCluster(params.id);
+          const c = await loadCluster(authed(principal), params.id, "cluster.configure");
           const policy = { ...(await policyOf(db, c.id)), ...body };
           return (await planCluster(db, client(c), c.id, policy)).plan;
         },
@@ -96,8 +91,7 @@ export function balancingRoutes({ db, authz, secretKey, clientOf }: { db: Db; au
       )
       .post("/api/v1/clusters/:id/balancing/run", async ({ principal, request, params, set }) => {
         const p = authed(principal);
-        await staff(p, "operator");
-        const c = await loadCluster(params.id);
+        const c = await loadCluster(p, params.id, "cluster.configure");
         const job = await audited(db, { principal: p, request }, "balancing.run", { type: "cluster", id: c.id }, () =>
           enqueueJob(db, { type: "rebalance", payload: { clusterId: c.id }, actor: { type: p.kind, id: p.id }, tenantId: null, clusterIds: [c.id], instanceKey: `rebalance:${c.id}` }),
         );

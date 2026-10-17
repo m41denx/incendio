@@ -97,6 +97,14 @@ test("callers whose tenant is not on the cluster are refused", async () => {
   expect(fake.requests.length).toBe(seen);
 });
 
+test("no-access on the cluster refuses a platform viewer at the gateway", async () => {
+  const { aclEntries } = await import("../db/schema.ts");
+  const viewer = await h.user("v@example.com", { platformRole: "viewer" });
+  expect((await call("/1.0/echo", { host: "c1.clusters.test", token: viewer.token })).status).toBe(200);
+  await h.db.insert(aclEntries).values({ path: "/clusters/c1", role: "no-access", userId: viewer.id });
+  expect((await call("/1.0/echo", { host: "c1.clusters.test", token: viewer.token })).status).toBe(403);
+});
+
 test("members reach the cluster with their own token and no client certificate", async () => {
   const r = await call("/1.0/echo", { host: "c1.clusters.test", token: member.token });
   expect(r.status).toBe(200);

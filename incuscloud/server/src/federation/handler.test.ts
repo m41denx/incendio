@@ -176,6 +176,13 @@ test("callers reach only the clusters they have access to", async () => {
   expect(other.body).toMatchObject({ type: "error", error_code: 403 });
 });
 
+test("no-access on a cluster drops it from an admin's merged lists", async () => {
+  const { aclEntries } = await import("../db/schema.ts");
+  await h.db.insert(aclEntries).values({ path: "/clusters/c2", role: "no-access", userId: admin.id });
+  const r = await call(admin, "/1.0/storage-pools?recursion=1", { referer: "https://cloud.test/ui/project/acme/storage/pools" });
+  expect(names(r.body.metadata)).toEqual(["local@c1"]);
+});
+
 test("a global call from a project's page goes to that project's cluster", async () => {
   const r = await call(admin, "/1.0/storage-pools?recursion=1", { referer: "https://cloud.test/ui/project/acme@c2/instances/create" });
   expect(names(r.body.metadata)).toEqual(["fast@c2"]);
