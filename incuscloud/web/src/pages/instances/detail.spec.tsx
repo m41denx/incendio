@@ -95,3 +95,14 @@ test("tenant owners and admins and platform operators get the Actions menu; memb
   await userEvent.click(screen.getByRole("menuitem", { name: "Back up now…" }));
   expect(await screen.findByRole("dialog")).toHaveTextContent(/Back up/);
 });
+
+test("the owner is shown, or that nobody owns it", async () => {
+  mockApi({
+    "GET /api/v1/me": [200, me()],
+    "GET /api/v1/instances/i-1": [200, instance({ owner: { type: "user", id: "u-1", name: "ann@example.com" } })],
+    "GET /api/v1/instances/i-1/metrics": [200, { samples: [] }],
+  });
+  renderAt(<InstanceDetail />, { path: "/instances/i-1", pattern: "/instances/:id" });
+  expect(await screen.findByText("ann@example.com")).toBeInTheDocument();
+  expect(screen.getByText("Owner")).toBeInTheDocument();
+});

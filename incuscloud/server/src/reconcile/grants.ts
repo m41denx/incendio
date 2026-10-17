@@ -67,7 +67,7 @@ export interface Decision {
 const USER_PROJECT = ["can_create_instances", "can_create_storage_volumes", "can_create_storage_buckets", "can_view_events", "can_view_operations"];
 
 /** The instance relation privileges give: operator to configure it, user for its console, viewer to see it. */
-const instanceRelation = (p: ReadonlySet<Privilege>) => (p.has("instance.configure") ? "operator" : p.has("instance.console") ? "user" : p.has("instance.view") ? "viewer" : "");
+export const instanceRelation = (p: ReadonlySet<Privilege>) => (p.has("instance.configure") ? "operator" : p.has("instance.console") ? "user" : p.has("instance.view") ? "viewer" : "");
 const IRANK: Record<string, number> = { "": 0, viewer: 1, user: 2, operator: 3 };
 /** A project relation read as an instance one, for comparing the two. */
 const asInstance = (projectRelation: string) => (projectRelation === "admin" ? "operator" : projectRelation);

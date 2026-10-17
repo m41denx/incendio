@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:https";
-import { clusters, placements, sessions } from "../db/schema.ts";
+import { aclEntries, clusters, placements, sessions } from "../db/schema.ts";
 import { createFront } from "../front.ts";
 import { FakeIncus } from "../clusters/fake-incus.ts";
 import { harness, type Actor } from "../test/harness.ts";
@@ -304,4 +304,28 @@ test("an operation's websocket goes to its cluster", async () => {
   await until(() => s.got.length === 1);
   expect(s.got).toEqual(["ping"]);
   s.ws.close();
+});
+
+// Permissions phase 2: a User (no project relation in Incus) still has a project page.
+test("a User opens their project's page through the facade although Incus refuses the project", async () => {
+  const u = await h.user("u@example.com");
+  await h.db.insert(aclEntries).values({ path: "/tenants/acme", role: "user", userId: u.id });
+  m1.refused = ["acme", "beta", "default"];
+  m2.refused = ["acme", "default"];
+  const one = await call(u, "/1.0/projects/acme@c1");
+  expect([one.status, one.body.metadata]).toEqual([200, { name: "acme@c1", description: "IncusCloud tenant acme", config: {}, used_by: [] }]);
+  expect((await call(u, "/1.0/projects/beta@c1")).status).toBe(403);
+  const list = await call(u, "/1.0/projects?recursion=1");
+  expect(names(list.body.metadata)).toEqual(["acme@c1", "acme@c2"]);
+  expect((await call(u, "/1.0/projects")).body.metadata.sort()).toEqual(["/1.0/projects/acme@c1", "/1.0/projects/acme@c2"]);
+});
+
+test("a User's create in a merged project is placed among the tenant's clusters", async () => {
+  const u = await h.user("u@example.com");
+  await h.db.insert(aclEntries).values({ path: "/tenants/acme", role: "user", userId: u.id });
+  m1.refused = ["acme"];
+  m2.refused = ["acme"];
+  const r = await call(u, "/1.0/instances?project=acme", { method: "POST", body: { name: "new" } });
+  expect(r.status).toBe(202);
+  expect([...m1.seen, ...m2.seen].filter((s) => s.method === "POST").map((s) => s.url)).toEqual(["/1.0/instances?project=acme"]);
 });

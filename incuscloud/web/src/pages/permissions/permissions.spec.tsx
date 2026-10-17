@@ -261,3 +261,46 @@ test("Unrestricted user is offered on tenants only; Cluster owner warns that it 
   await userEvent.selectOptions(within(dialog).getByLabelText("Applies to"), "tenant");
   expect(within(within(dialog).getByLabelText("Role")).getByRole("option", { name: "Unrestricted user" })).toBeInTheDocument();
 });
+
+test("Add entry offers Project and Instance paths and the User role", async () => {
+  const many: AclRole[] = [...roles, { id: "user", name: "User", privileges: [] }];
+  const api = mockApi({
+    ...base(),
+    "GET /api/v1/acl/roles": [200, many],
+    "GET /api/v1/instances": [200, { items: [{ id: "i-1", clusterId: "c-1", clusterName: "lab", project: "acme", name: "web" }], total: 1 }],
+    "POST /api/v1/acl/entries": (b) => [201, { ...explicit, id: "e-3", ...(b as object) }],
+  });
+  at();
+  await userEvent.click(await screen.findByRole("button", { name: "Add entry" }));
+  const dialog = await screen.findByRole("dialog");
+  await userEvent.selectOptions(within(dialog).getByLabelText("Applies to"), "instance");
+  await userEvent.selectOptions(await within(dialog).findByLabelText("Cluster"), "lab");
+  await userEvent.selectOptions(await within(dialog).findByLabelText("Project"), "acme");
+  await userEvent.selectOptions(await within(dialog).findByLabelText("Instance"), "web");
+  await userEvent.selectOptions(await within(dialog).findByLabelText("Subject"), "user:u-2");
+  await userEvent.selectOptions(within(dialog).getByLabelText("Role"), "user");
+  await userEvent.click(within(dialog).getByRole("button", { name: "Add" }));
+  await waitFor(() =>
+    expect(api.calls.find((c) => c.method === "POST")?.body).toEqual({ path: "/clusters/lab/projects/acme/instances/web", subject: { type: "user", id: "u-2" }, role: "user", propagate: true }),
+  );
+  expect(api.calls.some((c) => c.path.startsWith("/api/v1/instances?") && c.path.includes("cluster=c-1"))).toBe(true);
+});
+
+test("a project path is the cluster's project", async () => {
+  const api = mockApi({
+    ...base(),
+    "GET /api/v1/instances": [200, { items: [{ id: "i-1", clusterId: "c-1", clusterName: "lab", project: "acme", name: "web" }], total: 1 }],
+    "POST /api/v1/acl/entries": (b) => [201, { ...explicit, id: "e-4", ...(b as object) }],
+  });
+  at();
+  await userEvent.click(await screen.findByRole("button", { name: "Add entry" }));
+  const dialog = await screen.findByRole("dialog");
+  await userEvent.selectOptions(within(dialog).getByLabelText("Applies to"), "project");
+  await userEvent.selectOptions(await within(dialog).findByLabelText("Cluster"), "lab");
+  await userEvent.selectOptions(await within(dialog).findByLabelText("Project"), "acme");
+  expect(within(dialog).queryByLabelText("Instance")).toBeNull();
+  await userEvent.selectOptions(await within(dialog).findByLabelText("Subject"), "user:u-2");
+  await userEvent.selectOptions(within(dialog).getByLabelText("Role"), "auditor");
+  await userEvent.click(within(dialog).getByRole("button", { name: "Add" }));
+  await waitFor(() => expect(api.calls.find((c) => c.method === "POST")?.body).toMatchObject({ path: "/clusters/lab/projects/acme", role: "auditor" }));
+});

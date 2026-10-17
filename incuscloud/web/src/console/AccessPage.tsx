@@ -1,12 +1,14 @@
-import type { FC } from "react";
+import { type FC, useState } from "react";
 import { Link } from "react-router-dom";
-import { MainTable } from "@canonical/react-components";
-import { useQuery } from "@tanstack/react-query";
+import { Button, MainTable } from "@canonical/react-components";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { request } from "../api/client";
 import { can, canAtRoot, useMe } from "../api/hooks";
 import PageLayout from "../components/PageLayout";
 import Section from "../components/Section";
-import { Loaded } from "../components/Status";
+import ConfirmAction from "../components/ConfirmAction";
+import { ErrorMessage, Loaded } from "../components/Status";
+import AddEntryModal from "../pages/permissions/AddEntryModal";
 import { projectPath } from "./object";
 
 interface Holder {
@@ -24,7 +26,7 @@ interface Entry {
   role: string;
   propagate: boolean;
   relation: string;
-  /** "server", or "project <name>". */
+  /** "server", "project <name>" or "instance <project>/<name>". */
   on: string;
 }
 interface Access {
@@ -33,6 +35,8 @@ interface Access {
   tenants: Array<{ tenant: { id: string; slug: string; name: string }; project: string; status: string; members: Holder[] }>;
   /** Explicit permission entries that reach here (older servers send none). */
   entries?: Entry[];
+  /** Whether the caller may add and remove entries on this page's path. */
+  canManage?: boolean;
 }
 
 const holders = (list: Holder[], on: string, linkUsers: boolean) => (
@@ -64,6 +68,15 @@ const AccessPage: FC<{ cluster: string; project?: string }> = ({ cluster, projec
     queryKey: ["access", cluster, project ?? ""],
     queryFn: () => request<Access>("GET", `/api/v1/access?cluster=${encodeURIComponent(cluster)}${project ? `&project=${encodeURIComponent(project)}` : ""}`),
   });
+  const qc = useQueryClient();
+  const [adding, setAdding] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const here = project ? `/clusters/${cluster}/projects/${project}` : `/clusters/${cluster}`;
+  const changed = () => Promise.all([qc.invalidateQueries({ queryKey: ["access", cluster] }), qc.invalidateQueries({ queryKey: ["acl"] })]);
+  const remove = async (e: Entry) => {
+    await request("DELETE", `/api/v1/acl/entries/${e.id}`);
+    await changed();
+  };
   return (
     <PageLayout title="Who has access">
       <p className="u-text--muted">
@@ -78,20 +91,42 @@ const AccessPage: FC<{ cluster: string; project?: string }> = ({ cluster, projec
                 {holders(a.platform, "the server", linkUsers)}
               </Section>
             ) : null}
-            {a.entries?.length ? (
+            {a.entries?.length || a.canManage ? (
               <Section title="Permission entries" id="access-entries">
+                {a.canManage ? (
+                  <Button onClick={() => setAdding(true)}>Add entry</Button>
+                ) : null}
+                {error ? <ErrorMessage error={error} /> : null}
                 <MainTable
-                  headers={[{ content: "Who" }, { content: "On" }, { content: "Role" }, { content: "In Incus" }]}
-                  rows={a.entries.map((e) => ({
+                  emptyStateMsg="No entries here."
+                  headers={[{ content: "Who" }, { content: "On" }, { content: "Role" }, { content: "In Incus" }, { content: "", className: "u-align--right" }]}
+                  rows={(a.entries ?? []).map((e) => ({
                     key: e.id,
                     columns: [
                       { content: e.subject.name },
                       { content: <code className="ic-nowrap">{e.path}</code> },
                       { content: e.role },
                       { content: e.relation ? `${e.relation} on ${e.on === "server" ? "the server" : e.on}` : "nothing" },
+                      {
+                        className: "u-align--right",
+                        content: a.canManage ? (
+                          <ConfirmAction label="Remove" title="Remove entry" onConfirm={() => remove(e)} onError={setError} className="u-no-margin--bottom">
+                            Remove {e.role} on <code>{e.path}</code> from {e.subject.name}?
+                          </ConfirmAction>
+                        ) : null,
+                      },
                     ],
                   }))}
                 />
+                {adding ? (
+                  <AddEntryModal
+                    fixedPath={here}
+                    onClose={() => {
+                      setAdding(false);
+                      void changed();
+                    }}
+                  />
+                ) : null}
                 {canAtRoot(me, "acl.view") ? (
                   <p className="p-text--small">
                     Entries are managed on <Link to="/permissions">Permissions</Link>. An entry on a tenant or project that gives less than one above it there takes the server grant away, leaving grants on the other projects.

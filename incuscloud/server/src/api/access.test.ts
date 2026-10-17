@@ -76,3 +76,25 @@ test("the Access tab lists an operator entry on the cluster with relation operat
   const m = await h.user("m@example.com", { tenants: { [acme.id]: "member" } });
   expect((await h.call(m, "GET", "/api/v1/access?cluster=lab")).body.entries).toEqual([]);
 });
+
+test("project and instance entries show on their project's Access tab; canManage says who may add there", async () => {
+  const admin = await h.user("root@example.com", { platformRole: "admin" });
+  const ta = await h.user("ta@example.com", { tenants: { [acme.id]: "admin" } });
+  const u = await h.user("eve@example.com");
+  await h.db.insert(aclEntries).values([
+    { path: "/clusters/lab/projects/acme", role: "auditor", userId: u.id },
+    { path: "/clusters/lab/projects/acme/instances/web", role: "operator", userId: u.id },
+    { path: "/clusters/lab/projects/beta-lab/instances/x", role: "operator", userId: u.id },
+  ]);
+  const r = await h.call(ta, "GET", "/api/v1/access?cluster=lab&project=acme");
+  expect(r.body.entries.map((e: any) => `${e.path} ${e.role}→${e.relation} on ${e.on}`)).toEqual([
+    "/clusters/lab/projects/acme auditor→viewer on project acme",
+    "/clusters/lab/projects/acme/instances/web operator→operator on instance acme/web",
+  ]);
+  expect(r.body.canManage).toBe(true);
+  expect((await h.call(ta, "GET", "/api/v1/access?cluster=lab&project=beta-lab")).body.entries).toEqual([]);
+  expect((await h.call(admin, "GET", "/api/v1/access?cluster=lab")).body.entries.map((e: any) => e.path)).toContain("/clusters/lab/projects/beta-lab/instances/x");
+  expect((await h.call(admin, "GET", "/api/v1/access?cluster=lab")).body.canManage).toBe(true);
+  const m = await h.user("m@example.com", { tenants: { [acme.id]: "member" } });
+  expect((await h.call(m, "GET", "/api/v1/access?cluster=lab&project=acme")).body.canManage).toBe(false);
+});

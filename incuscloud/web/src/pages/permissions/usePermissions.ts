@@ -15,6 +15,7 @@ export const GIVABLE = [
   "operator",
   "cluster-owner",
   "unrestricted-user",
+  "user",
   "tenant-admin",
   "auditor",
   "no-access",
@@ -80,4 +81,16 @@ export const useTenantList = () =>
   useQuery({
     queryKey: ["tenants"],
     queryFn: () => request<Tenant[]>("GET", "/api/v1/tenants"),
+  });
+
+/** A cluster's projects and instances from the inventory, for the project and instance pickers. */
+export const useClusterInstances = (clusterId: string | undefined) =>
+  useQuery({
+    queryKey: ["instances", "picker", clusterId],
+    enabled: !!clusterId,
+    queryFn: () =>
+      request<{ items: Array<{ project: string; name: string }> }>(
+        "GET",
+        `/api/v1/instances?${new URLSearchParams({ cluster: clusterId!, limit: "500" })}`,
+      ),
   });

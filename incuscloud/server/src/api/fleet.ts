@@ -1,7 +1,7 @@
 import { Elysia, t } from "elysia";
 import { and, asc, eq, gte, inArray, notInArray, or, sql, type SQL } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
-import { clusterMembers, clusters, instances, metricsSamples, networks, placements, storagePools, tenants } from "../db/schema.ts";
+import { clusterMembers, clusters, instanceOwners, instances, metricsSamples, networks, placements, serviceAccounts, storagePools, tenants, users } from "../db/schema.ts";
 import type { Authz } from "../authz/platform.ts";
 import { needPriv, notFound } from "../authz/guards.ts";
 import type { Acl } from "../acl/acl.ts";
@@ -125,7 +125,18 @@ export function fleetRoutes({ db, authz, acl }: { db: Db; authz: Authz; acl: Acl
         }),
       },
     )
-    .get("/api/v1/instances/:id", async ({ principal, params }) => visibleInstance(authed(principal), params.id))
+    .get("/api/v1/instances/:id", async ({ principal, params }) => {
+      const row = await visibleInstance(authed(principal), params.id);
+      // Who owns it (permissions: a User's own instances).
+      const [o] = await db
+        .select({ userId: instanceOwners.userId, email: users.email, serviceAccountId: instanceOwners.serviceAccountId, account: serviceAccounts.name })
+        .from(instanceOwners)
+        .leftJoin(users, eq(users.id, instanceOwners.userId))
+        .leftJoin(serviceAccounts, eq(serviceAccounts.id, instanceOwners.serviceAccountId))
+        .where(and(eq(instanceOwners.clusterId, row.clusterId), eq(instanceOwners.project, row.project), eq(instanceOwners.name, row.name)));
+      const owner = o?.userId ? { type: "user", id: o.userId, name: o.email ?? o.userId } : o?.serviceAccountId ? { type: "service", id: o.serviceAccountId, name: o.account ?? o.serviceAccountId } : null;
+      return { ...row, owner };
+    })
     .get(
       "/api/v1/instances/:id/metrics",
       async ({ principal, params, query }) => {

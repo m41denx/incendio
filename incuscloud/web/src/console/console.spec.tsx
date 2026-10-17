@@ -333,3 +333,36 @@ test("a tenant member's placement groups are their own project's, not default's"
   await waitFor(() => expect(calls.calls.some((c) => c.path.startsWith("/1.0/projects/p%40c1"))).toBe(true));
   expect(calls.calls.some((c) => c.path.startsWith("/1.0/projects/default%40c1"))).toBe(false);
 });
+
+test("the project Access tab adds an entry there, and removes one, for whoever may manage entries", async () => {
+  const calls = api({
+    "GET /api/v1/access": [
+      200,
+      {
+        cluster: "c1",
+        tenants: [],
+        canManage: true,
+        entries: [{ id: "e-1", path: "/clusters/c1/projects/p/instances/web", subject: { type: "user", id: "u-9", name: "eve@example.com" }, role: "operator", propagate: true, relation: "operator", on: "instance p/web" }],
+      },
+    ],
+    "GET /api/v1/acl/roles": [200, [{ id: "auditor", name: "Auditor", privileges: [] }]],
+    "GET /api/v1/users": [200, [{ id: "u-2", email: "bob@example.com", name: "Bob", disabled: false, platformRole: null, hasPassword: true, createdAt: "", lastLoginAt: null }]],
+    "GET /api/v1/service-accounts": [200, []],
+    "POST /api/v1/acl/entries": [201, {}],
+    "DELETE /api/v1/acl/entries/e-1": [204],
+  });
+  renderInFrame(<AppRoutes />, { path: "/ui/project/p%40c1/access/who" });
+  const entries = within(await screen.findByRole("region", { name: "Permission entries" }));
+  expect(entries.getByText("operator on instance p/web")).toBeInTheDocument();
+  await userEvent.click(entries.getByRole("button", { name: "Add entry" }));
+  const dialog = within(await screen.findByRole("dialog"));
+  expect(dialog.queryByLabelText("Applies to")).toBeNull();
+  await userEvent.selectOptions(await dialog.findByLabelText("Subject"), "user:u-2");
+  await userEvent.selectOptions(dialog.getByLabelText("Role"), "auditor");
+  await userEvent.click(dialog.getByRole("button", { name: "Add" }));
+  await waitFor(() => expect(calls.calls.find((c) => c.method === "POST")?.body).toEqual({ path: "/clusters/c1/projects/p", subject: { type: "user", id: "u-2" }, role: "auditor", propagate: true }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  await userEvent.click(entries.getByRole("button", { name: "Remove" }));
+  await userEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Remove" }));
+  await waitFor(() => expect(calls.calls.some((c) => c.method === "DELETE" && c.path === "/api/v1/acl/entries/e-1")).toBe(true));
+});

@@ -8,6 +8,8 @@ export interface IncusModel {
   instances: Array<{ name: string; project: string; location: string }>;
   /** Every request, bodies parsed. */
   seen: Array<{ method: string; url: string; body?: unknown }>;
+  /** Projects Incus does not show this caller (a User, spec decision 5): 403 on the project, left out of the list. */
+  refused?: string[];
   /** How `/1.0` answers instead: as to a caller it does not trust, or an error. */
   server?: "untrusted" | "error";
 }
@@ -33,10 +35,12 @@ export function fakeIncusApi(m: IncusModel) {
         environment: { server_clustered: m.clustered, server_name: m.clustered ? m.members[0] : "standalone", server_version: "7.5", kernel_architecture: "x86_64" },
       });
     }
+    const shown = m.projects.filter((n) => !m.refused?.includes(n));
     if (r.method === "GET" && path === "/1.0/projects") {
-      return sync(recursion ? m.projects.map((name) => ({ name, config: { "features.images": "true" }, used_by: [] })) : m.projects.map((n) => `/1.0/projects/${n}`));
+      return sync(recursion ? shown.map((name) => ({ name, config: { "features.images": "true" }, used_by: [] })) : shown.map((n) => `/1.0/projects/${n}`));
     }
     const p = path.match(/^\/1\.0\/projects\/([^/]+)$/);
+    if (r.method === "GET" && p && m.refused?.includes(p[1]!)) return fail(403, "Forbidden");
     if (r.method === "GET" && p) return m.projects.includes(p[1]!) ? sync({ name: p[1], config: {}, used_by: [] }) : fail(404, "Project not found");
     if (r.method === "GET" && path === "/1.0/instances") {
       if (!m.projects.includes(project)) return fail(404, "Project not found");

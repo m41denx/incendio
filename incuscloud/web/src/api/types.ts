@@ -171,6 +171,8 @@ export interface Instance {
   seenAt: string;
   /** When the cluster's inventory was last read. */
   inventoryAt: string | null;
+  /** Who owns it (permissions); only on the detail. */
+  owner?: { type: "user" | "service"; id: string; name: string } | null;
 }
 
 export interface InstanceList {

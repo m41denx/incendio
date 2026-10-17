@@ -1,12 +1,12 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Duplex } from "node:stream";
-import { inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import type { AppDeps } from "../app.ts";
 import type { GatewayHandler } from "../front.ts";
 import { resolvePrincipal, type Principal } from "../auth/principal.ts";
 import { ApiError } from "../lib/errors.ts";
 import { log } from "../lib/log.ts";
-import { clusterMembers } from "../db/schema.ts";
+import { clusterMembers, placements, tenants } from "../db/schema.ts";
 import type { ClusterRow } from "../clusters/enroll.ts";
 import type { ClusterCache } from "../gateway/clusters-cache.ts";
 import type { GatewayRequest } from "../gateway/handler.ts";
@@ -141,6 +141,47 @@ export function createFacade(deps: FacadeDeps): GatewayHandler {
     return { standalone: true, view: view ? await view : null };
   }
 
+  /**
+   * Tenant projects on a cluster the caller may see (by permissions) but Incus
+   * may not show them: a User holds no project relation there (spec decision 5).
+   */
+  async function seenProjects(a: Admitted, c: ClusterRow): Promise<Map<string, string>> {
+    const rows = await deps.db
+      .select({ project: placements.project, slug: tenants.slug })
+      .from(placements)
+      .innerJoin(tenants, eq(tenants.id, placements.tenantId))
+      .where(and(eq(placements.clusterId, c.id), eq(placements.status, "ready")));
+    const out = new Map<string, string>();
+    for (const r of rows) if (await deps.acl.sees(a.principal, `/clusters/${c.name}/projects/${r.project}`)) out.set(r.project, r.slug);
+    return out;
+  }
+  const projectObject = (name: string, slug: string) => ({ name, description: `IncusCloud tenant ${slug}`, config: {}, used_by: [] });
+  const syncOf = (metadata: unknown) => ({ type: "sync", status: "Success", status_code: 200, operation: "", error_code: 0, error: "", metadata });
+
+  /**
+   * A project read Incus refuses, or a project list missing projects, answered
+   * from what the caller may see: the project object, or the list with them.
+   */
+  async function withProjects(a: Admitted, c: ClusterRow, path: string, status: number, json: unknown): Promise<{ status: number; json: unknown }> {
+    const [p, qs = ""] = path.split("?");
+    const one = p!.match(/^\/1\.0\/projects\/([^/]+)$/);
+    if (one && status === 403) {
+      const name = decodeURIComponent(one[1]!);
+      const slug = (await seenProjects(a, c)).get(name);
+      return slug ? { status: 200, json: syncOf(projectObject(name, slug)) } : { status, json };
+    }
+    if (p === "/1.0/projects" && status === 200) {
+      const list = ((json as { metadata?: unknown[] })?.metadata ?? []) as Array<string | { name: string }>;
+      const has = new Set(list.map((x) => (typeof x === "string" ? decodeURIComponent(x.split("/").pop()!) : x.name)));
+      const recursive = !!new URLSearchParams(qs).get("recursion") && new URLSearchParams(qs).get("recursion") !== "0";
+      const extra = [...(await seenProjects(a, c))].filter(([name]) => !has.has(name));
+      if (!extra.length) return { status, json };
+      const more = extra.map(([name, slug]) => (recursive ? projectObject(name, slug) : `/1.0/projects/${encodeURIComponent(name)}`));
+      return { status, json: { ...(json as object), metadata: [...list, ...more] } };
+    }
+    return { status, json };
+  }
+
   /** One cluster: qualifiers off on the way in, on again on the way out. */
   async function one(req: IncomingMessage, res: ServerResponse, a: Admitted, c: ClusterRow, o: { path?: string; body?: Buffer | null } = {}) {
     const started = performance.now();
@@ -160,6 +201,17 @@ export function createFacade(deps: FacadeDeps): GatewayHandler {
       return out;
     };
     if (view) return sendJson(res, { status: view.status, body: qualify(view.body) });
+    if (method === "GET" && /^\/1\.0\/projects(?:\/[^/?]+)?(?:\?|$)/.test(path)) {
+      // Read here, not relayed: a User's project is filled in when Incus refuses it.
+      try {
+        const r = await fetchCluster(deps.upstreams, req, call(req, a, c, method, path));
+        const got = await withProjects(a, c, path, r.status, JSON.parse(r.body.toString("utf8")));
+        deps.onRequest?.({ cluster: c, principal: a.principal, method, path, status: r.status, bytesIn: 0, bytesOut: r.body.length, durationMs: Math.round(performance.now() - started), ip: ipOf(req), upgrade: false });
+        return sendJson(res, { status: got.status, body: qualify(got.json) });
+      } catch {
+        return writeIncusError(res, 502, `Cluster "${c.name}" did not answer`);
+      }
+    }
     let body: Buffer | null = o.body ?? null;
     if (body === null && method !== "GET" && method !== "HEAD" && !streamed(req, url)) {
       const raw = await readBody(req, BODY_LIMIT);
@@ -188,8 +240,7 @@ export function createFacade(deps: FacadeDeps): GatewayHandler {
         else {
           try {
             const r = await fetchCluster(deps.upstreams, req, call(req, a, c, "GET", path));
-            status = r.status;
-            json = JSON.parse(r.body.toString("utf8"));
+            ({ status, json } = await withProjects(a, c, path, r.status, JSON.parse(r.body.toString("utf8"))));
           } catch (e) {
             log.info("facade: cluster did not answer", { cluster: c.name, error: String(e) });
             return null;
@@ -210,6 +261,7 @@ export function createFacade(deps: FacadeDeps): GatewayHandler {
     try {
       parsed = JSON.parse(raw.toString("utf8") || "{}");
     } catch {}
+    // The project's clusters: those that show it (the project page's fill-in for Users included).
     const probes = await fanOut(req, a, `/1.0/projects/${encodeURIComponent(project)}`);
     const has = a.reachable.filter((_, i) => probes[i]?.status === 200);
     const mem = has.length

@@ -115,3 +115,9 @@ test("a User's job list holds their jobs and their instances' only", async () =>
   // A tenant member keeps today's view: every job of the tenant.
   expect((await h.call(other, "GET", "/api/v1/jobs")).body).toHaveLength(4);
 });
+
+test("an instance's detail names its owner", async () => {
+  expect((await h.call(u, "GET", `/api/v1/instances/${ids.mine}`)).body.owner).toEqual({ type: "user", id: u.id, name: "u@x.test" });
+  const op = await h.user("op2@x.test", { platformRole: "operator" });
+  expect((await h.call(op, "GET", `/api/v1/instances/${ids.theirs}`)).body.owner).toBeNull();
+});

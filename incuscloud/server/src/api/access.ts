@@ -6,7 +6,8 @@ import type { Authz } from "../authz/platform.ts";
 import type { Acl } from "../acl/acl.ts";
 import { notFound, subject } from "../authz/guards.ts";
 import { authed, principalContext } from "../auth/principal.ts";
-import { projectRelation, roleRelation, serverRelation } from "../reconcile/grants.ts";
+import { instanceRelation, projectRelation, roleRelation, serverRelation } from "../reconcile/grants.ts";
+import { ROLES } from "../acl/catalog.ts";
 import { filterAsync } from "./common.ts";
 
 interface Holder {
@@ -74,18 +75,29 @@ export function accessRoutes({ db, authz, acl }: { db: Db; authz: Authz; acl: Ac
         ...(await db.select({ id: users.id, email: users.email }).from(users)).map((u) => [`user:${u.id}`, u.email] as [string, string]),
         ...(await db.select({ id: serviceAccounts.id, name: serviceAccounts.name }).from(serviceAccounts)).map((a) => [`service:${a.id}`, a.name] as [string, string]),
       ]);
-      const reaching = (await acl.entries()).filter((e) => e.source === "acl" && where.has(e.path));
+      // Project and instance entries on this cluster (one project's, for a project's tab).
+      const below = new RegExp(`^/clusters/${cluster.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/projects/([^/]+)(?:/instances/([^/]+))?$`);
+      const placeOf = (path: string) => {
+        if (where.has(path)) return where.get(path)!;
+        const m = below.exec(path);
+        if (!m || (query.project && m[1] !== query.project)) return null;
+        return m[2] ? `instance ${m[1]}/${m[2]}` : `project ${m[1]}`;
+      };
+      const reaching = (await acl.entries()).filter((e) => e.source === "acl" && placeOf(e.path));
       const readable = await Promise.all(reaching.map((e) => acl.can(p, "acl.view", e.path)));
       const entries = reaching
         .filter((_, i) => readable[i])
         .map((e) => {
           const [type, id] = e.subject.split(":") as [string, string];
-          const on = where.get(e.path)!;
-          return { id: e.id, path: e.path, subject: { type, id, name: named.get(e.subject) ?? id }, role: e.role, propagate: e.propagate, relation: roleRelation(e.role, on === "server" ? "server" : "project"), on };
+          const on = placeOf(e.path)!;
+          const relation = on.startsWith("instance ") ? instanceRelation(ROLES[e.role].privileges) : roleRelation(e.role, on === "server" ? "server" : "project");
+          return { id: e.id, path: e.path, subject: { type, id, name: named.get(e.subject) ?? id }, role: e.role, propagate: e.propagate, relation, on };
         })
         .sort((a, b) => a.path.localeCompare(b.path) || a.subject.name.localeCompare(b.subject.name));
 
-      if (!(await acl.can(p, "platform.view", "/"))) return { cluster: cluster.name, tenants: tenantList, entries };
+      // Whether the caller may add entries here (the page's own path).
+      const canManage = await acl.can(p, "acl.manage", query.project ? `/clusters/${cluster.name}/projects/${query.project}` : `/clusters/${cluster.name}`);
+      if (!(await acl.can(p, "platform.view", "/"))) return { cluster: cluster.name, tenants: tenantList, entries, canManage };
       const platformUsers = await db
         .select({ id: users.id, name: users.name, email: users.email, role: platformRoles.role })
         .from(platformRoles)
@@ -99,7 +111,7 @@ export function accessRoutes({ db, authz, acl }: { db: Db; authz: Authz; acl: Ac
         ...platformUsers.map((u): Holder => ({ id: u.id, kind: "user", name: u.name, email: u.email, role: u.role, relation: serverRelation(u.role) })),
         ...platformAccounts.map((a): Holder => ({ id: a.id, kind: "service-account", name: a.name, role: a.role!, relation: serverRelation(a.role!) })),
       ].sort(byName);
-      return { cluster: cluster.name, platform, tenants: tenantList, entries };
+      return { cluster: cluster.name, platform, tenants: tenantList, entries, canManage };
     },
     { query: t.Object({ cluster: t.String({ minLength: 1 }), project: t.Optional(t.String({ minLength: 1 })) }) },
   );

@@ -86,6 +86,7 @@ const InstanceDetail: FC = () => {
                 ["Cluster", <Link to={`/clusters/${i.clusterId}`}>{i.clusterName}</Link>],
                 ["Project", i.project],
                 ...(i.tenantId ? [["Tenant", <Link to={`/tenants/${i.tenantId}`}>{i.tenantSlug}</Link>] as [string, React.ReactNode]] : []),
+                ...(i.owner !== undefined ? [["Owner", i.owner ? `${i.owner.name}${i.owner.type === "service" ? " (service account)" : ""}` : "Nobody"] as [string, React.ReactNode]] : []),
                 ["Type", i.type === "virtual-machine" ? "Virtual machine" : "Container"],
                 ["Location", i.location || UNKNOWN],
                 ["Description", i.description || UNKNOWN],

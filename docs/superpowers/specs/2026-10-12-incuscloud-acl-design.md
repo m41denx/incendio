@@ -171,7 +171,8 @@ Recommendation (the user had no opinion), as in PCD:
 - **Incus (through the gateway, the facade and direct cluster access).** IncusCloud keeps writing OpenFGA grants on each cluster, so Incus enforces them too.
   - Every distinct (object, set of entitlements) in use becomes a group `incuscloud-acl-<hash>`, and the users who resolve to it are its members.
   - Narrowing (most-specific-wins, ownership) is computed by IncusCloud, so Incus never needs a deny rule.
-  - Anyone holding a privilege on an instance also gets `can_view` on its project, so Incus lists show it.
+  - An entry on an instance gives an instance relation (`viewer`, `user` or `operator`, from its privileges), never a project one: in Incus a project's `can_view` comes only from project `viewer`, which shows every instance in it (decision 5). An instance that gives less than its project replaces the project relation by relations on its other instances.
+  - The facade fills in what Incus then refuses: `GET /1.0/projects/<p>` answers a project object for a caller who may see the project by IncusCloud's permissions, and project lists include such projects. A create in a merged project goes to one of the clusters that has it, those included.
 - **Ownership and group membership move.** Instances change owners rarely, but they move between members and groups. The reconciler follows the lifecycle events (create, move, delete) and rewrites the per-instance grants. A moved instance keeps its old grants for at most one event round-trip, or one reconcile interval if events are missed.
 - **Node privileges** (`node.maintain`, `node.provision`) are server-level in Incus. IncusCloud's API checks them per group or cluster; on Incus itself, `node.provision` is server `admin`.
 
