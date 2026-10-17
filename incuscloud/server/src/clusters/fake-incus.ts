@@ -70,7 +70,9 @@ export class FakeIncus {
     ["default", { config: {}, description: "Default Incus project", profiles: new Map([["default", { config: {}, devices: { root: { type: "disk", path: "/", pool: "local" }, eth0: { type: "nic", name: "eth0", network: "incusbr0" } } }]]) }],
   ]);
   pools = [{ name: "local", driver: "dir" }];
-  networks = [{ name: "incusbr0", type: "bridge", managed: true }];
+  networks: Array<{ name: string; type: string; managed: boolean; project?: string }> = [{ name: "incusbr0", type: "bridge", managed: true, project: "default" }];
+  /** Image fingerprints per project. */
+  images = new Map<string, string[]>();
   patches: Array<{ path: string; body: unknown }> = [];
   /** Answers first when set: tests' own endpoints (status, JSON body, content type). */
   respond?: (r: { method: string; url: string; body: string; headers: IncomingMessage["headers"] }) => { status?: number; body: unknown; type?: string } | undefined;
@@ -192,6 +194,11 @@ export class FakeIncus {
             return sync({});
           }
         }
+        if (admin && req.method === "GET" && u.pathname === "/1.0/profiles") {
+          const names = [...(this.projects.get(project)?.profiles.keys() ?? [])];
+          return sync(names.map((name) => ({ name, project })));
+        }
+        if (admin && req.method === "GET" && u.pathname === "/1.0/images") return sync((this.images.get(project) ?? []).map((fingerprint) => ({ fingerprint, project })));
         const prof = u.pathname.match(/^\/1\.0\/profiles\/([^/]+)$/);
         if (admin && prof) {
           const p = this.projects.get(project);

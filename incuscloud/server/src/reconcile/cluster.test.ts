@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
 import { testDb } from "../db/test-db.ts";
-import { aclEntries, clusters, placements, platformRoles, serviceAccounts, tenantMembers, tenants, users } from "../db/schema.ts";
+import { aclEntries, clusters, instances, placements, platformRoles, serviceAccounts, tenantMembers, tenants, users } from "../db/schema.ts";
+import { recordOwner } from "../acl/owners.ts";
 import type { Db } from "../db/index.ts";
 import { FakeIncus } from "../clusters/fake-incus.ts";
 import { enrollCluster } from "../clusters/enroll.ts";
@@ -228,5 +229,33 @@ describe("explicit permission entries", () => {
     await entry(bob, "/clusters/c1", "auditor");
     await reconcileCluster(deps, clusterId);
     expect(stores.lines(storeName()).filter((l) => l.startsWith(`user:${bob} `)).sort()).toEqual([`user:${bob} member ${acl("operator", "project:acme")}`, `user:${bob} member ${acl("viewer", "server:incus")}`].sort());
+  });
+});
+
+describe("User entries (permissions phase 2)", () => {
+  const acl = (relation: string, object: string) => `group:${aclGroup(relation, object)}`;
+  test("a User on /tenants/acme: the project's direct entitlements, can_view on its shared objects, operator on what they own — never a project relation", async () => {
+    await reconcileCluster(deps, clusterId);
+    const u = (await db.insert(users).values({ email: "u@example.com", name: "U" }).returning())[0]!.id;
+    await db.insert(aclEntries).values({ path: "/tenants/acme", role: "user", userId: u });
+    await db.insert(instances).values([
+      { clusterId, project: "acme", name: "mine", type: "container", status: "Running", search: "mine" },
+      { clusterId, project: "acme", name: "theirs", type: "container", status: "Running", search: "theirs" },
+    ]);
+    await recordOwner(db, { clusterId, project: "acme", name: "mine" }, `user:${u}`, "event");
+    fake.images.set("acme", ["abc"]);
+    await reconcileCluster(deps, clusterId);
+    const mine = stores.lines(storeName()).filter((l) => l.startsWith(`user:${u} `)).map((l) => l.split(" member ")[1]).sort();
+    expect(mine).toEqual(
+      [
+        ...["can_create_instances", "can_create_storage_volumes", "can_create_storage_buckets", "can_view_events", "can_view_operations"].map((r) => acl(r, "project:acme")),
+        acl("can_view", "profile:acme/default"),
+        acl("can_view", "network:default/incusbr0"),
+        acl("can_view", "image:acme/abc"),
+        acl("operator", "instance:acme/mine"),
+      ].sort(),
+    );
+    // A User entry makes the subject explicit: no tenant group for them.
+    expect(stores.lines(storeName()).some((l) => l.startsWith(`user:${u} member group:incuscloud-tenant-`))).toBe(false);
   });
 });

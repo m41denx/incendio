@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { aclGroup, desiredGrants, diffTuples, explicitRelations, groupName, isManaged } from "./grants.ts";
-import type { RoleId } from "../acl/catalog.ts";
+import { ROLES, type RoleId } from "../acl/catalog.ts";
 
 const T1 = "11111111-1111-1111-1111-111111111111";
 const T2 = "22222222-2222-2222-2222-222222222222";
@@ -98,4 +98,48 @@ test("explicitRelations: no access beside another role at the same level gives n
 test("explicitRelations: Unrestricted user never maps to a server relation", () => {
   const d = (p: string) => (p === "/clusters/c" ? { roles: ["unrestricted-user"] as RoleId[], at: "/clusters/c" } : { roles: ["unrestricted-user"] as RoleId[], at: "/clusters/c" });
   expect(explicitRelations("c", ["a"], d)).toEqual([{ relation: "operator", object: "project:a" }]);
+});
+
+// Permissions phase 2: project and instance paths, and the User role.
+describe("explicitRelations with instances", () => {
+  const priv = (roles: RoleId[], owned: boolean) => new Set(roles.includes("no-access") ? [] : roles.flatMap((r) => [...ROLES[r].privileges, ...(owned ? [...(ROLES[r].ownedOnly ?? [])] : [])]));
+  /** The most specific of `m` above a path decides it; `owned` instances add the role's owner-only privileges. */
+  const decider = (m: Record<string, { roles: RoleId[]; at?: string }>, owned = new Set<string>()) => (path: string) => {
+    const best = Object.keys(m).filter((k) => path === k || path.startsWith(`${k}/`)).sort((a, b) => b.length - a.length)[0];
+    const d = best ? m[best]! : { roles: [] as RoleId[] };
+    return { roles: d.roles, at: best && (d.at ?? best), privileges: priv(d.roles, owned.has(path)) };
+  };
+  const I = "/clusters/c/projects/acme/instances";
+  const acme = { name: "acme", instances: ["mine", "theirs"], shared: ["profile:acme/default", "network:default/incusbr0", "image:acme/abc"] };
+  const set = (rs: Array<{ relation: string; object: string }>) => rs.map((r) => `${r.relation} ${r.object}`).sort();
+
+  test("a User on /tenants/acme gets no project relation, only the direct entitlements and can_view on shared objects; operator on what they own", () => {
+    const d = decider({ "/clusters/c/projects/acme": { roles: ["user"], at: "/tenants/acme" } }, new Set([`${I}/mine`]));
+    expect(set(explicitRelations("c", [acme], d))).toEqual(
+      set([
+        ...["can_create_instances", "can_create_storage_volumes", "can_create_storage_buckets", "can_view_events", "can_view_operations"].map((relation) => ({ relation, object: "project:acme" })),
+        ...acme.shared.map((object) => ({ relation: "can_view", object })),
+        { relation: "operator", object: "instance:acme/mine" },
+      ]),
+    );
+  });
+
+  test("auditor on one instance gives viewer there only", () => {
+    expect(explicitRelations("c", [acme], decider({ [`${I}/theirs`]: { roles: ["auditor"] } }))).toEqual([{ relation: "viewer", object: "instance:acme/theirs" }]);
+  });
+
+  test("No access on one instance of an operator's project replaces the project relation by the other instances'", () => {
+    const d = decider({ "/clusters/c": { roles: ["operator"] }, [`${I}/theirs`]: { roles: ["no-access"] } });
+    const b = { name: "b", instances: ["x"], shared: [] };
+    expect(set(explicitRelations("c", [acme, b], d))).toEqual(set([{ relation: "operator", object: "project:b" }, { relation: "operator", object: "instance:acme/mine" }]));
+  });
+
+  test("an Operator entry on an instance under an Auditor project adds operator there", () => {
+    const d = decider({ "/clusters/c/projects/acme": { roles: ["auditor"] }, [`${I}/mine`]: { roles: ["operator"] } });
+    expect(set(explicitRelations("c", [acme], d))).toEqual(set([{ relation: "viewer", object: "project:acme" }, { relation: "operator", object: "instance:acme/mine" }]));
+  });
+
+  test("projects given as names, without instance facts, keep phase 1's relations", () => {
+    expect(explicitRelations("c", ["a"], decider({ "/clusters/c": { roles: ["operator"] } }))).toEqual([{ relation: "operator", object: "server:incus" }]);
+  });
 });

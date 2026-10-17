@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { Tuple } from "../authz/platform.ts";
-import type { RoleId } from "../acl/catalog.ts";
+import type { Privilege, RoleId } from "../acl/catalog.ts";
 
 export type TenantRole = "owner" | "admin" | "member" | "viewer";
 export type PlatformRole = "admin" | "operator" | "viewer";
@@ -50,28 +50,71 @@ const PROJECT: Partial<Record<RoleId, string>> = { administrator: "operator", "c
 export const roleRelation = (role: RoleId, on: "server" | "project") => strongest(on === "server" ? SERVER : PROJECT, [role]);
 const strongest = (map: Partial<Record<RoleId, string>>, roles: RoleId[]) => (roles.includes("no-access") ? [] : roles).map((r) => map[r] ?? "").reduce((a, b) => (RANK[b]! > RANK[a]! ? b : a), "");
 
+/** A project on the cluster, with its instances and the objects a User may need to see there (`profile:…`, `network:…`, `image:…`). */
+export interface ProjectFacts {
+  name: string;
+  instances: string[];
+  shared: string[];
+}
+/** A subject's resolution on one path: the deciding roles, the path they are on, and the privileges (ownership counted). */
+export interface Decision {
+  roles: RoleId[];
+  at?: string;
+  privileges?: ReadonlySet<Privilege>;
+}
+
+/** What a User needs on a project to create there, without seeing anyone's instances (spec decision 5). */
+const USER_PROJECT = ["can_create_instances", "can_create_storage_volumes", "can_create_storage_buckets", "can_view_events", "can_view_operations"];
+
+/** The instance relation privileges give: operator to configure it, user for its console, viewer to see it. */
+const instanceRelation = (p: ReadonlySet<Privilege>) => (p.has("instance.configure") ? "operator" : p.has("instance.console") ? "user" : p.has("instance.view") ? "viewer" : "");
+const IRANK: Record<string, number> = { "": 0, viewer: 1, user: 2, operator: 3 };
+/** A project relation read as an instance one, for comparing the two. */
+const asInstance = (projectRelation: string) => (projectRelation === "admin" ? "operator" : projectRelation);
+
 /**
  * The Incus relations a subject's permissions give on one cluster. `decide(path)`
- * is the subject's resolution there: the deciding roles and the path they are on.
- * The server relation comes from the cluster's decision. A project decided below
- * the cluster (on the project or its tenant) adds a project relation when it
- * gives more; when it gives less, the server relation would leak past it, so
- * the subject gets project relations on each project instead.
+ * is the subject's resolution there. The server relation comes from the
+ * cluster's decision. A project decided below the cluster (on the project or
+ * its tenant) adds a project relation when it gives more; when it gives less,
+ * the server relation would leak past it, so the subject gets project relations
+ * on each project instead. Instances work the same way one level down: one
+ * that gives more than its project adds an instance relation; one that gives
+ * less replaces its project's relation by relations on its other instances.
+ * A User (instance.create on the project but no project relation) gets the
+ * project's direct entitlements and can_view on its shared objects, so it
+ * creates there and sees only the instances it holds rights on.
  */
-export function explicitRelations(cluster: string, projects: string[], decide: (path: string) => { roles: RoleId[]; at?: string }): Array<{ relation: string; object: string }> {
+export function explicitRelations(cluster: string, projects: Array<string | ProjectFacts>, decide: (path: string) => Decision): Array<{ relation: string; object: string }> {
   const top = decide(`/clusters/${cluster}`).roles;
   const server = strongest(SERVER, top);
   const base = strongest(PROJECT, top);
-  const per = projects.map((p) => {
-    const d = decide(`/clusters/${cluster}/projects/${p}`);
+  const per = projects.map((x) => {
+    const f = typeof x === "string" ? { name: x, instances: [], shared: [] } : x;
+    const path = `/clusters/${cluster}/projects/${f.name}`;
+    const d = decide(path);
     const below = !!d.at && d.at !== "/" && d.at !== `/clusters/${cluster}`;
-    return { p, relation: below ? strongest(PROJECT, d.roles) : base };
+    const relation = below ? strongest(PROJECT, d.roles) : base;
+    const instances = f.instances.map((name) => ({ name, relation: instanceRelation(decide(`${path}/instances/${name}`).privileges ?? new Set()) }));
+    const narrowed = instances.some((i) => IRANK[i.relation]! < IRANK[asInstance(relation)]!);
+    const user = !relation && !!d.privileges?.has("instance.create");
+    return { f, relation: narrowed ? "" : relation, narrowed, instances, user };
   });
-  const narrowed = per.some((x) => RANK[x.relation]! < RANK[base]!);
+  const narrowed = per.some((x) => x.narrowed || RANK[x.relation]! < RANK[base]!);
   // Without a server relation (none, or narrowed away) every project's relation is its own grant.
   const whole = !narrowed && !!server;
   const out = whole ? [{ relation: server, object: "server:incus" }] : [];
-  for (const x of per) if (x.relation && (!whole || RANK[x.relation]! > RANK[base]!)) out.push({ relation: x.relation, object: `project:${x.p}` });
+  for (const x of per) {
+    const p = x.f.name;
+    if (x.relation && (!whole || RANK[x.relation]! > RANK[base]!)) out.push({ relation: x.relation, object: `project:${p}` });
+    if (x.user) {
+      for (const relation of USER_PROJECT) out.push({ relation, object: `project:${p}` });
+      for (const object of x.f.shared) out.push({ relation: "can_view", object });
+    }
+    // What the project relation already gives (none when narrowed) needs no instance relation.
+    const given = x.narrowed ? "" : asInstance(x.relation || (whole ? base : ""));
+    for (const i of x.instances) if (IRANK[i.relation]! > IRANK[given]!) out.push({ relation: i.relation, object: `instance:${p}/${i.name}` });
+  }
   return out;
 }
 
