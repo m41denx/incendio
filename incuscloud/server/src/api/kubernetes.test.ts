@@ -246,8 +246,10 @@ test("a cluster's nodes: its Machines, control plane first, each with its Incus 
   const outsider = await h.user("o@example.com");
   expect((await h.call(outsider, "GET", `/api/v1/kubernetes/${id}/nodes`)).status).toBe(404);
   kube.down = true;
-  const down = await h.call(viewer, "GET", `/api/v1/kubernetes/${id}/nodes`);
-  expect([down.status, down.body.error.code]).toEqual([503, "management_unavailable"]);
+  for (const what of ["nodes", "status", "activity"]) {
+    const down = await h.call(viewer, "GET", `/api/v1/kubernetes/${id}/${what}`);
+    expect([what, down.status, down.body.error.code]).toEqual([what, 503, "management_unavailable"]);
+  }
 });
 
 /** Incendio's options, as its create form sends them. */
@@ -326,6 +328,8 @@ test("kube-vip and OVN clusters are reached at their own address: no port from t
   expect(r.body.cluster).toMatchObject({ endpoint: "https://10.0.0.50:6443", member: "" });
   r = await h.call(m, "POST", "/api/v1/kubernetes", withSpec({ name: "ovn" }, { loadBalancer: { type: "ovn", host: "10.0.0.50", networkName: "ovn0" } }));
   expect([r.status, r.body.error.code]).toEqual([409, "conflict"]);
+  // The address is in use; whose cluster it is (another tenant's, perhaps) is not said.
+  expect(r.body.error.message).toBe("10.0.0.50:6443 is already a Kubernetes API endpoint");
   // The port range is untouched: an lxc cluster still gets its first port.
   r = await h.call(m, "POST", "/api/v1/kubernetes", withSpec({ name: "lxc" }));
   expect(r.body.cluster.endpoint).toBe("https://10.0.0.5:16443");
@@ -385,6 +389,40 @@ test("a cluster's status: CAPI's conditions, its phase and why it is not availab
   const outsider = await h.user("o@example.com");
   expect((await h.call(outsider, "GET", `/api/v1/kubernetes/${id}/status`)).status).toBe(404);
   void m;
+});
+
+test("on a multi-member Incus cluster, a kube-vip cluster's nodes are pinned to one member too", async () => {
+  await h.db.update(tenants).set({ quotas: {} }).where(eq(tenants.id, acme.id));
+  const { clusterMembers } = await import("../db/schema.ts");
+  await h.db.insert(clusterMembers).values([
+    { clusterId: lab, name: "m1", url: "https://10.0.0.6:8443", status: "Online" },
+    { clusterId: lab, name: "m2", url: "https://10.0.0.7:8443", status: "Online" },
+  ]);
+  const m = await member();
+  const r = await h.call(m, "POST", "/api/v1/kubernetes", { ...withSpec({ name: "vip" }, { loadBalancer: { type: "kube-vip", host: "10.0.0.50", interface: "" } }), member: "m2" });
+  expect(r.status).toBe(202);
+  expect(r.body.cluster).toMatchObject({ endpoint: "https://10.0.0.50:6443", spec: { controlPlane: { target: "m2" }, worker: { target: "m2" } } });
+});
+
+test("a create checks MetalLB's addresses like the cluster page does", async () => {
+  const m = await member();
+  const r = await h.call(m, "POST", "/api/v1/kubernetes", withSpec({}, { metallb: { addresses: ["10.0.0.200-10.0.0.210 10.0.1.0/29"] } }));
+  expect([r.status, r.body.error.code]).toEqual([400, "invalid_request"]);
+});
+
+test("a cluster's activity leaves out a longer-named sibling's objects", async () => {
+  await h.db.update(tenants).set({ quotas: {} }).where(eq(tenants.id, acme.id));
+  const m = await member();
+  const id = (await h.call(m, "POST", "/api/v1/kubernetes", make())).body.cluster.id as string;
+  await h.call(m, "POST", "/api/v1/kubernetes", make({ name: "web-prod" }));
+  const later = (sec: number) => new Date(Date.now() + sec * 1000).toISOString();
+  const event = (name: string, kind: string, involved: string) =>
+    kube.put({ apiVersion: "v1", kind: "Event", metadata: { name, namespace: "ic-acme" }, involvedObject: { kind, name: involved }, reason: "Created", message: `made ${involved}`, lastTimestamp: later(5), type: "Normal" } as never);
+  event("e1", "Machine", "web-md-0-abc");
+  event("e2", "Cluster", "web-prod");
+  event("e3", "Machine", "web-prod-md-0-xyz");
+  const r = await h.call(m, "GET", `/api/v1/kubernetes/${id}/activity`);
+  expect((r.body.entries as Array<{ source: string; object?: string }>).filter((e) => e.source === "event").map((e) => e.object)).toEqual(["Machine/web-md-0-abc"]);
 });
 
 test("a cluster's activity: Events on its objects and its jobs, oldest first", async () => {

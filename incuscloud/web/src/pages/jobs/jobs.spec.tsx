@@ -338,3 +338,14 @@ test("Kubernetes creates and deletes read as such and link to the cluster or the
   expect(await screen.findByText(/Delete Kubernetes cluster web \(edge-1\)/)).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Kubernetes delete" })).toHaveAttribute("href", "/kubernetes");
 });
+
+test("a MetalLB job reads as such and links to its cluster", async () => {
+  mockApi({
+    "GET /api/v1/me": [200, ownUser()],
+    "GET /api/v1/clusters": [200, clusters],
+    "GET /api/v1/jobs/j-12": [200, job({ id: "j-12", type: "k8s-metallb", payload: { k8sId: "k-1", name: "web" } })],
+  });
+  renderAt(<JobDetail />, { path: "/jobs/j-12", pattern: "/jobs/:id" });
+  expect(await screen.findByText(/MetalLB for Kubernetes cluster web/)).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Kubernetes MetalLB" })).toHaveAttribute("href", "/kubernetes/k-1");
+});

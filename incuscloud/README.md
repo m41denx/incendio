@@ -130,7 +130,7 @@ their roles; the API (and Incus) decides every request.
   with a tenant and an Incus cluster to pick: Cluster (name, version,
   image, load balancer, MetalLB) and Machines (count, type, CPU and memory
   or a CAPN flavor, profiles and target for the control plane and the
-  workers; pod and service CIDRs, privileged, flannel, kubeadm), with what
+  workers; pod and service CIDRs, flannel, kubeadm), with what
   it uses of the tenant's quota. A cluster's page (`/kubernetes/<id>`) is
   Incendio's: General, Kubeconfig, Control plane, Workers, Load balancer,
   Load balancer services (MetalLB), Activity and Conditions, with Scale,
@@ -299,18 +299,18 @@ Then give IncusCloud a kubeconfig for it (`IC_K8S_KUBECONFIG`), with rights to m
 The Incus hosts need the kernel modules Kubernetes nodes use loaded (`br_netfilter`, `overlay`, `ip_vs`, `nf_nat`): the nodes are unprivileged containers and cannot load them.
 
 **What a cluster is.**
-- Nodes are unprivileged containers in the tenant's project, with `security.nesting` only. Tenant projects allow that (`restricted.containers.nesting=allow`) and nothing more.
-- A create gives a `spec` (Incendio's options) or a `size`, not both. The spec has, for the control plane and the workers, the instance type (container or VM), a CAPN flavor `c<cores>-m<GiB>`, profiles and a target (a member or `@group`); the load balancer (below); the node image; privileged nodes; flannel; kubeadm installed on boot; the pod and service CIDRs; and MetalLB addresses. A size is a spec with a preset flavor: small (2 CPUs, 2 GiB), medium (2, 4), large (4, 8). One, three or five control plane nodes, up to 20 workers. Versions with prebuilt CAPN images: v1.34.0, v1.35.5, v1.36.4, v1.37.0.
+- Nodes are unprivileged containers (or VMs) in the tenant's project, with `security.nesting` only. Tenant projects allow that (`restricted.containers.nesting=allow`) and member targets (`restricted.cluster.target=allow`), not privileged containers.
+- A create gives a `spec` (Incendio's options) or a `size`, not both. The spec has, for the control plane and the workers, the instance type (container or VM), a CAPN flavor `c<cores>-m<GiB>`, profiles and a target (a member or `@group`); the load balancer (below); the node image; flannel; kubeadm installed on boot; the pod and service CIDRs; and MetalLB addresses. A size is a spec with a preset flavor: small (2 CPUs, 2 GiB), medium (2, 4), large (4, 8). One, three or five control plane nodes, up to 20 workers. Versions with prebuilt CAPN images: v1.34.0, v1.35.5, v1.36.4, v1.37.0.
 - Nodes and an instance load balancer count against the tenant's quota as instances, at their flavor's size (10 GiB of disk each). A create is checked like an instance create, counting creates still running; scaling up is checked too, scaling down never is.
 - CAPN gets a client certificate trusted only for the tenant's project on that Incus cluster. Its key exists only in the management cluster's secret; IncusCloud keeps the fingerprint and revokes the certificate when the tenant's last Kubernetes cluster there is deleted.
 
 **The API endpoint.** The management cluster and the nodes must both reach each cluster's API server. CAPN's load balancer is one of:
-- `lxc` or `oci`: haproxy in an instance in the tenant's project, with its own flavor, profiles and target. It gets an address on the project's network; IncusCloud presets the cluster's endpoint to the Incus cluster's (or member's) address and a port from `IC_K8S_PORTS` (default 16443–16999), and adds a network forward from there to the load balancer's port 6443. The sync worker keeps the forward pointed at the load balancer when its address changes.
-- `kube-vip` (an address and interface) or `ovn` (an address on an OVN network): the endpoint is that address, port 6443, with no forward. An address is one cluster's endpoint only.
+- `lxc` or `oci`: haproxy in an instance in the tenant's project, with its own flavor, profiles and target (a member, not a group: the forward goes to its member). It gets an address on the project's network; IncusCloud presets the cluster's endpoint to the Incus cluster's (or member's) address and a port from `IC_K8S_PORTS` (default 16443–16999), and adds a network forward from there to the load balancer's port 6443. The sync worker keeps the forward pointed at the load balancer when its address changes.
+- `kube-vip` (an IP address and interface) or `ovn` (an IP address on an OVN network): the endpoint is that address, port 6443, with no forward. An address is one cluster's endpoint only.
 
 **Multi-member Incus clusters.** Without OVN each member's bridge is its own network, so a cluster runs on one member: its load balancer and every node without a target of its own are pinned there, and its endpoint is that member's address. The member is the one asked for, or the online one with the most memory free.
 
-**MetalLB.** Given addresses (ranges or CIDRs), IncusCloud installs MetalLB (`IC_METALLB_MANIFEST_URL`, default v0.16.0 native) in the workload cluster once it is available, with one address pool, so Services of type LoadBalancer get an address. Members change the addresses later (`PUT …/metallb`, a job); an empty list stops asking for it.
+**MetalLB.** Given addresses (ranges or CIDRs), IncusCloud installs MetalLB (`IC_METALLB_MANIFEST_URL`, default v0.16.0 native) in the workload cluster once it is available, with one address pool, so Services of type LoadBalancer get an address. Members change the addresses later (`PUT …/metallb`, a job); through the API, an empty list stops asking for it.
 
 IncusCloud only touches forward ports marked `incuscloud k8s <id>`. A forward on the same address that is not its own is shared, and a port someone else forwards is refused rather than taken over.
 

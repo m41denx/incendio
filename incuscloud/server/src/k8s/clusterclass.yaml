@@ -265,7 +265,7 @@ spec:
               lxc:
                 instanceSpec: {{ if and (not .loadBalancer.lxc.image) (not .loadBalancer.lxc.flavor) (not .loadBalancer.lxc.profiles) }}{}{{ end }}
             {{ if .loadBalancer.lxc.flavor }}
-                  flavor: {{ .loadBalancer.lxc.flavor }}
+                  flavor: {{ .loadBalancer.lxc.flavor | quote }}
             {{ end }}
             {{ if .loadBalancer.lxc.profiles }}
                   profiles: {{ .loadBalancer.lxc.profiles | toJson }}
@@ -275,7 +275,7 @@ spec:
                     name: {{ .loadBalancer.lxc.image | quote }}
             {{ end }}
             {{ if .loadBalancer.lxc.target }}
-                  target: {{ .loadBalancer.lxc.target }}
+                  target: {{ .loadBalancer.lxc.target | quote }}
             {{ end }}
             {{ end }}
             {{ if hasKey .loadBalancer "oci" }}
@@ -283,13 +283,13 @@ spec:
               oci:
                 instanceSpec: {{ if and (not .loadBalancer.oci.flavor) (not .loadBalancer.oci.profiles) }}{}{{ end }}
             {{ if .loadBalancer.oci.flavor }}
-                  flavor: {{ .loadBalancer.oci.flavor }}
+                  flavor: {{ .loadBalancer.oci.flavor | quote }}
             {{ end }}
             {{ if .loadBalancer.oci.profiles }}
                   profiles: {{ .loadBalancer.oci.profiles | toJson }}
             {{ end }}
             {{ if .loadBalancer.oci.target }}
-                  target: {{ .loadBalancer.oci.target }}
+                  target: {{ .loadBalancer.oci.target | quote }}
             {{ end }}
             {{ end }}
             {{ if hasKey .loadBalancer "ovn" }}
@@ -413,7 +413,7 @@ spec:
               KubeletInUserNamespace: true
   - name: workerConfigureUnprivileged
     description: Configure containerd for unprivileged mode in MachineDeployments
-    enabledIf: '{{ and (not .privileged) (ne .instance.type "virtual-machine") }}'
+    enabledIf: '{{ $i := .instance }}{{ if .workerInstance }}{{ $i = .workerInstance }}{{ end }}{{ and (not .privileged) (ne $i.type "virtual-machine") }}'
     definitions:
     - selector:
         apiVersion: bootstrap.cluster.x-k8s.io/v1beta2

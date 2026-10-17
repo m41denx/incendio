@@ -4,6 +4,7 @@ import MetalLBAddressInput from "@incendio/ui/pages/kubernetes/MetalLBAddressInp
 import { metallbAddressesError } from "@incendio/ui/util/k8s/metallb";
 import { ErrorMessage } from "../../components/Status";
 import { useSetK8sMetalLB, useK8sMetalLB } from "./useK8sClusters";
+import { ranges } from "./quota";
 interface ModalProps {
   id: string;
   name: string;
@@ -18,7 +19,7 @@ const MetalLBAddressesModal: FC<ModalProps> = ({ id, name, current, onClose }) =
   const installing = current.length === 0;
 
   const submit = () => {
-    change.mutate(value.split(",").map(v => v.trim()).filter(Boolean), {
+    change.mutate(ranges(value), {
       onSuccess: () => {
         onClose();
       },

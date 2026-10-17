@@ -59,7 +59,7 @@ Incendio's pure parts are **imported, not copied**, from `@incendio/ui`:
   - flavor, or custom CPU and memory (Incendio turns them into a `c<cores>-m<GiB>` flavor; a custom flavor must have that form too);
   - profiles;
   - target (a member or `@group` of the chosen Incus cluster).
-- **Networking:** pod CIDR, service CIDR, privileged containers, deploy kube-flannel, install kubeadm on boot.
+- **Networking:** pod CIDR, service CIDR, deploy kube-flannel, install kubeadm on boot. Incendio's "privileged containers" is left out: tenant projects are restricted, and Incus refuses privileged containers there (the API refuses `privileged: true`).
 - The quota line: what the cluster counts against the tenant's quota.
 
 Profiles, members and groups come from the chosen Incus cluster through the facade:
@@ -111,10 +111,10 @@ New read endpoints, each for anyone who can see the tenant:
 
   The parsing comes from `packages/k8s/src/lib/activity.ts`, imported.
 - `GET` and `PUT /api/v1/kubernetes/:id/metallb`:
-  - for members and up; `PUT` is audited;
-  - `GET` returns `{ installed, addresses, status }`;
+  - `GET` for anyone who can see the tenant (like the cluster's other reads); `PUT` for members and up, audited;
+  - `GET` returns `{ requested, installed, ready, addresses, message }`;
   - `PUT { addresses }` installs or updates MetalLB in the workload cluster through its admin kubeconfig, as the Incendio agent does (`packages/k8s/src/lib/metallb.ts`, imported);
-  - when the create request asks for MetalLB, the sync worker installs it once the cluster is ready.
+  - when the create request asks for MetalLB, the create job queues its install once the cluster is ready.
 
 ## The cluster page (Incendio's layout)
 

@@ -1,6 +1,8 @@
 import { resolveFlavor, type K8sClusterConfig } from "@incendio/ui/util/k8s/capn";
 import type { K8sSpec } from "../../api/types";
 const csv = (s: string) => s.split(",").map(v => v.trim()).filter(Boolean);
+/** MetalLB ranges: separated by commas or spaces, as Incendio's metallbAddressesError reads them. */
+export const ranges = (s: string) => s.split(/[,\s]+/).filter(Boolean);
 export function specOfConfig(c: K8sClusterConfig, lbTarget = "", lbInterface = "eth0"): K8sSpec {
   return {
     controlPlane: { type: c.controlPlaneType, flavor: resolveFlavor(c.controlPlaneCustomFlavor,c.controlPlaneFlavor,c.controlPlaneCpu,c.controlPlaneMemory,c.controlPlaneMemoryUnit), profiles: csv(c.controlPlaneProfiles), target: c.controlPlaneTarget },
@@ -9,7 +11,7 @@ export function specOfConfig(c: K8sClusterConfig, lbTarget = "", lbInterface = "
       : c.loadBalancer === "ovn" ? { type: "ovn", host: c.lbHost.trim(), networkName: c.lbNetworkName.trim() }
       : { type: c.loadBalancer, flavor: c.lbFlavor.trim(), profiles: csv(c.lbProfiles), target: lbTarget },
     image: c.imageName.trim(), privileged: c.privileged, flannel: c.deployKubeFlannel, installKubeadm: c.installKubeadm,
-    podCidr: c.podCidr.trim(), serviceCidr: c.serviceCidr.trim(), metallb: c.metallb ? { addresses: csv(c.metallbAddresses) } : null,
+    podCidr: c.podCidr.trim(), serviceCidr: c.serviceCidr.trim(), metallb: c.metallb ? { addresses: ranges(c.metallbAddresses) } : null,
   };
 }
 const resources = (flavor: string) => {

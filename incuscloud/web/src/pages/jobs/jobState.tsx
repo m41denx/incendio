@@ -11,7 +11,7 @@ const shortId = (id: string) => (id.length > 8 ? `${id.slice(0, 8)}…` : id);
 const str = (v: unknown) => (typeof v === "string" ? v : "");
 const cap = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s);
 
-const TYPE_LABELS: Record<string, string> = { migrate: "Migration", replicate: "Replication run", failover: "Failover", backup: "Backup", restore: "Restore", create: "Create", rebalance: "Rebalance", evacuate: "Member maintenance", "restore-member": "Member maintenance", "k8s-create": "Kubernetes create", "k8s-delete": "Kubernetes delete" };
+const TYPE_LABELS: Record<string, string> = { migrate: "Migration", replicate: "Replication run", failover: "Failover", backup: "Backup", restore: "Restore", create: "Create", rebalance: "Rebalance", evacuate: "Member maintenance", "restore-member": "Member maintenance", "k8s-create": "Kubernetes create", "k8s-delete": "Kubernetes delete", "k8s-metallb": "Kubernetes MetalLB" };
 /** Pages that list what a job type works on. */
 const TYPE_PAGES: Record<string, string> = { "k8s-delete": "/kubernetes", create: "/instances", replicate: "/replication", failover: "/replication", backup: "/backups", restore: "/backups" };
 /** Job types about one cluster: they link to its page. */
@@ -37,7 +37,7 @@ export const JobType: FC<{ job: Job }> = ({ job }) => {
   const page =
     CLUSTER_TYPES.has(job.type) && typeof cluster === "string"
       ? `/clusters/${cluster}`
-      : job.type === "k8s-create" && typeof k8s === "string"
+      : (job.type === "k8s-create" || job.type === "k8s-metallb") && typeof k8s === "string"
         ? `/kubernetes/${k8s}`
         : TYPE_PAGES[job.type];
   return page ? <Link to={page}>{label}</Link> : <>{label}</>;
@@ -60,6 +60,7 @@ export function jobSummary(job: Job, clusterName: (id: string) => string | undef
   if (job.type === "rebalance") return `Rebalance ${cluster(p.clusterId)}`;
   if (job.type === "k8s-create") return `Create Kubernetes cluster ${str(p.name)} (${cluster(p.clusterId)})`;
   if (job.type === "k8s-delete") return `Delete Kubernetes cluster ${str(p.name)} (${cluster(p.clusterId)})`;
+  if (job.type === "k8s-metallb") return `MetalLB for Kubernetes cluster ${str(p.name)}`;
   if (job.type === "evacuate") return `Evacuate ${str(p.member)} (${cluster(p.clusterId)})`;
   if (job.type === "restore-member") return `Restore ${str(p.member)} (${cluster(p.clusterId)})`;
   if (job.type !== "migrate") return typeLabel(job.type);

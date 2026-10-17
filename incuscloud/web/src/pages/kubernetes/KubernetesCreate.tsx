@@ -112,9 +112,11 @@ const KubernetesCreate: FC = () => {
     ...(membersQuery.data ?? []).filter(m => m.status === "Online").map(m => ({ label: nameOf(m.server_name), value: nameOf(m.server_name) })),
     ...(groupsQuery.data ?? []).map(g => ({ label: `@${nameOf(g.name)}`, value: `@${nameOf(g.name)}` }))];
   const validTarget = (target: string) => targetOptions.some(t => t.value === target) ? target : "";
+  // The endpoint's forward goes to the load balancer's member: a member, never a group.
+  const lbTargetOptions = targetOptions.filter(t => !t.value.startsWith("@"));
   const update = <K extends keyof K8sClusterConfig>(key: K, value: K8sClusterConfig[K]) => setConfig(c => ({ ...c, [key]: value }));
   const scopedConfig = { ...config, controlPlaneTarget: validTarget(config.controlPlaneTarget), workerTarget: validTarget(config.workerTarget) };
-  const spec = specOfConfig(scopedConfig, validTarget(lbTarget), lbInterface);
+  const spec = specOfConfig(scopedConfig, lbTargetOptions.some(t => t.value === lbTarget) ? lbTarget : "", lbInterface);
   const controlPlaneIssue = controlPlaneSizeIssue(config);
   const metallbError = config.metallb ? metallbAddressesError(config.metallbAddresses) : null;
   const issue = controlPlaneIssue?.message ?? metallbError ?? specIssue(spec);
@@ -363,7 +365,7 @@ const KubernetesCreate: FC = () => {
                     </Col>
                   </Row>
                 ) : null}
-                {isLxcLoadBalancer ? <Select label="Load balancer target" value={validTarget(lbTarget)} options={targetOptions} onChange={e => setLbTarget(e.target.value)} /> : null}
+                {isLxcLoadBalancer ? <Select label="Load balancer target" value={spec.loadBalancer.type === "lxc" || spec.loadBalancer.type === "oci" ? spec.loadBalancer.target : ""} options={lbTargetOptions} onChange={e => setLbTarget(e.target.value)} /> : null}
                 {config.loadBalancer === "kube-vip" ? <Input label="Interface" value={lbInterface} onChange={e => setLbInterface(e.target.value)} /> : null}
                 {!isLxcLoadBalancer ? <p className="u-text--muted">The address must be reachable from IncusCloud's management cluster.</p> : null}
                 {config.loadBalancer === "kube-vip" ? (
@@ -519,14 +521,7 @@ const KubernetesCreate: FC = () => {
                     />
                   </Col>
                 </Row>
-                <Input
-                  type="checkbox"
-                  label="Privileged containers"
-                  checked={config.privileged}
-                  onChange={(e) => {
-                    update("privileged", e.target.checked);
-                  }}
-                />
+                {/* No "Privileged containers": tenant projects are restricted, and Incus refuses them there. */}
                 <Input
                   type="checkbox"
                   label="Deploy kube-flannel CNI"

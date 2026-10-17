@@ -1,3 +1,5 @@
+import { isIP } from "node:net";
+import { parseRange } from "@incendio/k8s/src/lib/metallb";
 import type { Usage } from "../tenants/quota.ts";
 
 const GiB = 1024 ** 3;
@@ -126,6 +128,9 @@ export function usageOfSpec(spec: K8sSpec, controlPlanes: number, workers: numbe
 }
 
 const IPV4 = /^(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}$/;
+/** Nothing (no override), a member, or @group: names only, as the template takes them. */
+const MEMBER = /^([A-Za-z0-9][A-Za-z0-9._-]{0,62})?$/;
+const TARGET = /^(@?[A-Za-z0-9][A-Za-z0-9._-]{0,62})?$/;
 const cidrOk = (c: string) => {
   const [ip, bits, extra] = c.split("/");
   return extra === undefined && !!ip && IPV4.test(ip) && /^\d+$/.test(bits ?? "") && Number(bits) <= 32;
@@ -149,5 +154,14 @@ export function specError(s: K8sSpec): string | null {
   if (s.loadBalancer.type === "ovn" && (!s.loadBalancer.host.trim() || !s.loadBalancer.networkName.trim()))
     return "An OVN load balancer needs its address and its OVN network";
   if (s.metallb && !s.metallb.addresses.length) return "MetalLB needs at least one address range";
+  const bad = s.metallb?.addresses.find((a) => parseRange(a) === null);
+  if (bad !== undefined) return `"${bad}" is not an IPv4 range (a.b.c.d-e.f.g.h), CIDR or address`;
+  for (const [role, target] of [["control plane", s.controlPlane.target], ["worker", s.worker.target]] as const)
+    if (!TARGET.test(target)) return `The ${role} target "${target}" is not a member or @group`;
+  // The endpoint's forward goes to the load balancer's member, so Incus must not choose it.
+  if (lbIsInstance(s.loadBalancer) && !MEMBER.test(s.loadBalancer.target)) return `The load balancer's target is a member, not "${s.loadBalancer.target}"`;
+  if (!lbIsInstance(s.loadBalancer) && !isIP(s.loadBalancer.host)) return `The load balancer address "${s.loadBalancer.host}" is not an IP address`;
+  // Tenant projects are restricted, and Incus refuses privileged containers in them.
+  if (s.privileged) return "Tenant projects do not allow privileged containers";
   return null;
 }

@@ -125,3 +125,14 @@ test("our ClusterClass gives workers their own instance spec when one is set", (
   expect(worker).not.toContain(".instance.flavor");
   expect(worker).toContain("$i.flavor");
 });
+
+test("our ClusterClass: workers' unprivileged patch follows the workers' type; the load balancer's values are quoted", () => {
+  const unpriv = classYamlText.slice(classYamlText.indexOf("- name: workerConfigureUnprivileged"));
+  const enabledIf = unpriv.slice(unpriv.indexOf("enabledIf:"), unpriv.indexOf("\n", unpriv.indexOf("enabledIf:")));
+  expect(enabledIf).toContain("{{ $i := .instance }}{{ if .workerInstance }}{{ $i = .workerInstance }}{{ end }}");
+  expect(enabledIf).toContain('ne $i.type "virtual-machine"');
+  for (const lb of ["lxc", "oci"]) {
+    expect(classYamlText).toContain(`flavor: {{ .loadBalancer.${lb}.flavor | quote }}`);
+    expect(classYamlText).toContain(`target: {{ .loadBalancer.${lb}.target | quote }}`);
+  }
+});

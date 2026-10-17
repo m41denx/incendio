@@ -20,13 +20,13 @@ const API_PORT = "6443";
 const hostOf = (url: string) => new URL(url).hostname.replace(/^\[|\]$/g, "");
 
 /**
- * An endpoint for a new workload cluster: an address of the Incus cluster
- * and the lowest port in the range not yet used there. On a multi-member
- * cluster the load balancer and every node go on one member (without OVN
- * each member's bridge is its own network): the one asked for, else the
- * online member with the most memory free, and the endpoint is its address.
+ * The member a new workload cluster runs on, and its address. On a
+ * multi-member cluster the load balancer and every node go on one member
+ * (without OVN each member's bridge is its own network): the one asked for,
+ * else the online member with the most memory free. On a single-member
+ * cluster: "" and the cluster's address.
  */
-export async function pickEndpoint(db: Db, clusterId: string, [low, high]: [number, number], want?: string): Promise<Endpoint> {
+export async function pickMember(db: Db, clusterId: string, want?: string): Promise<{ host: string; member: string }> {
   const [c] = await db.select({ name: clusters.name, url: clusters.url }).from(clusters).where(eq(clusters.id, clusterId));
   if (!c) throw new ApiError(404, "not_found", "Cluster not found");
   const members = await db.select().from(clusterMembers).where(eq(clusterMembers.clusterId, clusterId));
@@ -42,6 +42,12 @@ export async function pickEndpoint(db: Db, clusterId: string, [low, high]: [numb
     host = hostOf(chosen.url);
     member = chosen.name;
   }
+  return { host, member };
+}
+
+/** An endpoint for a new workload cluster: its member's address and the lowest port in the range not yet used there. */
+export async function pickEndpoint(db: Db, clusterId: string, [low, high]: [number, number], want?: string): Promise<Endpoint> {
+  const { host, member } = await pickMember(db, clusterId, want);
   const used = new Set(
     (await db.select({ port: k8sClusters.endpointPort }).from(k8sClusters).where(and(eq(k8sClusters.clusterId, clusterId), eq(k8sClusters.endpointHost, host)))).map((r) => r.port),
   );

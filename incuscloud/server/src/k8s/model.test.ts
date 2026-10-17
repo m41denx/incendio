@@ -74,3 +74,21 @@ test("what a spec may not be", () => {
   expect(specError({ ...ok, loadBalancer: { type: "ovn", host: "10.0.0.9", networkName: "" } })).toMatch(/OVN network/);
   expect(specError({ ...ok, metallb: { addresses: [] } })).toMatch(/MetalLB/);
 });
+
+test("a spec only holds what a tenant project and the template can take", () => {
+  const ok = specFromSize("medium");
+  const lb = ok.loadBalancer as Extract<K8sSpec["loadBalancer"], { type: "lxc" | "oci" }>;
+  expect(specError({ ...ok, worker: { ...ok.worker, target: "@general" } })).toBeNull();
+  expect(specError({ ...ok, controlPlane: { ...ok.controlPlane, target: "m1" } })).toBeNull();
+  expect(specError({ ...ok, worker: { ...ok.worker, target: "m1\nunprivileged: false" } })).toMatch(/worker target/);
+  expect(specError({ ...ok, controlPlane: { ...ok.controlPlane, target: "@" } })).toMatch(/control plane target/);
+  // The forward follows the load balancer's member: a group would let Incus place it elsewhere.
+  expect(specError({ ...ok, loadBalancer: { ...lb, target: "@general" } })).toMatch(/load balancer's target is a member/);
+  expect(specError({ ...ok, loadBalancer: { ...lb, target: "m 1" } })).toMatch(/load balancer's target is a member/);
+  // Tenant projects are restricted: Incus refuses privileged containers there.
+  expect(specError({ ...ok, privileged: true })).toMatch(/privileged/);
+  expect(specError({ ...ok, metallb: { addresses: ["10.0.0.200-10.0.0.210 10.0.1.0/29"] } })).toMatch(/"10.0.0.200-10.0.0.210 10.0.1.0\/29" is not an IPv4 range/);
+  expect(specError({ ...ok, metallb: { addresses: ["10.0.0.200-10.0.0.210", "10.0.1.0/29"] } })).toBeNull();
+  expect(specError({ ...ok, loadBalancer: { type: "kube-vip", host: " 10.0.0.5", interface: "" } })).toMatch(/not an IP address/);
+  expect(specError({ ...ok, loadBalancer: { type: "ovn", host: "api.example", networkName: "ovn0" } })).toMatch(/not an IP address/);
+});

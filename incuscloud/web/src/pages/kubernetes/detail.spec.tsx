@@ -53,6 +53,12 @@ test("MetalLB addresses edit through PUT; admin delete is confirmed", async () =
   await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
   await waitFor(() => expect(api.calls.find(c => c.method === "PUT")?.body).toEqual({ addresses: ["10.0.2.1-10.0.2.5"] }));
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  // Ranges separated by a space are two ranges, as the field's own check reads them.
+  await userEvent.click(await screen.findByRole("button", { name: "Change addresses" }));
+  fireEvent.change(within(screen.getByRole("dialog")).getByLabelText(/Address range/), { target: { value: "10.0.2.1-10.0.2.5 10.0.3.0/29" } });
+  await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(api.calls.filter(c => c.method === "PUT").at(-1)?.body).toEqual({ addresses: ["10.0.2.1-10.0.2.5", "10.0.3.0/29"] }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   await userEvent.click(screen.getByRole("button", { name: "Delete" }));
   expect(api.calls.some(c => c.method === "DELETE")).toBe(false);
   await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete" }));

@@ -12,7 +12,7 @@ import type { Kube, KubeObject } from "../k8s/kube.ts";
 import { classBundle, clusterManifest } from "../k8s/manifests.ts";
 import { KUBERNETES_VERSIONS, SIZES, lbIsInstance, namespaceOf, specError, specFromSize, upgradeError, usageOfSpec, type K8sSpec, type Size } from "../k8s/model.ts";
 import { secretNameOf } from "../k8s/credentials.ts";
-import { pickEndpoint } from "../k8s/endpoint.ts";
+import { pickEndpoint, pickMember } from "../k8s/endpoint.ts";
 import { kubeFromKubeconfig, metallbState, workloadKubeconfig } from "../k8s/metallb.ts";
 import { parseRange } from "@incendio/k8s/src/lib/metallb.ts";
 import { pendingOf } from "./tenant-cloud.ts";
@@ -91,16 +91,27 @@ function pinned(spec: K8sSpec, member: string): K8sSpec {
   return { ...spec, controlPlane: pin(spec.controlPlane), worker: pin(spec.worker), loadBalancer: lbIsInstance(spec.loadBalancer) ? pin(spec.loadBalancer) : spec.loadBalancer };
 }
 
-/** kube-vip and OVN: the cluster's API at its own address, one cluster per address. */
-async function vipEndpoint(db: Db, clusterId: string, host: string) {
+/** kube-vip and OVN: the cluster's API at its own address, one cluster per address; the nodes still on one member. */
+async function vipEndpoint(db: Db, clusterId: string, host: string, want?: string) {
   const [taken] = await db
     .select({ name: k8sClusters.name })
     .from(k8sClusters)
     .where(and(eq(k8sClusters.clusterId, clusterId), eq(k8sClusters.endpointHost, host), eq(k8sClusters.endpointPort, VIP_PORT)));
-  if (taken) throw new ApiError(409, "conflict", `${host}:${VIP_PORT} is already the endpoint of ${taken.name}`);
-  return { host, port: VIP_PORT, member: "" };
+  // Not whose: the address may be another tenant's cluster.
+  if (taken) throw new ApiError(409, "conflict", `${host}:${VIP_PORT} is already a Kubernetes API endpoint`);
+  return { host, port: VIP_PORT, member: (await pickMember(db, clusterId, want)).member };
 }
 const VIP_PORT = 6443;
+
+/** A read from the management cluster; its failure is a 503, not a 500. */
+async function asked<T>(read: () => Promise<T>): Promise<T> {
+  try {
+    return await read();
+  } catch (e) {
+    if (e instanceof ApiError) throw e;
+    throw new ApiError(503, "management_unavailable", `The management cluster did not answer: ${String((e as Error).message ?? e)}`);
+  }
+}
 
 const jobFor = (id: string) => sql`${jobs.payload}->>'k8sId' = ${id}`;
 const lockTenant = (tx: Db, tenantId: string) => tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`tenant-create:${tenantId}`}))`);
@@ -224,7 +235,7 @@ export function kubernetesRoutes({ db, authz, kube, k8sPorts, workloadKube = kub
             const usage = await tx.select({ usage: placements.usage }).from(placements).where(eq(placements.tenantId, tenant.id));
             const over = exceeds(tenant.quotas, sumUsage([...usage.map((x) => x.usage), await pendingOf(txDb, tenant.id)]), req);
             if (over.length) throw new ApiError(409, "quota_exceeded", `Over the tenant's quota: ${over.join(", ")}`);
-            const ep = given && !lbIsInstance(given.loadBalancer) ? await vipEndpoint(txDb, body.clusterId, given.loadBalancer.host) : await pickEndpoint(txDb, body.clusterId, ports, lbMemberOf(given) ?? body.member);
+            const ep = given && !lbIsInstance(given.loadBalancer) ? await vipEndpoint(txDb, body.clusterId, given.loadBalancer.host, body.member) : await pickEndpoint(txDb, body.clusterId, ports, lbMemberOf(given) ?? body.member);
             const [row] = await tx
               .insert(k8sClusters)
               .values({
@@ -349,18 +360,12 @@ export function kubernetesRoutes({ db, authz, kube, k8sPorts, workloadKube = kub
     })
     .get("/api/v1/kubernetes/:id/nodes", async ({ principal, params }) => {
       const { row } = await load(authed(principal), params.id);
-      let machines: KubeObject[];
-      try {
-        machines = await enabled().list(MACHINE_API, "Machine", row.namespace, `cluster.x-k8s.io/cluster-name=${row.name}`);
-      } catch (e) {
-        if (e instanceof ApiError) throw e;
-        throw new ApiError(503, "management_unavailable", `The management cluster did not answer: ${String((e as Error).message ?? e)}`);
-      }
+      const machines = await asked(() => enabled().list(MACHINE_API, "Machine", row.namespace, `cluster.x-k8s.io/cluster-name=${row.name}`));
       return machines.map(nodeOf).sort((a, b) => (a.role === b.role ? a.name.localeCompare(b.name) : a.role === "control-plane" ? -1 : 1));
     })
     .get("/api/v1/kubernetes/:id/status", async ({ principal, params }) => {
       const { row } = await load(authed(principal), params.id);
-      const cluster = await enabled().get(MACHINE_API, "Cluster", row.namespace, row.name);
+      const cluster = await asked(() => enabled().get(MACHINE_API, "Cluster", row.namespace, row.name));
       const st = (cluster?.status ?? {}) as { phase?: string; conditions?: Array<{ type: string; status: string; reason?: string; message?: string; lastTransitionTime?: string }> };
       const conditions = (st.conditions ?? []).map((c) => ({ type: c.type, status: c.status, reason: c.reason ?? "", message: c.message ?? "", lastTransitionTime: c.lastTransitionTime ?? "" }));
       // Why it is not available yet: CAPI's aggregated condition, else the control plane's.
@@ -369,9 +374,15 @@ export function kubernetesRoutes({ db, authz, kube, k8sPorts, workloadKube = kub
     })
     .get("/api/v1/kubernetes/:id/activity", async ({ principal, params }) => {
       const { row } = await load(authed(principal), params.id);
-      // Events on its own objects: the Cluster and everything CAPI names after it.
-      const events = (await enabled().list("v1", "Event", row.namespace)) as unknown as NonNullable<K8sEventList["items"]>;
-      const names = new Set(events.map((e) => e.involvedObject?.name ?? "").filter((n) => n === row.name || n.startsWith(`${row.name}-`)));
+      // Events on its own objects: the Cluster and everything CAPI names after it,
+      // but not a sibling's whose name starts with this one's ("web" and "web-prod").
+      const events = (await asked(() => enabled().list("v1", "Event", row.namespace))) as unknown as NonNullable<K8sEventList["items"]>;
+      const siblings = (await db.select({ name: k8sClusters.name }).from(k8sClusters).where(eq(k8sClusters.tenantId, row.tenantId)))
+        .map((s) => s.name)
+        .filter((n) => n.length > row.name.length && n.startsWith(`${row.name}-`));
+      const ours = (n: string) => n === row.name || n.startsWith(`${row.name}-`);
+      const sibling = (n: string) => siblings.some((s) => n === s || n.startsWith(`${s}-`));
+      const names = new Set(events.map((e) => e.involvedObject?.name ?? "").filter((n) => ours(n) && !sibling(n)));
       const fromEvents = eventActivity({ items: events }, names, new Date(row.createdAt.getTime() - 60_000));
       const ran = await db.select().from(jobs).where(jobFor(row.id)).orderBy(sql`${jobs.createdAt} desc`).limit(50);
       const fromJobs: ActivityEntry[] = ran.map((j) => ({
