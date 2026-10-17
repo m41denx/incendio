@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { MainTable } from "@canonical/react-components";
 import { useQuery } from "@tanstack/react-query";
 import { request } from "../api/client";
-import { can, useMe } from "../api/hooks";
+import { can, canAtRoot, useMe } from "../api/hooks";
 import PageLayout from "../components/PageLayout";
 import Section from "../components/Section";
 import { Loaded } from "../components/Status";
@@ -17,10 +17,22 @@ interface Holder {
   role: string;
   relation: string;
 }
+interface Entry {
+  id: string;
+  path: string;
+  subject: { type: "user" | "service"; id: string; name: string };
+  role: string;
+  propagate: boolean;
+  relation: string;
+  /** "server", or "project <name>". */
+  on: string;
+}
 interface Access {
   cluster: string;
   platform?: Holder[];
   tenants: Array<{ tenant: { id: string; slug: string; name: string }; project: string; status: string; members: Holder[] }>;
+  /** Explicit permission entries that reach here (older servers send none). */
+  entries?: Entry[];
 }
 
 const holders = (list: Holder[], on: string, linkUsers: boolean) => (
@@ -64,6 +76,27 @@ const AccessPage: FC<{ cluster: string; project?: string }> = ({ cluster, projec
             {a.platform ? (
               <Section title="Platform roles" id="access-platform">
                 {holders(a.platform, "the server", linkUsers)}
+              </Section>
+            ) : null}
+            {a.entries?.length ? (
+              <Section title="Permission entries" id="access-entries">
+                <MainTable
+                  headers={[{ content: "Who" }, { content: "On" }, { content: "Role" }, { content: "In Incus" }]}
+                  rows={a.entries.map((e) => ({
+                    key: e.id,
+                    columns: [
+                      { content: e.subject.name },
+                      { content: <code className="ic-nowrap">{e.path}</code> },
+                      { content: e.role },
+                      { content: e.relation ? `${e.relation} on ${e.on === "server" ? "the server" : e.on}` : "nothing" },
+                    ],
+                  }))}
+                />
+                {canAtRoot(me, "acl.view") ? (
+                  <p className="p-text--small">
+                    Entries are managed on <Link to="/permissions">Permissions</Link>. An entry on a tenant or project that gives less than one above it there takes the server grant away, leaving grants on the other projects.
+                  </p>
+                ) : null}
               </Section>
             ) : null}
             {a.tenants.length === 0 ? <p>No tenant {project ? `has project ${project}` : "is placed"} on {cluster}.</p> : null}

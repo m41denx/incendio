@@ -45,6 +45,8 @@ const RANK: Record<string, number> = { "": 0, viewer: 1, operator: 2, admin: 3 }
 const SERVER: Partial<Record<RoleId, string>> = { administrator: "admin", "cluster-owner": "admin", operator: "operator", "unrestricted-user": "operator", auditor: "viewer" };
 // Never project admin (see PROJECT_RELATION).
 const PROJECT: Partial<Record<RoleId, string>> = { administrator: "operator", "cluster-owner": "operator", operator: "operator", "unrestricted-user": "operator", "tenant-admin": "operator", auditor: "viewer" };
+/** What one role gives in Incus, on the server or on a project ("" for nothing); narrowing aside (see explicitRelations). */
+export const roleRelation = (role: RoleId, on: "server" | "project") => strongest(on === "server" ? SERVER : PROJECT, [role]);
 const strongest = (map: Partial<Record<RoleId, string>>, roles: RoleId[]) => (roles.includes("no-access") ? [] : roles).map((r) => map[r] ?? "").reduce((a, b) => (RANK[b]! > RANK[a]! ? b : a), "");
 
 /**

@@ -3,9 +3,10 @@ import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
 import { clusters, placements, platformRoles, serviceAccounts, tenantMembers, tenants, users } from "../db/schema.ts";
 import type { Authz } from "../authz/platform.ts";
+import type { Acl } from "../acl/acl.ts";
 import { notFound, platformCan, subject } from "../authz/guards.ts";
 import { authed, principalContext } from "../auth/principal.ts";
-import { projectRelation, serverRelation } from "../reconcile/grants.ts";
+import { projectRelation, roleRelation, serverRelation } from "../reconcile/grants.ts";
 import { visibleTenants } from "./common.ts";
 
 interface Holder {
@@ -26,7 +27,7 @@ const byName = (a: Holder, b: Holder) => a.name.localeCompare(b.name);
  * from. Platform roles are shown to platform viewers; tenants to whoever
  * may see them.
  */
-export function accessRoutes({ db, authz }: { db: Db; authz: Authz }) {
+export function accessRoutes({ db, authz, acl }: { db: Db; authz: Authz; acl: Acl }) {
   return new Elysia().use(principalContext).get(
     "/api/v1/access",
     async ({ principal, query }) => {
@@ -68,7 +69,24 @@ export function accessRoutes({ db, authz }: { db: Db; authz: Authz }) {
         ].sort(byName),
       }));
 
-      if (!(await platformCan(authz, p, "viewer"))) return { cluster: cluster.name, tenants: tenantList };
+      // Permission entries that reach this cluster (or project), as far as the caller may read them.
+      const where = new Map<string, string>([["/", "server"], [`/clusters/${cluster.name}`, "server"], ...shown.map((x) => [`/tenants/${x.slug}`, `project ${x.project}`] as [string, string])]);
+      const named = new Map<string, string>([
+        ...(await db.select({ id: users.id, email: users.email }).from(users)).map((u) => [`user:${u.id}`, u.email] as [string, string]),
+        ...(await db.select({ id: serviceAccounts.id, name: serviceAccounts.name }).from(serviceAccounts)).map((a) => [`service:${a.id}`, a.name] as [string, string]),
+      ]);
+      const reaching = (await acl.entries()).filter((e) => e.source === "acl" && where.has(e.path));
+      const readable = await Promise.all(reaching.map((e) => acl.can(p, "acl.view", e.path)));
+      const entries = reaching
+        .filter((_, i) => readable[i])
+        .map((e) => {
+          const [type, id] = e.subject.split(":") as [string, string];
+          const on = where.get(e.path)!;
+          return { id: e.id, path: e.path, subject: { type, id, name: named.get(e.subject) ?? id }, role: e.role, propagate: e.propagate, relation: roleRelation(e.role, on === "server" ? "server" : "project"), on };
+        })
+        .sort((a, b) => a.path.localeCompare(b.path) || a.subject.name.localeCompare(b.subject.name));
+
+      if (!(await platformCan(authz, p, "viewer"))) return { cluster: cluster.name, tenants: tenantList, entries };
       const platformUsers = await db
         .select({ id: users.id, name: users.name, email: users.email, role: platformRoles.role })
         .from(platformRoles)
@@ -82,7 +100,7 @@ export function accessRoutes({ db, authz }: { db: Db; authz: Authz }) {
         ...platformUsers.map((u): Holder => ({ id: u.id, kind: "user", name: u.name, email: u.email, role: u.role, relation: serverRelation(u.role) })),
         ...platformAccounts.map((a): Holder => ({ id: a.id, kind: "service-account", name: a.name, role: a.role!, relation: serverRelation(a.role!) })),
       ].sort(byName);
-      return { cluster: cluster.name, platform, tenants: tenantList };
+      return { cluster: cluster.name, platform, tenants: tenantList, entries };
     },
     { query: t.Object({ cluster: t.String({ minLength: 1 }), project: t.Optional(t.String({ minLength: 1 })) }) },
   );

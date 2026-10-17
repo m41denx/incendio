@@ -77,13 +77,11 @@ const CheckForm: FC<{ path?: string }> = ({ path: initial = "/" }) => {
         <>
           <h3 className="p-heading--5">Privileges</h3>
           {result.privileges.length ? (
-            <ul className="p-list--inline">
+            <p className="ic-privileges">
               {result.privileges.map((p) => (
-                <li key={p} className="p-list__item">
-                  <code>{p}</code>
-                </li>
+                <code key={p}>{p}</code>
               ))}
-            </ul>
+            </p>
           ) : (
             <p>None: nothing is allowed here.</p>
           )}
@@ -100,7 +98,7 @@ const CheckForm: FC<{ path?: string }> = ({ path: initial = "/" }) => {
                 rows={result.decidedBy.map((e) => ({
                   key: e.id,
                   columns: [
-                    { content: <code>{e.path}</code> },
+                    { content: <code className="ic-nowrap">{e.path}</code> },
                     { content: e.subject.name },
                     { content: roleName(e.role) },
                     { content: SOURCE_LABEL[e.source] },

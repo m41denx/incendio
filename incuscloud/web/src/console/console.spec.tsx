@@ -249,6 +249,24 @@ test("a cluster's Access: platform roles on the server, each tenant's members on
   expect(within(acme.getByText("ci").closest("tr")!).getByText("Service account")).toBeInTheDocument();
 });
 
+test("the Access tab lists an operator entry on the cluster with relation operator", async () => {
+  api({
+    "GET /api/v1/access": [
+      200,
+      {
+        cluster: "c1",
+        tenants: [],
+        entries: [{ id: "e-1", path: "/clusters/c1", subject: { type: "user", id: "u-9", name: "eve@example.com" }, role: "operator", propagate: true, relation: "operator", on: "server" }],
+      },
+    ],
+  });
+  renderInFrame(<AppRoutes />, { path: "/inventory/c1/access" });
+  const entries = within(await screen.findByRole("region", { name: "Permission entries" }));
+  const row = entries.getByText("eve@example.com").closest("tr")!;
+  expect(within(row).getByText("/clusters/c1")).toBeInTheDocument();
+  expect(within(row).getByText("operator on the server")).toBeInTheDocument();
+});
+
 test("a project's Access: its tenant's members; the request names the project", async () => {
   const calls = api({
     "GET /api/v1/access": [200, { cluster: "c1", tenants: [{ tenant: { id: "t-1", slug: "acme", name: "Acme" }, project: "p", status: "ready", members: [holder("ann", "viewer", "viewer")] }] }],

@@ -1,6 +1,6 @@
 import { beforeEach, expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
-import { clusters, placements, serviceAccounts, users } from "../db/schema.ts";
+import { aclEntries, clusters, placements, serviceAccounts, users } from "../db/schema.ts";
 import { harness } from "../test/harness.ts";
 
 let h: Awaited<ReturnType<typeof harness>>;
@@ -58,4 +58,21 @@ test("an unknown cluster, or one the caller cannot reach, is not found", async (
   void edge;
   expect((await h.call(ann, "GET", "/api/v1/access?cluster=edge")).status).toBe(404);
   expect((await h.call(null, "GET", "/api/v1/access?cluster=lab")).status).toBe(401);
+});
+
+test("the Access tab lists an operator entry on the cluster with relation operator", async () => {
+  const admin = await h.user("root@example.com", { platformRole: "admin" });
+  const u = await h.user("eve@example.com");
+  await h.db.insert(aclEntries).values([
+    { path: "/clusters/lab", role: "operator", userId: u.id },
+    { path: "/tenants/acme", role: "auditor", userId: u.id },
+    { path: "/clusters/other", role: "operator", userId: u.id },
+  ]);
+  const r = await h.call(admin, "GET", "/api/v1/access?cluster=lab");
+  expect(r.body.entries.map((e: any) => `${e.path} ${e.subject.name} ${e.role}→${e.relation} on ${e.on}`)).toEqual(["/clusters/lab eve@example.com operator→operator on server", "/tenants/acme eve@example.com auditor→viewer on project acme"]);
+  // One project: the cluster's entries and its tenant's.
+  expect((await h.call(admin, "GET", "/api/v1/access?cluster=lab&project=beta-lab")).body.entries.map((e: any) => e.path)).toEqual(["/clusters/lab"]);
+  // Tenant members see none of them.
+  const m = await h.user("m@example.com", { tenants: { [acme.id]: "member" } });
+  expect((await h.call(m, "GET", "/api/v1/access?cluster=lab")).body.entries).toEqual([]);
 });

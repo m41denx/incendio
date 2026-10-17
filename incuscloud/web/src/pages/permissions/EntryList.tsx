@@ -78,7 +78,7 @@ const EntryList: FC<{ path?: string; canManage: boolean }> = ({
               rows={shown.map((e) => ({
                 key: e.id,
                 columns: [
-                  { content: <code>{e.path}</code> },
+                  { content: <code className="ic-nowrap">{e.path}</code> },
                   { content: e.subject.name },
                   { content: roleName(e.role) },
                   { content: e.propagate ? "Yes" : "No" },

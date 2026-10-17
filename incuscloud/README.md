@@ -22,6 +22,7 @@ Licensed under GPL-3.0 (see `LICENSE`).
 | P8 | Balancing: ProxLB's model per cluster, member maintenance, cross-cluster suggestions | done |
 | P9 | Tenant cloud: one quota across clusters, usage, self-service create with placement | done |
 | P10 | Kubernetes: clusters on any Incus cluster through one Cluster API install, no appliance per cluster | done |
+| ACL 1 | Permissions: privileges, roles and paths with Proxmox-style resolution; entries on the platform, clusters and tenants, granted in Incus too | done |
 
 ## How it fits together
 
@@ -102,7 +103,7 @@ their roles; the API (and Incus) decides every request.
   networks, pools). Each row has its kind's icon tinted by status, and
   running/total counts. Below the tree: the platform's pages (Tenants,
   Kubernetes, Jobs, Replication, Backups, Balancing, and for managers
-  Users, Service accounts and the logs) and the account. It can be
+  Users, Permissions, Service accounts and the logs) and the account. It can be
   dragged 240–360 px wide; the view and width are remembered.
 - **Selection.** The URL is the selection. Above the page: a breadcrumb
   back up the tree, and the object's one row of tabs (what does not fit
@@ -371,6 +372,48 @@ Incus's own `cluster.rebalance.*` live-migrates VMs with no notion of these hint
 - anti-affinity;
 - evacuating a member and restoring it.
 
+## Permissions
+
+Who may do what is a set of **entries**: a role for a user or service
+account on a path. The design is
+[the permissions spec](../docs/superpowers/specs/2026-10-12-incuscloud-acl-design.md);
+phase 1 is in.
+
+- **Privileges** are `<object>.<action>` (`instance.console`,
+  `cluster.configure`, `acl.manage`, …). **Roles** bundle them:
+  Administrator, Operator, Cluster owner, Unrestricted user, Tenant admin,
+  Auditor and No access can be given now; User and Group owner come with
+  ownership and groups.
+- **Paths:** `/` (everything), `/platform`, `/clusters/<name>` and
+  `/tenants/<slug>`. A tenant entry applies to the tenant's projects on
+  every cluster, between the project and the cluster.
+- **Resolution** (Proxmox's): the most specific path with an entry for the
+  subject decides. Entries further up count only if they propagate.
+  No access there means nothing.
+- **Today's roles are entries too.** Platform roles are entries on `/`
+  (admin = Administrator, operator = Operator, viewer = Auditor). Tenant
+  roles are entries on the tenant (owner and admin = Tenant admin,
+  member = Unrestricted user, viewer = Auditor), and so are tenant service
+  accounts. They are still edited on the Users, Tenants and Service accounts
+  pages; Platform › Permissions lists them read-only beside the explicit
+  entries.
+- **In Incus.** Explicit entries become grants through IncusCloud's own
+  `incuscloud-acl-*` groups. A cluster entry gives a server relation
+  (Administrator and Cluster owner `admin`, Operator and Unrestricted user
+  `operator`, Auditor `viewer`). A tenant entry gives a project relation on
+  the tenant's projects (`operator` or `viewer`, never project `admin`). When
+  a tenant or project entry gives less than the cluster's, the server
+  relation is replaced by project relations on every other project there.
+  Subjects without explicit entries keep exactly today's grants.
+- **Rules.** Changing an entry needs `acl.manage` on its path; only
+  administrators give Administrator or Cluster owner. Someone must stay an
+  administrator (a platform admin or an Administrator entry on `/`).
+  Deleting a cluster, tenant, user or service account deletes its entries.
+- **Console.** Platform › Permissions (for `acl.view` on `/`): Entries
+  (filter, add, remove), Roles, and Check (what a subject may do on a path,
+  and which entries decided it). A cluster's Access tab lists the entries
+  that reach it, with what each gives in Incus.
+
 ## Configuration
 
 Settings are `IC_*` environment variables; `server/.env.example` lists them
@@ -445,20 +488,24 @@ All under `/api/v1`, bearer token or session cookie. Errors are
 
 | Endpoint | Who |
 | --- | --- |
-| `GET me` | anyone signed in |
+| `GET me` | anyone signed in; `rootPrivileges` are the caller's privileges on `/` |
+| `GET acl/roles` | anyone signed in: each role and its privileges |
+| `GET acl/entries?path` | entries at and below `path` (default `/`) whose path the caller has `acl.view` on; today's roles as read-only entries with `editedOn` |
+| `POST acl/entries`, `DELETE acl/entries/:id` | `acl.manage` on the entry's path; Administrator and Cluster owner by administrators only; the last administrator stays (409) |
+| `GET acl/check?subject=user:<id>&path` | `acl.view` on the path: the subject's privileges there and the deciding entries |
 | `GET/POST users`, `GET/PATCH/DELETE users/:id` | platform admin (viewers read) |
 | `GET/POST tenants`, `GET/PATCH/DELETE tenants/:id` | operators create; tenant admins rename; operators set quotas; owners delete |
 | `GET tenants/:id/members`, `POST tenants/:id/members` (by email), `PUT/DELETE tenants/:id/members/:userId` | tenant admins; owners manage owners |
 | `GET tenants/:id/placements` | anyone who can see the tenant: its clusters, projects and their status |
 | `GET instances?q&cluster&tenant&status&type&limit&offset` | the global instance search: platform viewers see all, others their tenants' projects; `q` words must all match (name, project, cluster, member, description, image, addresses) |
 | `GET instances/:id`, `GET instances/:id/metrics?hours` | one instance and its CPU (cores), memory and network history |
-| `GET access?cluster&project` | who has access to a cluster (or one project on it): platform roles (platform viewers only) and each visible tenant's members, each with the Incus relation it gives |
+| `GET access?cluster&project` | who has access to a cluster (or one project on it): platform roles (platform viewers only), each visible tenant's members, and the permission entries that reach it (those the caller may read), each with the Incus relation it gives |
 | `GET kubernetes?tenant`, `GET kubernetes/:id`, `GET kubernetes/versions` | anyone who can see the tenant: clusters with their spec; versions, whether Kubernetes is on, and the default spec |
 | `POST kubernetes`, `PATCH kubernetes/:id`, `DELETE kubernetes/:id` | tenant members create (a spec or a size; 202, a job), scale and upgrade; tenant admins delete (a job) |
 | `GET kubernetes/:id/nodes`, `GET kubernetes/:id/status`, `GET kubernetes/:id/activity` | anyone who can see the tenant: machines with their Incus instances, phase, version and readiness; CAPI's phase and conditions; events and jobs |
 | `GET/PUT kubernetes/:id/metallb` | MetalLB's addresses and state; tenant members set them (202, a job) |
 | `GET kubernetes/:id/kubeconfig` | tenant members: the admin kubeconfig (audited) |
-| `GET clusters/:id/inventory`, `GET clusters/:id/metrics?hours` | platform viewers: members, storage pools, networks, instance counts; member memory and load history |
+| `GET clusters/:id/inventory`, `GET clusters/:id/metrics?hours` | `cluster.view` on the cluster: members, storage pools, networks, instance counts; member memory and load history |
 | `GET fleet/summary` | instance counts by status (what the caller sees); per-cluster capacity for platform viewers |
 | `POST instances/:id/migrations/preflight`, `POST instances/:id/migrations` | check, then start a move or copy to another cluster (202, a job) |
 | `GET jobs`, `GET jobs/:id`, `POST jobs/:id/cancel` | jobs: platform viewers see all, others their tenants' and their own |
@@ -466,14 +513,14 @@ All under `/api/v1`, bearer token or session cookie. Errors are
 | `GET/POST backup-targets`, `PATCH/DELETE backup-targets/:id`, `POST …/:id/check` | S3 targets (platform admins; others see names) |
 | `POST instances/:id/backups`, `GET backups`, `GET/DELETE backups/:id`, `POST backups/:id/restore` | back up now, list, delete, restore (jobs) |
 | `GET/POST backup-policies`, `GET/PATCH/DELETE backup-policies/:id`, `POST …/:id/run` | backup schedules with retention |
-| `GET/PUT clusters/:id/balancing`, `POST …/balancing/plan`, `POST …/balancing/run` | balancing policy (viewers read, operators write), a dry run, a run (job) |
-| `POST clusters/:id/members/:name/evacuate`, `POST …/members/:name/restore` | member maintenance (platform operators; jobs) |
+| `GET/PUT clusters/:id/balancing`, `POST …/balancing/plan`, `POST …/balancing/run` | balancing policy (`cluster.view` reads, `cluster.configure` writes), a dry run, a run (job) |
+| `POST clusters/:id/members/:name/evacuate`, `POST …/members/:name/restore` | member maintenance (`node.maintain` on the cluster; jobs) |
 | `GET tenants/:id/usage`, `POST tenants/:id/instances`, `GET images` | quota usage across clusters; self-service create (202, a job); image choices |
 | `GET balancing/suggestions` | cross-cluster moves for the caller's tenants |
 | `GET/POST service-accounts`, `POST service-accounts/:id/rotate`, `DELETE service-accounts/:id` | tenant admins for tenant accounts, platform admins otherwise |
-| `GET/POST clusters`, `GET/PATCH/DELETE clusters/:id` | platform admins enrol; tenants see clusters they are placed on |
-| `GET clusters/:id/tenants`, `PUT/DELETE clusters/:id/tenants/:tenantId` | platform operators place tenants |
-| `POST clusters/:id/reconcile` | platform operators; returns 202 |
+| `GET/POST clusters`, `GET/PATCH/DELETE clusters/:id` | platform admins enrol and delete; `cluster.configure` on the cluster edits labels; each caller sees the clusters it has rights on (tenants: those they are placed on) |
+| `GET clusters/:id/tenants`, `PUT/DELETE clusters/:id/tenants/:tenantId` | `cluster.configure` on the cluster places tenants (`cluster.view` lists them) |
+| `POST clusters/:id/reconcile` | `cluster.configure` on the cluster; returns 202 |
 | `GET audit` | platform viewers; tenant admins with `?tenant=` |
 | `GET gateway-requests` | platform viewers; tenant admins with `?tenant=` |
 

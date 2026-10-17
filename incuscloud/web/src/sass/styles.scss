@@ -557,3 +557,14 @@ body.ic-resizing {
     min-height: 0;
   }
 }
+
+// Permission paths and privilege lists.
+.ic-nowrap {
+  white-space: nowrap;
+}
+
+.ic-privileges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+}
