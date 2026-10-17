@@ -1,6 +1,6 @@
 # IncusCloud permissions: granular ACLs for a private cloud
 
-**Date:** 2026-10-12, revised 2026-10-17 (rev 2). **Branch:** `incuscloud`. **Status:** draft for the user's review. Nothing is built until it is approved.
+**Date:** 2026-10-12, revised 2026-10-17 (rev 2). **Branch:** `incuscloud`. **Status:** approved 2026-10-17.
 
 ## What the user asked
 
@@ -203,12 +203,12 @@ Today's roles become entries, with no change in behaviour:
 
 The new quotas start unset, which means unlimited, as quotas are today.
 
-## Questions for the user
+## Decisions (the user, 2026-10-17)
 
-1. **Roles beyond your list:** you listed administrator, operator, user, cluster owner, group owner and unrestricted cluster/group user. Add *Tenant admin* (manages a tenant's members, users' quotas and all its resources), *Auditor* (read-only) and *No access* (needed for most-specific-wins)? I recommend all three.
-2. **Today's tenant members** can manage every instance in their tenant. As *User* they would manage only what they create. Should migrated members keep today's reach, as *Unrestricted user* on the tenant? I recommend that, so nothing changes until an admin narrows it.
-3. **Direct cluster access.** Tenants can reach each cluster's API directly (with OIDC), not only through IncusCloud's gateway. Per-user limits narrower than the tenant's are enforced only on IncusCloud's paths, because Incus restricts per project. For untrusted tenants, should cluster APIs be reachable only through the gateway (a network policy at deployment, documented), so every limit holds? I recommend yes for production, with the README saying why.
-4. **Leases (from PCD):** should instances have optional expiry (power off or delete after N days, per tenant, with extensions)? It is useful for test divisions. I recommend a later phase, not now.
+1. *Tenant admin*, *Auditor* and *No access* are added to the bundled roles.
+2. Migrated tenant members keep today's reach: *Unrestricted user* on their tenant.
+3. Production makes cluster APIs reachable only through the gateway (a documented network policy), so every limit holds.
+4. Leases are future work: a table of expiries and a scheduled worker (Elysia's cron) that powers off or deletes, per tenant, with extensions.
 
 ## Phasing
 
@@ -218,3 +218,4 @@ Each phase ships on its own:
 3. Groups, including the tenants' default groups; group paths (`/clusters/<c>/groups/<g>`) with Group owner, Unrestricted user and `placement.choose`; `restricted.cluster.groups`.
 4. Quotas: per-instance maximums, snapshot count, backups (count and bytes), Kubernetes cluster count, users' quotas.
 5. Identity-provider group mapping.
+6. Later: leases (decision 4).
