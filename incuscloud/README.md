@@ -99,20 +99,20 @@ their roles; the API (and Incus) decides every request.
 
 - **Sidebar.** View buttons (Instances, Projects, Members, Networks,
   Storage), then the inventory tree: All clusters → each cluster → what the
-  view lists (members and their instances, projects with their instances
-  and Kubernetes clusters, networks, pools). Each row has its kind's icon
-  tinted by status, and running/total counts. Below the tree: the
-  platform's pages (Tenants, Jobs, Replication, Backups, Balancing, and for
-  managers Users, Service accounts and the logs) and the account. It can be
+  view lists (members and their instances, projects with their instances,
+  networks, pools). Each row has its kind's icon tinted by status, and
+  running/total counts. Below the tree: the platform's pages (Tenants,
+  Kubernetes, Jobs, Replication, Backups, Balancing, and for managers
+  Users, Service accounts and the logs) and the account. It can be
   dragged 240–360 px wide; the view and width are remembered.
 - **Selection.** The URL is the selection. Above the page: a breadcrumb
   back up the tree, and the object's one row of tabs (what does not fit
   goes into More). Objects whose Incendio page has its own tabs (member,
   instance, network, pool, profile) get only the breadcrumb.
   - All clusters (`/`, `/all/…`): Summary (the dashboard), Clusters
-    (operators), Instances, Kubernetes, Warnings (with a Cluster column).
+    (operators), Instances, Warnings (with a Cluster column).
   - A cluster (`/inventory/<cluster>/<tab>[/<page>]`): Summary, Members,
-    Groups, Projects, Networks, Storage, Kubernetes, Operations, Access,
+    Groups, Projects, Networks, Storage, Operations, Access,
     Configure. Tabs with several pages list them in a side menu: cluster and
     placement groups; networks, ACLs, address sets, zones, IPAM,
     integrations; pools, volumes, buckets, custom ISOs; who has access,
@@ -121,12 +121,21 @@ their roles; the API (and Incus) decides every request.
     certificates, logging, ACME, warnings. Server-wide pages are for
     platform viewers only.
   - A project (`/ui/project/<project@cluster>/…`): Instances, Profiles,
-    Networks, Storage, Images, Kubernetes, Usage, Access, Configure. Projects
+    Networks, Storage, Images, Usage, Access, Configure. Projects
     are never merged across clusters: a project is one cluster's.
-  - A Kubernetes cluster (`/ui/project/<project@cluster>/kubernetes/<name>`):
-    Summary, Nodes (each machine and the Incus instance and member it runs
-    on), Activity (its jobs), Kubeconfig; Scale, Upgrade, Download
-    kubeconfig and Delete above them.
+- **Kubernetes** is a platform page, like Tenants, made of Incendio's
+  Kubernetes pages. The list (`/kubernetes`, `?cluster=` or `?tenant=` to
+  filter) has each cluster's status and why, version, nodes, endpoint,
+  tenant and Incus cluster. Create (`/kubernetes/new`) is Incendio's form
+  with a tenant and an Incus cluster to pick: Cluster (name, version,
+  image, load balancer, MetalLB) and Machines (count, type, CPU and memory
+  or a CAPN flavor, profiles and target for the control plane and the
+  workers; pod and service CIDRs, privileged, flannel, kubeadm), with what
+  it uses of the tenant's quota. A cluster's page (`/kubernetes/<id>`) is
+  Incendio's: General, Kubeconfig, Control plane, Workers, Load balancer,
+  Load balancer services (MetalLB), Activity and Conditions, with Scale,
+  Upgrade and Delete. The old inventory addresses
+  (`…/kubernetes` of a cluster or project) lead there.
 - **Access tabs** show who has access to a cluster or project from
   IncusCloud's roles, and what each gives in Incus (what the reconciler
   grants): platform roles on the server, tenant roles on the tenant's
@@ -291,17 +300,21 @@ The Incus hosts need the kernel modules Kubernetes nodes use loaded (`br_netfilt
 
 **What a cluster is.**
 - Nodes are unprivileged containers in the tenant's project, with `security.nesting` only. Tenant projects allow that (`restricted.containers.nesting=allow`) and nothing more.
-- Sizes: small (2 CPUs, 2 GiB), medium (2, 4), large (4, 8). One or three control plane nodes, up to 20 workers. Versions with prebuilt CAPN images: v1.34.0, v1.35.5, v1.36.4, v1.37.0.
-- Nodes and the load balancer count against the tenant's quota as instances (10 GiB of disk each). A create is checked like an instance create, counting creates still running; scaling up is checked too, scaling down never is.
+- A create gives a `spec` (Incendio's options) or a `size`, not both. The spec has, for the control plane and the workers, the instance type (container or VM), a CAPN flavor `c<cores>-m<GiB>`, profiles and a target (a member or `@group`); the load balancer (below); the node image; privileged nodes; flannel; kubeadm installed on boot; the pod and service CIDRs; and MetalLB addresses. A size is a spec with a preset flavor: small (2 CPUs, 2 GiB), medium (2, 4), large (4, 8). One, three or five control plane nodes, up to 20 workers. Versions with prebuilt CAPN images: v1.34.0, v1.35.5, v1.36.4, v1.37.0.
+- Nodes and an instance load balancer count against the tenant's quota as instances, at their flavor's size (10 GiB of disk each). A create is checked like an instance create, counting creates still running; scaling up is checked too, scaling down never is.
 - CAPN gets a client certificate trusted only for the tenant's project on that Incus cluster. Its key exists only in the management cluster's secret; IncusCloud keeps the fingerprint and revokes the certificate when the tenant's last Kubernetes cluster there is deleted.
 
-**The API endpoint.** The management cluster and the nodes must both reach each cluster's API server. CAPN's load balancer (haproxy, in the tenant's project) gets an address on the project's network. IncusCloud presets the cluster's endpoint to the Incus cluster's address and a port from `IC_K8S_PORTS` (default 16443–16999), and adds a network forward from there to the load balancer's port 6443. The sync worker keeps the forward pointed at the load balancer when its address changes. The endpoint is reachable wherever the Incus cluster's address is.
+**The API endpoint.** The management cluster and the nodes must both reach each cluster's API server. CAPN's load balancer is one of:
+- `lxc` or `oci`: haproxy in an instance in the tenant's project, with its own flavor, profiles and target. It gets an address on the project's network; IncusCloud presets the cluster's endpoint to the Incus cluster's (or member's) address and a port from `IC_K8S_PORTS` (default 16443–16999), and adds a network forward from there to the load balancer's port 6443. The sync worker keeps the forward pointed at the load balancer when its address changes.
+- `kube-vip` (an address and interface) or `ovn` (an address on an OVN network): the endpoint is that address, port 6443, with no forward. An address is one cluster's endpoint only.
 
-**Single-member Incus clusters only, for now.** A create on a multi-member cluster is refused (409 `needs_ovn`). Without OVN each member's bridge is its own network, so nodes on different members could not reach each other or the load balancer, and keeping them on one member would need member targeting, which tenant projects do not allow (and CAPN's restricted certificate cannot override). OVN networking (P11) gives a network across members and OVN load balancers for the endpoint.
+**Multi-member Incus clusters.** Without OVN each member's bridge is its own network, so a cluster runs on one member: its load balancer and every node without a target of its own are pinned there, and its endpoint is that member's address. The member is the one asked for, or the online one with the most memory free.
+
+**MetalLB.** Given addresses (ranges or CIDRs), IncusCloud installs MetalLB (`IC_METALLB_MANIFEST_URL`, default v0.16.0 native) in the workload cluster once it is available, with one address pool, so Services of type LoadBalancer get an address. Members change the addresses later (`PUT …/metallb`, a job); an empty list stops asking for it.
 
 IncusCloud only touches forward ports marked `incuscloud k8s <id>`. A forward on the same address that is not its own is shared, and a port someone else forwards is refused rather than taken over.
 
-**Lifecycle.** A create is a job: namespace, credentials, the Cluster, then the forward once the load balancer has an address, then waiting for `ControlPlaneAvailable` (30 min). The sync worker (lease `kubernetes`, every 15 s) turns Cluster conditions and Machines into ready or degraded, with the reason and nodes ready. Scale and upgrade (one minor version at a time) are applied to the Cluster topology directly. A delete is a job: it stops a create still running, deletes the Cluster and waits for CAPN to remove the nodes, then removes the forward port and, if it was the last, the certificate. The kubeconfig download (members and up, audited) is CAPI's admin kubeconfig. A tenant with Kubernetes clusters on an Incus cluster cannot be removed from it, and that cluster cannot be deleted, even with `force`.
+**Lifecycle.** A create is a job: namespace, credentials, the Cluster, then the forward once the load balancer has an address, then waiting for `ControlPlaneAvailable` (30 min). The sync worker (lease `kubernetes`, every 15 s) turns Cluster conditions and Machines into ready or degraded, with the reason and nodes ready. Scale and upgrade (one minor version at a time) are applied to the Cluster topology directly. A delete is a job: it stops a create still running, deletes the Cluster and waits for CAPN to remove the nodes, then removes the forward port and, if it was the last, the certificate. The kubeconfig download (members and up, audited) is CAPI's admin kubeconfig. A cluster's status is CAPI's phase and conditions; its activity merges the workload's events with IncusCloud's jobs for it. A tenant with Kubernetes clusters on an Incus cluster cannot be removed from it, and that cluster cannot be deleted, even with `force`.
 
 `server/scripts/k8s-e2e.ts` runs it against a live cluster: a create, the workload API through the endpoint with the downloaded kubeconfig, a worker joining, scaling over the quota refused, and a delete that leaves nothing behind.
 
@@ -386,6 +399,8 @@ all. The reconciler's settings:
   Kubernetes off. See [Kubernetes](#kubernetes).
 - `IC_K8S_PORTS`: the port range for Kubernetes API endpoints on member
   addresses, default `16443-16999`.
+- `IC_METALLB_MANIFEST_URL`: the MetalLB manifest installed for clusters
+  that ask for it, default MetalLB v0.16.0's `metallb-native.yaml`.
 
 ## Development
 
@@ -439,7 +454,11 @@ All under `/api/v1`, bearer token or session cookie. Errors are
 | `GET instances?q&cluster&tenant&status&type&limit&offset` | the global instance search: platform viewers see all, others their tenants' projects; `q` words must all match (name, project, cluster, member, description, image, addresses) |
 | `GET instances/:id`, `GET instances/:id/metrics?hours` | one instance and its CPU (cores), memory and network history |
 | `GET access?cluster&project` | who has access to a cluster (or one project on it): platform roles (platform viewers only) and each visible tenant's members, each with the Incus relation it gives |
-| `GET kubernetes/:id/nodes` | anyone who can see the tenant: the cluster's machines, their Incus instances, phase, version and readiness |
+| `GET kubernetes?tenant`, `GET kubernetes/:id`, `GET kubernetes/versions` | anyone who can see the tenant: clusters with their spec; versions, whether Kubernetes is on, and the default spec |
+| `POST kubernetes`, `PATCH kubernetes/:id`, `DELETE kubernetes/:id` | tenant members create (a spec or a size; 202, a job), scale and upgrade; tenant admins delete (a job) |
+| `GET kubernetes/:id/nodes`, `GET kubernetes/:id/status`, `GET kubernetes/:id/activity` | anyone who can see the tenant: machines with their Incus instances, phase, version and readiness; CAPI's phase and conditions; events and jobs |
+| `GET/PUT kubernetes/:id/metallb` | MetalLB's addresses and state; tenant members set them (202, a job) |
+| `GET kubernetes/:id/kubeconfig` | tenant members: the admin kubeconfig (audited) |
 | `GET clusters/:id/inventory`, `GET clusters/:id/metrics?hours` | platform viewers: members, storage pools, networks, instance counts; member memory and load history |
 | `GET fleet/summary` | instance counts by status (what the caller sees); per-cluster capacity for platform viewers |
 | `POST instances/:id/migrations/preflight`, `POST instances/:id/migrations` | check, then start a move or copy to another cluster (202, a job) |
