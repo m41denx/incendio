@@ -1,6 +1,7 @@
 import { eq, ne } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
-import { clusters, serviceAccounts, users } from "../db/schema.ts";
+import { aclEntries, clusters, serviceAccounts, users } from "../db/schema.ts";
+import { entriesUnder, moveEntries } from "./entries.ts";
 import { clusterClient, type ClusterRow } from "../clusters/enroll.ts";
 import type { WebSocket } from "../lib/ws.ts";
 import { log } from "../lib/log.ts";
@@ -9,6 +10,12 @@ import { forgetOwned, recordOwner, renameOwned } from "./owners.ts";
 interface LifecycleEvent {
   type?: string;
   metadata?: { action?: string; name?: string; project?: string; context?: { old_name?: string }; requestor?: { username?: string; protocol?: string } };
+}
+
+/** The permission path of an instance in this cluster's project, by name. */
+async function instancePath(db: Db, clusterId: string, project: string) {
+  const [c] = await db.select({ name: clusters.name }).from(clusters).where(eq(clusters.id, clusterId));
+  return c ? (name: string) => `/clusters/${c.name}/projects/${project}/instances/${name}` : null;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -39,13 +46,20 @@ export async function onLifecycle(db: Db, clusterId: string, event: LifecycleEve
       await recordOwner(db, key, subject, "event");
       return true;
     }
-    case "instance-renamed":
+    case "instance-renamed": {
       if (!m.context?.old_name) return false;
       await renameOwned(db, { ...key, name: m.context.old_name }, key);
+      const at = await instancePath(db, clusterId, m.project);
+      if (at) await moveEntries(db, at(m.context.old_name), at(m.name));
       return true;
-    case "instance-deleted":
+    }
+    case "instance-deleted": {
       await forgetOwned(db, key);
+      // Its permission entries go too: a later instance of that name starts clean.
+      const at = await instancePath(db, clusterId, m.project);
+      if (at) await db.delete(aclEntries).where(entriesUnder(at(m.name)));
       return true;
+    }
     default:
       return false;
   }

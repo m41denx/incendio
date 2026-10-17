@@ -7,6 +7,7 @@ import { acquireLease, releaseLease } from "../reconcile/lease.ts";
 import { collectInventory, type Snapshot } from "./collect.ts";
 import { applySnapshot } from "./store.ts";
 import { backfillOwners } from "../acl/owners.ts";
+import { sweepInstanceEntries } from "../acl/entries.ts";
 import { requestReconcile } from "../reconcile/requests.ts";
 
 export interface FleetWorkerOptions {
@@ -59,7 +60,8 @@ export class FleetWorker {
         const snap = await this.collect(row);
         await applySnapshot(db, row.id, row.name, snap, new Date(), this.opts.retentionMs);
         // Events missed while no listener ran: unclaimed instances go to their tenant's first owner.
-        if (await backfillOwners(db, row.id)) await requestReconcile(db, [row.id]);
+        const swept = await sweepInstanceEntries(db, row.id, row.name);
+        if ((await backfillOwners(db, row.id)) || swept) await requestReconcile(db, [row.id]);
       } catch (e) {
         const message = (e as Error).message;
         log.warn("inventory failed", { cluster: row.name, error: message });

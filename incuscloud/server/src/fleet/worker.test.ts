@@ -2,7 +2,7 @@ import { beforeEach, expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
 import { testDb } from "../db/test-db.ts";
 import type { Db } from "../db/index.ts";
-import { clusters, instances, leases, placements, tenantMembers, tenants, users } from "../db/schema.ts";
+import { aclEntries, clusters, instances, leases, placements, tenantMembers, tenants, users } from "../db/schema.ts";
 import { ownerOf } from "../acl/owners.ts";
 import { acquireLease } from "../reconcile/lease.ts";
 import type { Snapshot } from "./collect.ts";
@@ -94,4 +94,15 @@ test("after a pass, instances nobody claimed go to their tenant's first owner, a
   expect(await ownerOf(db, { clusterId: c1!.id, project: "default", name: "c1-vm" })).toBe(`user:${u!.id}`);
   const [after] = await db.select().from(clusters).where(eq(clusters.id, c1!.id));
   expect(after!.reconcileRequestedAt).not.toBeNull();
+});
+
+test("entries on instances that are gone (a delete event missed) are swept after a pass; others stay", async () => {
+  const [u] = await db.insert(users).values({ email: "e@x", name: "e" }).returning();
+  await db.insert(aclEntries).values([
+    { path: "/clusters/c1/projects/default/instances/c1-vm", role: "auditor", userId: u!.id },
+    { path: "/clusters/c1/projects/default/instances/gone", role: "auditor", userId: u!.id },
+    { path: "/clusters/c1/projects/default", role: "auditor", userId: u!.id },
+  ]);
+  await worker().tick();
+  expect((await db.select().from(aclEntries)).map((e) => e.path).sort()).toEqual(["/clusters/c1/projects/default", "/clusters/c1/projects/default/instances/c1-vm"]);
 });

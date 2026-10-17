@@ -1,5 +1,7 @@
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
-import { jobs, k8sClusters, placements, tenants } from "../db/schema.ts";
+import { aclEntries, jobs, k8sClusters, placements, tenants } from "../db/schema.ts";
+import type { Db } from "../db/index.ts";
+import { entriesUnder } from "../acl/entries.ts";
 import type { JobContext, JobHandler } from "../jobs/types.ts";
 import { ApiError } from "../lib/errors.ts";
 import { ensureCredentials, revokeUnlessUsed } from "./credentials.ts";
@@ -194,7 +196,7 @@ export function k8sDeleteHandler(o: K8sJobOptions): JobHandler {
 
     await ctx.progress({ stage: "credentials", message: `revoking the certificate on ${cluster.name} if no other cluster uses it` });
     await revokeUnlessUsed({ db: ctx.db, kube, client }, { tenant, cluster, except: row.id });
-    await ctx.db.delete(k8sClusters).where(eq(k8sClusters.id, row.id));
+    await deleteK8sRow(ctx.db, row.id);
     // The tenant's last Kubernetes cluster anywhere: its namespace (flannel's set) goes too.
     const [left] = await ctx.db.select({ id: k8sClusters.id }).from(k8sClusters).where(eq(k8sClusters.tenantId, row.tenantId)).limit(1);
     if (!left) await kube.delete("v1", "Namespace", undefined, row.namespace);
@@ -233,4 +235,14 @@ async function fetchManifest(url: string): Promise<string> {
   const r = await fetch(url, { signal: AbortSignal.timeout(30_000) });
   if (!r.ok) throw new Error(`MetalLB's manifest (${url}): HTTP ${r.status}`);
   return r.text();
+}
+
+/** Removes a Kubernetes cluster's row and the permission entries on it: a later one of the same name starts clean. */
+export async function deleteK8sRow(db: Db, id: string): Promise<void> {
+  const [row] = await db.select({ name: k8sClusters.name, slug: tenants.slug }).from(k8sClusters).innerJoin(tenants, eq(tenants.id, k8sClusters.tenantId)).where(eq(k8sClusters.id, id));
+  if (!row) return;
+  await db.transaction(async (tx) => {
+    await tx.delete(k8sClusters).where(eq(k8sClusters.id, id));
+    await tx.delete(aclEntries).where(entriesUnder(`/tenants/${row.slug}/kubernetes/${row.name}`));
+  });
 }

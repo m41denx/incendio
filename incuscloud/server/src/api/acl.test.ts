@@ -1,5 +1,7 @@
 import { beforeEach, expect, test } from "bun:test";
-import { aclEntries, auditLog, clusters } from "../db/schema.ts";
+import { aclEntries, auditLog, clusters, instances, k8sClusters, placements } from "../db/schema.ts";
+import { onLifecycle } from "../acl/lifecycle.ts";
+import { deleteK8sRow } from "../k8s/jobs.ts";
 import { harness, type Actor } from "../test/harness.ts";
 import { seal } from "../lib/secrets.ts";
 
@@ -73,9 +75,9 @@ test("auditors read, never write", async () => {
   expect((await h.call(a, "DELETE", `/api/v1/acl/entries/${e.body.id}`)).status).toBe(403);
 });
 
-test("user and group-owner roles, and project or instance paths, are refused for now", async () => {
+test("Group owner and unknown roles, group paths and paths naming nothing are refused", async () => {
   const u = await h.user("u@x.test");
-  for (const role of ["user", "group-owner", "nope"]) expect((await add(admin, "/clusters/c", u, role)).status).toBe(400);
+  for (const role of ["group-owner", "nope"]) expect((await add(admin, "/clusters/c", u, role)).status).toBe(400);
   for (const path of ["/clusters/c/projects/p", "/clusters/c/projects/p/instances/i", "/clusters/c/groups/g", "/tenants/x/kubernetes/k", "/clusters/missing", "/tenants/missing", "bad"])
     expect([path, (await add(admin, path, u, "auditor")).status]).toEqual([path, 400]);
   expect((await h.call(admin, "POST", "/api/v1/acl/entries", { path: "/", subject: { type: "user", id: crypto.randomUUID() }, role: "auditor", propagate: true })).status).toBe(400);
@@ -186,4 +188,73 @@ test("No access on / makes an administrator no longer count: the last effective 
   expect((await add(admin, "/", b, "no-access")).status).toBe(201);
   const r = await h.call(admin, "PATCH", `/api/v1/users/${admin.id}`, { platformRole: "operator" });
   expect([r.status, r.body.error?.code]).toEqual([409, "last_admin"]);
+});
+
+// Permissions phase 2: project, instance and Kubernetes paths; the User role.
+const instance = (name: string, project = "acme") => h.db.insert(instances).values({ clusterId: c, project, name, type: "container", status: "Running", search: name });
+
+test("a tenant admin gives User on their tenant and Operator on one of its instances", async () => {
+  const acme = await h.tenant("acme");
+  await h.db.insert(placements).values({ tenantId: acme.id, clusterId: c, project: "acme" });
+  await instance("web");
+  const ta = await h.user("ta@x.test", { tenants: { [acme.id]: "admin" } });
+  const u = await h.user("u@x.test");
+  expect((await add(ta, "/tenants/acme", u, "user")).status).toBe(201);
+  expect((await add(ta, "/clusters/c/projects/acme/instances/web", u, "operator")).status).toBe(201);
+  expect((await add(ta, "/clusters/c/projects/acme", u, "auditor")).status).toBe(201);
+  // Not their project.
+  await instance("other", "default");
+  expect((await add(ta, "/clusters/c/projects/default/instances/other", u, "operator")).status).toBe(404);
+});
+
+test("project, instance and Kubernetes paths must exist", async () => {
+  const acme = await h.tenant("acme");
+  await h.db.insert(placements).values({ tenantId: acme.id, clusterId: c, project: "acme" });
+  const u = await h.user("u@x.test");
+  expect((await add(admin, "/clusters/c/projects/acme", u, "auditor")).status).toBe(201);
+  for (const path of ["/clusters/c/projects/nope", "/clusters/c/projects/acme/instances/nope", "/tenants/acme/kubernetes/nope"]) expect([path, (await add(admin, path, u, "auditor")).status]).toEqual([path, 400]);
+});
+
+test("group paths and Group owner are still refused", async () => {
+  const u = await h.user("u@x.test");
+  expect((await add(admin, "/clusters/c/groups/gpu", u, "auditor")).status).toBe(400);
+  await h.tenant("acme");
+  expect((await add(admin, "/tenants/acme", u, "group-owner")).status).toBe(400);
+});
+
+test("deleting a Kubernetes cluster's row deletes its entries; a deleted instance's entries go with its delete event", async () => {
+  const acme = await h.tenant("acme");
+  const u = await h.user("u@x.test");
+  const [k] = await h.db
+    .insert(k8sClusters)
+    .values({ tenantId: acme.id, clusterId: c, name: "k1", namespace: "ic-acme", version: "v1.31.0", controlPlanes: 1, workers: 1, spec: {} as never, endpointHost: "10.0.0.1", endpointPort: 16443, createdBy: `user:${admin.id}` })
+    .returning();
+  expect((await add(admin, "/tenants/acme/kubernetes/k1", u, "auditor")).status).toBe(201);
+  await deleteK8sRow(h.db, k!.id);
+  expect(await h.db.select().from(aclEntries)).toEqual([]);
+  await h.db.insert(placements).values({ tenantId: acme.id, clusterId: c, project: "acme" });
+  await instance("web");
+  expect((await add(admin, "/clusters/c/projects/acme/instances/web", u, "auditor")).status).toBe(201);
+  await onLifecycle(h.db, c, { type: "lifecycle", metadata: { action: "instance-deleted", name: "web", project: "acme" } });
+  expect(await h.db.select().from(aclEntries)).toEqual([]);
+});
+
+test("a rename moves the instance's entries", async () => {
+  const acme = await h.tenant("acme");
+  await h.db.insert(placements).values({ tenantId: acme.id, clusterId: c, project: "acme" });
+  await instance("web");
+  const u = await h.user("u@x.test");
+  await add(admin, "/clusters/c/projects/acme/instances/web", u, "auditor");
+  await onLifecycle(h.db, c, { type: "lifecycle", metadata: { action: "instance-renamed", name: "web2", project: "acme", context: { old_name: "web" } } });
+  expect((await h.db.select().from(aclEntries)).map((e) => e.path)).toEqual(["/clusters/c/projects/acme/instances/web2"]);
+});
+
+test("an entry on an instance makes its cluster visible to the subject", async () => {
+  const acme = await h.tenant("acme");
+  await h.db.insert(placements).values({ tenantId: acme.id, clusterId: c, project: "acme" });
+  await instance("web");
+  const u = await h.user("u@x.test");
+  expect((await h.call(u, "GET", `/api/v1/clusters/${c}`)).status).toBe(404);
+  await add(admin, "/clusters/c/projects/acme/instances/web", u, "auditor");
+  expect((await h.call(u, "GET", `/api/v1/clusters/${c}`)).status).toBe(200);
 });

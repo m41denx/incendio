@@ -1,7 +1,7 @@
 import { Elysia, t } from "elysia";
-import { eq, or, sql, type SQL } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
-import { aclEntries, clusters, serviceAccounts, tenants, users } from "../db/schema.ts";
+import { aclEntries, clusters, instances, k8sClusters, placements, serviceAccounts, tenants, users } from "../db/schema.ts";
 import { subjectOf, type Acl } from "../acl/acl.ts";
 import { keepAnAdministrator } from "../acl/admins.ts";
 import { needOutrank } from "../acl/outrank.ts";
@@ -14,8 +14,9 @@ import { ApiError } from "../lib/errors.ts";
 import { requestReconcile } from "../reconcile/requests.ts";
 import { audited, created, isUuid, noContent } from "./common.ts";
 
-/** Phase 1 (plan 2026-10-17): roles and paths that need no ownership or groups. */
-const PHASE1_ROLES = new Set<RoleId>(["administrator", "operator", "cluster-owner", "unrestricted-user", "tenant-admin", "auditor", "no-access"]);
+/** Roles and paths that can be given so far: groups (Group owner, group paths) come in phase 3. */
+const GIVABLE = new Set<RoleId>(["administrator", "operator", "cluster-owner", "unrestricted-user", "user", "tenant-admin", "auditor", "no-access"]);
+const PATH_KINDS = ["root", "cluster", "tenant", "project", "instance", "kubernetes"];
 const ONLY_ADMINS = new Set<RoleId>(["administrator", "cluster-owner"]);
 const EDITED_ON: Record<Exclude<Entry["source"], "acl">, string> = { "platform-role": "users", "tenant-membership": "tenants", "service-account": "service-accounts" };
 const bad = (code: string, message: string) => new ApiError(400, code, message);
@@ -41,10 +42,41 @@ export function aclRoutes({ db, acl }: { db: Db; acl: Acl }) {
   };
   /** The cluster ids whose Incus grants an entry on `path` can change ([] for none). */
   const affected = async (path: string): Promise<"all" | string[]> => {
+    const k8s = /^\/tenants\/([^/]+)\/kubernetes\/([^/]+)$/.exec(path);
+    if (k8s) {
+      const rows = await db.select({ id: k8sClusters.clusterId }).from(k8sClusters).innerJoin(tenants, eq(tenants.id, k8sClusters.tenantId)).where(and(eq(tenants.slug, k8s[1]!), eq(k8sClusters.name, k8s[2]!)));
+      return rows.map((r) => r.id);
+    }
     if (path === "/" || path.startsWith("/tenants/")) return "all";
-    const name = /^\/clusters\/([^/]+)$/.exec(path)?.[1];
+    const name = /^\/clusters\/([^/]+)/.exec(path)?.[1];
     if (!name) return [];
     return (await db.select({ id: clusters.id }).from(clusters).where(eq(clusters.name, name))).map((c) => c.id);
+  };
+  /** Whether the object a path names exists (projects: placed or in the inventory). */
+  const objectExists = async (path: NonNullable<ReturnType<typeof parsePath>>): Promise<boolean> => {
+    const clusterId = async (name: string) => (await db.select({ id: clusters.id }).from(clusters).where(eq(clusters.name, name)))[0]?.id;
+    switch (path.kind) {
+      case "root":
+        return true;
+      case "cluster":
+        return !!(await clusterId(path.cluster));
+      case "tenant":
+        return (await db.select({ id: tenants.id }).from(tenants).where(eq(tenants.slug, path.tenant))).length > 0;
+      case "project": {
+        const id = await clusterId(path.cluster);
+        if (!id) return false;
+        const placed = await db.select({ p: placements.project }).from(placements).where(and(eq(placements.clusterId, id), eq(placements.project, path.project)));
+        return placed.length > 0 || (await db.select({ n: instances.name }).from(instances).where(and(eq(instances.clusterId, id), eq(instances.project, path.project))).limit(1)).length > 0;
+      }
+      case "instance": {
+        const id = await clusterId(path.cluster);
+        return !!id && (await db.select({ n: instances.name }).from(instances).where(and(eq(instances.clusterId, id), eq(instances.project, path.project), eq(instances.name, path.instance)))).length > 0;
+      }
+      case "kubernetes":
+        return (await db.select({ id: k8sClusters.id }).from(k8sClusters).innerJoin(tenants, eq(tenants.id, k8sClusters.tenantId)).where(and(eq(tenants.slug, path.tenant), eq(k8sClusters.name, path.name)))).length > 0;
+      default:
+        return false;
+    }
   };
   const isAdministrator = async (p: Principal) => (await acl.explain(subjectOf(p), "/")).decidedBy.some((e) => e.role === "administrator");
   /** An entry may change only with acl.manage on its path; administrator and cluster owner are for administrators to give. */
@@ -82,15 +114,14 @@ export function aclRoutes({ db, acl }: { db: Db; acl: Acl }) {
         const p = authed(principal);
         const res = await audited(db, { principal: p, request }, "acl.entry.create", (r) => r && { type: "acl_entry", id: r.id }, async () => {
           const path = parsePath(body.path);
-          if (!path || !["root", "cluster", "tenant"].includes(path.kind)) throw bad("invalid_path", "Entries go on /, a cluster or a tenant for now");
-          if (!isRoleId(body.role) || !PHASE1_ROLES.has(body.role)) throw bad("invalid_role", "Not a role that can be given yet");
+          if (!path || !PATH_KINDS.includes(path.kind)) throw bad("invalid_path", "Entries go on /, a cluster, a project, an instance, a tenant or a Kubernetes cluster for now");
+          if (!isRoleId(body.role) || !GIVABLE.has(body.role)) throw bad("invalid_role", "Not a role that can be given yet");
           // On a cluster or / it would reach every tenant's projects (spec: with groups, phase 3).
-          if (body.role === "unrestricted-user" && path.kind !== "tenant") throw bad("invalid_role", "Unrestricted user goes on a tenant for now");
+          if (body.role === "unrestricted-user" && (path.kind === "root" || path.kind === "cluster")) throw bad("invalid_role", "Unrestricted user goes on a tenant or a project for now");
           const role = body.role;
           await needManage(p, body.path, role);
           await needOutrank(acl, p, body.path, [`${body.subject.type}:${body.subject.id}`]);
-          if (path.kind === "cluster" && !(await db.select({ id: clusters.id }).from(clusters).where(eq(clusters.name, path.cluster))).length) throw bad("invalid_path", "No such cluster");
-          if (path.kind === "tenant" && !(await db.select({ id: tenants.id }).from(tenants).where(eq(tenants.slug, path.tenant))).length) throw bad("invalid_path", "No such tenant");
+          if (!(await objectExists(path))) throw bad("invalid_path", "Nothing there: no such cluster, project, instance, tenant or Kubernetes cluster");
           const { type, id } = body.subject;
           const exists = isUuid(id) && (type === "user" ? await db.select({ id: users.id }).from(users).where(eq(users.id, id)) : await db.select({ id: serviceAccounts.id }).from(serviceAccounts).where(eq(serviceAccounts.id, id))).length;
           if (!exists) throw bad("invalid_subject", "No such user or service account");
@@ -150,4 +181,4 @@ export function aclRoutes({ db, acl }: { db: Db; acl: Acl }) {
 }
 
 /** Entries under a path that is going away (a cluster or tenant deleted): a new one of the same name starts clean. */
-export const entriesUnder = (path: string): SQL => or(eq(aclEntries.path, path), sql`starts_with(${aclEntries.path}, ${`${path}/`})`)!;
+export { entriesUnder } from "../acl/entries.ts";
