@@ -42,7 +42,8 @@ export interface GrantFacts {
 export const aclGroup = (relation: string, object: string) => `${PREFIX}acl-${createHash("sha256").update(`${relation}|${object}`).digest("hex").slice(0, 12)}`;
 
 const RANK: Record<string, number> = { "": 0, viewer: 1, operator: 2, admin: 3 };
-const SERVER: Partial<Record<RoleId, string>> = { administrator: "admin", "cluster-owner": "admin", operator: "operator", "unrestricted-user": "operator", auditor: "viewer" };
+// Never Unrestricted user: Incus's server operator is operator on every project, the unrestricted default included.
+const SERVER: Partial<Record<RoleId, string>> = { administrator: "admin", "cluster-owner": "admin", operator: "operator", auditor: "viewer" };
 // Never project admin (see PROJECT_RELATION).
 const PROJECT: Partial<Record<RoleId, string>> = { administrator: "operator", "cluster-owner": "operator", operator: "operator", "unrestricted-user": "operator", "tenant-admin": "operator", auditor: "viewer" };
 /** What one role gives in Incus, on the server or on a project ("" for nothing); narrowing aside (see explicitRelations). */
@@ -67,8 +68,10 @@ export function explicitRelations(cluster: string, projects: string[], decide: (
     return { p, relation: below ? strongest(PROJECT, d.roles) : base };
   });
   const narrowed = per.some((x) => RANK[x.relation]! < RANK[base]!);
-  const out = narrowed || !server ? [] : [{ relation: server, object: "server:incus" }];
-  for (const x of per) if (x.relation && (narrowed ? true : RANK[x.relation]! > RANK[base]!)) out.push({ relation: x.relation, object: `project:${x.p}` });
+  // Without a server relation (none, or narrowed away) every project's relation is its own grant.
+  const whole = !narrowed && !!server;
+  const out = whole ? [{ relation: server, object: "server:incus" }] : [];
+  for (const x of per) if (x.relation && (!whole || RANK[x.relation]! > RANK[base]!)) out.push({ relation: x.relation, object: `project:${x.p}` });
   return out;
 }
 

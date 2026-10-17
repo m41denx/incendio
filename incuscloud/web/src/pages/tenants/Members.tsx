@@ -22,6 +22,8 @@ const Members: FC<Props> = ({ tenant, canManage, ownerPower }) => {
   const key = ["tenants", tenant.id, "members"];
   const members = useQuery({ queryKey: key, queryFn: () => request<Member[]>("GET", `/api/v1/tenants/${tenant.id}/members`) });
   const [error, setError] = useState<unknown>(null);
+  /** Set when a platform role-holder was given a tenant role: it replaces theirs on this tenant. */
+  const [replaced, setReplaced] = useState<{ email: string; platformRole: string; role: TenantRole } | null>(null);
   const [adding, setAdding] = useState(false);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<TenantRole>("member");
@@ -40,6 +42,15 @@ const Members: FC<Props> = ({ tenant, canManage, ownerPower }) => {
   return (
     <Section title="Members" id="tenant-members">
       {error ? <ErrorMessage error={error} title="Not changed" /> : null}
+      {replaced ? (
+        <div className="p-notification--caution">
+          <div className="p-notification__content">
+            <p className="p-notification__message">
+              {replaced.email} is a platform {replaced.platformRole}. On {tenant.slug} their tenant role ({roleName(replaced.role)}) is what counts: the most specific permission wins.
+            </p>
+          </div>
+        </div>
+      ) : null}
       <Loaded query={members}>
         {(list) => (
           <MainTable
@@ -104,7 +115,8 @@ const Members: FC<Props> = ({ tenant, canManage, ownerPower }) => {
             setRole("member");
           }}
           onSubmit={async () => {
-            await request("POST", `/api/v1/tenants/${tenant.id}/members`, { email: email.trim(), role });
+            const r = await request<{ replacesPlatformRole?: string | null }>("POST", `/api/v1/tenants/${tenant.id}/members`, { email: email.trim(), role });
+            setReplaced(r.replacesPlatformRole ? { email: email.trim(), platformRole: r.replacesPlatformRole, role } : null);
             await refresh();
           }}
           submitDisabled={!email.trim()}

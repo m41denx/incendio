@@ -94,3 +94,8 @@ test("explicitRelations: no access beside another role at the same level gives n
   const d = (p: string) => (p === "/clusters/c" ? { roles: ["operator", "no-access"] as RoleId[], at: "/clusters/c" } : { roles: [] as RoleId[] });
   expect(explicitRelations("c", [], d)).toEqual([]);
 });
+
+test("explicitRelations: Unrestricted user never maps to a server relation", () => {
+  const d = (p: string) => (p === "/clusters/c" ? { roles: ["unrestricted-user"] as RoleId[], at: "/clusters/c" } : { roles: ["unrestricted-user"] as RoleId[], at: "/clusters/c" });
+  expect(explicitRelations("c", ["a"], d)).toEqual([{ relation: "operator", object: "project:a" }]);
+});

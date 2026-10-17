@@ -384,8 +384,9 @@ phase 1 is in.
   Administrator, Operator, Cluster owner, Unrestricted user, Tenant admin,
   Auditor and No access can be given now; User and Group owner come with
   ownership and groups.
-- **Paths:** `/` (everything), `/platform`, `/clusters/<name>` and
-  `/tenants/<slug>`. A tenant entry applies to the tenant's projects on
+- **Paths:** `/` (everything), `/clusters/<name>` and `/tenants/<slug>`.
+  Unrestricted user goes on tenants only for now: on a cluster it would
+  reach every tenant's projects there. A tenant entry applies to the tenant's projects on
   every cluster, between the project and the cluster.
 - **Resolution** (Proxmox's): the most specific path with an entry for the
   subject decides. Entries further up count only if they propagate.
@@ -406,7 +407,12 @@ phase 1 is in.
   relation is replaced by project relations on every other project there.
   Subjects without explicit entries keep exactly today's grants.
 - **Rules.** Changing an entry needs `acl.manage` on its path; only
-  administrators give Administrator or Cluster owner. Someone must stay an
+  administrators give Administrator or Cluster owner (Cluster owner is root
+  on that cluster's hosts). A change never reaches someone above the caller:
+  nobody who holds, there or above, a privilege the caller lacks, nor a
+  tenant's owner unless the caller is an owner or a user administrator, nor
+  an entry made by such a person. So a tenant admin can narrow its members
+  but not platform staff, and cannot add platform staff as members either. Someone must stay an
   administrator (a platform admin or an Administrator entry on `/`).
   Deleting a cluster, tenant, user or service account deletes its entries.
 - **Console.** Platform › Permissions (for `acl.view` on `/`): Entries

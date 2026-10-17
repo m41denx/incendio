@@ -134,3 +134,12 @@ test("a tenant's placements: where it runs, for anyone who can see the tenant", 
     fake.stop();
   }
 });
+
+test("tenant admins cannot make platform staff members (that would narrow them); an admin adding themself is told", async () => {
+  const t = await h.tenant("acme");
+  const ta = await h.user("ta@example.com", { tenants: { [t.id]: "admin" } });
+  const root = await h.user("root2@example.com", { platformRole: "admin" });
+  expect((await h.call(ta, "POST", `/api/v1/tenants/${t.id}/members`, { email: "root2@example.com", role: "viewer" })).status).toBe(403);
+  const r = await h.call(root, "POST", `/api/v1/tenants/${t.id}/members`, { email: "root2@example.com", role: "viewer" });
+  expect([r.status, r.body.replacesPlatformRole]).toEqual([200, "admin"]);
+});

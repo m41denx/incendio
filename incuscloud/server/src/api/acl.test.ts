@@ -149,3 +149,41 @@ test("/me carries the caller's privileges on /", async () => {
   expect(r).toContain("acl.manage");
   expect(r).toContain("platform.users");
 });
+
+// Final review fixes.
+test("a tenant admin cannot narrow platform staff or the tenant's owner, only people below them", async () => {
+  const acme = await h.tenant("acme");
+  const owner = await h.user("own@x.test", { tenants: { [acme.id]: "owner" } });
+  const ta = await h.user("ta@x.test", { tenants: { [acme.id]: "admin" } });
+  const member = await h.user("m@x.test", { tenants: { [acme.id]: "member" } });
+  const op = await h.user("op@x.test", { platformRole: "operator" });
+  for (const victim of [admin, op, owner]) expect([victim.id, (await add(ta, "/tenants/acme", victim, "no-access")).status]).toEqual([victim.id, 403]);
+  expect((await add(ta, "/tenants/acme", member, "auditor")).status).toBe(201);
+  // An owner may, and so may administrators.
+  expect((await add(owner, "/tenants/acme", ta, "auditor")).status).toBe(201);
+});
+
+test("a tenant admin cannot remove an entry made by someone above them", async () => {
+  const acme = await h.tenant("acme");
+  const ta = await h.user("ta@x.test", { tenants: { [acme.id]: "admin" } });
+  const member = await h.user("m@x.test", { tenants: { [acme.id]: "member" } });
+  const e = await add(admin, "/tenants/acme", member, "no-access");
+  expect((await h.call(ta, "DELETE", `/api/v1/acl/entries/${e.body.id}`)).status).toBe(403);
+  const own = await add(ta, "/tenants/acme", member, "auditor");
+  expect((await h.call(ta, "DELETE", `/api/v1/acl/entries/${own.body.id}`)).status).toBe(204);
+});
+
+test("Unrestricted user goes on tenants only for now, and /platform takes no entries", async () => {
+  const u = await h.user("u@x.test");
+  await h.tenant("acme");
+  for (const path of ["/", "/clusters/c"]) expect([path, (await add(admin, path, u, "unrestricted-user")).status]).toEqual([path, 400]);
+  expect((await add(admin, "/tenants/acme", u, "unrestricted-user")).status).toBe(201);
+  expect((await add(admin, "/platform", u, "auditor")).status).toBe(400);
+});
+
+test("No access on / makes an administrator no longer count: the last effective one cannot step down", async () => {
+  const b = await h.user("b@x.test", { platformRole: "admin" });
+  expect((await add(admin, "/", b, "no-access")).status).toBe(201);
+  const r = await h.call(admin, "PATCH", `/api/v1/users/${admin.id}`, { platformRole: "operator" });
+  expect([r.status, r.body.error?.code]).toEqual([409, "last_admin"]);
+});

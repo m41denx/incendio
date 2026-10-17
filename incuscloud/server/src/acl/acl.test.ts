@@ -117,3 +117,22 @@ test("entries() lists explicit and virtual entries; deleting a user cascades its
   await db.delete(users).where(eq(users.id, u.id));
   expect(await db.select().from(aclEntries)).toEqual([]);
 });
+
+test("a failed load is not cached: the next call loads again", async () => {
+  const db = await testDb();
+  let fail = true;
+  const flaky = new Proxy(db, {
+    get(target, prop, receiver) {
+      if (prop === "select" && fail) {
+        fail = false;
+        return () => {
+          throw new Error("database blip");
+        };
+      }
+      return Reflect.get(target, prop, receiver);
+    },
+  });
+  const acl = new Acl(flaky as typeof db);
+  await expect(acl.entries()).rejects.toThrow("database blip");
+  expect(await acl.entries()).toEqual([]);
+});

@@ -4,6 +4,7 @@ import type { Db } from "../db/index.ts";
 import { aclEntries, clusters, serviceAccounts, tenants, users } from "../db/schema.ts";
 import { subjectOf, type Acl } from "../acl/acl.ts";
 import { keepAnAdministrator } from "../acl/admins.ts";
+import { needOutrank } from "../acl/outrank.ts";
 import { ROLES, isRoleId, type RoleId } from "../acl/catalog.ts";
 import { parsePath } from "../acl/paths.ts";
 import type { Entry } from "../acl/resolve.ts";
@@ -81,10 +82,13 @@ export function aclRoutes({ db, acl }: { db: Db; acl: Acl }) {
         const p = authed(principal);
         const res = await audited(db, { principal: p, request }, "acl.entry.create", (r) => r && { type: "acl_entry", id: r.id }, async () => {
           const path = parsePath(body.path);
-          if (!path || !["root", "platform", "cluster", "tenant"].includes(path.kind)) throw bad("invalid_path", "Entries go on /, /platform, a cluster or a tenant for now");
+          if (!path || !["root", "cluster", "tenant"].includes(path.kind)) throw bad("invalid_path", "Entries go on /, a cluster or a tenant for now");
           if (!isRoleId(body.role) || !PHASE1_ROLES.has(body.role)) throw bad("invalid_role", "Not a role that can be given yet");
+          // On a cluster or / it would reach every tenant's projects (spec: with groups, phase 3).
+          if (body.role === "unrestricted-user" && path.kind !== "tenant") throw bad("invalid_role", "Unrestricted user goes on a tenant for now");
           const role = body.role;
           await needManage(p, body.path, role);
+          await needOutrank(acl, p, body.path, [`${body.subject.type}:${body.subject.id}`]);
           if (path.kind === "cluster" && !(await db.select({ id: clusters.id }).from(clusters).where(eq(clusters.name, path.cluster))).length) throw bad("invalid_path", "No such cluster");
           if (path.kind === "tenant" && !(await db.select({ id: tenants.id }).from(tenants).where(eq(tenants.slug, path.tenant))).length) throw bad("invalid_path", "No such tenant");
           const { type, id } = body.subject;
@@ -120,6 +124,8 @@ export function aclRoutes({ db, acl }: { db: Db; acl: Acl }) {
         const [row] = isUuid(params.id) ? await db.select().from(aclEntries).where(eq(aclEntries.id, params.id)) : [];
         if (!row || !isRoleId(row.role)) throw notFound("No such entry");
         await needManage(p, row.path, row.role);
+        // Nor undo what someone above the caller decided.
+        await needOutrank(acl, p, row.path, [row.userId ? `user:${row.userId}` : `service:${row.serviceAccountId}`, ...(row.createdBy ? [`user:${row.createdBy}`] : [])]);
         await keepAnAdministrator(db, (h) => h.via === "entry" && h.entryId === row.id);
         await db.delete(aclEntries).where(eq(aclEntries.id, row.id));
         acl.invalidate();

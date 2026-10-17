@@ -29,6 +29,7 @@ const AddEntryModal: FC<{ onClose: () => void; fixedPath?: string }> = ({
   const [role, setRole] = useState("");
   const [propagate, setPropagate] = useState(true);
 
+  const onTenant = fixedPath ? fixedPath.startsWith("/tenants/") : kind === "tenant";
   const path =
     fixedPath ??
     (kind === "root"
@@ -65,6 +66,7 @@ const AddEntryModal: FC<{ onClose: () => void; fixedPath?: string }> = ({
             onChange={(e) => {
               setKind(e.target.value as Kind);
               setObject("");
+              if (role === "unrestricted-user") setRole("");
             }}
             options={[
               { value: "root", label: "Everything" },
@@ -112,12 +114,21 @@ const AddEntryModal: FC<{ onClose: () => void; fixedPath?: string }> = ({
         onChange={(e) => setRole(e.target.value)}
         options={[
           ...choose("Choose a role"),
+          // Unrestricted user on a cluster or / would reach every tenant's projects: tenants only for now.
           ...roles
-            .filter((r) => GIVABLE.includes(r.id))
+            .filter((r) => GIVABLE.includes(r.id) && (r.id !== "unrestricted-user" || onTenant))
             .map((r) => ({ value: r.id, label: r.name })),
         ]}
         help="Administrator and Cluster owner can only be given by administrators."
       />
+      {role === "cluster-owner" ? (
+        <p className="p-form-help-text is-caution">
+          Cluster owner is root on that cluster's hosts (Incus server admin). Give it only to people who already run those machines, never to a tenant.
+        </p>
+      ) : null}
+      {!fixedPath && kind === "cluster" ? (
+        <p className="p-form-help-text">Tenant roles still apply on the tenant's projects on this cluster: an entry here does not limit a tenant's members there.</p>
+      ) : null}
       <CheckboxInput
         label="Also applies below this path"
         checked={propagate}

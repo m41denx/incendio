@@ -134,3 +134,13 @@ test("owners delete; a placed tenant's 409 is explained", async () => {
   await userEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Delete tenant" }));
   expect(await screen.findByText("Remove this tenant from its clusters first")).toBeInTheDocument();
 });
+
+test("adding a platform role-holder warns that the tenant role replaces it on this tenant", async () => {
+  detail(memberOf("owner"), { "POST /api/v1/tenants/t-1/members": [200, { userId: "u-3", role: "viewer", replacesPlatformRole: "admin" }] });
+  renderDetail();
+  await userEvent.click(await screen.findByRole("button", { name: "Add member" }));
+  await userEvent.type(screen.getByLabelText("Email"), "root@example.com");
+  await userEvent.selectOptions(within(screen.getByRole("dialog")).getByLabelText("Role"), "viewer");
+  await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Add" }));
+  expect(await screen.findByText(/root@example.com is a platform admin/)).toBeInTheDocument();
+});

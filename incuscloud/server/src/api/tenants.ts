@@ -1,8 +1,10 @@
 import { Elysia, t } from "elysia";
 import { and, eq } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
-import { aclEntries, clusters, placements, serviceAccounts, tenantMembers, tenants, users } from "../db/schema.ts";
+import { aclEntries, clusters, placements, platformRoles, serviceAccounts, tenantMembers, tenants, users } from "../db/schema.ts";
 import { entriesUnder } from "./acl.ts";
+import type { Acl } from "../acl/acl.ts";
+import { needOutrank } from "../acl/outrank.ts";
 import type { Authz } from "../authz/platform.ts";
 import { tuples } from "../authz/sync.ts";
 import { can, forbidden, needVisible, notFound, platformCan } from "../authz/guards.ts";
@@ -23,7 +25,7 @@ type TenantRow = typeof tenants.$inferSelect;
 const view = (x: TenantRow) => ({ id: x.id, slug: x.slug, name: x.name, quotas: x.quotas, createdAt: x.createdAt });
 
 /** Tenants and their members. */
-export function tenantsRoutes({ db, authz, hydra }: { db: Db; authz: Authz; hydra: HydraAdminApi }) {
+export function tenantsRoutes({ db, authz, acl, hydra }: { db: Db; authz: Authz; acl: Acl; hydra: HydraAdminApi }) {
   const load = async (p: Principal, id: string, relation: string) => {
     uuidParam(id);
     await needVisible(authz, p, "viewer", relation, `tenant:${id}`);
@@ -41,16 +43,22 @@ export function tenantsRoutes({ db, authz, hydra }: { db: Db; authz: Authz; hydr
   const setMember = async (p: Principal, tenantId: string, userId: string, role: string) => {
     const [user] = await db.select().from(users).where(eq(users.id, userId));
     if (!user) throw notFound("No such user");
+    const [tenant] = await db.select({ slug: tenants.slug }).from(tenants).where(eq(tenants.id, tenantId));
     const [cur] = await db.select().from(tenantMembers).where(and(eq(tenantMembers.tenantId, tenantId), eq(tenantMembers.userId, userId)));
     if (role === "owner" || cur?.role === "owner") await needOwnerPower(p, tenantId);
+    // A tenant role is the most specific entry there: it would narrow platform staff (permissions).
+    await needOutrank(acl, p, `/tenants/${tenant!.slug}`, [`user:${userId}`]);
+    // Whoever may still do it is told that the tenant role replaces a platform role on this tenant.
+    const [platform] = await db.select({ role: platformRoles.role }).from(platformRoles).where(eq(platformRoles.userId, userId));
+    const replacesPlatformRole = platform?.role ?? null;
     if (cur?.role === "owner" && role !== "owner" && (await ownerCount(tenantId)) <= 1) throw new ApiError(409, "last_owner", "A tenant needs at least one owner");
-    if (cur?.role === role) return { userId, role };
+    if (cur?.role === role) return { userId, role, replacesPlatformRole };
     await db.transaction(async (tx) => {
       await tx.insert(tenantMembers).values({ tenantId, userId, role }).onConflictDoUpdate({ target: [tenantMembers.tenantId, tenantMembers.userId], set: { role } });
       await authz.write([tuples.member(tenantId, userId, role)], cur ? [tuples.member(tenantId, userId, cur.role)] : []);
     });
     await requestReconcile(db, { tenant: tenantId });
-    return { userId, role };
+    return { userId, role, replacesPlatformRole };
   };
 
   return new Elysia({ name: "tenants" })
@@ -167,9 +175,10 @@ export function tenantsRoutes({ db, authz, hydra }: { db: Db; authz: Authz; hydr
     .delete("/api/v1/tenants/:id/members/:userId", async ({ principal, request, params, set }) => {
       const p = authed(principal);
       await audited(db, { principal: p, request }, "tenant.member.remove", { type: "tenant", id: params.id }, async () => {
-        await load(p, params.id, "admin");
+        const tenant = await load(p, params.id, "admin");
         const [cur] = await db.select().from(tenantMembers).where(and(eq(tenantMembers.tenantId, params.id), eq(tenantMembers.userId, uuidParam(params.userId))));
         if (!cur) throw notFound("Not a member");
+        await needOutrank(acl, p, `/tenants/${tenant.slug}`, [`user:${cur.userId}`]);
         if (cur.role === "owner") {
           await needOwnerPower(p, params.id);
           if ((await ownerCount(params.id)) <= 1) throw new ApiError(409, "last_owner", "A tenant needs at least one owner");

@@ -246,3 +246,18 @@ test("the sidebar has no Permissions without acl.view on /", async () => {
   renderInFrame(<Shell />);
   expect(await links()).not.toContain("Permissions");
 });
+
+test("Unrestricted user is offered on tenants only; Cluster owner warns that it is root on the hosts", async () => {
+  const many: AclRole[] = [...roles, { id: "unrestricted-user", name: "Unrestricted user", privileges: [] }, { id: "cluster-owner", name: "Cluster owner", privileges: [] }];
+  mockApi({ ...base(), "GET /api/v1/acl/roles": [200, many] });
+  at();
+  await userEvent.click(await screen.findByRole("button", { name: "Add entry" }));
+  const dialog = await screen.findByRole("dialog");
+  await userEvent.selectOptions(within(dialog).getByLabelText("Applies to"), "cluster");
+  expect(within(within(dialog).getByLabelText("Role")).queryByRole("option", { name: "Unrestricted user" })).toBeNull();
+  expect(within(dialog).getByText(/tenant roles still apply on the tenant's projects/i)).toBeInTheDocument();
+  await userEvent.selectOptions(within(dialog).getByLabelText("Role"), "cluster-owner");
+  expect(within(dialog).getByText(/root on that cluster's hosts/i)).toBeInTheDocument();
+  await userEvent.selectOptions(within(dialog).getByLabelText("Applies to"), "tenant");
+  expect(within(within(dialog).getByLabelText("Role")).getByRole("option", { name: "Unrestricted user" })).toBeInTheDocument();
+});

@@ -60,10 +60,15 @@ export class Acl {
   }
 
   private async snapshot(): Promise<Snapshot> {
-    const cur = this.snap && (await this.snap);
+    // A failed load is not kept: the next call loads again.
+    const cur = this.snap && (await this.snap.catch(() => undefined));
     if (cur && this.now() - cur.at < this.ttlMs) return cur;
-    this.snap = this.load();
-    return this.snap;
+    const next = this.load();
+    this.snap = next;
+    next.catch(() => {
+      if (this.snap === next) this.snap = undefined;
+    });
+    return next;
   }
 
   private async load(): Promise<Snapshot> {
@@ -123,6 +128,16 @@ export class Acl {
 
   async can(p: Pick<Principal, "kind" | "id">, privilege: Privilege, path: string): Promise<boolean> {
     return (await this.privileges(p, path)).has(privilege);
+  }
+
+  /** What a subject holds at `path` or on any path above it: what a change at `path` must not reach past. */
+  async reach(subject: string, path: string): Promise<Set<Privilege>> {
+    const s = await this.snapshot();
+    const parsed = parsePath(path);
+    const out = new Set<Privilege>();
+    if (!parsed) return out;
+    for (const x of chain(parsed, (c, p) => s.tenantOf.get(`${c}/${p}`))) for (const p of this.decide(s, subject, x).privileges) out.add(p);
+    return out;
   }
 
   async explain(subject: string, path: string): Promise<{ privileges: Privilege[]; decidedBy: Entry[] }> {
