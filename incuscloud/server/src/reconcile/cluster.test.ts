@@ -1,13 +1,13 @@
-import { afterAll, beforeAll, beforeEach, expect, test } from "bun:test";
+import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
 import { testDb } from "../db/test-db.ts";
-import { clusters, placements, platformRoles, serviceAccounts, tenantMembers, tenants, users } from "../db/schema.ts";
+import { aclEntries, clusters, placements, platformRoles, serviceAccounts, tenantMembers, tenants, users } from "../db/schema.ts";
 import type { Db } from "../db/index.ts";
 import { FakeIncus } from "../clusters/fake-incus.ts";
 import { enrollCluster } from "../clusters/enroll.ts";
 import { FakeStores } from "./fake-cluster-store.ts";
 import { reconcileCluster, type ReconcileDeps } from "./cluster.ts";
-import { groupName } from "./grants.ts";
+import { aclGroup, groupName } from "./grants.ts";
 
 let fake: FakeIncus;
 let db: Db;
@@ -184,4 +184,49 @@ test("a quota removed unsets its limit", async () => {
   await db.update(tenants).set({ quotas: {} }).where(eq(tenants.id, acme.id));
   await reconcileCluster(deps, clusterId);
   expect(fake.projects.get("acme")!.config["limits.instances"]).toBeUndefined();
+});
+
+describe("explicit permission entries", () => {
+  const carol = async () => (await db.insert(users).values({ email: "carol@example.com", name: "Carol" }).returning())[0]!.id;
+  const entry = (userId: string, path: string, role: string) => db.insert(aclEntries).values({ path, role, userId });
+  const acl = (relation: string, object: string) => `group:${aclGroup(relation, object)}`;
+
+  test("today's roles alone write no permission groups", async () => {
+    await reconcileCluster(deps, clusterId);
+    expect(stores.lines(storeName()).filter((l) => l.includes("incuscloud-acl-"))).toEqual([]);
+  });
+
+  test("an operator entry on /clusters/c1 gives server operator there, through an incuscloud-acl group", async () => {
+    const c = await carol();
+    await entry(c, "/clusters/c1", "operator");
+    await reconcileCluster(deps, clusterId);
+    expect(stores.lines(storeName())).toEqual(expect.arrayContaining([`user:${c} member ${acl("operator", "server:incus")}`, `${acl("operator", "server:incus")}#member operator server:incus`]));
+    // An entry on another cluster gives nothing here.
+    await db.delete(aclEntries);
+    await entry(c, "/clusters/other", "operator");
+    await reconcileCluster(deps, clusterId);
+    expect(stores.lines(storeName()).filter((l) => l.startsWith(`user:${c} `))).toEqual([]);
+  });
+
+  test("an auditor entry on /tenants/acme gives project viewer on acme's project", async () => {
+    const c = await carol();
+    await entry(c, "/tenants/acme", "auditor");
+    await reconcileCluster(deps, clusterId);
+    expect(stores.lines(storeName()).filter((l) => l.startsWith(`user:${c} `))).toEqual([`user:${c} member ${acl("viewer", "project:acme")}`]);
+    expect(stores.lines(storeName())).toContain(`${acl("viewer", "project:acme")}#member viewer project:acme`);
+  });
+
+  test("a platform operator with no-access on /tenants/acme gets operator on every other project, and no server relation", async () => {
+    const dave = (await db.insert(users).values({ email: "dave@example.com", name: "Dave" }).returning())[0]!.id;
+    await db.insert(platformRoles).values({ userId: dave, role: "operator" });
+    await entry(dave, "/tenants/acme", "no-access");
+    await reconcileCluster(deps, clusterId);
+    expect(stores.lines(storeName()).filter((l) => l.startsWith(`user:${dave} `))).toEqual([`user:${dave} member ${acl("operator", "project:default")}`]);
+  });
+
+  test("a tenant member's own entry on the cluster replaces its tenant group there, keeping its project rights", async () => {
+    await entry(bob, "/clusters/c1", "auditor");
+    await reconcileCluster(deps, clusterId);
+    expect(stores.lines(storeName()).filter((l) => l.startsWith(`user:${bob} `)).sort()).toEqual([`user:${bob} member ${acl("operator", "project:acme")}`, `user:${bob} member ${acl("viewer", "server:incus")}`].sort());
+  });
 });

@@ -1,5 +1,6 @@
-import { expect, test } from "bun:test";
-import { desiredGrants, diffTuples, groupName, isManaged } from "./grants.ts";
+import { describe, expect, test } from "bun:test";
+import { aclGroup, desiredGrants, diffTuples, explicitRelations, groupName, isManaged } from "./grants.ts";
+import type { RoleId } from "../acl/catalog.ts";
 
 const T1 = "11111111-1111-1111-1111-111111111111";
 const T2 = "22222222-2222-2222-2222-222222222222";
@@ -65,4 +66,26 @@ test("diff writes what is missing and deletes only managed extras", () => {
 test("no tenant role can edit its project (restricted, limits): never project admin", () => {
   const g = desiredGrants({ placements: [{ tenantId: T1, project: "acme" }], members: [], platform: [] });
   expect(g.filter((t) => t.object === "project:acme").map((t) => t.relation)).not.toContain("admin");
+});
+
+describe("explicitRelations", () => {
+  const at = (m: Record<string, [RoleId[], string]>) => (p: string) => (m[p] ? { roles: m[p]![0], at: m[p]![1] } : { roles: [] as RoleId[] });
+  test("an administrator on / is server admin and nothing more, though projects map to operator", () => {
+    const d = at({ "/clusters/c": [["administrator"], "/"], "/clusters/c/projects/a": [["administrator"], "/"] });
+    expect(explicitRelations("c", ["a"], d)).toEqual([{ relation: "admin", object: "server:incus" }]);
+  });
+  test("a project entry giving more than the cluster adds a project relation", () => {
+    const d = at({ "/clusters/c": [["auditor"], "/clusters/c"], "/clusters/c/projects/a": [["operator"], "/clusters/c/projects/a"], "/clusters/c/projects/b": [["auditor"], "/clusters/c"] });
+    expect(explicitRelations("c", ["a", "b"], d)).toEqual([{ relation: "viewer", object: "server:incus" }, { relation: "operator", object: "project:a" }]);
+  });
+  test("a project narrowed below the cluster replaces the server relation by the other projects'", () => {
+    const d = at({ "/clusters/c": [["cluster-owner"], "/clusters/c"], "/clusters/c/projects/a": [["auditor"], "/tenants/t"], "/clusters/c/projects/b": [["cluster-owner"], "/clusters/c"] });
+    expect(explicitRelations("c", ["a", "b"], d)).toEqual([{ relation: "viewer", object: "project:a" }, { relation: "operator", object: "project:b" }]);
+  });
+  test("acl groups are stable, distinct and IncusCloud's", () => {
+    expect(aclGroup("viewer", "project:a")).toMatch(/^incuscloud-acl-[0-9a-f]{12}$/);
+    expect(aclGroup("viewer", "project:a")).toBe(aclGroup("viewer", "project:a"));
+    expect(aclGroup("viewer", "project:a")).not.toBe(aclGroup("operator", "project:a"));
+    expect(isManaged({ user: "user:x", relation: "member", object: `group:${aclGroup("viewer", "project:a")}` })).toBe(true);
+  });
 });

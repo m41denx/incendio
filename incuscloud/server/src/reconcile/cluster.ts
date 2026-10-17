@@ -6,10 +6,12 @@ import type { IncusServer } from "../incus/admin-client.ts";
 import { ApiError } from "../lib/errors.ts";
 import type { Tuple } from "../authz/platform.ts";
 import type { ClusterStore, ClusterStoreConfig } from "./cluster-store.ts";
-import { desiredGrants, diffTuples, type GrantFacts } from "./grants.ts";
+import { desiredGrants, diffTuples, explicitRelations, type GrantFacts } from "./grants.ts";
+import { Acl } from "../acl/acl.ts";
 import { clusterConfigFor, ensureServerConfig } from "./incus-config.ts";
 import { ensureDefaultProfile, ensureProject, projectUsage } from "./projects.ts";
 import { splitLimits } from "../tenants/quota.ts";
+import type { RoleId } from "../acl/catalog.ts";
 
 export interface ReconcileDeps {
   db: Db;
@@ -74,12 +76,14 @@ export async function reconcileCluster(deps: ReconcileDeps, clusterId: string): 
     );
 
     const placed = await ensurePlacements(deps, clusterId, client, problems);
+    const facts = await grantFacts(db, placed);
+    await addExplicit(db, facts, row.name, client, clusterId);
 
     if (!(await waitForModel(store, deps.modelWaitMs ?? 10_000))) {
       problems.push("grants: waiting for Incus to upload its OpenFGA model");
     } else {
       const scanDue = newStore || !row.grantsScannedAt || Date.now() - row.grantsScannedAt.getTime() >= (deps.scanIntervalMs ?? 3_600_000);
-      await syncGrants(deps, clusterId, store, await grantFacts(db, placed), scanDue);
+      await syncGrants(deps, clusterId, store, facts, scanDue);
     }
   } catch (e) {
     problems.push((e as Error).message);
@@ -157,6 +161,41 @@ async function grantFacts(db: Db, placed: GrantFacts["placements"]): Promise<Gra
     .from(serviceAccounts)
     .where(and(isNotNull(serviceAccounts.platformRole), eq(serviceAccounts.disabled, false)));
   return { placements: placed, members, platform: [...userRoles, ...saRoles.map((s) => ({ subject: s.subject, role: s.role! }))] };
+}
+
+/**
+ * Subjects with explicit permission entries get their relations from the
+ * ACL (through `incuscloud-acl-*` groups) instead of today's role groups, so
+ * an entry can narrow what a role gives. Others keep today's tuples exactly.
+ */
+async function addExplicit(db: Db, facts: GrantFacts, cluster: string, client: ReturnType<typeof clusterClient>, clusterId: string) {
+  const acl = new Acl(db, { ttlMs: 60_000 });
+  const keys = [...new Set((await acl.entries()).filter((e) => e.source === "acl").map((e) => e.subject))];
+  if (!keys.length) return;
+  const { disabled } = await acl.lookup();
+  const accounts = new Map((await db.select({ id: serviceAccounts.id, clientId: serviceAccounts.clientId }).from(serviceAccounts)).map((a) => [a.id, a.clientId]));
+  // Never a project that is another's: a tenant's placement here that could not be granted.
+  const grantable = new Set(facts.placements.map((p) => p.project));
+  const taken = (await db.select({ project: placements.project }).from(placements).where(eq(placements.clusterId, clusterId))).map((p) => p.project).filter((p) => !grantable.has(p));
+  const listed = (await client.request<string[]>("GET", "/1.0/projects")).metadata.map((u) => decodeURIComponent(u.split("/").pop()!));
+  const projects = listed.filter((p) => !taken.includes(p));
+  const names = new Set<string>();
+  facts.acl = [];
+  for (const key of keys) {
+    const [kind, id] = key.split(":") as [string, string];
+    const subject = kind === "service" ? accounts.get(id) : id;
+    if (!subject) continue;
+    names.add(subject);
+    if (disabled.has(key)) continue;
+    const decided = new Map<string, { roles: RoleId[]; at?: string }>();
+    for (const path of [`/clusters/${cluster}`, ...projects.map((p) => `/clusters/${cluster}/projects/${p}`)]) {
+      const d = await acl.explain(key, path);
+      decided.set(path, { roles: d.decidedBy.map((e) => e.role), at: d.decidedBy[0]?.path });
+    }
+    for (const r of explicitRelations(cluster, projects, (p) => decided.get(p) ?? { roles: [] })) facts.acl.push({ subject, ...r });
+  }
+  facts.members = facts.members.filter((m) => !names.has(m.subject));
+  facts.platform = facts.platform.filter((m) => !names.has(m.subject));
 }
 
 /**

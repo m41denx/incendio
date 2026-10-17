@@ -1,4 +1,6 @@
+import { createHash } from "node:crypto";
 import type { Tuple } from "../authz/platform.ts";
+import type { RoleId } from "../acl/catalog.ts";
 
 export type TenantRole = "owner" | "admin" | "member" | "viewer";
 export type PlatformRole = "admin" | "operator" | "viewer";
@@ -32,6 +34,40 @@ export interface GrantFacts {
   /** Tenant members (users and service accounts); `subject` is the Incus user name (the token's `sub`). */
   members: Array<{ tenantId: string; subject: string; role: string }>;
   platform: Array<{ subject: string; role: string }>;
+  /** Subjects with explicit permission entries: their relations here, from `explicitRelations`. */
+  acl?: Array<{ subject: string; relation: string; object: string }>;
+}
+
+/** The group holding one relation for explicit permission entries. */
+export const aclGroup = (relation: string, object: string) => `${PREFIX}acl-${createHash("sha256").update(`${relation}|${object}`).digest("hex").slice(0, 12)}`;
+
+const RANK: Record<string, number> = { "": 0, viewer: 1, operator: 2, admin: 3 };
+const SERVER: Partial<Record<RoleId, string>> = { administrator: "admin", "cluster-owner": "admin", operator: "operator", "unrestricted-user": "operator", auditor: "viewer" };
+// Never project admin (see PROJECT_RELATION).
+const PROJECT: Partial<Record<RoleId, string>> = { administrator: "operator", "cluster-owner": "operator", operator: "operator", "unrestricted-user": "operator", "tenant-admin": "operator", auditor: "viewer" };
+const strongest = (map: Partial<Record<RoleId, string>>, roles: RoleId[]) => roles.map((r) => map[r] ?? "").reduce((a, b) => (RANK[b]! > RANK[a]! ? b : a), "");
+
+/**
+ * The Incus relations a subject's permissions give on one cluster. `decide(path)`
+ * is the subject's resolution there: the deciding roles and the path they are on.
+ * The server relation comes from the cluster's decision. A project decided below
+ * the cluster (on the project or its tenant) adds a project relation when it
+ * gives more; when it gives less, the server relation would leak past it, so
+ * the subject gets project relations on each project instead.
+ */
+export function explicitRelations(cluster: string, projects: string[], decide: (path: string) => { roles: RoleId[]; at?: string }): Array<{ relation: string; object: string }> {
+  const top = decide(`/clusters/${cluster}`).roles;
+  const server = strongest(SERVER, top);
+  const base = strongest(PROJECT, top);
+  const per = projects.map((p) => {
+    const d = decide(`/clusters/${cluster}/projects/${p}`);
+    const below = !!d.at && d.at !== "/" && d.at !== `/clusters/${cluster}`;
+    return { p, relation: below ? strongest(PROJECT, d.roles) : base };
+  });
+  const narrowed = per.some((x) => RANK[x.relation]! < RANK[base]!);
+  const out = narrowed || !server ? [] : [{ relation: server, object: "server:incus" }];
+  for (const x of per) if (x.relation && (narrowed ? true : RANK[x.relation]! > RANK[base]!)) out.push({ relation: x.relation, object: `project:${x.p}` });
+  return out;
 }
 
 /** The grant tuples a cluster store should hold for IncusCloud. */
@@ -50,6 +86,13 @@ export function desiredGrants(f: GrantFacts): Tuple[] {
   for (const role of PLATFORM_ROLES) out.push({ user: `group:${groupName("platform", role)}#member`, relation: role, object: "server:incus" });
   for (const p of f.platform) {
     if ((PLATFORM_ROLES as string[]).includes(p.role)) out.push({ user: `user:${p.subject}`, relation: "member", object: `group:${groupName("platform", p.role)}` });
+  }
+  const defined = new Set<string>();
+  for (const a of f.acl ?? []) {
+    const group = aclGroup(a.relation, a.object);
+    if (!defined.has(group)) out.push({ user: `group:${group}#member`, relation: a.relation, object: a.object });
+    defined.add(group);
+    out.push({ user: `user:${a.subject}`, relation: "member", object: `group:${group}` });
   }
   return out;
 }

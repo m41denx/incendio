@@ -158,6 +158,7 @@ export class FakeIncus {
           }
           return sync({});
         }
+        if (admin && u.pathname === "/1.0/projects" && req.method === "GET") return sync([...this.projects.keys()].map((n) => `/1.0/projects/${encodeURIComponent(n)}`));
         if (admin && u.pathname === "/1.0/projects" && req.method === "POST") {
           const b = body();
           if (this.projects.has(b.name)) return fail(409, "Project already exists");
