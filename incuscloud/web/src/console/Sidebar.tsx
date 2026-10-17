@@ -3,7 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import classnames from "classnames";
 import { Button, Icon, SideNavigationItem } from "@canonical/react-components";
 import { useMenuCollapsed } from "@incendio/ui/context/menuCollapsed";
-import { can, useMe } from "../api/hooks";
+import { can, canAtRoot, useMe } from "../api/hooks";
 import type { Me } from "../api/types";
 import Logo from "../components/Logo";
 import { crumbsOf, objectOf } from "./object";
@@ -34,6 +34,7 @@ export function platformSections(me: Me): Section[] {
     { label: "Balancing", icon: "fork", to: "/balancing" },
     platformViewer && { label: "Backup targets", icon: "storage-bucket", to: "/backup-targets" },
     platformViewer && { label: "Users", icon: "user-group", to: "/users" },
+    canAtRoot(me, "acl.view") && { label: "Permissions", icon: "lock-locked", to: "/permissions" },
     manages && { label: "Service accounts", icon: "applications", to: "/service-accounts" },
     manages && { label: "Audit log", icon: "show", to: "/audit" },
     manages && { label: "Gateway log", icon: "export", to: "/gateway-log" },

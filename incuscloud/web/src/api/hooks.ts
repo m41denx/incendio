@@ -16,9 +16,15 @@ export const queryClient = () =>
 export const useMe = () => useQuery({ queryKey: ["me"], queryFn: () => request<Me>("GET", "/api/v1/me"), staleTime: 60_000 });
 
 const RANK: Record<PlatformRole, number> = { viewer: 1, operator: 2, admin: 3 };
+/** The privilege on / that only holders of each former platform role have. */
+const LEVEL: Record<PlatformRole, string> = { admin: "platform.users", operator: "cluster.configure", viewer: "cluster.view" };
 
-/** Whether the caller holds at least this platform role. */
-export const can = (me: Me | undefined, level: PlatformRole) => !!me?.platformRole && RANK[me.platformRole] >= RANK[level];
+/** Whether the caller holds at least this platform role: its privilege on /, or (older servers) the role. */
+export const can = (me: Me | undefined, level: PlatformRole) =>
+  me?.rootPrivileges ? me.rootPrivileges.includes(LEVEL[level]) : !!me?.platformRole && RANK[me.platformRole] >= RANK[level];
+
+/** Whether the caller holds a privilege on / (permissions). */
+export const canAtRoot = (me: Me | undefined, privilege: string) => !!me?.rootPrivileges?.includes(privilege);
 
 /**
  * A cluster's API address for API clients (`<name>.<clusterDomain>`, spec D11),

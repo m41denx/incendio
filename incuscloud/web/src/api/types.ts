@@ -8,9 +8,30 @@ export interface Me {
   email?: string;
   name: string;
   platformRole: PlatformRole | null;
+  /** Privileges on `/` (permissions); absent from older servers. */
+  rootPrivileges?: string[];
   tenants: Array<{ id: string; slug: string; name: string; role: TenantRole }>;
   clusterDomain: string;
   publicUrl: string;
+}
+
+/** A permissions entry: explicit, or one of today's roles read as an entry (edited on its own page). */
+export interface AclEntry {
+  id: string;
+  path: string;
+  subject: { type: "user" | "service"; id: string; name: string };
+  role: string;
+  propagate: boolean;
+  source: "acl" | "platform-role" | "tenant-membership" | "service-account";
+  editable: boolean;
+  editedOn?: "users" | "tenants" | "service-accounts";
+}
+
+export interface AclRole {
+  id: string;
+  name: string;
+  privileges: string[];
+  ownedOnly?: string[];
 }
 
 export interface Cluster {
