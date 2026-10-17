@@ -258,3 +258,25 @@ test("an entry on an instance makes its cluster visible to the subject", async (
   await add(admin, "/clusters/c/projects/acme/instances/web", u, "auditor");
   expect((await h.call(u, "GET", `/api/v1/clusters/${c}`)).status).toBe(200);
 });
+
+// Permissions phase 2, Task 6: tenants, accounts and logs by privilege.
+test("an Auditor entry on /tenants/acme reads acme's audit and gateway logs, not the platform's", async () => {
+  const acme = await h.tenant("acme");
+  const a = await h.user("aud@x.test");
+  await h.db.insert(aclEntries).values({ path: "/tenants/acme", role: "auditor", userId: a.id });
+  expect((await h.call(a, "GET", `/api/v1/audit?tenant=${acme.id}`)).status).toBe(200);
+  expect((await h.call(a, "GET", `/api/v1/gateway-requests?tenant=${acme.id}`)).status).toBe(200);
+  expect((await h.call(a, "GET", "/api/v1/audit")).status).toBe(403);
+  expect((await h.call(a, "GET", "/api/v1/tenants")).body.map((t: { slug: string }) => t.slug)).toEqual(["acme"]);
+});
+
+test("Operator on /tenants/acme manages members but not owners, nor the quota", async () => {
+  const acme = await h.tenant("acme");
+  const o = await h.user("op@x.test");
+  await h.db.insert(aclEntries).values({ path: "/tenants/acme", role: "operator", userId: o.id });
+  const u = await h.user("u2@x.test");
+  expect((await h.call(o, "PUT", `/api/v1/tenants/${acme.id}/members/${u.id}`, { role: "member" })).status).toBe(200);
+  expect((await h.call(o, "PUT", `/api/v1/tenants/${acme.id}/members/${u.id}`, { role: "owner" })).status).toBe(403);
+  expect((await h.call(o, "PATCH", `/api/v1/tenants/${acme.id}`, { name: "Acme 2" })).status).toBe(200);
+  expect((await h.call(o, "PATCH", `/api/v1/tenants/${acme.id}`, { quotas: { instances: 99 } })).status).toBe(403);
+});

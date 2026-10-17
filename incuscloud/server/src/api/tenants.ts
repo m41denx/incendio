@@ -7,12 +7,13 @@ import type { Acl } from "../acl/acl.ts";
 import { needOutrank } from "../acl/outrank.ts";
 import type { Authz } from "../authz/platform.ts";
 import { tuples } from "../authz/sync.ts";
-import { can, forbidden, needVisible, notFound, platformCan } from "../authz/guards.ts";
+import { forbidden, needTenant, notFound } from "../authz/guards.ts";
+import type { Privilege } from "../acl/catalog.ts";
 import { authed, principalContext, type Principal } from "../auth/principal.ts";
 import type { HydraAdminApi } from "../identity/hydra-admin.ts";
 import { ApiError } from "../lib/errors.ts";
 import { log } from "../lib/log.ts";
-import { audited, created, noContent, uuidParam } from "./common.ts";
+import { audited, created, filterAsync, noContent, uuidParam } from "./common.ts";
 import { requestReconcile } from "../reconcile/requests.ts";
 
 /** Tenant slugs become Incus project names (spec D5): DNS-label-like, not reserved. */
@@ -26,16 +27,17 @@ const view = (x: TenantRow) => ({ id: x.id, slug: x.slug, name: x.name, quotas: 
 
 /** Tenants and their members. */
 export function tenantsRoutes({ db, authz, acl, hydra }: { db: Db; authz: Authz; acl: Acl; hydra: HydraAdminApi }) {
-  const load = async (p: Principal, id: string, relation: string) => {
+  const load = async (p: Principal, id: string, privilege: Privilege = "tenant.view") => {
     uuidParam(id);
-    await needVisible(authz, p, "viewer", relation, `tenant:${id}`);
+    await needTenant(db, acl, p, id, privilege);
     const [row] = await db.select().from(tenants).where(eq(tenants.id, id));
     if (!row) throw notFound();
     return row;
   };
-  /** Owners are managed by owners and platform admins only. */
+  /** Owners are managed by owners (the membership, not an entry) and platform admins only. */
   const needOwnerPower = async (p: Principal, tenantId: string) => {
-    if (!(await can(authz, p, "owner", `tenant:${tenantId}`)) && !(await platformCan(authz, p, "admin"))) throw forbidden();
+    const owner = p.kind === "user" && (await db.select().from(tenantMembers).where(and(eq(tenantMembers.tenantId, tenantId), eq(tenantMembers.userId, p.id), eq(tenantMembers.role, "owner")))).length > 0;
+    if (!owner && !(await acl.can(p, "platform.users", "/"))) throw forbidden();
   };
   const ownerCount = async (tenantId: string) => (await db.select().from(tenantMembers).where(and(eq(tenantMembers.tenantId, tenantId), eq(tenantMembers.role, "owner")))).length;
 
@@ -65,17 +67,15 @@ export function tenantsRoutes({ db, authz, acl, hydra }: { db: Db; authz: Authz;
     .use(principalContext)
     .get("/api/v1/tenants", async ({ principal }) => {
       const p = authed(principal);
-      if (await platformCan(authz, p, "viewer")) return (await db.select().from(tenants).orderBy(tenants.slug)).map(view);
-      if (p.kind === "service") return p.tenantId ? (await db.select().from(tenants).where(eq(tenants.id, p.tenantId))).map(view) : [];
-      const rows = await db.select({ t: tenants }).from(tenantMembers).innerJoin(tenants, eq(tenants.id, tenantMembers.tenantId)).where(eq(tenantMembers.userId, p.id)).orderBy(tenants.slug);
-      return rows.map((r) => view(r.t));
+      const rows = await db.select().from(tenants).orderBy(tenants.slug);
+      return (await filterAsync(rows, (r) => acl.can(p, "tenant.view", `/tenants/${r.slug}`))).map(view);
     })
     .post(
       "/api/v1/tenants",
       async ({ principal, request, body, set }) => {
         const p = authed(principal);
         const res = await audited(db, { principal: p, request }, "tenant.create", (r) => r && { type: "tenant", id: r.id }, async () => {
-          if (!(await platformCan(authz, p, "operator"))) throw forbidden();
+          if (!(await acl.can(p, "tenant.manage", "/"))) throw forbidden();
           if (RESERVED.has(body.slug)) throw new ApiError(400, "invalid_request", `"${body.slug}" is reserved`);
           if ((await db.select({ id: tenants.id }).from(tenants).where(eq(tenants.slug, body.slug))).length) throw new ApiError(409, "slug_taken", "A tenant with this slug already exists");
           if (body.ownerId && !(await db.select({ id: users.id }).from(users).where(eq(users.id, uuidParam(body.ownerId, "No such user")))).length) throw notFound("No such user");
@@ -94,16 +94,17 @@ export function tenantsRoutes({ db, authz, acl, hydra }: { db: Db; authz: Authz;
       },
       { body: t.Object({ slug: t.String({ pattern: SLUG }), name: t.String({ minLength: 1, maxLength: 200 }), quotas: t.Optional(Quotas), ownerId: t.Optional(t.String()) }) },
     )
-    .get("/api/v1/tenants/:id", async ({ principal, params }) => view(await load(authed(principal), params.id, "viewer")))
+    .get("/api/v1/tenants/:id", async ({ principal, params }) => view(await load(authed(principal), params.id)))
     .patch(
       "/api/v1/tenants/:id",
       async ({ principal, request, params, body }) => {
         const p = authed(principal);
         return audited(db, { principal: p, request }, "tenant.update", { type: "tenant", id: params.id }, async () => {
           // Names are the tenant's business; quotas are the platform's.
-          await load(p, params.id, "viewer");
-          if (body.name !== undefined && !(await can(authz, p, "admin", `tenant:${params.id}`))) throw forbidden();
-          if (body.quotas !== undefined && !(await platformCan(authz, p, "operator"))) throw forbidden();
+          const t = await load(p, params.id);
+          if (body.name !== undefined && !(await acl.can(p, "tenant.manage", `/tenants/${t.slug}`))) throw forbidden();
+          // The quota is the platform's limit on the tenant: decided on /, so no entry on the tenant raises it.
+          if (body.quotas !== undefined && !(await acl.can(p, "tenant.quota", "/"))) throw forbidden();
           const [row] = await db.update(tenants).set({ ...(body.name !== undefined && { name: body.name }), ...(body.quotas !== undefined && { quotas: body.quotas }) }).where(eq(tenants.id, params.id)).returning();
           if (body.quotas !== undefined) await requestReconcile(db, { tenant: params.id });
           return view(row!);
@@ -114,7 +115,7 @@ export function tenantsRoutes({ db, authz, acl, hydra }: { db: Db; authz: Authz;
     .delete("/api/v1/tenants/:id", async ({ principal, request, params, set }) => {
       const p = authed(principal);
       await audited(db, { principal: p, request }, "tenant.delete", { type: "tenant", id: params.id }, async () => {
-        const tenant = await load(p, params.id, "viewer");
+        const tenant = await load(p, params.id);
         await needOwnerPower(p, params.id);
         if ((await db.select().from(placements).where(eq(placements.tenantId, params.id)).limit(1)).length) {
           throw new ApiError(409, "tenant_placed", "Remove this tenant from its clusters first");
@@ -131,7 +132,7 @@ export function tenantsRoutes({ db, authz, acl, hydra }: { db: Db; authz: Authz;
       return noContent(set);
     })
     .get("/api/v1/tenants/:id/placements", async ({ principal, params }) => {
-      await load(authed(principal), params.id, "viewer");
+      await load(authed(principal), params.id);
       return db
         .select({ clusterId: placements.clusterId, clusterName: clusters.name, project: placements.project, status: placements.status, statusMessage: placements.statusMessage, createdAt: placements.createdAt })
         .from(placements)
@@ -140,7 +141,7 @@ export function tenantsRoutes({ db, authz, acl, hydra }: { db: Db; authz: Authz;
         .orderBy(clusters.name);
     })
     .get("/api/v1/tenants/:id/members", async ({ principal, params }) => {
-      await load(authed(principal), params.id, "viewer");
+      await load(authed(principal), params.id);
       return db
         .select({ userId: users.id, email: users.email, name: users.name, role: tenantMembers.role })
         .from(tenantMembers)
@@ -153,7 +154,7 @@ export function tenantsRoutes({ db, authz, acl, hydra }: { db: Db; authz: Authz;
       async ({ principal, request, params, body }) => {
         const p = authed(principal);
         return audited(db, { principal: p, request }, "tenant.member.set", { type: "tenant", id: params.id }, async () => {
-          await load(p, params.id, "admin");
+          await load(p, params.id, "tenant.members");
           return setMember(p, params.id, uuidParam(params.userId, "No such user"), body.role);
         }, (r) => ({ userId: r.userId, role: r.role }));
       },
@@ -164,7 +165,7 @@ export function tenantsRoutes({ db, authz, acl, hydra }: { db: Db; authz: Authz;
       async ({ principal, request, params, body }) => {
         const p = authed(principal);
         return audited(db, { principal: p, request }, "tenant.member.set", { type: "tenant", id: params.id }, async () => {
-          await load(p, params.id, "admin");
+          await load(p, params.id, "tenant.members");
           const [u] = await db.select({ id: users.id }).from(users).where(eq(users.email, body.email));
           if (!u) throw notFound("No user with this email; ask a platform administrator to create the account");
           return setMember(p, params.id, u.id, body.role);
@@ -175,7 +176,7 @@ export function tenantsRoutes({ db, authz, acl, hydra }: { db: Db; authz: Authz;
     .delete("/api/v1/tenants/:id/members/:userId", async ({ principal, request, params, set }) => {
       const p = authed(principal);
       await audited(db, { principal: p, request }, "tenant.member.remove", { type: "tenant", id: params.id }, async () => {
-        const tenant = await load(p, params.id, "admin");
+        const tenant = await load(p, params.id, "tenant.members");
         const [cur] = await db.select().from(tenantMembers).where(and(eq(tenantMembers.tenantId, params.id), eq(tenantMembers.userId, uuidParam(params.userId))));
         if (!cur) throw notFound("Not a member");
         await needOutrank(acl, p, `/tenants/${tenant.slug}`, [`user:${cur.userId}`]);

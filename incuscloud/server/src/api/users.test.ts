@@ -25,7 +25,7 @@ test("admins create users with a platform role; the action is audited", async ()
   const r = await h.call(admin, "POST", "/api/v1/users", { email: "op@example.com", name: "Op", password: "pw-long-enough-1", platformRole: "operator" });
   expect(r.status).toBe(201);
   expect(r.body).toMatchObject({ email: "op@example.com", platformRole: "operator" });
-  expect(await h.authz.check(`user:${r.body.id}`, "operator", "platform:main")).toBe(true);
+  expect(await h.can(r.body.id, "cluster.configure", "/")).toBe(true);
   const [a] = await h.db.select().from(auditLog).where(eq(auditLog.action, "user.create"));
   expect(a).toMatchObject({ actorId: admin.id, targetId: r.body.id, result: "success" });
 });
@@ -62,9 +62,9 @@ test("deleting a user revokes their Hydra grants", async () => {
 test("platform role changes reach the authorizer", async () => {
   const u = await h.user("u@example.com");
   await h.call(admin, "PATCH", `/api/v1/users/${u.id}`, { platformRole: "viewer" });
-  expect(await h.authz.check(`user:${u.id}`, "viewer", "platform:main")).toBe(true);
+  expect(await h.can(u.id, "cluster.view", "/")).toBe(true);
   await h.call(admin, "PATCH", `/api/v1/users/${u.id}`, { platformRole: null });
-  expect(await h.authz.check(`user:${u.id}`, "viewer", "platform:main")).toBe(false);
+  expect(await h.can(u.id, "cluster.view", "/")).toBe(false);
 });
 
 test("the last platform admin cannot be demoted, disabled or deleted", async () => {
@@ -80,7 +80,7 @@ test("deleting a user removes their tuples", async () => {
   const u = await h.user("u@example.com", { tenants: { [t.id]: "member" } });
   expect((await h.call(admin, "DELETE", `/api/v1/users/${u.id}`)).status).toBe(204);
   expect(await h.db.select().from(users).where(eq(users.id, u.id))).toEqual([]);
-  expect(await h.authz.check(`user:${u.id}`, "member", `tenant:${t.id}`)).toBe(false);
+  expect(await h.can(u.id, "instance.create", "/tenants/acme")).toBe(false);
 });
 
 test("unknown ids are 404", async () => {

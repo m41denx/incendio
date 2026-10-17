@@ -23,7 +23,7 @@ test("platform admins enrol clusters; secrets never leave the server", async () 
   expect(r.body).toMatchObject({ name: "c1", status: "ready", labels: { region: "eu" } });
   expect(JSON.stringify(r.body)).not.toContain("PRIVATE KEY");
   expect(r.body.clientKeyEnc).toBeUndefined();
-  expect(await h.authz.check(`user:${admin.id}`, "admin", `cluster:${r.body.id}`)).toBe(true);
+  expect(await h.can(admin.id, "node.provision", "/clusters/c1")).toBe(true);
   const audits = await h.db.select().from(auditLog);
   expect(audits.find((a) => a.action === "cluster.enroll")).toMatchObject({ result: "success", targetId: r.body.id });
 });

@@ -1,10 +1,11 @@
 import { Elysia, t } from "elysia";
+import type { Acl } from "../acl/acl.ts";
 import { eq } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
 import { platformRoles, sessions, tenantMembers, users } from "../db/schema.ts";
 import type { Authz } from "../authz/platform.ts";
 import { tuples } from "../authz/sync.ts";
-import { forbidden, notFound, platformCan } from "../authz/guards.ts";
+import { forbidden, notFound } from "../authz/guards.ts";
 import { authed, principalContext, type Principal } from "../auth/principal.ts";
 import { hashPassword } from "../identity/passwords.ts";
 import type { HydraAdminApi } from "../identity/hydra-admin.ts";
@@ -28,9 +29,9 @@ const view = (u: UserRow, role: string | null | undefined) => ({
 });
 
 /** Users and their platform roles (platform admins manage, viewers read). */
-export function usersRoutes({ db, authz, hydra }: { db: Db; authz: Authz; hydra: HydraAdminApi }) {
+export function usersRoutes({ db, authz, acl, hydra }: { db: Db; authz: Authz; acl: Acl; hydra: HydraAdminApi }) {
   const needPlatform = async (p: Principal, rel: "admin" | "viewer") => {
-    if (!(await platformCan(authz, p, rel))) throw forbidden();
+    if (!(await acl.can(p, rel === "admin" ? "platform.users" : "platform.view", "/"))) throw forbidden();
   };
   const load = async (id: string) => {
     const [row] = await db.select({ u: users, role: platformRoles.role }).from(users).leftJoin(platformRoles, eq(platformRoles.userId, users.id)).where(eq(users.id, uuidParam(id)));

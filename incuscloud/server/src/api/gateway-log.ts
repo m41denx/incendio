@@ -2,13 +2,13 @@ import { Elysia, t } from "elysia";
 import { and, desc, eq, inArray, lt, type SQL } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
 import { gatewayRequests, serviceAccounts, tenantMembers } from "../db/schema.ts";
-import type { Authz } from "../authz/platform.ts";
-import { forbidden, need, platformCan } from "../authz/guards.ts";
+import type { Acl } from "../acl/acl.ts";
+import { forbidden } from "../authz/guards.ts";
 import { authed, principalContext } from "../auth/principal.ts";
 import { uuidParam } from "./common.ts";
 
 /** Gateway requests: platform viewers see all; tenant admins (`?tenant=`) their members' and service accounts'. */
-export function gatewayLogRoutes({ db, authz }: { db: Db; authz: Authz }) {
+export function gatewayLogRoutes({ db, acl }: { db: Db; acl: Acl }) {
   return new Elysia({ name: "gateway-log" }).use(principalContext).get(
     "/api/v1/gateway-requests",
     async ({ principal, query }) => {
@@ -16,13 +16,15 @@ export function gatewayLogRoutes({ db, authz }: { db: Db; authz: Authz }) {
       const where: SQL[] = [];
       if (query.tenant) {
         const tid = uuidParam(query.tenant);
-        await need(authz, p, "admin", `tenant:${tid}`);
+        // A tenant's log is for whoever may read its permissions (its admins, an Auditor there).
+        const slug = (await acl.lookup()).tenantSlugs.get(tid);
+        if (!slug || !(await acl.can(p, "acl.view", `/tenants/${slug}`))) throw forbidden();
         const members = (await db.select({ id: tenantMembers.userId }).from(tenantMembers).where(eq(tenantMembers.tenantId, tid))).map((r) => r.id);
         const accounts = (await db.select({ id: serviceAccounts.id }).from(serviceAccounts).where(eq(serviceAccounts.tenantId, tid))).map((r) => r.id);
         const actors = [...members, ...accounts];
         if (!actors.length) return [];
         where.push(inArray(gatewayRequests.actorId, actors));
-      } else if (!(await platformCan(authz, p, "viewer"))) {
+      } else if (!(await acl.can(p, "platform.audit", "/"))) {
         throw forbidden();
       }
       if (query.cluster) where.push(eq(gatewayRequests.clusterId, uuidParam(query.cluster)));

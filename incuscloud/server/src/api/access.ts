@@ -4,10 +4,10 @@ import type { Db } from "../db/index.ts";
 import { clusters, placements, platformRoles, serviceAccounts, tenantMembers, tenants, users } from "../db/schema.ts";
 import type { Authz } from "../authz/platform.ts";
 import type { Acl } from "../acl/acl.ts";
-import { notFound, platformCan, subject } from "../authz/guards.ts";
+import { notFound, subject } from "../authz/guards.ts";
 import { authed, principalContext } from "../auth/principal.ts";
 import { projectRelation, roleRelation, serverRelation } from "../reconcile/grants.ts";
-import { visibleTenants } from "./common.ts";
+import { filterAsync } from "./common.ts";
 
 interface Holder {
   id: string;
@@ -35,14 +35,13 @@ export function accessRoutes({ db, authz, acl }: { db: Db; authz: Authz; acl: Ac
       const [cluster] = await db.select({ id: clusters.id, name: clusters.name }).from(clusters).where(eq(clusters.name, query.cluster));
       if (!cluster || !(await authz.check(subject(p), "can_access", `cluster:${cluster.id}`))) throw notFound("No such cluster");
 
-      const visible = await visibleTenants(db, authz, p);
       const placed = await db
         .select({ tenantId: tenants.id, slug: tenants.slug, name: tenants.name, project: placements.project, status: placements.status })
         .from(placements)
         .innerJoin(tenants, eq(tenants.id, placements.tenantId))
         .where(and(eq(placements.clusterId, cluster.id), query.project ? eq(placements.project, query.project) : undefined))
         .orderBy(tenants.slug);
-      const shown = placed.filter((x) => visible === "all" || visible.includes(x.tenantId));
+      const shown = await filterAsync(placed, (x) => acl.can(p, "tenant.view", `/tenants/${x.slug}`));
       const ids = shown.map((x) => x.tenantId);
       const people = ids.length
         ? await db
@@ -86,7 +85,7 @@ export function accessRoutes({ db, authz, acl }: { db: Db; authz: Authz; acl: Ac
         })
         .sort((a, b) => a.path.localeCompare(b.path) || a.subject.name.localeCompare(b.subject.name));
 
-      if (!(await platformCan(authz, p, "viewer"))) return { cluster: cluster.name, tenants: tenantList, entries };
+      if (!(await acl.can(p, "platform.view", "/"))) return { cluster: cluster.name, tenants: tenantList, entries };
       const platformUsers = await db
         .select({ id: users.id, name: users.name, email: users.email, role: platformRoles.role })
         .from(platformRoles)

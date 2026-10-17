@@ -4,7 +4,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
 import { clusterMembers, clusters, instances, jobs, placements, tenants } from "../db/schema.ts";
 import type { Authz } from "../authz/platform.ts";
-import { can, forbidden, needVisible, notFound, platformCan } from "../authz/guards.ts";
+import { forbidden, needTenant, notFound } from "../authz/guards.ts";
 import { authed, principalContext, type Principal } from "../auth/principal.ts";
 import { ApiError } from "../lib/errors.ts";
 import { enqueueJob } from "../jobs/queue.ts";
@@ -67,9 +67,9 @@ export async function candidatesOf(db: Db, tenantId: string): Promise<Candidate[
 
 /** The tenant cloud (P9): usage against the quota across clusters. */
 export function tenantCloudRoutes({ db, authz, acl }: { db: Db; authz: Authz; acl: Acl }) {
-  const loadTenant = async (p: Principal, id: string, relation: string) => {
+  const loadTenant = async (p: Principal, id: string) => {
     uuidParam(id);
-    await needVisible(authz, p, "viewer", relation, `tenant:${id}`);
+    await needTenant(db, acl, p, id);
     const [row] = await db.select().from(tenants).where(eq(tenants.id, id));
     if (!row) throw notFound();
     return row;
@@ -141,7 +141,7 @@ export function tenantCloudRoutes({ db, authz, acl }: { db: Db; authz: Authz; ac
       },
     )
     .get("/api/v1/tenants/:id/usage", async ({ principal, params }) => {
-    const t = await loadTenant(authed(principal), params.id, "viewer");
+    const t = await loadTenant(authed(principal), params.id);
     const rows = await db
       .select({ clusterId: placements.clusterId, clusterName: clusters.name, project: placements.project, status: placements.status, usage: placements.usage, limits: placements.limits })
       .from(placements)

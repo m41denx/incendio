@@ -7,7 +7,7 @@ import { needPriv, notFound } from "../authz/guards.ts";
 import type { Acl } from "../acl/acl.ts";
 import type { Privilege } from "../acl/catalog.ts";
 import { authed, principalContext, type Principal } from "../auth/principal.ts";
-import { uuidParam, visibleTenants } from "./common.ts";
+import { uuidParam } from "./common.ts";
 
 const HOUR = 3_600_000;
 

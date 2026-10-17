@@ -18,7 +18,7 @@ test("tenant admins create tenant service accounts; the secret is shown once", a
   expect(r.body.tokenUrl).toBe("https://id.test/oauth2/token");
   const client = h.hydra.clients.get(r.body.clientId)!;
   expect(client).toMatchObject({ grant_types: ["client_credentials"], audience: ["incuscloud"], access_token_strategy: "jwt" });
-  expect(await h.authz.check(`user:${r.body.id}`, "member", `tenant:${t.id}`)).toBe(true);
+  expect(await h.can(r.body.id, "instance.create", "/tenants/acme")).toBe(true);
   const list = await h.call(ta, "GET", "/api/v1/service-accounts");
   expect(list.body.map((s: { name: string }) => s.name)).toEqual(["ci"]);
   expect(list.body[0].clientSecret).toBeUndefined();
@@ -36,7 +36,7 @@ test("platform-level service accounts need a platform admin", async () => {
   const admin = await h.user("a@example.com", { platformRole: "admin" });
   const r = await h.call(admin, "POST", "/api/v1/service-accounts", { name: "ops-bot", platformRole: "operator" });
   expect(r.status).toBe(201);
-  expect(await h.authz.check(`user:${r.body.id}`, "operator", "platform:main")).toBe(true);
+  expect(await h.can(r.body.id, "cluster.configure", "/")).toBe(true);
 });
 
 test("rotation replaces the secret", async () => {
@@ -54,7 +54,7 @@ test("deleted service accounts lose their client and their tokens", async () => 
   expect((await h.call(ta, "DELETE", `/api/v1/service-accounts/${sa.id}`)).status).toBe(204);
   expect(h.hydra.clients.has(sa.clientId)).toBe(false);
   expect((await h.call({ id: sa.id, token }, "GET", "/api/v1/me")).status).toBe(401);
-  expect(await h.authz.check(`user:${sa.id}`, "member", `tenant:${t.id}`)).toBe(false);
+  expect(await h.can(sa.id, "instance.create", "/tenants/acme")).toBe(false);
 });
 
 test("other tenants' admins cannot see or delete a service account", async () => {

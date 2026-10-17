@@ -13,7 +13,7 @@ import { enqueueJob } from "../jobs/queue.ts";
 import { EVACUATE_MODES, planCluster, policyOf, type MemberPayload } from "../balancing/jobs.ts";
 import { DEFAULT_POLICY } from "../balancing/model.ts";
 import { suggest } from "../balancing/suggest.ts";
-import { audited, uuidParam, visibleTenants } from "./common.ts";
+import { audited, filterAsync, uuidParam } from "./common.ts";
 
 export type ClientOf = (row: ClusterRow) => Pick<IncusAdminClient, "request">;
 
@@ -113,13 +113,13 @@ export function balancingRoutes({ db, authz, acl, secretKey, clientOf }: { db: D
         return job;
       })
       .get("/api/v1/balancing/suggestions", async ({ principal }) => {
-        const vis = await visibleTenants(db, authz, authed(principal));
-        if (vis !== "all" && !vis.length) return [];
-        const places = await db
+        const p = authed(principal);
+        const all = await db
           .select({ tenantId: placements.tenantId, tenantSlug: tenants.slug, clusterId: placements.clusterId, project: placements.project })
           .from(placements)
           .innerJoin(tenants, eq(tenants.id, placements.tenantId))
-          .where(and(eq(placements.status, "ready"), vis === "all" ? undefined : inArray(placements.tenantId, vis)));
+          .where(eq(placements.status, "ready"));
+        const places = await filterAsync(all, (x) => acl.can(p, "tenant.view", `/tenants/${x.tenantSlug}`));
         if (!places.length) return [];
         const clusterIds = [...new Set(places.map((p) => p.clusterId))];
         const loads = await db

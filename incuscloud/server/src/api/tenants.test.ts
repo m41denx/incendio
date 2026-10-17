@@ -14,8 +14,8 @@ test("operators create tenants, optionally with an owner", async () => {
   const owner = await h.user("o@example.com");
   const r = await h.call(op, "POST", "/api/v1/tenants", { slug: "acme", name: "Acme", ownerId: owner.id });
   expect(r.status).toBe(201);
-  expect(await h.authz.check(`user:${owner.id}`, "owner", `tenant:${r.body.id}`)).toBe(true);
-  expect(await h.authz.check(`user:${op.id}`, "admin", `tenant:${r.body.id}`)).toBe(false);
+  expect(await h.owns(owner.id, r.body.id)).toBe(true);
+  expect(await h.can(op.id, "acl.manage", "/tenants/acme")).toBe(false);
   expect((await h.call(op, "GET", `/api/v1/tenants/${r.body.id}/members`)).body).toEqual([{ userId: owner.id, email: "o@example.com", name: "o", role: "owner" }]);
 });
 
@@ -55,14 +55,14 @@ test("tenant admins manage members but only owners make owners", async () => {
   const ta = await h.user("ta@example.com", { tenants: { [t.id]: "admin" } });
   const u = await h.user("u@example.com");
   expect((await h.call(ta, "PUT", `/api/v1/tenants/${t.id}/members/${u.id}`, { role: "member" })).status).toBe(200);
-  expect(await h.authz.check(`user:${u.id}`, "member", `tenant:${t.id}`)).toBe(true);
+  expect(await h.can(u.id, "instance.create", "/tenants/acme")).toBe(true);
   expect((await h.call(ta, "PUT", `/api/v1/tenants/${t.id}/members/${u.id}`, { role: "owner" })).status).toBe(403);
   expect((await h.call(owner, "PUT", `/api/v1/tenants/${t.id}/members/${u.id}`, { role: "owner" })).status).toBe(200);
   // Role changes replace the old tuple.
-  expect(await h.authz.check(`user:${u.id}`, "owner", `tenant:${t.id}`)).toBe(true);
+  expect(await h.owns(u.id, t.id)).toBe(true);
   expect((await h.call(owner, "PUT", `/api/v1/tenants/${t.id}/members/${u.id}`, { role: "viewer" })).status).toBe(200);
-  expect(await h.authz.check(`user:${u.id}`, "owner", `tenant:${t.id}`)).toBe(false);
-  expect(await h.authz.check(`user:${u.id}`, "viewer", `tenant:${t.id}`)).toBe(true);
+  expect(await h.owns(u.id, t.id)).toBe(false);
+  expect(await h.can(u.id, "tenant.view", "/tenants/acme")).toBe(true);
 });
 
 test("tenant admins cannot demote or remove owners", async () => {
@@ -94,7 +94,7 @@ test("members can be added by email", async () => {
   const owner = await h.user("o@example.com", { tenants: { [t.id]: "owner" } });
   const u = await h.user("new@example.com");
   expect((await h.call(owner, "POST", `/api/v1/tenants/${t.id}/members`, { email: "NEW@example.com", role: "member" })).status).toBe(200);
-  expect(await h.authz.check(`user:${u.id}`, "member", `tenant:${t.id}`)).toBe(true);
+  expect(await h.can(u.id, "instance.create", "/tenants/acme")).toBe(true);
   expect((await h.call(owner, "POST", `/api/v1/tenants/${t.id}/members`, { email: "ghost@example.com", role: "member" })).status).toBe(404);
 });
 
@@ -114,7 +114,7 @@ test("tenants placed on clusters cannot be deleted", async () => {
   expect((await h.call(admin, "DELETE", `/api/v1/tenants/${t.id}`)).status).toBe(409);
   await h.db.delete(placements);
   expect((await h.call(admin, "DELETE", `/api/v1/tenants/${t.id}`)).status).toBe(204);
-  expect(await h.authz.check(`user:${admin.id}`, "admin", `tenant:${t.id}`)).toBe(false);
+  expect((await h.acl.lookup()).tenantSlugs.has(t.id)).toBe(false);
 });
 
 test("a tenant's placements: where it runs, for anyone who can see the tenant", async () => {

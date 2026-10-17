@@ -1,16 +1,17 @@
 import { Elysia, t } from "elysia";
+import type { Acl } from "../acl/acl.ts";
 import { eq, inArray, or } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
 import { serviceAccounts, tenants } from "../db/schema.ts";
 import type { Authz } from "../authz/platform.ts";
 import { tuples } from "../authz/sync.ts";
-import { forbidden, needVisible, notFound, platformCan, subject } from "../authz/guards.ts";
+import { forbidden, needTenant, notFound } from "../authz/guards.ts";
 import { authed, principalContext, type Principal } from "../auth/principal.ts";
 import type { HydraAdminApi, OAuth2Client } from "../identity/hydra-admin.ts";
 import { AUDIENCE } from "../identity/routes.ts";
 import { ApiError } from "../lib/errors.ts";
 import { randomToken } from "../lib/secrets.ts";
-import { audited, created, noContent, uuidParam } from "./common.ts";
+import { audited, created, filterAsync, noContent, uuidParam } from "./common.ts";
 import { requestReconcile } from "../reconcile/requests.ts";
 
 /** Clusters whose grants name this account. */
@@ -38,18 +39,20 @@ const satuples = (s: Pick<SaRow, "id" | "tenantId" | "platformRole">) => [
 ];
 
 /** Service accounts: Hydra client_credentials clients whose tokens act as the account (spec D3). */
-export function serviceAccountsRoutes({ db, authz, hydra, hydraPublicUrl }: { db: Db; authz: Authz; hydra: HydraAdminApi; hydraPublicUrl: string }) {
+export function serviceAccountsRoutes({ db, authz, acl, hydra, hydraPublicUrl }: { db: Db; authz: Authz; acl: Acl; hydra: HydraAdminApi; hydraPublicUrl: string }) {
   const tokenUrl = `${hydraPublicUrl}/oauth2/token`;
 
-  /** Who manages an account: tenant admins for tenant accounts, platform admins otherwise. */
+  /** Who manages an account: tenant.members on its tenant for tenant accounts, platform.users otherwise. */
+  const manages = async (p: Principal, sa: Pick<SaRow, "tenantId">) => {
+    if (!sa.tenantId) return acl.can(p, "platform.users", "/");
+    const slug = (await acl.lookup()).tenantSlugs.get(sa.tenantId);
+    return !!slug && (await acl.can(p, "tenant.members", `/tenants/${slug}`));
+  };
+  /** An account its manager may act on: 403 for platform viewers, who know it exists; 404 for anyone else. */
   const load = async (p: Principal, id: string) => {
     const [sa] = await db.select().from(serviceAccounts).where(eq(serviceAccounts.id, uuidParam(id)));
     if (!sa) throw notFound();
-    if (sa.tenantId) await needVisible(authz, p, "admin", "admin", `tenant:${sa.tenantId}`).catch(async (e) => {
-      if (await platformCan(authz, p, "viewer")) throw forbidden();
-      throw e;
-    });
-    else if (!(await platformCan(authz, p, "admin"))) throw (await platformCan(authz, p, "viewer")) ? forbidden() : notFound();
+    if (!(await manages(p, sa))) throw (await acl.can(p, "platform.view", "/")) ? forbidden() : notFound();
     return sa;
   };
 
@@ -57,10 +60,9 @@ export function serviceAccountsRoutes({ db, authz, hydra, hydraPublicUrl }: { db
     .use(principalContext)
     .get("/api/v1/service-accounts", async ({ principal }) => {
       const p = authed(principal);
-      if (await platformCan(authz, p, "viewer")) return (await db.select().from(serviceAccounts).orderBy(serviceAccounts.name)).map(view);
-      const adminOf = (await authz.listObjects(subject(p), "admin", "tenant")).map((o) => o.slice("tenant:".length));
-      if (!adminOf.length) return [];
-      return (await db.select().from(serviceAccounts).where(or(inArray(serviceAccounts.tenantId, adminOf))).orderBy(serviceAccounts.name)).map(view);
+      const rows = await db.select().from(serviceAccounts).orderBy(serviceAccounts.name);
+      if (await acl.can(p, "platform.view", "/")) return rows.map(view);
+      return (await filterAsync(rows, async (sa) => !!sa.tenantId && (await manages(p, sa)))).map(view);
     })
     .post(
       "/api/v1/service-accounts",
@@ -69,9 +71,8 @@ export function serviceAccountsRoutes({ db, authz, hydra, hydraPublicUrl }: { db
         const res = await audited(db, { principal: p, request }, "service_account.create", (r) => r && { type: "service_account", id: r.id }, async () => {
           if (body.tenantId) {
             if (body.platformRole) throw new ApiError(400, "invalid_request", "Tenant service accounts cannot have a platform role");
-            await needVisible(authz, p, "viewer", "admin", `tenant:${uuidParam(body.tenantId)}`);
-            if (!(await db.select({ id: tenants.id }).from(tenants).where(eq(tenants.id, body.tenantId))).length) throw notFound();
-          } else if (!(await platformCan(authz, p, "admin"))) {
+            await needTenant(db, acl, p, uuidParam(body.tenantId), "tenant.members");
+          } else if (!(await acl.can(p, "platform.users", "/"))) {
             throw forbidden();
           }
           const id = crypto.randomUUID();

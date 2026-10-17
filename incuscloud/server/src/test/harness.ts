@@ -1,6 +1,7 @@
 import { testDb } from "../db/test-db.ts";
 import { platformRoles, tenantMembers, tenants, users } from "../db/schema.ts";
 import { Acl } from "../acl/acl.ts";
+import type { Privilege } from "../acl/catalog.ts";
 import { AclAuthz } from "../authz/acl-authz.ts";
 import { FakeHydra } from "../identity/fake-hydra.ts";
 import { FakeTokens } from "../auth/fake-tokens.ts";
@@ -64,5 +65,10 @@ export async function harness(over: Partial<AppDeps> = {}) {
     return t!;
   };
 
-  return { db, acl, authz, hydra, deps, app, call, user, tenant, sign };
+  /** Whether a user or service account (by id) holds a privilege on a path. */
+  const can = async (id: string, privilege: Privilege, path: string) => acl.can({ kind: (await acl.lookup()).serviceAccounts.has(id) ? "service" : "user", id }, privilege, path);
+  /** Whether a user owns a tenant (the membership). */
+  const owns = async (userId: string, tenantId: string) => (await acl.lookup()).owners.has(`${tenantId}:${userId}`);
+
+  return { db, acl, authz, hydra, deps, app, call, user, tenant, sign, can, owns };
 }

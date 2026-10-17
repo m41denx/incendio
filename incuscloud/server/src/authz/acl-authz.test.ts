@@ -28,35 +28,18 @@ beforeEach(async () => {
   await db.insert(placements).values({ tenantId: acme, clusterId: c, project: "acme" });
 });
 
-test("platform relations: admin ⊃ operator ⊃ viewer, from platform roles", async () => {
-  const [a, o, v, n] = [await user("a@x", { platform: "admin" }), await user("o@x", { platform: "operator" }), await user("v@x", { platform: "viewer" }), await user("n@x")];
-  const rel = async (u: string) => [await authz.check(u, "admin", "platform:main"), await authz.check(u, "operator", "platform:main"), await authz.check(u, "viewer", "platform:main")];
-  expect(await rel(a)).toEqual([true, true, true]);
-  expect(await rel(o)).toEqual([false, true, true]);
-  expect(await rel(v)).toEqual([false, false, true]);
-  expect(await rel(n)).toEqual([false, false, false]);
+test("the old relations are gone: only can_access is answered", async () => {
+  const a = await user("a@x", { platform: "admin" });
+  expect(await authz.check(a, "admin", "platform:main")).toBe(false);
+  expect(await authz.check(await user("ow@x", { tenant: "owner" }), "owner", `tenant:${acme}`)).toBe(false);
+  expect(await authz.check(a, "admin", `cluster:${c}`)).toBe(false);
 });
 
-test("tenant relations: owner is the membership; admin includes platform admins, not operators", async () => {
-  const t = `tenant:${acme}`;
-  const rel = async (u: string) => Promise.all(["owner", "admin", "member", "viewer"].map((r) => authz.check(u, r, t)));
-  expect(await rel(await user("ow@x", { tenant: "owner" }))).toEqual([true, true, true, true]);
-  expect(await rel(await user("ad@x", { tenant: "admin" }))).toEqual([false, true, true, true]);
-  expect(await rel(await user("me@x", { tenant: "member" }))).toEqual([false, false, true, true]);
-  expect(await rel(await user("vi@x", { tenant: "viewer" }))).toEqual([false, false, false, true]);
-  expect(await rel(await user("pa@x", { platform: "admin" }))).toEqual([false, true, true, true]);
-  expect((await rel(await user("po@x", { platform: "operator" })))[1]).toBe(false);
-  expect(await rel(await user("pv@x", { platform: "viewer" }))).toEqual([false, false, false, true]);
-  expect(await rel(await user("no@x"))).toEqual([false, false, false, false]);
-});
-
-test("cluster relations: can_access for platform viewers and members of a tenant placed there", async () => {
+test("can_access: platform viewers everywhere, members of a tenant placed there on that cluster", async () => {
   const m = await user("m@x", { tenant: "viewer" });
   const pv = await user("pv@x", { platform: "viewer" });
-  const pa = await user("pa@x", { platform: "admin" });
   expect([await authz.check(m, "can_access", `cluster:${c}`), await authz.check(m, "can_access", `cluster:${d}`)]).toEqual([true, false]);
   expect(await authz.check(pv, "can_access", `cluster:${d}`)).toBe(true);
-  expect([await authz.check(pa, "admin", `cluster:${d}`), await authz.check(pv, "admin", `cluster:${d}`)]).toEqual([true, false]);
   expect(await authz.listObjects(m, "can_access", "cluster")).toEqual([`cluster:${c}`]);
   expect(await authz.listObjects(pv, "can_access", "cluster")).toEqual([`cluster:${c}`, `cluster:${d}`].sort());
 });
@@ -64,20 +47,18 @@ test("cluster relations: can_access for platform viewers and members of a tenant
 test("service accounts are passed as user:<id> and resolve as service accounts", async () => {
   const [sa] = await db.insert(serviceAccounts).values({ name: "ci", clientId: "sa-1", tenantId: acme }).returning();
   authz.acl.invalidate();
-  expect(await authz.check(`user:${sa!.id}`, "member", `tenant:${acme}`)).toBe(true);
-  expect(await authz.check(`user:${sa!.id}`, "admin", `tenant:${acme}`)).toBe(false);
-  expect(await authz.listObjects(`user:${sa!.id}`, "member", "tenant")).toEqual([`tenant:${acme}`]);
+  expect(await authz.check(`user:${sa!.id}`, "can_access", `cluster:${c}`)).toBe(true);
+  expect(await authz.check(`user:${sa!.id}`, "can_access", `cluster:${d}`)).toBe(false);
 });
 
 test("unknown objects and relations are false; write() only invalidates", async () => {
-  const a = await user("a@x", { platform: "admin" });
-  expect(await authz.check(a, "admin", "tenant:00000000-0000-0000-0000-000000000000")).toBe(false);
-  expect(await authz.check(a, "nonsense", "platform:main")).toBe(false);
-  await authz.check(a, "admin", "platform:main");
+  const a = await user("a@x", { platform: "viewer" });
+  expect(await authz.check(a, "can_access", "cluster:00000000-0000-0000-0000-000000000000")).toBe(false);
+  expect(await authz.check(a, "nonsense", `cluster:${c}`)).toBe(false);
   const [l] = await db.insert(users).values({ email: "l@x", name: "l" }).returning();
-  await db.insert(platformRoles).values({ userId: l!.id, role: "admin" });
+  await db.insert(platformRoles).values({ userId: l!.id, role: "viewer" });
   const later = `user:${l!.id}`;
-  expect(await authz.check(later, "admin", "platform:main")).toBe(false);
+  expect(await authz.check(later, "can_access", `cluster:${d}`)).toBe(false);
   await authz.write([]);
-  expect(await authz.check(later, "admin", "platform:main")).toBe(true);
+  expect(await authz.check(later, "can_access", `cluster:${d}`)).toBe(true);
 });

@@ -2,13 +2,13 @@ import { Elysia, t } from "elysia";
 import { and, desc, eq, lt, or, sql, type SQL } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
 import { auditLog } from "../db/schema.ts";
-import type { Authz } from "../authz/platform.ts";
-import { need, platformCan, forbidden } from "../authz/guards.ts";
+import type { Acl } from "../acl/acl.ts";
+import { forbidden } from "../authz/guards.ts";
 import { authed, principalContext } from "../auth/principal.ts";
 import { uuidParam } from "./common.ts";
 
 /** The audit log: platform viewers see everything, tenant admins their tenant (`?tenant=`). */
-export function auditRoutes({ db, authz }: { db: Db; authz: Authz }) {
+export function auditRoutes({ db, acl }: { db: Db; acl: Acl }) {
   return new Elysia({ name: "audit" }).use(principalContext).get(
     "/api/v1/audit",
     async ({ principal, query }) => {
@@ -16,9 +16,11 @@ export function auditRoutes({ db, authz }: { db: Db; authz: Authz }) {
       const where: SQL[] = [];
       if (query.tenant) {
         const tid = uuidParam(query.tenant);
-        await need(authz, p, "admin", `tenant:${tid}`);
+        // A tenant's log is for whoever may read its permissions (its admins, an Auditor there).
+        const slug = (await acl.lookup()).tenantSlugs.get(tid);
+        if (!slug || !(await acl.can(p, "acl.view", `/tenants/${slug}`))) throw forbidden();
         where.push(or(and(eq(auditLog.targetType, "tenant"), eq(auditLog.targetId, tid)), sql`${auditLog.detail}->>'tenantId' = ${tid}`)!);
-      } else if (!(await platformCan(authz, p, "viewer"))) {
+      } else if (!(await acl.can(p, "platform.audit", "/"))) {
         throw forbidden();
       }
       if (query.actor) where.push(eq(auditLog.actorId, query.actor));

@@ -1,7 +1,6 @@
 import { eq } from "drizzle-orm";
 import type { Principal } from "../auth/principal.ts";
 import type { Authz } from "../authz/platform.ts";
-import { platformCan } from "../authz/guards.ts";
 import { tenantMembers } from "../db/schema.ts";
 import type { AuditEntry } from "../audit/log.ts";
 import { audit } from "../audit/log.ts";
@@ -52,15 +51,6 @@ export const noContent = (set: { status?: number | string }) => {
   return null;
 };
 
-/**
- * The tenants whose resources a caller may read: every tenant for platform
- * viewers, a service account's own tenant, a user's memberships (any role).
- */
-export async function visibleTenants(db: Db, authz: Authz, p: Principal): Promise<"all" | string[]> {
-  if (await platformCan(authz, p, "viewer")) return "all";
-  if (p.kind === "service") return p.tenantId ? [p.tenantId] : [];
-  return (await db.select({ id: tenantMembers.tenantId }).from(tenantMembers).where(eq(tenantMembers.userId, p.id))).map((r) => r.id);
-}
 
 /** The rows `keep` says yes to, in order (permission checks read one snapshot, so this stays cheap). */
 export async function filterAsync<T>(rows: T[], keep: (r: T) => Promise<boolean>): Promise<T[]> {
