@@ -397,14 +397,10 @@ export const KubernetesAnim = () => {
   return (
     <Scene>
       {/* The management cluster: Cluster API with CAPN */}
+      <circle cx="42" cy="75" r="20" fill={C.faint} stroke={C.dim} />
       <g transform="translate(42 75)">
-        <motion.g style={centered} animate={{ rotate: [0, 0, 30, 30] }} transition={loop(D, [0, 0.06, 0.24, 1])}>
-          <circle r="18" fill={C.faint} stroke={C.dim} />
-          {Array.from({ length: 7 }, (_, i) => {
-            const a = (i / 7) * Math.PI * 2 - Math.PI / 2;
-            return <line key={i} x1={Math.cos(a) * 5} y1={Math.sin(a) * 5} x2={Math.cos(a) * 13} y2={Math.sin(a) * 13} stroke={C.fg} strokeWidth="2" strokeLinecap="round" />;
-          })}
-          <circle r="4" fill="none" stroke={C.fg} strokeWidth="2" />
+        <motion.g style={centered} animate={{ scale: [1, 1, 1.12, 1, 1] }} transition={loop(D, [0, 0.08, 0.13, 0.18, 1])}>
+          <image href="/brand/kubernetes.png" x="-13" y="-12.6" width="26" height="25.2" />
         </motion.g>
       </g>
       <Label x={42} y={108}>cluster api</Label>
