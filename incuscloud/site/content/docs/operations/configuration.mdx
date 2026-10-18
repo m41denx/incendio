@@ -1,0 +1,67 @@
+---
+title: Configuration
+description: Every IC_* setting IncusCloud reads.
+icon: SlidersHorizontal
+---
+
+IncusCloud reads `IC_*` environment variables. An invalid one stops it at start-up with a list of
+everything that is wrong.
+
+- **Compose:** they live in `incuscloud.env`. Run `docker compose up -d` after a change.
+- **Helm:** the chart sets most of them; put any other under `settings.extraEnv`.
+
+## Required
+
+| Variable | What it is |
+| --- | --- |
+| `IC_PUBLIC_URL` | `https://<public host>`: where users reach IncusCloud. Hydra's issuer is this plus `/`. |
+| `IC_CLUSTER_DOMAIN` | Clusters' APIs are at `https://<name>.<domain>`. |
+| `IC_TLS_CERT`, `IC_TLS_KEY` | IncusCloud's certificate and key, PEM. |
+| `IC_DATABASE_URL` | `postgres://…` |
+| `IC_SECRET_KEY` | 32 random bytes or more, base64. Seals cluster keys, refresh tokens and S3 secrets. **Never change or lose it.** |
+| `IC_HYDRA_PUBLIC_URL`, `IC_HYDRA_ADMIN_URL` | Hydra, as IncusCloud reaches it. |
+| `IC_OPENFGA_URL` | OpenFGA, as IncusCloud reaches it. |
+
+## Identity and authorization
+
+| Variable | Default | What it does |
+| --- | --- | --- |
+| `IC_HYDRA_CA_FILE` | | The CA that signed Hydra's certificate |
+| `IC_OPENFGA_TOKEN` | | OpenFGA's preshared key |
+| `IC_OPENFGA_CLUSTER_URL` | `IC_OPENFGA_URL` | OpenFGA as **the clusters** reach it |
+| `IC_OPENFGA_CLUSTER_TOKEN` | `IC_OPENFGA_TOKEN` | A separate key for the clusters (it must also be one of OpenFGA's preshared keys) |
+| `IC_BOOTSTRAP_ADMIN_EMAIL`, `IC_BOOTSTRAP_ADMIN_PASSWORD` | | The first administrator, created while there is none. The password needs 12 characters or more. |
+
+## Workers
+
+| Variable | Default | What it does |
+| --- | --- | --- |
+| `IC_RECONCILE_INTERVAL` | `60` | Seconds, 10 to 86400. Each cluster is reconciled at least this often, and right after any change that affects it. |
+| `IC_INVENTORY_INTERVAL` | `60` | Seconds, 0 (off) or 10 to 86400. How often inventory and metrics are read. |
+| `IC_METRICS_RETENTION` | `24` | Hours of metrics history, 1 to 720. |
+| `IC_JOB_CONCURRENCY` | `2` | Jobs run at once, 1 to 16. |
+| `IC_ROLE` | `all` | `api`, `worker` or `all`. Keep `all` with one replica for now. |
+
+## Instances and images
+
+| Variable | Default | What it does |
+| --- | --- | --- |
+| `IC_IMAGE_SERVER` | `https://images.linuxcontainers.org` | The simplestreams server self-service creates take images from |
+| `IC_IMAGE_SERVERS` | | More servers for the image picker, comma-separated |
+
+## Kubernetes
+
+| Variable | Default | What it does |
+| --- | --- | --- |
+| `IC_K8S_KUBECONFIG` | off | The management cluster's kubeconfig. Unset turns Kubernetes off. |
+| `IC_K8S_PORTS` | `16443-16999` | Ports for Kubernetes API endpoints on member addresses |
+| `IC_METALLB_MANIFEST_URL` | MetalLB v0.16.0 native | The MetalLB manifest installed for clusters that ask for it |
+
+## Server and logging
+
+| Variable | Default | What it does |
+| --- | --- | --- |
+| `IC_LISTEN_HOST`, `IC_LISTEN_PORT` | `0.0.0.0`, `8443` | Where IncusCloud listens |
+| `IC_WEB_DIR`, `IC_UI_DIR` | set in the image | The platform UI and Incendio builds |
+| `IC_GATEWAY_SAMPLE_READS` | `0` | The share of gateway reads to log, 0 to 1. Changes are always logged. |
+| `IC_LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error`. Logs are JSON on stdout. |

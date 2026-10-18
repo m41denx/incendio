@@ -1,0 +1,25 @@
+---
+title: Network and ports
+description: Every connection an install makes.
+icon: Cable
+---
+
+| From | To | Port | Protocol | Why |
+| --- | --- | --- | --- | --- |
+| Users | IncusCloud | 443 | HTTPS | Console, API, sign-in |
+| Users | IncusCloud (`*.<cluster domain>`) | 443 | HTTPS, websockets | Cluster APIs through the gateway |
+| IncusCloud | Every cluster member | 8443 | HTTPS, websockets | Enrolment, reconcile, inventory, gateway, migrations |
+| Every cluster member | IncusCloud | 443 | HTTPS | OIDC discovery and keys |
+| Every cluster member | OpenFGA | 8080 | HTTP | Permission checks |
+| IncusCloud | Hydra | 4444, 4445 | HTTPS | Tokens, keys, clients (internal) |
+| IncusCloud | OpenFGA | 8080 | HTTP | Writing grants (internal) |
+| IncusCloud, Hydra, OpenFGA | Postgres | 5432 | Postgres | Databases (internal) |
+| Cluster members | Cluster members of another cluster | 8443 | HTTPS | Direct migrations; otherwise IncusCloud relays |
+| Clusters, IncusCloud | S3 endpoints | 443 | HTTPS | Backups |
+| Clusters | Image servers | 443 | HTTPS | Self-service creates (`IC_IMAGE_SERVER`) |
+| IncusCloud | Management cluster | 6443 | HTTPS | Kubernetes |
+| Management cluster | Cluster members | 8443 | HTTPS | CAPN creating nodes |
+| Management cluster, nodes | Member addresses | 16443–16999 | HTTPS | Workload Kubernetes API endpoints (`IC_K8S_PORTS`) |
+
+Only the first two rows need to be open to users. Allow OpenFGA only from the cluster networks and
+IncusCloud.

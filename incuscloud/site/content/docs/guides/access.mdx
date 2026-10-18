@@ -1,0 +1,114 @@
+---
+title: Users, groups and permissions
+description: Add people, group them, and give them roles on paths.
+icon: Users
+---
+
+How permissions resolve is in [Permissions](/docs/concepts/permissions). This page is the how-to.
+
+## Users
+
+**Users** › **Create user** (platform administrators): an email, a name and a password, and
+optionally a platform role:
+
+| Platform role | Gives |
+| --- | --- |
+| Admin | Administrator on `/` |
+| Operator | Operator on `/`: everything except permissions, users and platform settings |
+| Viewer | Auditor on `/`: read everything, and the audit log |
+
+People with no platform role see only what tenants and entries give them. Tenant admins can also
+add people to their tenant by email.
+
+## Groups
+
+**Groups** (platform administrators) holds IncusCloud's own groups of users and service accounts:
+
+1. **Create group**: a name (lowercase letters, digits, dots, dashes and underscores) and a
+   description.
+2. **Add member**: a user or a service account.
+3. Give the group entries in **Permissions**, like any other subject.
+
+Each tenant also has a built-in group, `<tenant>/members`, which always holds its members and
+service accounts. It isn't listed under Groups; pick it as a subject when adding an entry.
+
+Membership changes take effect in IncusCloud right away and in Incus on the next reconcile, which
+they trigger.
+
+## Permission entries
+
+**Platform › Permissions** has three tabs:
+
+- **Entries**: every entry, filterable by path. Explicit entries can be removed. Today's platform
+  and tenant roles are listed read-only, with where to edit them.
+- **Roles**: each role and its privileges.
+- **Check**: what a subject may do on a path, and which entries decided it.
+
+### Add an entry
+
+**Add entry**:
+
+<Steps>
+<Step>
+
+### Subject
+
+A user, a service account, a group, or a tenant's members.
+
+</Step>
+<Step>
+
+### Path
+
+What it applies to:
+
+- `/`;
+- a cluster;
+- a cluster group;
+- a tenant;
+- a project;
+- an instance.
+
+The pickers list what exists.
+
+</Step>
+<Step>
+
+### Role
+
+Only the roles that fit the path are offered:
+
+- Group owner goes on cluster groups only;
+- Unrestricted user goes on a cluster group, a tenant or a project, never on a whole cluster or
+  `/`.
+
+</Step>
+<Step>
+
+### Also applies below this path
+
+On by default. Turn it off to give the role on this path only.
+
+</Step>
+</Steps>
+
+The same **Add entry** is on every cluster's and project's **Access** tab, for whoever holds
+`acl.manage` there.
+
+### Recipes
+
+| You want | Entry |
+| --- | --- |
+| A tenant member who only sees their own instances | User on `/tenants/<tenant>` (instead of a member role) |
+| Someone to look at everything | Auditor on `/` |
+| An on-call operator for one cluster | Operator on `/clusters/<cluster>` |
+| A team that runs the GPU members, in any project | Group owner on `/clusters/<cluster>/groups/gpu` |
+| A tenant limited to some members of a cluster | Unrestricted user for `<tenant>/members` on `/clusters/<cluster>/groups/<group>` |
+| To take one project away from someone who has the tenant | No access on `/clusters/<cluster>/projects/<project>` |
+
+## Service accounts
+
+**Service accounts** › **Create service account**: a name and, for a tenant account, its tenant.
+The secret is shown once; **Rotate secret** issues a new one. Tenant admins manage their tenant's
+accounts, platform administrators the rest. How to get a token is in
+[Sign-in and identity](/docs/concepts/identity#service-accounts).

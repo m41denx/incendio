@@ -1,5 +1,7 @@
 # Installing IncusCloud
 
+> The documentation site in [`../site`](../site) covers the same ground in more depth: requirements, certificates, each install method step by step, first steps, operations and troubleshooting.
+
 IncusCloud is a control plane in front of many [Incus](https://linuxcontainers.org/incus/) clusters. It gives them one sign-in, one UI and one API endpoint per cluster, with tenants, permissions, quotas, backups, migration, balancing and Kubernetes.
 
 This guide installs it in one of two ways, then enrols the first cluster:

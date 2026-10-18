@@ -1,0 +1,99 @@
+---
+title: REST API
+description: IncusCloud's own API, under /api/v1.
+icon: Braces
+---
+
+Everything the console does goes through this API. Each cluster's own Incus API is separate, at
+`https://<cluster>.<cluster domain>`; see [clients](/docs/guides/clients).
+
+## Basics
+
+- **Base URL:** `https://cloud.example.com/api/v1`.
+- **Authentication:** `Authorization: Bearer <access token>` (a user's or a
+  [service account's](/docs/concepts/identity#service-accounts)), or the browser's session cookie.
+- **Errors:** `{ "error": { "code": "…", "message": "…" } }`, with the usual HTTP status. A missing
+  privilege is `403`; something you may not see is `404`.
+- **Jobs:** long operations answer `202` with a job. Follow it with `GET jobs/:id`.
+- **Lists** show only what the caller may view.
+
+Every call is checked by privilege on the object's path; the privilege is named below where it
+isn't obvious.
+
+## Identity and permissions
+
+| Endpoint | Notes |
+| --- | --- |
+| `GET me` | The caller, their tenants, and `rootPrivileges`: their privileges on `/` |
+| `GET/POST users`, `GET/PATCH/DELETE users/:id` | `platform.users` (viewers read) |
+| `GET/POST groups`, `GET/PATCH/DELETE groups/:id` | `platform.users` (`platform.view` reads) |
+| `PUT/DELETE groups/:id/members/:type/:memberId` | `type` is `user` or `service` |
+| `GET/POST service-accounts`, `POST service-accounts/:id/rotate`, `DELETE service-accounts/:id` | Tenant admins for tenant accounts, platform administrators otherwise |
+| `GET acl/roles` | Each role and its privileges |
+| `GET acl/entries?path` | Entries at and below `path`, today's roles included as read-only entries |
+| `POST acl/entries`, `DELETE acl/entries/:id` | `acl.manage` on the path. Body: `path`, `subject` (`{type: user \| service \| group \| tenant, id}`), `role`, `propagate` |
+| `GET acl/check?subject&path` | `acl.view` on the path: the subject's privileges there and the deciding entries |
+| `GET access?cluster&project` | Who has access to a cluster or project, and what each entry gives in Incus |
+
+## Clusters
+
+| Endpoint | Notes |
+| --- | --- |
+| `GET/POST clusters`, `GET/PATCH/DELETE clusters/:id` | Administrators enrol and delete; `cluster.configure` edits labels |
+| `POST clusters/:id/reconcile` | `cluster.configure`; `202` |
+| `GET clusters/:id/tenants`, `PUT/DELETE clusters/:id/tenants/:tenantId` | Placements; `cluster.configure` |
+| `GET clusters/:id/inventory`, `GET clusters/:id/metrics?hours` | `cluster.view`: members, pools, networks, counts, member history |
+| `GET/PUT clusters/:id/balancing`, `POST …/balancing/plan`, `POST …/balancing/run` | The balancing policy, a dry run, a run |
+| `POST clusters/:id/members/:name/evacuate`, `POST …/members/:name/restore` | `node.maintain` on the cluster or the member's group |
+| `GET fleet/summary` | Instance counts; capacity for platform viewers |
+
+## Tenants
+
+| Endpoint | Notes |
+| --- | --- |
+| `GET/POST tenants`, `GET/PATCH/DELETE tenants/:id` | `tenant.manage` on `/` creates; quotas need `tenant.quota` on `/`; owners delete |
+| `GET/POST tenants/:id/members`, `PUT/DELETE tenants/:id/members/:userId` | `tenant.members`; owners manage owners |
+| `GET tenants/:id/placements`, `GET tenants/:id/usage` | Its clusters and projects; usage against the quota |
+| `GET tenants/:id/user-quotas`, `PUT tenants/:id/user-quotas/:userId` | Users' quotas; `tenant.quota` on the tenant sets them |
+| `POST tenants/:id/instances`, `GET images` | Self-service create (`instance.create`, plus `placement.choose` to name a cluster); image choices |
+
+## Instances
+
+| Endpoint | Notes |
+| --- | --- |
+| `GET instances?q&cluster&tenant&status&type&limit&offset` | The global search |
+| `GET instances/:id`, `GET instances/:id/metrics?hours` | One instance, with its owner, and its history |
+| `POST instances/:id/migrations/preflight`, `POST instances/:id/migrations` | Check, then move or copy (`instance.relocate`) |
+| `GET jobs`, `GET jobs/:id`, `POST jobs/:id/cancel` | Jobs the caller may see; cancel by the actor or a manager |
+
+## Backups and replication
+
+| Endpoint | Notes |
+| --- | --- |
+| `GET/POST backup-targets`, `PATCH/DELETE backup-targets/:id`, `POST …/:id/check` | S3 targets (administrators; others see names) |
+| `POST instances/:id/backups`, `GET backups`, `GET/DELETE backups/:id`, `POST backups/:id/restore` | Back up now, list, delete, restore |
+| `GET/POST backup-policies`, `GET/PATCH/DELETE backup-policies/:id`, `POST …/:id/run` | Schedules with retention (`backup.schedule`) |
+| `GET/POST replication-policies`, `GET/PATCH/DELETE replication-policies/:id`, `POST …/:id/run`, `POST …/:id/failover` | Replication (`replication.manage`) |
+| `GET balancing/suggestions` | Cross-cluster moves for the caller's tenants |
+
+## Kubernetes
+
+| Endpoint | Notes |
+| --- | --- |
+| `GET kubernetes?tenant`, `GET kubernetes/:id`, `GET kubernetes/versions` | Clusters with their spec; versions and whether Kubernetes is on |
+| `POST kubernetes`, `PATCH kubernetes/:id`, `DELETE kubernetes/:id` | Create (`k8s.provision`, a spec or a size), scale and upgrade, delete (`k8s.delete`) |
+| `GET kubernetes/:id/nodes`, `…/status`, `…/activity` | Machines, conditions, events and jobs |
+| `GET/PUT kubernetes/:id/metallb` | MetalLB's addresses |
+| `GET kubernetes/:id/kubeconfig` | `k8s.kubeconfig`; audited |
+
+## Logs
+
+| Endpoint | Notes |
+| --- | --- |
+| `GET audit` | `platform.audit` on `/`; with `?tenant=`, `acl.view` on that tenant |
+| `GET gateway-requests` | The same |
+
+## Browser routes
+
+`/auth/start?return_to=/…`, `/auth/callback` and `/auth/logout` handle the session. `/auth/login`,
+`/auth/consent` and `/auth/device` are Hydra's sign-in pages.

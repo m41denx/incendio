@@ -1,0 +1,60 @@
+---
+title: Backups
+description: Back up instances to S3, on a schedule with retention, and restore to any cluster.
+icon: Archive
+---
+
+## Add a backup target
+
+**Backup targets** › **Add target** (platform administrators): any S3-compatible store, addressed
+path-style.
+
+| Field | |
+| --- | --- |
+| Name | How people pick it |
+| Endpoint | e.g. `https://s3.eu-central-1.amazonaws.com` or your MinIO, Ceph RGW or Garage |
+| Region | The bucket's region |
+| Bucket, Prefix | Where backups go |
+| Access key ID, Secret key | The credentials. The secret is sealed with `IC_SECRET_KEY` and never shown again |
+
+**Check** writes, reads and deletes a probe object.
+
+<Callout title="Abort incomplete uploads">
+  A crashed upload can leave an incomplete multipart upload in the bucket. Set a lifecycle rule on
+  the bucket that aborts those after a day.
+</Callout>
+
+## Back up
+
+From an instance's page:
+
+- **Back up now…** makes one backup.
+- **Backup schedule…** sets a policy: every 1 hour to 30 days, keeping the newest N.
+
+The cluster makes an Incus backup (a gzip tarball), which reaches the bucket one of two ways:
+
+| Mode | How |
+| --- | --- |
+| Uploaded by the cluster | The cluster uploads it itself. It needs to reach the S3 endpoint. |
+| Through IncusCloud | Streamed straight from the cluster through IncusCloud, so nothing is stored on the cluster. |
+| Automatic | Tries the first, falls back to the second. |
+
+After a scheduled run succeeds, the policy's oldest backups beyond its count are deleted. Manual
+backups, and those of a deleted policy, stay until someone deletes them. Backups count against the
+tenant's [backup quotas](/docs/concepts/quotas#per-object-quotas).
+
+## Restore
+
+**Restore** puts a backup on any cluster you may use, under a free name, optionally started. An
+existing instance is never replaced.
+
+- Tenant owners and admins, and Users for their own, restore into the tenant's placements,
+  including next to the original.
+- Platform operators restore anywhere, and may pick the project and pool.
+
+Incus 7.5 can't import a backup into a restricted project, which every tenant project is. So a
+restore into one goes through IncusCloud's own `incuscloud-restore` project on that cluster:
+
+1. The backup is imported there. Nothing is started, and tenants have no access to it.
+2. It's migrated into the tenant's project, which keeps file ownership right.
+3. The staged copy is always removed.

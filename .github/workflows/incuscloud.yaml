@@ -83,6 +83,8 @@ jobs:
           sed -i "s#ghcr.io/m41denx/incuscloud:latest#${{ steps.v.outputs.image }}:$v#" "$b/setup.sh"
           rm -f "$b/.gitignore" "$b/docker-compose.build.yml"
           tar -C dist -czf "dist/incuscloud-compose-$v.tar.gz" "incuscloud-compose-$v"
+          # A versionless copy, so releases/latest/download/incuscloud-compose.tar.gz always works.
+          cp "dist/incuscloud-compose-$v.tar.gz" dist/incuscloud-compose.tar.gz
           (cd dist && sha256sum *.tgz *.tar.gz > SHA256SUMS)
 
       - name: Push the chart

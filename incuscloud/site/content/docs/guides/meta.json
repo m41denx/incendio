@@ -1,0 +1,1 @@
+{ "pages": ["console", "clusters", "tenants", "access", "clients", "instances", "migration", "backups", "balancing", "kubernetes", "logs"] }

@@ -9,6 +9,8 @@ Licensed under GPL-3.0 (see `LICENSE`).
 
 **Installing:** [`docs/INSTALL.md`](docs/INSTALL.md) (Docker Compose or Helm).
 
+**Documentation site:** [`site/`](site/) holds the landing page and the full docs (concepts, installation, guides, operations, reference). Run it with `cd site && bun install && bun run dev`.
+
 ## Status
 
 | Phase | What | State |

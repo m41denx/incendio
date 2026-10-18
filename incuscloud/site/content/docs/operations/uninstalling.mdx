@@ -1,0 +1,52 @@
+---
+title: Uninstalling
+description: Take IncusCloud off your clusters, then remove it.
+icon: Trash
+---
+
+<Steps>
+<Step>
+
+### Delete the clusters from IncusCloud
+
+For each cluster: remove the tenants placed on it, then **Delete** it. This unsets IncusCloud's
+OIDC and OpenFGA settings on the cluster and removes its certificate. Tenants' projects and
+instances stay.
+
+If IncusCloud is already gone, on each cluster:
+
+```bash
+for k in oidc.issuer oidc.client.id oidc.audience oidc.claim \
+         authorization.openfga.api.url authorization.openfga.api.token authorization.openfga.store.id; do
+  incus config unset "$k"
+done
+incus config trust list   # then remove the "incuscloud" certificate
+```
+
+</Step>
+<Step>
+
+### Remove IncusCloud
+
+<Tabs items={["Docker Compose", "Helm"]}>
+<Tab value="Docker Compose">
+
+```bash
+docker compose down      # add -v to delete the database too
+```
+
+</Tab>
+<Tab value="Helm">
+
+```bash
+helm uninstall incuscloud -n incuscloud
+```
+
+The `incuscloud` and `incuscloud-internal-tls` secrets and the Postgres volume are kept on purpose.
+Delete them by hand.
+
+</Tab>
+</Tabs>
+
+</Step>
+</Steps>

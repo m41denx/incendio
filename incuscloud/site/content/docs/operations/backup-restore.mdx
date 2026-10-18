@@ -1,0 +1,52 @@
+---
+title: Backing up IncusCloud
+description: What to keep safe, and how to restore it.
+icon: DatabaseBackup
+---
+
+Three things make up an install.
+
+## 1. The secret key
+
+`IC_SECRET_KEY` seals the database's cluster credentials, refresh tokens and backup targets' secret
+keys. Without it they can't be opened, and every cluster must be enrolled again.
+
+- **Compose:** in `incuscloud.env`.
+- **Helm:** the `secret-key` value of the `incuscloud` secret.
+
+Keep a copy somewhere other than the host.
+
+## 2. The databases
+
+Back up all three:
+
+```bash title="Compose"
+for db in incuscloud hydra openfga; do
+  docker compose exec -T postgres pg_dump -U postgres -Fc "$db" > "backup-$db-$(date +%F).dump"
+done
+```
+
+| Database | If lost |
+| --- | --- |
+| `incuscloud` | Everything: users, tenants, clusters, permissions, policies |
+| `hydra` | Clients and sessions. IncusCloud recreates its clients; users sign in again. |
+| `openfga` | Nothing lasting: the reconciler rewrites every cluster's grants |
+
+## 3. The certificates
+
+- **Compose:** `certs/`.
+- **Helm:** the `incuscloud-internal-tls` secret.
+
+Losing the internal CA means trusting a new one on every cluster member.
+
+## Restore
+
+1. Put back the same `IC_SECRET_KEY` and certificates.
+2. Restore the dumps into empty databases:
+   ```bash
+   docker compose up -d postgres
+   for db in incuscloud hydra openfga; do
+     docker compose exec -T postgres pg_restore -U postgres -d "$db" --clean --if-exists < "backup-$db.dump"
+   done
+   ```
+3. Start everything: `docker compose up -d`.

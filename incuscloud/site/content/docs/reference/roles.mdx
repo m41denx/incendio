@@ -1,0 +1,74 @@
+---
+title: Roles and privileges
+description: Every built-in role and the privileges it holds.
+icon: Table
+---
+
+Generated from IncusCloud's role catalogue. ✓ means the role holds the privilege; **own** means only
+on what the subject owns (instances, their backups, Kubernetes clusters). **No access** holds
+nothing and overrides what is inherited, so it has no column.
+
+How roles combine with paths is in [Permissions](/docs/concepts/permissions).
+
+| Privilege | Administrator | Operator | Cluster owner | Group owner | Unrestricted user | User | Tenant admin | Auditor |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `instance.view` | ✓ | ✓ | ✓ | ✓ | ✓ | own | ✓ | ✓ |
+| `instance.console` | ✓ | ✓ | ✓ | ✓ | ✓ | own | ✓ |  |
+| `instance.exec` | ✓ | ✓ | ✓ | ✓ | ✓ | own | ✓ |  |
+| `instance.files` | ✓ | ✓ | ✓ | ✓ | ✓ | own | ✓ |  |
+| `instance.power` | ✓ | ✓ | ✓ | ✓ | ✓ | own | ✓ |  |
+| `instance.configure` | ✓ | ✓ | ✓ | ✓ | ✓ | own | ✓ |  |
+| `instance.snapshot` | ✓ | ✓ | ✓ | ✓ | ✓ | own | ✓ |  |
+| `instance.create` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |  |
+| `instance.delete` | ✓ | ✓ | ✓ | ✓ | ✓ | own | ✓ |  |
+| `instance.migrate` | ✓ | ✓ | ✓ | ✓ | ✓ | own | ✓ |  |
+| `instance.relocate` | ✓ | ✓ | ✓ | ✓ | ✓ | own | ✓ |  |
+| `placement.choose` | ✓ | ✓ | ✓ | ✓ | ✓ |  | ✓ |  |
+| `storage.view` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `storage.allocate` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |  |
+| `storage.pools` | ✓ | ✓ | ✓ |  |  |  |  |  |
+| `network.view` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `network.use` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |  |
+| `network.manage` | ✓ | ✓ | ✓ | ✓ | ✓ |  | ✓ |  |
+| `image.view` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `image.manage` | ✓ | ✓ | ✓ | ✓ | ✓ |  | ✓ |  |
+| `project.view` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `project.configure` | ✓ | ✓ | ✓ | ✓ | ✓ |  | ✓ |  |
+| `backup.view` | ✓ | ✓ | ✓ | ✓ | ✓ | own | ✓ | ✓ |
+| `backup.create` | ✓ | ✓ | ✓ | ✓ | ✓ | own | ✓ |  |
+| `backup.restore` | ✓ | ✓ | ✓ | ✓ | ✓ | own | ✓ |  |
+| `backup.delete` | ✓ | ✓ | ✓ | ✓ | ✓ | own | ✓ |  |
+| `backup.schedule` | ✓ | ✓ | ✓ | ✓ | ✓ | own | ✓ |  |
+| `replication.view` | ✓ | ✓ | ✓ | ✓ | ✓ |  | ✓ | ✓ |
+| `replication.manage` | ✓ | ✓ | ✓ | ✓ | ✓ |  | ✓ |  |
+| `k8s.view` | ✓ | ✓ | ✓ | ✓ | ✓ | own | ✓ | ✓ |
+| `k8s.kubeconfig` | ✓ | ✓ | ✓ | ✓ | ✓ | own | ✓ |  |
+| `k8s.provision` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |  |
+| `k8s.delete` | ✓ | ✓ | ✓ | ✓ | ✓ | own | ✓ |  |
+| `node.view` | ✓ | ✓ | ✓ | ✓ |  |  |  | ✓ |
+| `node.maintain` | ✓ | ✓ | ✓ | ✓ |  |  |  |  |
+| `node.provision` | ✓ | ✓ | ✓ |  |  |  |  |  |
+| `cluster.view` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `cluster.configure` | ✓ | ✓ | ✓ |  |  |  |  |  |
+| `tenant.view` | ✓ | ✓ |  |  | ✓ | ✓ | ✓ | ✓ |
+| `tenant.manage` | ✓ | ✓ |  |  |  |  | ✓ |  |
+| `tenant.members` | ✓ | ✓ |  |  |  |  | ✓ |  |
+| `tenant.quota` | ✓ | ✓ |  |  |  |  | ✓ |  |
+| `acl.view` | ✓ | ✓ | ✓ | ✓ |  |  | ✓ | ✓ |
+| `acl.manage` | ✓ |  | ✓ | ✓ |  |  | ✓ |  |
+| `platform.view` | ✓ | ✓ |  |  |  |  |  | ✓ |
+| `platform.users` | ✓ |  |  |  |  |  |  |  |
+| `platform.settings` | ✓ |  |  |  |  |  |  |  |
+| `platform.audit` | ✓ | ✓ |  |  |  |  |  | ✓ |
+
+## Notes
+
+- **Operator** lacks only `acl.manage`, `platform.users` and `platform.settings`.
+- **Cluster owner** and **Group owner** hold `acl.view` and `acl.manage`, so they manage permissions
+  on their cluster or group.
+- **Unrestricted user** holds every workload privilege, but no `node.*`, `cluster.configure` or
+  `acl.*`. It can't be given on a whole cluster or `/`: there it would reach every tenant's
+  projects.
+- **User** holds a few privileges everywhere it is given (creating, using networks and storage,
+  seeing the tenant's shared objects) and the rest only on what it owns.
+- Only administrators give **Administrator** or **Cluster owner**.

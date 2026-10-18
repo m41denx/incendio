@@ -1,0 +1,71 @@
+---
+title: Requirements
+description: Clusters, hosts, DNS names and the network paths an install needs.
+icon: ListChecks
+---
+
+## Incus clusters
+
+Incus clusters or standalone servers with OIDC and OpenFGA support: Incus 6.0 LTS or later.
+IncusCloud is tested with Incus 7.5. Each needs:
+
+- its API (`core.https_address`, usually `:8443`) reachable from IncusCloud;
+- nothing set beforehand. IncusCloud sets `oidc.*` and `authorization.*` itself when it enrols the
+  cluster, replacing any OIDC or OpenFGA settings already there.
+
+## A host for IncusCloud
+
+<Tabs items={["Docker Compose", "Helm"]}>
+<Tab value="Docker Compose">
+
+- Linux with Docker 24 or later and the Compose plugin
+- `openssl`, for `setup.sh`
+- 2 CPUs, 4 GiB of memory, 20 GiB of disk
+
+</Tab>
+<Tab value="Helm">
+
+- Kubernetes 1.27 or later
+- A `LoadBalancer` implementation (MetalLB or a cloud load balancer), or TLS passthrough
+- A storage class, if you use the bundled Postgres
+
+</Tab>
+</Tabs>
+
+## Names and DNS
+
+IncusCloud needs a name for itself and a wildcard for the clusters, both pointing at it:
+
+| Name | Example | Used for |
+| --- | --- | --- |
+| Public host | `cloud.example.com` | The UI, the API and sign-in. It is also the OIDC issuer the clusters trust. |
+| Cluster domain | `*.clusters.example.com` | Each enrolled cluster's API: cluster `prod` is `https://prod.clusters.example.com`. |
+
+Create both records before you install. The examples in these docs use these names; replace them
+with your own.
+
+<Callout type="warn" title="The public host is permanent">
+  It is the OIDC issuer, written into every cluster and every token. Changing it later means
+  enrolling the clusters again and signing everyone in again.
+</Callout>
+
+## Network
+
+| From | To | Port | Why |
+| --- | --- | --- | --- |
+| Users (browsers, `incus`) | IncusCloud | 443/tcp | UI, API, sign-in, cluster APIs |
+| IncusCloud | every cluster member | 8443/tcp | Enrolment, reconciling, inventory, the gateway |
+| **Every cluster member** | IncusCloud | 443/tcp | Sign-in: Incus fetches the issuer's keys to verify tokens |
+| **Every cluster member** | OpenFGA | 8080/tcp | Permission checks: Incus connects to OpenFGA itself |
+| IncusCloud | the management cluster's API | 6443/tcp | Only with [Kubernetes](/docs/guides/kubernetes) |
+| IncusCloud, clusters | S3 endpoints | 443/tcp | Only with [backups](/docs/guides/backups) |
+
+The two paths *from* the clusters are the ones most often missed. Without the first, nobody can sign
+in to that cluster. Without the second, the cluster refuses every request.
+
+<Callout type="error" title="Firewall OpenFGA">
+  Allow OpenFGA only from the cluster networks and IncusCloud. Its token is on every cluster; see
+  [Security](/docs/operations/security).
+</Callout>
+
+The full list, with the Kubernetes ports, is in the [network reference](/docs/reference/network).

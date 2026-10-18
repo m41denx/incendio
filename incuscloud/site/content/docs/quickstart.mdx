@@ -1,0 +1,109 @@
+---
+title: Quickstart
+description: IncusCloud on one host with Docker Compose, then your first cluster enrolled.
+icon: Rocket
+---
+
+This gets you from nothing to a cluster you can use through IncusCloud. It uses the internal CA,
+which is fine for a lab. For production, read [Requirements](/docs/install/requirements) and
+[Certificates](/docs/install/certificates) first.
+
+You need:
+
+- a Linux host with Docker 24 or later, the Compose plugin and `openssl`;
+- two DNS names pointing at it: `cloud.example.com` and `*.clusters.example.com`;
+- an Incus cluster (or a single server) that can reach the host on ports 443 and 8080, and whose
+  API on port 8443 the host can reach.
+
+<Steps>
+<Step>
+
+### Get the bundle
+
+```bash
+curl -fsSLO \
+  https://github.com/m41denx/incendio/releases/latest/download/incuscloud-compose.tar.gz
+tar xzf incuscloud-compose.tar.gz && cd incuscloud-compose-*
+```
+
+</Step>
+<Step>
+
+### Generate secrets and certificates
+
+```bash
+./setup.sh --host cloud.example.com \
+           --cluster-domain clusters.example.com \
+           --admin you@example.com
+```
+
+This writes `.env` and `incuscloud.env` with fresh secrets, and makes an internal CA and a
+certificate in `certs/`. The first admin's password is `IC_BOOTSTRAP_ADMIN_PASSWORD` in
+`incuscloud.env`.
+
+</Step>
+<Step>
+
+### Start it
+
+```bash
+docker compose up -d
+docker compose logs -f incuscloud   # wait for "listening"
+```
+
+</Step>
+<Step>
+
+### Trust the CA on the cluster
+
+Every member of the Incus cluster fetches sign-in keys from `cloud.example.com`, so it has to
+trust the internal CA. Copy `certs/ca.crt` to each member, then:
+
+```bash
+sudo cp ca.crt /usr/local/share/ca-certificates/incuscloud.crt
+sudo update-ca-certificates
+sudo systemctl restart incus
+```
+
+</Step>
+<Step>
+
+### Sign in
+
+Open `https://cloud.example.com` and sign in with the admin email and password. Your browser
+will warn about the certificate until you import `certs/ca.crt`.
+
+</Step>
+<Step>
+
+### Enrol the cluster
+
+On the cluster:
+
+```bash
+incus config trust add incuscloud --quiet
+```
+
+In IncusCloud, open **Clusters** › **Enrol cluster**, name it `prod` and paste the token. Within a
+minute the cluster shows as ready.
+
+</Step>
+<Step>
+
+### Use it
+
+```bash
+incus remote add prod https://prod.clusters.example.com --auth-type=oidc
+incus list prod:
+```
+
+The CLI prints a link: open it, sign in to IncusCloud, and the CLI is signed in.
+
+</Step>
+</Steps>
+
+## Next
+
+- Create a [tenant](/docs/guides/tenants), place it on the cluster and add people.
+- Give out [permissions](/docs/guides/access).
+- Replace the internal CA with a [public certificate](/docs/install/certificates).

@@ -1,0 +1,81 @@
+---
+title: Troubleshooting
+description: The usual causes of a failed install, and how to find them.
+icon: LifeBuoy
+---
+
+Set `IC_LOG_LEVEL=debug` for more detail. Logs are JSON on stdout:
+`docker compose logs incuscloud`, or `kubectl -n incuscloud logs deploy/incuscloud`.
+
+<Accordions>
+<Accordion title="IncusCloud restarts with “Invalid configuration:”">
+
+A setting is missing or invalid. The log lists each one, by name.
+
+</Accordion>
+<Accordion title="The log shows “Hydra not ready, retrying” for a long time">
+
+Hydra didn't start. Look at `docker compose logs hydra hydra-migrate`. The usual cause with Compose
+is a certificate Hydra can't read: `./certs` must be owned by `IC_UID` from `.env`, the user who ran
+`setup.sh`.
+
+</Accordion>
+<Accordion title="Enrolment fails: cannot reach the cluster">
+
+IncusCloud can't reach the addresses in the trust token. The token lists the cluster's
+`core.https_address` values: check the route and firewall to port 8443 from IncusCloud's host.
+
+</Accordion>
+<Accordion title="A cluster stays degraded with an OpenFGA error">
+
+The cluster can't reach `IC_OPENFGA_CLUSTER_URL`. From a cluster member:
+
+```bash
+curl http://<openfga address>:8080/healthz
+```
+
+</Accordion>
+<Accordion title="incus remote add --auth-type=oidc fails, or the cluster answers “not authorized” after signing in">
+
+The cluster can't fetch the issuer, or doesn't trust its certificate. From a cluster member, without
+`-k`:
+
+```bash
+curl https://cloud.example.com/.well-known/openid-configuration
+```
+
+With the internal CA, install `ca.crt` on the member and restart `incus`
+([Certificates](/docs/install/certificates#b-the-internal-ca)).
+
+</Accordion>
+<Accordion title="The browser shows a certificate warning">
+
+The internal CA isn't trusted on that machine. Import `ca.crt`, or use a public certificate.
+
+</Accordion>
+<Accordion title="Kubernetes is off in the console">
+
+`IC_K8S_KUBECONFIG` isn't set. See [Kubernetes](/docs/guides/kubernetes#set-it-up).
+
+</Accordion>
+<Accordion title="Kubernetes nodes never become ready">
+
+Usually the kernel modules are missing on the Incus hosts (`br_netfilter`, `overlay`, `ip_vs`,
+`nf_nat`), or the endpoint ports (`IC_K8S_PORTS`) are blocked between the management cluster and the
+members. The cluster's **Conditions** and **Activity** tabs say which step is stuck.
+
+</Accordion>
+<Accordion title="A tenant can't take snapshots">
+
+Either the tenant reached its snapshot quota, so the reconciler set `restricted.snapshots=block` on
+its projects, or the change hasn't reached the cluster yet: wait one reconcile interval, or
+**Reconcile now** on the cluster's page.
+
+</Accordion>
+<Accordion title="A create is refused with quota_exceeded">
+
+The message names the quota. The tenant page shows usage against every quota, and **Users' quotas**
+the member's own share.
+
+</Accordion>
+</Accordions>

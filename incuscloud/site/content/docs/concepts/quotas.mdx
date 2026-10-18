@@ -1,0 +1,60 @@
+---
+title: Quotas
+description: One quota across every cluster a tenant runs on, and users' shares inside it.
+icon: Gauge
+---
+
+Quotas start unset, which means unlimited. Platform operators set a tenant's quotas; tenant admins
+set their users' shares.
+
+## The tenant's pool
+
+These four hold across every cluster the tenant is placed on:
+
+| Quota | Unit |
+| --- | --- |
+| Instances | count |
+| CPUs | cores |
+| Memory | GiB |
+| Disk | GiB |
+
+**Usage** is what Incus counts against a project's `limits.*`: what the tenant's instances are
+*given*, not what they use at the moment. The reconciler reads it from each project, then sets each
+project's limits to its own usage plus whatever the tenant has left across all its clusters. So:
+
+- any one cluster can take all of the remaining quota;
+- none can grow once the tenant is at its quota;
+- a limit is never set below usage. A quota lowered below usage just stops growth everywhere.
+
+Creates through IncusCloud are checked exactly, counting creates still running, and one tenant's
+checks run one at a time, so two requests can never both take the last of the quota. Changes made
+straight against a cluster are held by the project limits, which follow within one reconcile pass.
+
+## Per-object quotas
+
+| Quota | Checked when |
+| --- | --- |
+| CPUs per instance, memory per instance, disk per instance | An instance is created, and for each Kubernetes node flavor |
+| Snapshots | The reconciler blocks snapshots in the tenant's projects once the count is reached |
+| Backups (count) and backup storage (GiB) | A backup is made, by hand or by a schedule |
+| Kubernetes clusters | A Kubernetes cluster is created |
+
+<Callout title="Two counts are approximate">
+  The snapshot count comes from the inventory, so it can go over by what is taken within one
+  reconcile interval. Backup storage refuses new backups once the stored total reaches the cap; the
+  last backup's size isn't known beforehand, so it can go past it.
+</Callout>
+
+## Users' quotas
+
+Inside a tenant, admins can give a member a share of their own, on the tenant page under **Users'
+quotas**:
+
+| Quota | Counts |
+| --- | --- |
+| Instances | instances the user owns, plus creates still running |
+| CPUs and memory | the limits of those instances |
+| Backups | backups the user made |
+
+A user's quota can't be set above the tenant's. Members without one are limited only by the
+tenant's quota.

@@ -1,0 +1,130 @@
+---
+title: Kubernetes
+description: Tenants create Kubernetes clusters on any Incus cluster, from one Cluster API install.
+icon: Container
+---
+
+Nothing is installed in the Incus clusters. One [Cluster API](https://cluster-api.sigs.k8s.io/)
+install with the Incus provider, [CAPN](https://github.com/lxc/cluster-api-provider-incus), in a
+Kubernetes cluster of your own (the **management cluster**), drives them all. IncusCloud talks to
+its API directly.
+
+## Set it up
+
+<Steps>
+<Step>
+
+### A management cluster
+
+Any Kubernetes cluster works, including the one IncusCloud runs in. It must reach the Incus
+clusters' APIs (8443) and the workload clusters' API endpoints (`IC_K8S_PORTS`, 16443–16999 by
+default, on member addresses).
+
+</Step>
+<Step>
+
+### Install Cluster API and CAPN
+
+With `clusterctl` v1.14.3. CAPN isn't in clusterctl's built-in list, so `clusterctl.yaml` (in the
+Compose bundle's `management/`, or `incuscloud/deploy/management/` in the repository) names it:
+
+```bash
+mkdir -p ~/.cluster-api && cp management/clusterctl.yaml ~/.cluster-api/clusterctl.yaml
+CLUSTER_TOPOLOGY=true EXP_CLUSTER_RESOURCE_SET=true clusterctl init \
+  --core cluster-api:v1.14.3 --bootstrap kubeadm:v1.14.3 \
+  --control-plane kubeadm:v1.14.3 --infrastructure incus:v0.9.1 --wait-providers
+```
+
+</Step>
+<Step>
+
+### Give IncusCloud access
+
+```bash
+kubectl apply -f management/rbac.yaml
+./management/kubeconfig.sh > mgmt.kubeconfig && chmod 600 mgmt.kubeconfig
+# Pass the API server's address as IncusCloud reaches it, if it differs from your context's:
+#   ./management/kubeconfig.sh https://10.0.0.30:6443 > mgmt.kubeconfig
+```
+
+The service account can manage namespaces, secrets, config maps and Cluster API objects, and read
+events.
+
+<Tabs items={["Docker Compose", "Helm"]}>
+<Tab value="Docker Compose">
+
+Copy `mgmt.kubeconfig` to `k8s/mgmt.kubeconfig`, uncomment
+`IC_K8S_KUBECONFIG=/etc/incuscloud/k8s/mgmt.kubeconfig` in `incuscloud.env`, then
+`docker compose up -d`.
+
+</Tab>
+<Tab value="Helm">
+
+```bash
+kubectl -n incuscloud create secret generic incuscloud-mgmt --from-file=kubeconfig=mgmt.kubeconfig
+```
+
+Set `kubernetes.kubeconfigSecret: incuscloud-mgmt` and run `helm upgrade`.
+
+</Tab>
+</Tabs>
+
+</Step>
+<Step>
+
+### Load kernel modules on the Incus hosts
+
+The nodes are unprivileged containers and can't load modules themselves. On every Incus host:
+
+```bash
+printf 'br_netfilter\noverlay\nip_vs\nnf_nat\n' | sudo tee /etc/modules-load.d/incuscloud-k8s.conf
+sudo systemctl restart systemd-modules-load
+```
+
+</Step>
+</Steps>
+
+IncusCloud then applies everything else itself: its ClusterClass `incuscloud-v1` in
+`incuscloud-system`, and per tenant a namespace `ic-<tenant>` with flannel as a ClusterResourceSet.
+Without a kubeconfig the console says Kubernetes is off.
+
+## Create a cluster
+
+**Kubernetes** › **Create Kubernetes cluster**: a tenant and an Incus cluster, then:
+
+- **Cluster**: name, Kubernetes version, node image, load balancer, MetalLB.
+- **Machines**: for the control plane (1, 3 or 5 nodes) and the workers (up to 20): count, type
+  (container or VM), CPU and memory or a CAPN flavor, profiles and a target member or group.
+- **Network**: pod and service CIDRs, flannel, kubeadm installed on boot.
+
+Sizes small (2 CPUs, 2 GiB), medium (2, 4) and large (4, 8) are presets. Versions with prebuilt CAPN
+images: v1.34.0, v1.35.5, v1.36.4 and v1.37.0. The form shows what the cluster uses of the tenant's
+quota: each node, and an instance load balancer, counts as an instance at its flavor's size with
+10 GiB of disk.
+
+## The API endpoint
+
+The management cluster and the nodes both reach each cluster's API server through its load
+balancer:
+
+| Load balancer | Endpoint |
+| --- | --- |
+| `lxc` or `oci` | haproxy in an instance in the tenant's project. The endpoint is the Incus cluster's (or member's) address and a port from `IC_K8S_PORTS`, forwarded to it. |
+| `kube-vip` | An IP address and interface you give, port 6443. |
+| `ovn` | An IP address on an OVN network, port 6443. |
+
+Without OVN, each member's bridge is its own network, so a cluster runs on one member: the one you
+choose, or the online one with the most memory free.
+
+## Day two
+
+A cluster's page has General, Kubeconfig, Control plane, Workers, Load balancer, Load balancer
+services (MetalLB), Activity and Conditions.
+
+- **Kubeconfig**: the admin kubeconfig, for tenant members. Downloads are audited.
+- **Scale**: change node counts. Scaling up is checked against the quota.
+- **Upgrade**: one minor version at a time.
+- **MetalLB**: given address ranges, IncusCloud installs MetalLB in the workload cluster so Services
+  of type LoadBalancer get an address.
+- **Delete** (with `k8s.delete`: tenant members and admins, and Users for their own): removes the nodes, the forward and, if it was the last
+  cluster there, CAPN's certificate.

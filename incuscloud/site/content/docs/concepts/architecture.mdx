@@ -1,0 +1,84 @@
+---
+title: Architecture
+description: The components of an install, and what talks to what.
+icon: Network
+---
+
+An install has four parts. Only IncusCloud is exposed to users.
+
+| Component | What it does | Who talks to it |
+| --- | --- | --- |
+| **IncusCloud** | The platform UI, the REST API, the sign-in pages, the gateway to each cluster's API, each cluster's UI, and the background workers. One process, one HTTPS port. | Browsers, `incus` clients, and the Incus clusters (to sign users in). |
+| **Ory Hydra** | Issues the OAuth2 and OIDC tokens that IncusCloud and the clusters accept. | IncusCloud only. |
+| **OpenFGA** | Holds each cluster's grants. Every cluster checks permissions against its own store. | IncusCloud **and every Incus cluster**. |
+| **Postgres** | Three databases: `incuscloud`, `hydra` and `openfga`. | IncusCloud, Hydra and OpenFGA. |
+
+```
+             browsers, incus CLI, Terraform
+                         │ 443
+                         ▼
+ ┌──────────────────── IncusCloud ─────────────────────┐
+ │  https://cloud.example.com              UI, API, sign-in │
+ │  https://<cluster>.clusters.example.com   cluster APIs │
+ └───┬───────────┬──────────────┬──────────────────────┘
+     │ internal  │ internal     │ 8443, each cluster's API
+     ▼           ▼              ▼
+   Hydra      OpenFGA ◄────── Incus clusters ──► https://cloud.example.com (OIDC)
+     │           │     8080
+     └─ Postgres ┘
+```
+
+## One origin
+
+Hydra's issuer is IncusCloud's own public URL, `https://cloud.example.com/`. IncusCloud serves
+Hydra's public endpoints itself (`/oauth2/*`, `/.well-known/openid-configuration`,
+`/.well-known/jwks.json`, `/userinfo`), so browsers, the CLI and the clusters only ever see one
+address, and Hydra is never exposed. IncusCloud's own calls to Hydra go straight to it on the
+internal network.
+
+## Clusters enforce access themselves
+
+When a cluster is enrolled, IncusCloud's reconciler configures it:
+
+- `oidc.issuer`, `oidc.client.id`, `oidc.audience=incuscloud` and `oidc.claim=sub` point it at
+  Hydra, so a token from IncusCloud works on the cluster directly.
+- `authorization.openfga.*` points it at its own OpenFGA store, `incuscloud-cluster-<id>`, which the
+  reconciler fills with the grants that IncusCloud's permissions give.
+- Each tenant placed on the cluster gets a restricted Incus project, with limits set to its share
+  of the tenant's quota.
+
+So a request reaches the cluster as the person who made it, whether it comes through the gateway
+or straight from the CLI, and the cluster applies the same limits either way. IncusCloud never adds
+its own credentials to someone's request.
+
+## The gateway
+
+Each enrolled cluster is reachable two ways:
+
+- **API clients** use `https://<cluster>.<cluster domain>`: the stock `incus` CLI, Terraform, or
+  anything that speaks the Incus API.
+- **Browsers** use the console, or `https://cloud.example.com/clusters/<cluster>/ui/` for that
+  cluster's Incendio UI alone.
+
+Requests that change something, and every websocket and file transfer, are logged in the
+[gateway log](/docs/guides/logs).
+
+## The reconciler and the workers
+
+IncusCloud runs these in the same process:
+
+- **Reconciler.** Brings every cluster in line with IncusCloud's records: sign-in settings,
+  OpenFGA grants, tenant projects and their limits. It runs right after any change, and every
+  `IC_RECONCILE_INTERVAL` seconds regardless.
+- **Inventory.** Reads every cluster's instances, members, storage and networks, plus metrics,
+  every `IC_INVENTORY_INTERVAL` seconds.
+- **Jobs.** Migrations, backups, restores, replication runs, balancing runs and Kubernetes
+  operations run as jobs you can follow and cancel.
+- **Lifecycle.** Follows each cluster's event stream, so instances created straight against a
+  cluster still get an owner.
+
+## Enrolment
+
+`incus config trust add incuscloud` on a cluster gives a one-time token. IncusCloud redeems it with
+a client certificate it generates for that cluster, pinned by fingerprint, and keeps the key sealed
+with `IC_SECRET_KEY`. Nothing else is installed.
