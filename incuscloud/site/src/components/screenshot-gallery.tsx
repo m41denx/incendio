@@ -27,7 +27,7 @@ export const ScreenshotGallery = () => {
 
   return (
     <div className="flex w-full flex-col items-center gap-5">
-      <div role="tablist" aria-label="Screenshots" className="flex max-w-full gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none]">
+      <div role="tablist" aria-label="Screenshots" className="flex max-w-full flex-wrap justify-center gap-2">
         {areas.map((x, n) => (
           <button
             key={x.id}
@@ -37,7 +37,7 @@ export const ScreenshotGallery = () => {
               setArea(n);
               setI(0);
             }}
-            className="matte shrink-0 rounded-full px-3.5 py-1.5 text-xs text-fd-muted-foreground aria-selected:text-fd-foreground"
+            className="matte shrink-0 cursor-pointer rounded-full px-5 py-2.5 text-sm font-medium text-fd-muted-foreground transition-colors hover:text-fd-foreground aria-selected:border-transparent! aria-selected:bg-fd-primary! aria-selected:text-fd-primary-foreground!"
           >
             {x.label}
           </button>
