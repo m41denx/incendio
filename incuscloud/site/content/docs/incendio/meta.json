@@ -1,0 +1,18 @@
+{
+  "title": "Incendio",
+  "description": "The web UI for Incus, with Kubernetes",
+  "icon": "Flame",
+  "root": true,
+  "pages": [
+    "index",
+    "install",
+    "sign-in",
+    "---Features---",
+    "...features",
+    "---Kubernetes---",
+    "...kubernetes",
+    "---Reference---",
+    "compatibility",
+    "incuscloud"
+  ]
+}

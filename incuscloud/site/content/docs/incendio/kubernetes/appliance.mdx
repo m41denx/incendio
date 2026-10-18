@@ -1,0 +1,72 @@
+---
+title: Management appliance
+description: Deploy the Kubernetes agent once, then keep it up to date.
+icon: Server
+---
+
+The management appliance is a single privileged Incus container (`images:ubuntu/24.04/cloud`) in
+its own project, `incendio-mgmt`. It runs k3s with Cluster API, CAPN and the Kubernetes agent, and
+it's reachable through a proxy device on the host's port **8843**.
+
+<Screenshot name="kubernetes-appliance" />
+
+## Deploy it
+
+<Steps>
+<Step>
+
+### Open the settings
+
+Go to **Clustering › Kubernetes › Kubernetes settings**, tab **Management appliance**.
+
+</Step>
+<Step>
+
+### Generate a client certificate and deploy
+
+Click **Generate client certificate**, then **Deploy management appliance**. Incendio creates the
+container and adds its certificate to the Incus trust store. If the `default` profile has no root
+disk or network, it picks a storage pool and a NAT network itself.
+
+</Step>
+<Step>
+
+### Wait for the checklist
+
+The tab shows each step of the bring-up with the bootstrap log underneath: the container, the
+cloud-init bootstrap, the agent answering, CAPN ready, and Incus trust. The first time takes a few
+minutes.
+
+</Step>
+<Step>
+
+### Approve the certificate
+
+The agent uses a self-signed certificate. When asked, open the **Approve K8s manager certificate**
+link once and accept it, so your browser can talk to the agent.
+
+</Step>
+</Steps>
+
+Once every step is green, **Create cluster** is enabled on the **Clusters** page.
+
+The agent's address and token are saved in the server's configuration (`user.k8s.api-config`), so
+every administrator's browser reconnects to it. The **Agent** tab shows them, with **Test
+connection** to check a token before it's saved.
+
+## Update the agent
+
+When a newer agent is released, the tab says **Agent update available**. **Install** downloads it
+inside the appliance, verifies its checksum, swaps it in, and keeps the previous version.
+**Roll back** returns to the version the last update replaced, and forward again.
+
+Features that need a newer agent say so instead of failing. For example, MetalLB needs agent 0.3.0.
+
+## Cluster controllers
+
+The **Cluster controllers** section lists the Cluster API controllers and any nodes they can't
+reach. **Restart cluster controllers** restarts them.
+
+The agent does this itself when it has to. After the appliance was paused or the host slept, the
+controllers can lose their connection to a cluster while the cluster is fine, and it then sits in
+provisioning. The agent restarts them when that lasts five minutes, at most twice in a row.

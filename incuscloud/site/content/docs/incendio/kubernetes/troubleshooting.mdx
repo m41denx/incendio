@@ -1,0 +1,54 @@
+---
+title: Troubleshooting
+description: What to check when a cluster doesn't come up.
+icon: LifeBuoy
+---
+
+<Accordions>
+<Accordion title="The appliance stays on one step of the checklist">
+
+Read the bootstrap log under the checklist. Most often the container has no internet access, so it
+can't download k3s and the controllers. Check the network the appliance uses and its NAT.
+
+</Accordion>
+<Accordion title="Create cluster is greyed out">
+
+The management appliance isn't fully ready. Every step of its checklist must be green, and your
+browser must have accepted the agent's certificate (**Approve K8s manager certificate**).
+
+</Accordion>
+<Accordion title="A node is flagged as failed to bootstrap">
+
+kubeadm stopped on the node. The cluster page shows its reason, for example `[ERROR NumCPU]`, and
+the end of its log. **Bootstrap log** opens the whole output. Fix the cause (usually the node's
+size), then delete the cluster and create it again.
+
+</Accordion>
+<Accordion title="&quot;This cluster will not come up&quot;">
+
+The cluster got an IPv6 API endpoint that its load balancer doesn't serve. This happened on
+networks with IPv6 before agent 0.3.1, which now pins an IPv4 endpoint for new clusters. Update the
+agent, delete the cluster and create it again.
+
+</Accordion>
+<Accordion title="A cluster that was ready is back in provisioning, with nodes &quot;unreachable&quot;">
+
+The Cluster API controllers lost their connection after the appliance was paused or the host slept.
+The agent restarts them on its own after five minutes. To do it now, use **Restart cluster
+controllers** on the [Management appliance](/docs/incendio/kubernetes/appliance#cluster-controllers)
+tab.
+
+</Accordion>
+<Accordion title="kubectl can't reach the cluster">
+
+The API endpoint is on your Incus network. Run `kubectl` on the Incus host or on a machine with a
+route to that network, or add an Incus network forward to the endpoint.
+
+</Accordion>
+<Accordion title="A LoadBalancer service stays pending">
+
+MetalLB isn't installed on that cluster, or its address range is used up. See
+[LoadBalancer services](/docs/incendio/kubernetes/load-balancers).
+
+</Accordion>
+</Accordions>

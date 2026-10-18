@@ -1,0 +1,45 @@
+---
+title: Networking
+description: OVN load balancers and interconnect, address sets, DNS zones and more.
+icon: Network
+---
+
+Under **Networking** you'll find **Networks**, **ACLs**, **Address sets**, **Zones** and **IPAM**.
+OVN interconnect has its own **Interconnect** entry in the menu.
+
+<Screenshot name="network-detail" />
+
+## Load balancers
+
+OVN networks get **load balancers**: backends with their target addresses and ports, port mappings,
+health checks, and a live panel showing each backend's health.
+
+<Screenshot name="network-load-balancer" />
+
+## Address sets
+
+Named groups of IP addresses, CIDRs and ranges, per project. Reference one from any ACL rule as
+`$name`, so a rule follows the set as it changes.
+
+<Screenshot name="network-address-sets" />
+
+## DNS zones
+
+Create forward and reverse zones, link them to networks, and edit their records (type, value and
+TTL) in a record editor.
+
+<Screenshot name="network-dns-zones" />
+
+## Interconnect
+
+**Interconnect** manages OVN **network integrations**: the northbound and southbound connections,
+their TLS certificates and the transit switch pattern. Networks then peer with a remote network
+through an integration (a peer of type `remote`).
+
+## Smaller things
+
+- **Forwards** on bridged networks have an **SNAT** toggle.
+- Bridged and OVN networks take **DNS nameservers** (`dns.nameservers`).
+- Bridges can stop serving the host's `/etc/hosts` over DNS (`dns.include_hosts`, Incus 7.5).
+- NIC devices take the options of their network's type: see
+  [Instances › Devices](/docs/incendio/features/instances#devices).

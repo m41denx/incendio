@@ -1,0 +1,92 @@
+---
+title: Install
+description: Unpack a release next to Incus and point Incus at it.
+icon: Download
+---
+
+Incendio is a folder of static files. Incus serves it from the directory named by the `INCUS_UI`
+environment variable, on the same address and port as its API.
+
+<Steps>
+<Step>
+
+### Expose Incus on the network
+
+If you haven't already, give Incus an HTTPS address, for example port 8443 on every interface:
+
+```sh
+incus config set core.https_address :8443
+```
+
+</Step>
+<Step>
+
+### Download and unpack a release
+
+Take the latest `incendio-ui-<version>.zip` from the
+[releases page](https://github.com/m41denx/incendio/releases) and unpack it, for example into
+`/opt/incendio/ui`:
+
+```sh
+sudo mkdir -p /opt/incendio/ui
+sudo unzip incendio-ui-<version>.zip -d /opt/incendio/ui
+```
+
+</Step>
+<Step>
+
+### Point Incus at it
+
+Set `INCUS_UI` for the Incus service, then restart it:
+
+```sh
+sudo systemctl edit incus
+```
+
+```ini
+[Service]
+Environment=INCUS_UI=/opt/incendio/ui
+```
+
+```sh
+sudo systemctl restart incus
+```
+
+<Callout title="Zabbly packages">
+  The `incus-ui-canonical` package already sets `INCUS_UI=/opt/incus/ui`. You can unpack Incendio
+  there instead of setting the variable. Hold the package so upgrades don't overwrite it:
+  `sudo apt-mark hold incus-ui-canonical`.
+</Callout>
+
+On a cluster, do this on every member: each one serves the UI.
+
+</Step>
+<Step>
+
+### Open it
+
+Browse to `https://<your-server>:8443/ui/` and [sign in](/docs/incendio/sign-in).
+
+</Step>
+</Steps>
+
+## Update
+
+Unpack a newer release over the same directory, then reload the page. Incus doesn't need a restart.
+
+Each release's notes say what changed and which Incus version a feature needs. They're on the
+[releases page](https://github.com/m41denx/incendio/releases) and in the
+[changelog](https://github.com/m41denx/incendio/blob/incus-port/CHANGELOG.md).
+
+## Go back to the stock UI
+
+Remove the `Environment=INCUS_UI=…` line with `sudo systemctl edit incus` and restart Incus. If you
+unpacked over `/opt/incus/ui`, reinstall `incus-ui-canonical` instead
+(`sudo apt-mark unhold incus-ui-canonical && sudo apt install --reinstall incus-ui-canonical`).
+
+## Other ways to get it
+
+- **Firecloud** (preview), in the same repository, sets up a whole Incus cluster with Incendio
+  already installed. It ships separately, as a `.deb`.
+- **IncusCloud** serves Incendio for every cluster it manages, so there's nothing to install on
+  them. See [Incendio in IncusCloud](/docs/incendio/incuscloud).

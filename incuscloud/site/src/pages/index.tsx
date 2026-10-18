@@ -2,10 +2,11 @@ import type { RouteConfig } from "fumapress";
 import { Link } from "fumapress/client";
 import { asMarkdown, md } from "fumapress/markdown";
 import { ArrowRight, Check, Server, Users } from "lucide-react";
-import type { ReactNode } from "react";
 import { Architecture } from "../components/architecture";
 import { ConsolePreview } from "../components/console-preview";
 import { type FeatureKind, FeatureCard } from "../components/feature-card";
+import { btnGlass, btnPrimary, Comment, Prompt, Section, Split, Terminal } from "../components/landing";
+import { IncendioMark } from "../components/logo";
 import { OgImage } from "../components/og-image";
 import { Roadmap, type RoadmapCopy } from "../components/roadmap";
 
@@ -156,42 +157,6 @@ const roadmap: RoadmapCopy = {
   ],
 };
 
-const btnPrimary =
-  "inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-fd-primary px-5 text-sm font-medium text-fd-primary-foreground transition-opacity hover:opacity-85";
-const btnGlass = "matte inline-flex h-11 items-center justify-center gap-2 rounded-xl px-5 text-sm font-medium text-fd-foreground";
-
-/** A two-part heading: the lead, then the tail in muted grey. */
-const Split = ({ parts }: { parts: [string, string] }) => (
-  <>
-    {parts[0]} <span className="text-fd-muted-foreground">{parts[1]}</span>
-  </>
-);
-
-const Section = ({ id, eyebrow, title, sub, children }: { id?: string; eyebrow: string; title: ReactNode; sub?: string; children: ReactNode }) => (
-  <section id={id} className="mx-auto w-full max-w-5xl scroll-mt-28 px-4 py-20 sm:py-24">
-    <div className="mx-auto mb-12 flex max-w-2xl flex-col items-center gap-4 text-center">
-      <p className="font-mono text-xs uppercase tracking-[0.2em] text-fd-muted-foreground">{eyebrow}</p>
-      <h2 className="text-balance text-3xl font-semibold tracking-tight sm:text-4xl">{title}</h2>
-      {sub && <p className="text-pretty text-[15px] leading-relaxed text-fd-muted-foreground">{sub}</p>}
-    </div>
-    {children}
-  </section>
-);
-
-const Terminal = ({ children }: { children: ReactNode }) => (
-  <div className="glass overflow-hidden rounded-2xl">
-    <div className="flex items-center gap-1.5 border-b border-white/10 px-4 py-3">
-      <span className="size-2.5 rounded-full bg-white/15" />
-      <span className="size-2.5 rounded-full bg-white/15" />
-      <span className="size-2.5 rounded-full bg-white/15" />
-    </div>
-    <pre className="overflow-x-auto p-4 font-mono text-xs leading-relaxed sm:p-5 sm:text-[13px]">{children}</pre>
-  </div>
-);
-
-const Prompt = ({ host = "" }: { host?: string }) => <span className="select-none text-fd-muted-foreground">{host}$ </span>;
-const Comment = ({ children }: { children: ReactNode }) => <span className="text-fd-muted-foreground/70">{children}</span>;
-
 export default function Page() {
   if (asMarkdown()) return pageMarkdown();
 
@@ -206,7 +171,7 @@ export default function Page() {
       <section className="mx-auto flex w-full max-w-5xl flex-col items-center gap-12 px-4 pb-10 pt-20 sm:pt-28">
         <div className="flex max-w-3xl flex-col items-center gap-6 text-center">
           <Link
-            href="/docs/install"
+            href="/docs/incuscloud/install"
             className="matte shine relative inline-flex items-center gap-2 overflow-hidden rounded-full py-1 pl-1 pr-3 text-xs text-fd-muted-foreground hover:text-fd-foreground"
           >
             <span className="rounded-full bg-white/10 px-2 py-0.5 text-fd-foreground">Beta</span>
@@ -221,11 +186,11 @@ export default function Page() {
             quotas, permissions, backups, migration and Kubernetes. Nothing to install on the clusters.
           </p>
           <div className="flex w-full max-w-xs flex-col gap-3 sm:w-auto sm:max-w-none sm:flex-row">
-            <Link href="/docs/quickstart" className={btnPrimary}>
+            <Link href="/docs/incuscloud/quickstart" className={btnPrimary}>
               Get started
               <ArrowRight className="size-4" />
             </Link>
-            <Link href="/docs" className={btnGlass}>
+            <Link href="/docs/incuscloud" className={btnGlass}>
               Read the docs
             </Link>
           </div>
@@ -326,10 +291,10 @@ export default function Page() {
               </li>
             ))}
             <li className="flex flex-wrap gap-x-5 gap-y-2">
-              <Link href="/docs/install/docker-compose" className="inline-flex items-center gap-1.5 text-sm text-fd-foreground underline-offset-4 hover:underline">
+              <Link href="/docs/incuscloud/install/docker-compose" className="inline-flex items-center gap-1.5 text-sm text-fd-foreground underline-offset-4 hover:underline">
                 Docker Compose guide <ArrowRight className="size-3.5" />
               </Link>
-              <Link href="/docs/install/helm" className="inline-flex items-center gap-1.5 text-sm text-fd-foreground underline-offset-4 hover:underline">
+              <Link href="/docs/incuscloud/install/helm" className="inline-flex items-center gap-1.5 text-sm text-fd-foreground underline-offset-4 hover:underline">
                 Helm guide <ArrowRight className="size-3.5" />
               </Link>
             </li>
@@ -359,6 +324,25 @@ export default function Page() {
         </div>
       </Section>
 
+      {/* ── Incendio ─────────────────────────────────────────────────────── */}
+      <section className="mx-auto w-full max-w-5xl px-4 py-8">
+        <Link href="/incendio" className="glass group flex flex-col items-start gap-5 rounded-2xl p-6 transition-colors hover:border-white/20 sm:flex-row sm:items-center">
+          <IncendioMark className="size-11 rounded-xl" />
+          <div className="flex-1">
+            <p className="font-medium">
+              <Split parts={["One cluster?", "Start with Incendio."]} />
+            </p>
+            <p className="mt-1 text-pretty text-[13px] leading-relaxed text-fd-muted-foreground">
+              The web UI IncusCloud serves for every cluster also runs on its own, from your Incus server, with Kubernetes built
+              in. Install it today and add IncusCloud when you have more clusters.
+            </p>
+          </div>
+          <span className="inline-flex items-center gap-1.5 text-sm text-fd-foreground">
+            Meet Incendio <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+          </span>
+        </Link>
+      </section>
+
       {/* ── Roadmap ──────────────────────────────────────────────────────── */}
       <Section id="roadmap" eyebrow="Roadmap" title={<Split parts={["Where it stands.", "Where it's going."]} />} sub="What has shipped, what the beta is finishing, and what comes next.">
         <Roadmap t={roadmap} />
@@ -374,10 +358,10 @@ export default function Page() {
             </h2>
             <p className="max-w-md text-pretty text-[15px] text-fd-muted-foreground">Start with one host and one cluster. Add the rest when you're ready.</p>
             <div className="flex w-full max-w-xs flex-col gap-3 sm:w-auto sm:max-w-none sm:flex-row">
-              <Link href="/docs/quickstart" className={btnPrimary}>
+              <Link href="/docs/incuscloud/quickstart" className={btnPrimary}>
                 Get started <ArrowRight className="size-4" />
               </Link>
-              <Link href="/docs/install" className={btnGlass}>
+              <Link href="/docs/incuscloud/install" className={btnGlass}>
                 Installation guide
               </Link>
             </div>
@@ -394,8 +378,8 @@ function pageMarkdown() {
 
 > ${meta.description}
 
-- [Get started](/docs/quickstart)
-- [Read the docs](/docs)
+- [Get started](/docs/incuscloud/quickstart)
+- [Read the docs](/docs/incuscloud)
 
 ## Why IncusCloud
 

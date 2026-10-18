@@ -1,0 +1,73 @@
+---
+title: Clusters
+description: Create, watch, scale, upgrade and delete Kubernetes clusters.
+icon: Boxes
+---
+
+**Clustering › Kubernetes** lists the clusters: status, Kubernetes version, ready and desired node
+counts, API endpoint and project.
+
+## Create a cluster
+
+**Create cluster** opens a form in four sections:
+
+- **Cluster**: name, **Kubernetes version** (only versions with a kubeadm image are offered,
+  newest first), the **load balancer** in front of the control plane, the flannel network plugin,
+  pod and service CIDRs (`10.244.0.0/16` and `10.96.0.0/12` by default), and **Install MetalLB**.
+- **Machines**: **Control plane nodes** and **Worker nodes**: how many, container or virtual
+  machine, CPU cores, memory, profiles, and the cluster member they go to.
+- **Infrastructure credentials**: how Cluster API reaches Incus. With the agent, Incendio fills
+  these in.
+- **Generated artifacts**: the exact configuration the form produces, to check or to
+  [use yourself](/docs/incendio/kubernetes/without-the-agent).
+
+<Screenshot name="kubernetes-create" />
+
+The control plane's load balancer can be:
+
+| Option | What it is |
+| --- | --- |
+| LXC container (haproxy) | An extra container running haproxy. Simple, good for trying things out. |
+| OCI container (haproxy) | The same, as an OCI container. |
+| kube-vip | A virtual IP held by the control-plane nodes themselves. |
+| OVN network load balancer | An Incus OVN load balancer, on OVN networks. |
+
+Use an odd number of control-plane nodes (1, 3, 5): etcd needs a majority.
+
+## Watch it come up
+
+A cluster is **Provisioning** until every node has joined, then **Ready**. Later changes show as
+**Scaling** or **Upgrading** until they finish. Click a cluster to open its page:
+
+- **General**: status, version, API endpoint, project and ready counts.
+- **Control plane**, **Workers** and **Load balancer**: each node links to its Incus instance, with
+  the instance's status, the Kubernetes node's readiness and why it isn't ready, its addresses and
+  its Kubernetes version. **Bootstrap log** shows a node's kubeadm and cloud-init output.
+- **Conditions**: what Cluster API reports.
+- **Activity**: Kubernetes events and the Cluster API controllers' log lines about this cluster,
+  oldest first. It refreshes every few seconds while things change. **Warnings and errors only**
+  filters it.
+
+<Screenshot name="kubernetes-cluster-detail" />
+
+## Use it
+
+**Show kubeconfig** shows the cluster's admin kubeconfig, to copy or download. The API endpoint is
+on your Incus network, so use the kubeconfig from the Incus host or a machine that can reach that
+network.
+
+## Scale
+
+**Scale** sets the control-plane and worker counts, and Cluster API rolls the change out. The
+control plane only takes odd counts.
+
+## Upgrade
+
+**Upgrade** moves the cluster to a newer Kubernetes version, one minor version at a time (kubeadm's
+rule). Cluster API replaces the control-plane nodes first, then the workers, one at a time. The
+page shows each node's version against the target while it rolls out.
+
+## Delete
+
+**Delete** removes the cluster, its instances and its project. The cluster shows as **Deleting**
+until that's done.

@@ -1,0 +1,160 @@
+---
+title: Kubernetes (Helm)
+description: The chart, with Hydra, OpenFGA and an optional Postgres.
+icon: Ship
+---
+
+The chart `oci://ghcr.io/m41denx/charts/incuscloud` (in the repository at
+`incuscloud/deploy/helm/incuscloud`) installs:
+
+- IncusCloud, one replica;
+- Hydra;
+- OpenFGA;
+- optionally a single-instance Postgres for the three databases.
+
+It generates its secrets and an internal CA, keeps them across `helm upgrade`, and leaves them in
+place on `helm uninstall`.
+
+## Values
+
+Four values are required:
+
+```yaml title="values.yaml"
+publicHost: cloud.example.com
+clusterDomain: clusters.example.com
+admin:
+  email: admin@example.com
+openfga:
+  # How the Incus clusters reach OpenFGA: the OpenFGA service's address.
+  clusterUrl: http://10.0.0.21:8080
+```
+
+The ones most installs add:
+
+```yaml title="values.yaml"
+# A kubernetes.io/tls secret covering both names (e.g. from cert-manager).
+tls:
+  existingSecret: incuscloud-tls
+
+service:
+  type: LoadBalancer
+  loadBalancerIP: 10.0.0.20          # where both DNS names point
+
+openfga:
+  clusterUrl: http://10.0.0.21:8080
+  service:
+    type: LoadBalancer
+    loadBalancerIP: 10.0.0.21
+    loadBalancerSourceRanges: [10.0.0.0/16]   # the cluster networks and IncusCloud
+
+# Your own Postgres instead of the bundled one.
+postgres:
+  enabled: false
+externalDatabase:
+  existingSecret: incuscloud-db
+
+# Kubernetes for tenants: the management cluster's kubeconfig (key "kubeconfig").
+kubernetes:
+  kubeconfigSecret: incuscloud-mgmt
+```
+
+<Accordions>
+<Accordion title="All values">
+
+| Value | Default | What it does |
+| --- | --- | --- |
+| `publicHost` | | The public host (required) |
+| `clusterDomain` | | The cluster domain (required) |
+| `admin.email` | | The first administrator (required) |
+| `admin.password` | generated | Kept in the `incuscloud` secret, key `admin-password` |
+| `secretKey` | generated | `IC_SECRET_KEY`, base64 of 32 bytes or more |
+| `image.repository`, `image.tag`, `image.pullPolicy` | `ghcr.io/m41denx/incuscloud`, the chart's version, `IfNotPresent` | The image |
+| `tls.existingSecret` | | A TLS secret; empty uses the internal CA |
+| `service.type`, `service.port`, `service.loadBalancerIP`, `service.annotations` | `LoadBalancer`, `443` | IncusCloud's service |
+| `settings.reconcileInterval`, `inventoryInterval`, `metricsRetention`, `jobConcurrency`, `logLevel`, `imageServer` | `60`, `60`, `24`, `2`, `info`, images.linuxcontainers.org | See the [settings reference](/docs/incuscloud/operations/configuration) |
+| `settings.extraEnv` | `{}` | Any other `IC_*` variable |
+| `kubernetes.kubeconfigSecret`, `kubernetes.ports` | , `16443-16999` | [Kubernetes](/docs/incuscloud/guides/kubernetes) |
+| `openfga.clusterUrl` | | OpenFGA as the clusters reach it (required) |
+| `openfga.service.*` | `LoadBalancer`, `8080` | How the clusters reach OpenFGA |
+| `postgres.enabled`, `storage`, `storageClass` | `true`, `10Gi` | The bundled Postgres |
+| `externalDatabase.existingSecret` | | With `postgres.enabled: false`: keys `incuscloud-url`, `hydra-dsn`, `openfga-uri` |
+| `resources`, `nodeSelector`, `tolerations`, `affinity`, `podSecurityContext` | | IncusCloud's pod |
+| `hydra.image`, `hydra.resources`, `openfga.image`, `openfga.resources` | | The other components |
+
+</Accordion>
+</Accordions>
+
+### Your own certificate
+
+With cert-manager and a DNS-01 issuer (wildcards need one):
+
+```yaml
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata: { name: incuscloud-tls, namespace: incuscloud }
+spec:
+  secretName: incuscloud-tls
+  dnsNames: [cloud.example.com, "*.clusters.example.com"]
+  issuerRef: { kind: ClusterIssuer, name: letsencrypt-dns }
+```
+
+### Your own Postgres
+
+Create the three databases, then:
+
+```bash
+kubectl -n incuscloud create secret generic incuscloud-db \
+  --from-literal=incuscloud-url='postgres://incuscloud:…@db.example.com:5432/incuscloud' \
+  --from-literal=hydra-dsn='postgres://hydra:…@db.example.com:5432/hydra?sslmode=require' \
+  --from-literal=openfga-uri='postgres://openfga:…@db.example.com:5432/openfga?sslmode=require'
+```
+
+## Install
+
+```bash
+kubectl create namespace incuscloud
+helm install incuscloud oci://ghcr.io/m41denx/charts/incuscloud -n incuscloud -f values.yaml
+kubectl -n incuscloud get pods -w
+```
+
+Then:
+
+<Steps>
+<Step>
+
+### Point DNS at the service
+
+Both names go to the `incuscloud` service's external address:
+
+```bash
+kubectl -n incuscloud get svc incuscloud
+```
+
+</Step>
+<Step>
+
+### Read the admin password
+
+```bash
+kubectl -n incuscloud get secret incuscloud -o jsonpath='{.data.admin-password}' | base64 -d; echo
+```
+
+</Step>
+<Step>
+
+### Trust the internal CA
+
+Only without `tls.existingSecret`: export `ca.crt` and trust it on every cluster member, as in
+[Certificates](/docs/incuscloud/install/certificates#b-the-internal-ca).
+
+</Step>
+<Step>
+
+### Back up the secret
+
+The `incuscloud` secret holds `secret-key`. Without it, enrolled clusters are lost.
+
+</Step>
+</Steps>
+
+Continue with [first steps](/docs/incuscloud/install/first-steps).

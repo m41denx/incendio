@@ -1,18 +1,4 @@
 {
   "title": "Documentation",
-  "root": true,
-  "pages": [
-    "index",
-    "quickstart",
-    "---Concepts---",
-    "...concepts",
-    "---Installation---",
-    "...install",
-    "---Guides---",
-    "...guides",
-    "---Operations---",
-    "...operations",
-    "---Reference---",
-    "...reference"
-  ]
+  "pages": ["index", "incuscloud", "incendio"]
 }

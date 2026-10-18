@@ -21,7 +21,10 @@ export const Footer = () => (
         <Link href="/docs" className={linkCls}>
           Docs
         </Link>
-        <Link href="/docs/install" className={linkCls}>
+        <Link href="/incendio" className={linkCls}>
+          Incendio
+        </Link>
+        <Link href="/docs/incuscloud/install" className={linkCls}>
           Install
         </Link>
         <a href="https://github.com/m41denx/incendio" target="_blank" rel="noopener" className={linkCls}>

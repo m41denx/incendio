@@ -1,0 +1,36 @@
+---
+title: Server settings
+description: Logging targets, ACME certificates, the OS and every server option.
+icon: Settings
+---
+
+**Settings** groups the server's configuration: **Certificates**, **Logging**, **ACME** and
+**Advanced**. Cluster-wide settings are under [Clustering › Settings](/docs/incendio/features/clustering#cluster-settings).
+
+## Logging
+
+Send the server's logs and events to **Loki**, **syslog** or a **webhook**. Each named target has its
+address, level, event types, authentication, CA certificate, retries, syslog facility and
+lifecycle filters.
+
+<Screenshot name="settings-logging" />
+
+## ACME
+
+Let Incus get its certificate from an ACME CA such as Let's Encrypt: terms of service, email,
+domain, CA URL, the **HTTP-01** or **DNS-01** challenge, the DNS provider with its environment and
+resolvers, and external account binding.
+
+## Advanced
+
+Every server option in one table, with dropdowns where a key takes a fixed set of values (for
+example `acme.challenge` and the backup and image compression algorithms).
+
+## Certificates
+
+See [Access › Trusted certificates](/docs/incendio/features/access#trusted-certificates).
+
+## The OS
+
+When the server runs IncusOS, administrators get an **OS** entry in the menu to manage the
+operating system Incus runs on.

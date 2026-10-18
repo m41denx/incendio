@@ -15,9 +15,10 @@ import { Step, Steps } from "fumadocs-ui/components/steps";
 import { Tab, Tabs } from "fumadocs-ui/components/tabs";
 import { TypeTable } from "fumadocs-ui/components/type-table";
 import defaultMdxComponents, { createRelativeLink } from "fumadocs-ui/mdx";
-import { Archive, ArrowRightLeft, Building2, Container, ListChecks, Network, Rocket, Scale, ShieldCheck, Ship, Terminal } from "lucide-react";
+import { Archive, ArrowRightLeft, Boxes, Building2, Cloud, Container, Flame, HardDrive, KeyRound, ListChecks, Network, Rocket, Scale, Server, Settings, ShieldCheck, Ship, Terminal } from "lucide-react";
 import { Logo } from "./src/components/logo";
 import { OgImage } from "./src/components/og-image";
+import { Screenshot } from "./src/components/screenshot";
 
 const docs = defineDocs({
   dir: "content/docs",
@@ -94,15 +95,23 @@ const config = defineConfig({
         Tab,
         Tabs,
         TypeTable,
+        Screenshot,
         // Icons the docs use in <Card icon={…}>.
         Archive,
         ArrowRightLeft,
+        Boxes,
         Building2,
+        Cloud,
         Container,
+        Flame,
+        HardDrive,
+        KeyRound,
         ListChecks,
         Network,
         Rocket,
         Scale,
+        Server,
+        Settings,
         ShieldCheck,
         Ship,
         Terminal,

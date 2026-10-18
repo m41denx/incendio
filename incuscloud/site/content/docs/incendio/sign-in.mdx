@@ -1,0 +1,67 @@
+---
+title: Sign in
+description: With a client certificate in your browser, or with single sign-on.
+icon: KeyRound
+---
+
+Incendio signs you in the same way Incus authenticates any client: with a **TLS client
+certificate**, or with **OpenID Connect** when the server is set up for it. Which one you see
+depends on the server's configuration.
+
+## With a client certificate
+
+On the login page, choose **Set up TLS login**, or **Choose your login method** when the server has
+no SSO. Incendio walks you through it:
+
+<Steps>
+<Step>
+
+### Generate a certificate
+
+Incendio generates a client certificate in your browser. Download it, with a password if you want
+one. If you already have a certificate trusted by the server, skip this step.
+
+</Step>
+<Step>
+
+### Trust it on the server
+
+Create a trust token on the server:
+
+```sh
+incus config trust add incendio-ui
+```
+
+Paste the token into Incendio. It adds your certificate to the server's trust store under that name.
+
+</Step>
+<Step>
+
+### Import it into your browser
+
+Import the downloaded `.pfx` file into your browser or your operating system's keychain. Incendio
+shows the steps for Chrome, Edge and Firefox on Linux, Windows and macOS. Then **restart the
+browser**: browsers only pick up new client certificates on start.
+
+</Step>
+</Steps>
+
+When you open Incendio again, the browser offers the certificate and you're in. Your access is
+whatever the certificate has on the server. A certificate restricted to some projects only sees
+those projects. Manage certificates later under
+[Settings › Certificates](/docs/incendio/features/access#trusted-certificates).
+
+## With single sign-on
+
+When Incus has OpenID Connect configured (`oidc.issuer`, `oidc.client.id` and, if your provider
+needs it, `oidc.audience`), the login page shows **Login with SSO**. It sends you to your identity
+provider and back. What an SSO user may do is up to the server's authorization setup, which you
+can manage under [Permissions](/docs/incendio/features/access#permissions-with-openfga).
+
+See [Authentication](https://linuxcontainers.org/incus/docs/main/authentication/) in the Incus
+documentation for the server side.
+
+## Through IncusCloud
+
+Behind IncusCloud, you sign in once to IncusCloud and every cluster's Incendio uses that sign-in.
+See [Incendio in IncusCloud](/docs/incendio/incuscloud).

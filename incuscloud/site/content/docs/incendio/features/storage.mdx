@@ -1,0 +1,34 @@
+---
+title: Storage
+description: Every Incus storage driver, volume browsing and bucket backups.
+icon: HardDrive
+---
+
+Under **Storage** you'll find **Pools**, **Volumes**, **Buckets** and **Custom ISOs**.
+
+<Screenshot name="storage-pools" />
+
+## Pools
+
+Create a pool on any driver Incus has: Dir, Btrfs, LVM (including clustered LVM), ZFS, Ceph,
+CephFS, Ceph Object, **LINSTOR** and **TrueNAS**, each with its own settings. Drivers your server
+can't use are greyed out.
+
+For ZFS, a **vdev builder** composes the pool's source: pick stripe, mirror, raidz1 or raidz2 and
+list the block devices.
+
+## Volumes
+
+- **Btrfs compression** (zstd, lzo, zlib or none) per volume.
+- **Initial owner**: the uid, gid and mode a new filesystem volume starts with.
+- A **Files** tab on custom filesystem volumes to browse, download and upload files (several at
+  once, with progress and an overwrite warning), create folders and delete, without attaching the
+  volume to an instance.
+
+<Screenshot name="btrfs-compression" />
+
+## Buckets
+
+**Export** a bucket to a backup archive you can download, and bring one back with **Import
+bucket**. When you create a bucket on a local pool, Incendio warns you if the server has no
+`core.storage_buckets_address`, without which nothing can reach the bucket.

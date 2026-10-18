@@ -1,0 +1,34 @@
+---
+title: Upgrading
+description: Move to a new release.
+icon: CircleArrowUp
+---
+
+Database migrations run when IncusCloud starts. [Back up](/docs/incuscloud/operations/backup-restore) first,
+and read the release notes: they say when roles or defaults change.
+
+<Tabs items={["Docker Compose", "Helm"]}>
+<Tab value="Docker Compose">
+
+```bash
+sed -i 's#^INCUSCLOUD_IMAGE=.*#INCUSCLOUD_IMAGE=ghcr.io/m41denx/incuscloud:0.2.0#' .env
+docker compose pull && docker compose up -d
+```
+
+</Tab>
+<Tab value="Helm">
+
+```bash
+helm upgrade incuscloud oci://ghcr.io/m41denx/charts/incuscloud --version 0.2.0 -n incuscloud -f values.yaml
+```
+
+</Tab>
+</Tabs>
+
+## Notes by version
+
+### 0.1 (beta)
+
+Tenant members are **Unrestricted users** on their tenant: they may back up, restore, move
+instances between clusters and delete Kubernetes clusters there. To keep someone to what they
+create, give them the **User** role instead.

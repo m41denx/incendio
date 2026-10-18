@@ -1,0 +1,66 @@
+---
+title: Tenants and placements
+description: How tenants map onto Incus projects across your clusters.
+icon: Building
+---
+
+A **tenant** is a team, a customer or a department: anyone whose workloads should be kept apart
+from the others'. Treat tenants as untrusted: everything they get stays inside restricted Incus
+projects.
+
+## Placements
+
+A tenant gets resources on a cluster when a platform operator **places** it there. A placement:
+
+- creates a restricted Incus project on that cluster for the tenant;
+- gives the tenant's members their grants on that project;
+- shares the tenant's [quota](/docs/incuscloud/concepts/quotas) with the tenant's other placements.
+
+One tenant can be placed on any number of clusters. Projects are never merged across clusters: a
+project is always one cluster's.
+
+### What the project allows
+
+Tenant projects are created with `restricted=true`, which keeps tenants out of the host. On top of
+that, IncusCloud allows exactly what tenants need:
+
+| Setting | Why |
+| --- | --- |
+| `restricted.backups=allow` | Backups and restores |
+| `restricted.snapshots=allow` | Snapshots, up to the tenant's snapshot quota; blocked once it is reached |
+| `restricted.containers.nesting=allow` | Kubernetes nodes, which are unprivileged containers with nesting |
+| `restricted.cluster.target=allow` | Choosing a member when creating |
+| `restricted.cluster.groups` | Set when the tenant is limited to certain cluster groups |
+| `features.images`, `features.profiles`, `features.storage.volumes`, `features.storage.buckets` | The tenant's own images, profiles, volumes and buckets |
+| `features.networks=false` | The cluster's networks, shared |
+
+The project's default profile gets a root disk and a NIC, copied from the `default` project, and,
+where the project has quotas, the per-instance defaults Incus requires: 1 CPU, 1 GiB of memory and a
+10 GiB root disk, each capped at the quota. After that the tenant owns the profile; IncusCloud only
+fills in what is missing.
+
+### Removing a placement
+
+Removing a tenant from a cluster revokes its grants there but keeps the project: it may still hold
+instances, and IncusCloud never deletes what it did not create. A tenant with Kubernetes clusters
+on an Incus cluster can't be removed from it.
+
+## Members
+
+Each tenant has members with one of four roles:
+
+| Tenant role | What it gives | As a permission entry |
+| --- | --- | --- |
+| Owner | Everything in the tenant, plus deleting it and managing owners | Tenant admin |
+| Admin | Everything in the tenant: members, service accounts, permissions within it | Tenant admin |
+| Member | Every workload privilege in the tenant's projects | Unrestricted user |
+| Viewer | Read-only | Auditor |
+
+For finer control, give people the **User** role instead: they create in the tenant and act only on
+what they own. See [Permissions](/docs/incuscloud/concepts/permissions).
+
+## The tenant's default group
+
+Every tenant has a built-in group, `<tenant>/members`, that always holds its members and its service
+accounts. Use it to give the whole tenant something at once, for example access to one cluster
+group only.

@@ -1,0 +1,55 @@
+---
+title: incus CLI, Terraform and browsers
+description: Use any cluster through IncusCloud, always as yourself.
+icon: Terminal
+---
+
+Every enrolled cluster has its own endpoint, `https://<cluster>.clusters.example.com`. It speaks the
+plain Incus API, so anything that works with Incus works through it.
+
+## The incus CLI
+
+```bash
+incus remote add prod https://prod.clusters.example.com --auth-type=oidc
+incus list prod:
+```
+
+The CLI prints a link and a code. Open it, sign in to IncusCloud, and the CLI is signed in. Tokens
+refresh by themselves.
+
+Each cluster's **Configure** › **IncusCloud** page has the exact command under **Command line**.
+
+<Callout title="It works straight against the cluster too">
+  The cluster trusts IncusCloud's tokens itself. A remote pointing at the cluster's own address,
+  with `--auth-type=oidc`, signs in through IncusCloud and gets the same permissions.
+</Callout>
+
+## Terraform and OpenTofu
+
+The [Incus provider](https://registry.terraform.io/providers/lxc/incus/latest) talks to the same
+endpoint. Add the remote with the CLI first, so its sign-in is saved, then point the provider at
+that remote as its documentation describes.
+
+For automation, use a [service account](/docs/incuscloud/concepts/identity#service-accounts) token as a bearer
+token.
+
+## The REST API
+
+The IncusCloud API is under `https://cloud.example.com/api/v1`, with a bearer token or the browser
+session. See the [API reference](/docs/incuscloud/reference/api).
+
+```bash
+TOKEN=$(curl -s -u "$CLIENT_ID:$CLIENT_SECRET" -d grant_type=client_credentials -d audience=incuscloud \
+  https://cloud.example.com/oauth2/token | jq -r .access_token)
+curl -H "Authorization: Bearer $TOKEN" https://cloud.example.com/api/v1/instances?q=web
+```
+
+## Browsers
+
+Use the [console](/docs/incuscloud/guides/console). Each cluster's Incendio is also served by itself at
+`https://cloud.example.com/clusters/<cluster>/ui/`, with your IncusCloud session.
+
+## What gets logged
+
+Requests that change something, and every websocket and file transfer, are written to the
+[gateway log](/docs/incuscloud/guides/logs). IncusCloud never adds its own credentials to your requests.

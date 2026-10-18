@@ -1,0 +1,43 @@
+---
+title: Versions and compatibility
+description: Which Incus versions Incendio works with, and what each feature needs.
+icon: ListChecks
+---
+
+## Version numbers
+
+Incendio's versions read `0.22-pN`: the LXD-UI release it's built on (0.22), then Incendio's own
+release number. The footer shows the Incus version next to it, for example `7.4-ui-0.22-p11`.
+
+## Incus versions
+
+Incendio is built and tested against **Incus 7.4 and 7.5**. It checks the API extensions your
+server reports and only shows the features the server has. On an older server those pages stay
+hidden, and the rest of the UI works as usual.
+
+These need **Incus 7.5**:
+
+- Security tags on instances and profiles (`security.tags`).
+- The authorization scriptlet seeing OIDC claims.
+- `dns.include_hosts` on bridges.
+- `initial.copy` on custom volume mounts.
+- `nvidia.clique` on GPUs.
+
+LXD-only features in the LXD-UI base, such as LXD's identity and group management, replicators
+and cluster links, stay hidden on Incus.
+
+## Kubernetes agent versions
+
+Some Kubernetes features need a newer [agent](/docs/incendio/kubernetes/appliance#update-the-agent).
+Incendio says so instead of failing.
+
+| Feature | Agent |
+| --- | --- |
+| Upgrades, activity log, update the agent from the UI | 0.2.1 |
+| MetalLB for `LoadBalancer` services | 0.3.0 |
+| Restart the cluster controllers, pinned IPv4 API endpoint | 0.3.1 |
+
+## Release notes
+
+Every release's notes are on the [releases page](https://github.com/m41denx/incendio/releases) and
+in the [changelog](https://github.com/m41denx/incendio/blob/incus-port/CHANGELOG.md).

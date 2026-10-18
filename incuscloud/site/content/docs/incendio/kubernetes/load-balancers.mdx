@@ -1,0 +1,32 @@
+---
+title: LoadBalancer services
+description: MetalLB gives Services of type LoadBalancer an address on your Incus network.
+icon: Network
+---
+
+Out of the box, a Kubernetes Service of type `LoadBalancer` stays pending: nothing hands it an
+address. Incendio can install [MetalLB](https://metallb.io/) to do that. `NodePort` services work
+either way.
+
+## Install MetalLB
+
+Tick **Install MetalLB** when you create a cluster, or click it later in the cluster page's **Service
+load balancer** section. Either way, Incendio suggests an **Address range** on the cluster's Incus
+network that's free: away from the gateway, the DHCP and OVN ranges, current leases, and other
+clusters' ranges. It warns you when the network has no DHCP range, because then nothing keeps
+Incus from leasing those addresses to instances.
+
+MetalLB is installed once the cluster is ready. The section then lists every `LoadBalancer`
+service with its external IP.
+
+- **Change addresses** changes the range.
+- **Remove MetalLB** removes it again.
+
+MetalLB needs Kubernetes agent 0.3.0 or newer.
+
+## Reaching the services
+
+MetalLB runs in layer 2 mode, so the addresses are on the nodes' Incus network. Services are
+reachable from the Incus host and from instances on that network. To reach them from outside a NAT
+bridge, add an Incus [network forward](/docs/incendio/features/networking#smaller-things) to the
+service's address.

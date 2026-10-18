@@ -1,67 +1,21 @@
 ---
-title: Introduction
-description: One sign-in, one console and one API in front of every Incus cluster.
+title: Documentation
+description: IncusCloud runs many Incus clusters as one private cloud. Incendio is the web UI for a single Incus server or cluster.
 icon: BookOpen
 ---
 
-IncusCloud is a control plane for [Incus](https://linuxcontainers.org/incus/). Put it in front of
-your clusters and standalone servers, and they become one private cloud:
-
-- **One sign-in.** People sign in once, in the browser or with the stock `incus` CLI. The same token
-  works against every cluster.
-- **One console.** An inventory of every cluster, member, project and instance, with each cluster's
-  own UI ([Incendio](https://github.com/m41denx/incendio)) built in.
-- **One API endpoint per cluster.** `https://prod.clusters.example.com` is cluster `prod`. Every
-  request goes through as the person who made it, and each cluster still enforces their
-  permissions itself.
-
-On top of that, IncusCloud adds what a single Incus cluster doesn't have:
+Two products, documented here side by side. Pick the one you run:
 
 <Cards>
-  <Card icon={<Building2 />} title="Tenants and quotas" href="/docs/concepts/tenants">
-    One quota across all the clusters a tenant is placed on, with self-service create.
+  <Card icon={<Cloud />} title="IncusCloud" href="/docs/incuscloud">
+    A control plane in front of many Incus clusters: one sign-in, tenants and quotas, permissions,
+    backups, migration and Kubernetes. It includes Incendio for every cluster.
   </Card>
-  <Card icon={<ShieldCheck />} title="Permissions" href="/docs/concepts/permissions">
-    Roles on paths, Proxmox style, enforced by IncusCloud and written into Incus too.
-  </Card>
-  <Card icon={<ArrowRightLeft />} title="Migration and replication" href="/docs/guides/migration">
-    Move or copy instances between clusters, and keep warm replicas with failover.
-  </Card>
-  <Card icon={<Archive />} title="Backups" href="/docs/guides/backups">
-    Scheduled backups to S3 with retention, restored to any cluster.
-  </Card>
-  <Card icon={<Scale />} title="Balancing" href="/docs/guides/balancing">
-    Keep members evenly loaded, with affinity, anti-affinity and pins.
-  </Card>
-  <Card icon={<Container />} title="Kubernetes" href="/docs/guides/kubernetes">
-    Tenants create Kubernetes clusters on any Incus cluster, from one Cluster API install.
+  <Card icon={<Flame />} title="Incendio" href="/docs/incendio">
+    The web UI for one Incus server or cluster, installed next to Incus itself, with Kubernetes
+    clusters built in.
   </Card>
 </Cards>
 
-## Nothing to install on the clusters
-
-IncusCloud talks to each cluster over its normal HTTPS API. When you enrol a cluster, it sets the
-cluster's sign-in (OIDC) and permission checks (OpenFGA), and creates a restricted project for each
-tenant you place there. There are no agents, appliances or extra packages on the Incus hosts.
-
-## Where to start
-
-<Cards>
-  <Card icon={<Rocket />} title="Quickstart" href="/docs/quickstart">
-    A working install with Docker Compose in about fifteen minutes.
-  </Card>
-  <Card icon={<Network />} title="How it works" href="/docs/concepts/architecture">
-    The components, and what talks to what.
-  </Card>
-  <Card icon={<ListChecks />} title="Requirements" href="/docs/install/requirements">
-    DNS, certificates and the network paths to plan before you install.
-  </Card>
-  <Card icon={<Terminal />} title="Using the incus CLI" href="/docs/guides/clients">
-    Point the stock CLI, Terraform or a browser at a cluster through IncusCloud.
-  </Card>
-</Cards>
-
-<Callout title="Beta" type="warn">
-  IncusCloud is in beta. Read [Security](/docs/operations/security) before you give untrusted
-  tenants access.
-</Callout>
+Not sure which? Start with Incendio if you run one cluster and want a better UI for it. Move to
+IncusCloud when you run several, or need to give other teams their own share of the hardware.

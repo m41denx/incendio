@@ -1,0 +1,22 @@
+---
+title: Without the agent
+description: Generate the Cluster API configuration and run it with your own management cluster.
+icon: Terminal
+---
+
+You don't have to deploy the management appliance. If you already run
+[Cluster API](https://cluster-api.sigs.k8s.io/) with the [CAPN](https://capn.linuxcontainers.org/)
+provider, or want to, the create form works as a generator:
+
+1. Open **Create cluster** and fill in the **Cluster** and **Machines** sections.
+2. In **Infrastructure credentials**, give the **Incus server URL**, a client certificate and key
+   that Incus trusts, the server certificate, and the name of the Kubernetes **Secret** to hold
+   them, plus the Incus project.
+3. **Generated artifacts** gives you four things to copy or download:
+   - the **Infrastructure credentials Secret** (`secret.yaml`);
+   - the **Cluster variables** (`cluster.env`);
+   - the **clusterctl command** that generates the cluster;
+   - the **Prerequisites**: what your management cluster needs first.
+
+Clusters made this way don't appear in Incendio's cluster list, which shows the agent's clusters,
+but their nodes are ordinary Incus instances in their project.

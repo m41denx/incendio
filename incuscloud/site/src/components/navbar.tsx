@@ -4,6 +4,7 @@ import { Logo } from "./logo";
 const links = [
   { href: "/#features", label: "Features" },
   { href: "/#how", label: "How it works" },
+  { href: "/incendio", label: "Incendio" },
   { href: "/docs", label: "Docs" },
   { href: "https://github.com/m41denx/incendio", label: "GitHub" },
 ];
@@ -26,7 +27,7 @@ export const Navbar = () => (
           </Link>
         ))}
         <Link
-          href="/docs/install/docker-compose"
+          href="/docs/incuscloud/install/docker-compose"
           className="ml-1 rounded-full bg-fd-primary px-4 py-2 text-sm font-medium text-fd-primary-foreground transition-opacity hover:opacity-85"
         >
           Install
