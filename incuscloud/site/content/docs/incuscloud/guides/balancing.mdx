@@ -38,7 +38,8 @@ Cancelling a run stops it between moves.
 
 ## The policy
 
-Platform operators set it on the cluster's page, in the **Balancing** section:
+Platform operators set it on the cluster's **Configure › IncusCloud** page, in the **Balancing**
+section. The **Balancing** page lists every cluster's policy, with a link there:
 
 | Setting | |
 | --- | --- |
@@ -53,8 +54,10 @@ Platform operators set it on the cluster's page, in the **Balancing** section:
 
 ## Steering it from instances
 
-Tenants steer balancing with keys on their own instances. Groups are per project, so they never
-involve another tenant:
+Tenants steer balancing from the instance's page, **IncusCloud › Balancing rules…**: never move
+it, keep it together with a group, keep it apart from one, or only on some members. The dialog
+writes these keys on the instance, which you can also set yourself. Groups are per project, so
+they never involve another tenant:
 
 | Key | Effect |
 | --- | --- |
@@ -62,6 +65,8 @@ involve another tenant:
 | `user.incuscloud.anti-affinity=<group>` | Keep the group on different members |
 | `user.incuscloud.pin=<member>[,<member>…]` | Only on these members |
 | `user.incuscloud.balance=false` | Never moved by balancing |
+
+The **Balancing** page's **Rules** section lists every instance you can see that has rules.
 
 ## Member maintenance
 
@@ -71,7 +76,7 @@ sources or targets.
 
 ## Across clusters
 
-The **Balancing** page suggests moves across clusters for tenants placed on several. When a tenant's
+The **Balancing** page's **Across clusters** section suggests moves across clusters for tenants placed on several. When a tenant's
 busiest cluster is more than 20 points of memory above its least busy one, it lists the tenant's
 largest running instances there, as long as each move narrows the gap. **Move…** opens the
 migration dialog with the suggested cluster chosen. Nothing moves until someone starts it.

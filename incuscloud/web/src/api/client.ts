@@ -68,3 +68,36 @@ export async function incusAt<T>(cluster: string, path: string): Promise<T> {
   if (!res.ok) throw new ApiError(res.status, "incus", json?.error || res.statusText || `Request failed (${res.status})`);
   return json?.metadata as T;
 }
+
+/**
+ * Read one object of a cluster through the facade, with its ETag, so a later
+ * {@link incusPut} only replaces what was read.
+ */
+export async function incusGet<T>(cluster: string, path: string): Promise<{ metadata: T; etag: string | null }> {
+  const res = await fetch(path, { credentials: "same-origin", headers: { accept: "application/json", "x-incuscloud-scope": cluster } });
+  if (res.status === 401) {
+    window.location.assign(signInUrl());
+    return new Promise(() => {});
+  }
+  const json = (await res.json().catch(() => undefined)) as { metadata?: T; error?: string } | undefined;
+  if (!res.ok) throw new ApiError(res.status, "incus", json?.error || res.statusText || `Request failed (${res.status})`);
+  return { metadata: json?.metadata as T, etag: res.headers.get("etag") };
+}
+
+/** Replace one object of a cluster through the facade, as the caller; `etag` refuses it if someone changed it since. */
+export async function incusPut(cluster: string, path: string, body: unknown, etag?: string | null): Promise<void> {
+  const res = await fetch(path, {
+    method: "PUT",
+    credentials: "same-origin",
+    headers: { accept: "application/json", "content-type": "application/json", "x-incuscloud-scope": cluster, ...(etag ? { "if-match": etag } : {}) },
+    body: JSON.stringify(body),
+  });
+  if (res.status === 401) {
+    window.location.assign(signInUrl());
+    return new Promise(() => {});
+  }
+  if (!res.ok) {
+    const json = (await res.json().catch(() => undefined)) as { error?: string } | undefined;
+    throw new ApiError(res.status, "incus", json?.error || res.statusText || `Request failed (${res.status})`);
+  }
+}

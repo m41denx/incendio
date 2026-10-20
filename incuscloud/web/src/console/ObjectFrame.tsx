@@ -5,6 +5,7 @@ import { ContextualMenu } from "@canonical/react-components";
 import { can, useMe } from "../api/hooks";
 import { crumbsOf, objectOf, subsOf, tabsOf, type Tab } from "./object";
 import SideMenu from "./SideMenu";
+import InstanceActions from "./InstanceActions";
 
 /**
  * How many tabs fit in `available` pixels: all of them, or as many as fit
@@ -78,7 +79,7 @@ const TabRow: FC<{ tabs: Tab[] }> = ({ tabs }) => {
 
 /**
  * Above the page: where the selected object sits (a breadcrumb back up the
- * tree) and its one row of tabs. Objects whose page has its own row of tabs
+ * tree), IncusCloud's own actions on an instance, and its one row of tabs. Objects whose page has its own row of tabs
  * (instances, nodes, networks, pools, profiles) get only the breadcrumb.
  * Pages that are no inventory object (platform pages) are left as they are.
  */
@@ -96,6 +97,7 @@ const ObjectFrame: FC<{ children: ReactNode }> = ({ children }) => {
   return (
     <div className="l-main ic-object">
       <div className="ic-object__head">
+        <div className="ic-object__crumbs">
         <nav className="p-breadcrumbs ic-breadcrumbs" aria-label="Breadcrumbs">
           <ol className="p-breadcrumbs__items u-no-margin--bottom">
             {crumbs.map((c, i) => (
@@ -111,6 +113,8 @@ const ObjectFrame: FC<{ children: ReactNode }> = ({ children }) => {
             ))}
           </ol>
         </nav>
+        {obj.kind === "instance" ? <InstanceActions cluster={obj.cluster} project={obj.project} name={obj.name} /> : null}
+        </div>
         {tabs.length ? <TabRow key={tabs.map((t) => t.label).join("|")} tabs={tabs} /> : null}
       </div>
       <div className="ic-object__body">

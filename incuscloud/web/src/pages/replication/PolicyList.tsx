@@ -1,16 +1,18 @@
 import { type FC, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ActionButton, CheckboxInput, MainTable, Notification } from "@canonical/react-components";
+import { ActionButton, Button, CheckboxInput, MainTable, Notification } from "@canonical/react-components";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import PageLayout from "../../components/PageLayout";
 import ConfirmAction from "../../components/ConfirmAction";
 import { ErrorMessage, Loaded, ago } from "../../components/Status";
 import { request } from "../../api/client";
 import { can, tenantRole, useMe } from "../../api/hooks";
-import type { Job, Me, ReplicationPolicy } from "../../api/types";
+import type { Instance, Job, Me, ReplicationPolicy } from "../../api/types";
 import { useClusters } from "../clusters/ClusterList";
 import Failed from "../../components/Failed";
 import EmptyList from "../../components/EmptyList";
+import PickInstance from "../instances/PickInstance";
+import CreatePolicy from "./CreatePolicy";
 
 const POLICIES = "/api/v1/replication-policies";
 
@@ -60,6 +62,9 @@ const PolicyList: FC = () => {
   const [error, setError] = useState<unknown>(null);
   const [started, setStarted] = useState<string | null>(null);
   const [busy, setBusy] = useState("");
+  // Create policy: pick the instance, then the replicate form for it.
+  const [choosing, setChoosing] = useState(false);
+  const [source, setSource] = useState<Instance | null>(null);
 
   const clusterName = (id: string) => clusters.data?.find((c) => c.id === id)?.name ?? id.slice(0, 8);
   const refresh = () => qc.invalidateQueries({ queryKey: ["replication-policies"] });
@@ -86,7 +91,26 @@ const PolicyList: FC = () => {
   };
 
   return (
-    <PageLayout title="Replication">
+    <PageLayout
+      title="Replication"
+      controls={
+        <Button appearance="positive" onClick={() => setChoosing(true)}>
+          Create policy
+        </Button>
+      }
+    >
+      {choosing ? (
+        <PickInstance
+          title="Replicate which instance?"
+          onClose={() => setChoosing(false)}
+          onPick={(i) => {
+            setChoosing(false);
+            if (i.privileges?.includes("replication.manage")) setSource(i);
+            else setError(new Error(`You can't replicate ${i.project}/${i.name}: that needs the replication.manage privilege on it.`));
+          }}
+        />
+      ) : null}
+      {source ? <CreatePolicy instance={source} onClose={() => setSource(null)} /> : null}
       <p className="u-text--muted">Each policy keeps a stopped copy of an instance on another cluster, refreshed on its schedule. Failing over starts the copy.</p>
       {error ? <ErrorMessage error={error} title="Not done" /> : null}
       {started ? (
@@ -99,7 +123,7 @@ const PolicyList: FC = () => {
           const showActions = list.some((p) => manages(me, p));
           return (
             list.length === 0 ? (
-              <EmptyList icon="restart" title="No replication policies found">No replication policies yet. Create one from an instance's page.</EmptyList>
+              <EmptyList icon="restart" title="No replication policies found">No replication policies yet. Use Create policy, or the IncusCloud menu on an instance's page.</EmptyList>
             ) : (
             <MainTable
               headers={[

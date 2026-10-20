@@ -183,6 +183,8 @@ export interface Instance {
   inventoryAt: string | null;
   /** Who owns it (permissions); only on the detail. */
   owner?: { type: "user" | "service"; id: string; name: string } | null;
+  /** What the caller may do with it (privileges on its path); only on the detail. */
+  privileges?: string[];
 }
 
 export interface InstanceList {

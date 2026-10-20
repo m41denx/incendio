@@ -10,7 +10,8 @@ progress; a job can be cancelled, and one left running by a worker that stopped 
 
 ## Move or copy
 
-From the instance's page, **Move or copy…**, or `POST /api/v1/instances/:id/migrations`.
+From the instance's page, **IncusCloud › Move or copy to another cluster…**, or
+`POST /api/v1/instances/:id/migrations`.
 
 A **pre-flight** on both clusters checks first:
 
@@ -43,8 +44,9 @@ Who may move:
 ## Replication
 
 A **replication policy** keeps a stopped replica of an instance on another cluster. Create one
-from the instance's page, **Replicate…**: the target cluster, the replica's name and how often to
-refresh it. The **Replication** page lists every policy.
+from the instance's page, **IncusCloud › Replicate…**, or from the **Replication** page,
+**Create policy**, which asks for the instance first. Either way you choose the target cluster, the
+replica's name and how often to refresh it. The **Replication** page lists every policy.
 
 - The first run copies the instance, tagged with the policy. Later runs refresh it every interval,
   from 60 seconds to 7 days.

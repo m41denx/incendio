@@ -394,6 +394,21 @@ body.ic-resizing {
   flex: 0 0 auto;
   padding: $spv--small $sph--large 0;
 
+  .ic-object__crumbs {
+    align-items: center;
+    display: flex;
+    gap: $sph--large;
+    justify-content: space-between;
+  }
+
+  // The IncusCloud actions toggle: label and chevron on one line.
+  .ic-object__actions .p-contextual-menu__toggle {
+    align-items: center;
+    display: inline-flex;
+    gap: $sph--small;
+    white-space: nowrap;
+  }
+
   .ic-breadcrumbs {
     margin-bottom: 0;
 

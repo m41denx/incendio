@@ -126,7 +126,11 @@ export function fleetRoutes({ db, authz, acl }: { db: Db; authz: Authz; acl: Acl
       },
     )
     .get("/api/v1/instances/:id", async ({ principal, params }) => {
-      const row = await visibleInstance(authed(principal), params.id);
+      const p = authed(principal);
+      const row = await visibleInstance(p, params.id);
+      // What the caller may do with it, so the console shows only the actions the API will allow.
+      const path = await acl.instancePath(row.clusterId, row.project, row.name);
+      const privileges = path ? [...(await acl.privileges(p, path))].sort() : [];
       // Who owns it (permissions: a User's own instances).
       const [o] = await db
         .select({ userId: instanceOwners.userId, email: users.email, serviceAccountId: instanceOwners.serviceAccountId, account: serviceAccounts.name })
@@ -135,7 +139,7 @@ export function fleetRoutes({ db, authz, acl }: { db: Db; authz: Authz; acl: Acl
         .leftJoin(serviceAccounts, eq(serviceAccounts.id, instanceOwners.serviceAccountId))
         .where(and(eq(instanceOwners.clusterId, row.clusterId), eq(instanceOwners.project, row.project), eq(instanceOwners.name, row.name)));
       const owner = o?.userId ? { type: "user", id: o.userId, name: o.email ?? o.userId } : o?.serviceAccountId ? { type: "service", id: o.serviceAccountId, name: o.account ?? o.serviceAccountId } : null;
-      return { ...row, owner };
+      return { ...row, owner, privileges };
     })
     .get(
       "/api/v1/instances/:id/metrics",

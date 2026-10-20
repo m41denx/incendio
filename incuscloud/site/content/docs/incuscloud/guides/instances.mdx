@@ -44,3 +44,16 @@ on a cluster you choose. See [Tenants](/docs/incuscloud/guides/tenants#create-in
 Everything Incus can do with an instance is on its pages from Incendio: console, exec, files,
 snapshots, devices, configuration. What you may do there follows your
 [permissions](/docs/incuscloud/concepts/permissions), and the cluster enforces them itself.
+
+IncusCloud's own actions are in the **IncusCloud** menu beside the breadcrumb, above the
+instance's tabs. It lists only the ones you may use:
+
+| Action | Needs | See |
+| --- | --- | --- |
+| Move or copy to another cluster… | `instance.relocate` | [Migration](/docs/incuscloud/guides/migration#move-or-copy) |
+| Replicate… | `replication.manage` | [Replication](/docs/incuscloud/guides/migration#replication) |
+| Back up now…, Backup schedule… | `backup.create`, `backup.schedule` | [Backups](/docs/incuscloud/guides/backups#back-up) |
+| Balancing rules… | `instance.configure` | [Balancing](/docs/incuscloud/guides/balancing#steering-it-from-instances) |
+
+The terminal opens `bash`. On an image without it, such as Alpine, it falls back to `sh`; set
+another command in the terminal's settings to keep it.
