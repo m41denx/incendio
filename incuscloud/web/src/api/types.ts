@@ -74,7 +74,27 @@ export interface Tenant {
   slug: string;
   name: string;
   quotas: Quotas;
+  /** Null: instances live until deleted (permissions phase 6). */
+  leasePolicy?: LeasePolicy | null;
   createdAt: string;
+}
+
+export interface LeasePolicy {
+  days: number;
+  action: "stop" | "delete";
+  extendDays: number;
+  maxExtensions: number;
+}
+
+/** An instance's lease and what its tenant's policy still allows. */
+export interface Lease {
+  /** Null: never ends. */
+  expiresAt: string | null;
+  extensions: number;
+  maxExtensions: number;
+  extendDays: number;
+  action: "stop" | "delete";
+  actedAt: string | null;
 }
 
 export interface Member {
@@ -187,6 +207,10 @@ export interface Instance {
   owner?: { type: "user" | "service"; id: string; name: string } | null;
   /** What the caller may do with it (privileges on its path); only on the detail. */
   privileges?: string[];
+  /** Its lease, when its tenant has a lease policy (single instance only). */
+  lease?: Lease | null;
+  /** The caller may set the lease's end outright or exempt it. */
+  canSetLease?: boolean;
 }
 
 export interface InstanceList {

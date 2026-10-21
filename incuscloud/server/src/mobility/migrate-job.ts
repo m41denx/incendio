@@ -1,5 +1,6 @@
 import { inArray } from "drizzle-orm";
 import { actorOf, carryOwner, recordOwner } from "../acl/owners.ts";
+import { leaseOf, putLease } from "../leases/leases.ts";
 import { clusters } from "../db/schema.ts";
 import { ApiError } from "../lib/errors.ts";
 import type { IncusAdminClient } from "../incus/admin-client.ts";
@@ -99,6 +100,8 @@ export function migrateHandler(deps: MigrateDeps = {}): JobHandler {
         await ctx.progress({ stage: "starting the copy" });
         await setState(dst.client, p.targetProject, p.targetName, "start");
       }
+      // Read before the source goes: its delete event forgets the source's lease.
+      const lease = p.mode === "move" ? await leaseOf(ctx.db, { clusterId: p.sourceClusterId, project: p.sourceProject, name: p.name }) : undefined;
       if (p.mode === "move") {
         if (ctx.signal.aborted) throw ctx.signal.reason;
         committed = true; // past this point the source is going away: no rollback, no cancel
@@ -110,6 +113,8 @@ export function migrateHandler(deps: MigrateDeps = {}): JobHandler {
       const to = { clusterId: p.targetClusterId, project: p.targetProject, name: p.targetName };
       const actor = actorOf(ctx.job);
       if (p.mode === "move") await carryOwner(ctx.db, from, to, { move: true });
+      // A moved instance keeps its lease (a copy gets its own from the target tenant's policy).
+      if (lease) await putLease(ctx.db, to, lease);
       else if (actor) await recordOwner(ctx.db, to, actor, "incuscloud");
     } catch (e) {
       if (!committed) {

@@ -7,7 +7,10 @@ import { needPriv, notFound } from "../authz/guards.ts";
 import type { Acl } from "../acl/acl.ts";
 import type { Privilege } from "../acl/catalog.ts";
 import { authed, principalContext, type Principal } from "../auth/principal.ts";
-import { uuidParam } from "./common.ts";
+import { audited, uuidParam } from "./common.ts";
+import { extendLease, leaseOf, leaseView, setLease } from "../leases/leases.ts";
+import { forbidden } from "../authz/guards.ts";
+import { ApiError } from "../lib/errors.ts";
 
 const HOUR = 3_600_000;
 
@@ -139,8 +142,39 @@ export function fleetRoutes({ db, authz, acl }: { db: Db; authz: Authz; acl: Acl
         .leftJoin(serviceAccounts, eq(serviceAccounts.id, instanceOwners.serviceAccountId))
         .where(and(eq(instanceOwners.clusterId, row.clusterId), eq(instanceOwners.project, row.project), eq(instanceOwners.name, row.name)));
       const owner = o?.userId ? { type: "user", id: o.userId, name: o.email ?? o.userId } : o?.serviceAccountId ? { type: "service", id: o.serviceAccountId, name: o.account ?? o.serviceAccountId } : null;
-      return { ...row, owner, privileges };
+      // Its lease (permissions phase 6), when its tenant has a policy.
+      const lease = row.tenantId ? leaseView(await leaseOf(db, row), (await db.select({ policy: tenants.leasePolicy }).from(tenants).where(eq(tenants.id, row.tenantId)))[0]?.policy) : null;
+      return { ...row, owner, privileges, lease, canSetLease: !!lease && (await acl.can(p, "tenant.quota", "/")) };
     })
+    // Extending is within the tenant's policy, for whoever may configure the instance.
+    .post("/api/v1/instances/:id/lease/extend", async ({ principal, request, params }) => {
+      const p = authed(principal);
+      return audited(db, { principal: p, request }, "instance.lease.extend", { type: "instance", id: params.id }, async () => {
+        const row = await visibleInstance(p, params.id);
+        const path = await acl.instancePath(row.clusterId, row.project, row.name);
+        if (!path || !(await acl.can(p, "instance.configure", path))) throw forbidden();
+        const [t] = row.tenantId ? await db.select({ policy: tenants.leasePolicy }).from(tenants).where(eq(tenants.id, row.tenantId)) : [];
+        if (!t?.policy) throw new ApiError(404, "not_found", "This instance's tenant has no leases");
+        return leaseView(await extendLease(db, row, t.policy), t.policy);
+      });
+    })
+    // Setting the end outright, or exempting the instance, is the platform's (like the tenant's quotas).
+    .put(
+      "/api/v1/instances/:id/lease",
+      async ({ principal, request, params, body }) => {
+        const p = authed(principal);
+        return audited(db, { principal: p, request }, "instance.lease.set", { type: "instance", id: params.id }, async () => {
+          const row = await visibleInstance(p, params.id);
+          if (!(await acl.can(p, "tenant.quota", "/"))) throw forbidden();
+          const [t] = row.tenantId ? await db.select({ policy: tenants.leasePolicy }).from(tenants).where(eq(tenants.id, row.tenantId)) : [];
+          if (!t?.policy || !row.tenantId) throw new ApiError(404, "not_found", "This instance's tenant has no leases");
+          const expiresAt = body.expiresAt === null ? null : new Date(body.expiresAt);
+          if (expiresAt && Number.isNaN(expiresAt.getTime())) throw new ApiError(400, "invalid_request", "expiresAt is not a date");
+          return leaseView(await setLease(db, row, row.tenantId, expiresAt), t.policy);
+        }, () => ({ expiresAt: body.expiresAt }));
+      },
+      { body: t.Object({ expiresAt: t.Union([t.String({ maxLength: 40 }), t.Null()]) }) },
+    )
     .get(
       "/api/v1/instances/:id/metrics",
       async ({ principal, params, query }) => {

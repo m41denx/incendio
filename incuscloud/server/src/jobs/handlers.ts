@@ -4,6 +4,7 @@ import { backupHandler } from "../backups/backup-job.ts";
 import { restoreHandler } from "../backups/restore-job.ts";
 import { evacuateHandler, rebalanceHandler, restoreMemberHandler } from "../balancing/jobs.ts";
 import { createHandler } from "../tenants/create-job.ts";
+import { leaseHandler } from "../leases/leases.ts";
 import { k8sCreateHandler, k8sDeleteHandler, k8sMetallbHandler } from "../k8s/jobs.ts";
 import type { Kube } from "../k8s/kube.ts";
 import type { JobHandler } from "./types.ts";
@@ -28,5 +29,6 @@ export function jobHandlers(opts: { imageServer?: string; kube?: Kube; metallbMa
     evacuate: evacuateHandler(),
     "restore-member": restoreMemberHandler(),
     create: createHandler(opts),
+    lease: leaseHandler(),
   };
 }

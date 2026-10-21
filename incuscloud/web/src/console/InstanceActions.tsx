@@ -10,8 +10,9 @@ import CreatePolicy from "../pages/replication/CreatePolicy";
 import BackupNow from "../pages/backups/BackupNow";
 import BackupSchedule from "../pages/backups/BackupSchedule";
 import BalancingRules from "../pages/instances/BalancingRules";
+import LeaseDialog, { leaseEnd } from "../pages/instances/LeaseDialog";
 
-type Dialog = "migrate" | "replicate" | "backup" | "schedule" | "rules";
+type Dialog = "migrate" | "replicate" | "backup" | "schedule" | "rules" | "lease";
 
 /** Each action, the privilege on the instance it needs (what the API checks), and its dialog. */
 const ACTIONS: Array<{ id: Dialog; label: string; needs: string }> = [
@@ -41,7 +42,7 @@ export function usePlatformInstance(cluster: string, project: string, name: stri
 
 /**
  * IncusCloud's own actions on an instance, next to the breadcrumb above Incendio's instance page:
- * moving it to another cluster, replication, backups and balancing rules. Only the ones the caller
+ * moving it to another cluster, replication, backups, balancing rules and its lease. Only the ones the caller
  * may use show; none at all, nothing shows.
  */
 const InstanceActions: FC<{ cluster: string; project: string; name: string }> = ({ cluster, project, name }) => {
@@ -50,7 +51,9 @@ const InstanceActions: FC<{ cluster: string; project: string; name: string }> = 
   const i = instance.data;
   if (!i) return null;
   const allowed = ACTIONS.filter((a) => i.privileges?.includes(a.needs));
-  if (!allowed.length) return null;
+  // Anyone who sees the instance sees its lease; extending it is checked in the dialog.
+  const links = [...allowed.map((a) => ({ children: a.label, onClick: () => setDialog(a.id) })), ...(i.lease ? [{ children: `Lease (${leaseEnd(i.lease)})…`, onClick: () => setDialog("lease") }] : [])];
+  if (!links.length) return null;
   const close = () => setDialog(null);
   return (
     <>
@@ -60,13 +63,14 @@ const InstanceActions: FC<{ cluster: string; project: string; name: string }> = 
         position="right"
         toggleLabel="IncusCloud"
         toggleClassName="u-no-margin--bottom"
-        links={allowed.map((a) => ({ children: a.label, onClick: () => setDialog(a.id) }))}
+        links={links}
       />
       {dialog === "migrate" ? <MigrateInstance instance={i} onClose={close} /> : null}
       {dialog === "replicate" ? <CreatePolicy instance={i} onClose={close} /> : null}
       {dialog === "backup" ? <BackupNow instance={i} onClose={close} /> : null}
       {dialog === "schedule" ? <BackupSchedule instance={i} onClose={close} /> : null}
       {dialog === "rules" ? <BalancingRules instance={i} onClose={close} /> : null}
+      {dialog === "lease" ? <LeaseDialog instance={i} onClose={close} /> : null}
     </>
   );
 };

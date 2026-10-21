@@ -34,6 +34,7 @@ import { JobRunner } from "./jobs/runner.ts";
 import { jobHandlers } from "./jobs/handlers.ts";
 import { scheduleReplication } from "./mobility/replication.ts";
 import { scheduleBackups } from "./backups/backup-job.ts";
+import { scheduleLeases } from "./leases/leases.ts";
 import { scheduleBalancing } from "./balancing/jobs.ts";
 import { openClusterStore } from "./reconcile/cluster-store.ts";
 
@@ -95,6 +96,7 @@ const scheduleDue = async () => {
   await scheduleReplication(db);
   await scheduleBackups(db);
   await scheduleBalancing(db);
+  await scheduleLeases(db);
 };
 /** The management cluster (P10); without it Kubernetes is off. */
 const kube = config.k8s ? KubeClient.fromFile(config.k8s.kubeconfig) : undefined;

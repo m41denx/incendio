@@ -16,6 +16,7 @@ import { log } from "../lib/log.ts";
 import { audited, created, filterAsync, noContent, uuidParam } from "./common.ts";
 import { userUsage } from "../tenants/limits.ts";
 import { requestReconcile } from "../reconcile/requests.ts";
+import { dropTenantLeases, leaseView, tenantLeases } from "../leases/leases.ts";
 
 /** Tenant slugs become Incus project names (spec D5): DNS-label-like, not reserved. */
 const SLUG = "^[a-z][a-z0-9-]{1,30}[a-z0-9]$";
@@ -28,7 +29,12 @@ const Quotas = t.Object(
 );
 
 type TenantRow = typeof tenants.$inferSelect;
-const view = (x: TenantRow) => ({ id: x.id, slug: x.slug, name: x.name, quotas: x.quotas, createdAt: x.createdAt });
+const view = (x: TenantRow) => ({ id: x.id, slug: x.slug, name: x.name, quotas: x.quotas, leasePolicy: x.leasePolicy, createdAt: x.createdAt });
+const Days = t.Integer({ minimum: 1, maximum: 3650 });
+const LeasePolicy = t.Object(
+  { days: Days, action: t.Union([t.Literal("stop"), t.Literal("delete")]), extendDays: Days, maxExtensions: t.Integer({ minimum: 0, maximum: 1000 }) },
+  { additionalProperties: false },
+);
 
 /** Tenants and their members. */
 export function tenantsRoutes({ db, authz, acl, hydra }: { db: Db; authz: Authz; acl: Acl; hydra: HydraAdminApi }) {
@@ -144,6 +150,46 @@ export function tenantsRoutes({ db, authz, acl, hydra }: { db: Db; authz: Authz;
         .innerJoin(clusters, eq(clusters.id, placements.clusterId))
         .where(eq(placements.tenantId, params.id))
         .orderBy(clusters.name);
+    })
+    // Leases (permissions phase 6): the policy is the platform's limit on the tenant, like its quota.
+    .put(
+      "/api/v1/tenants/:id/lease-policy",
+      async ({ principal, request, params, body }) => {
+        const p = authed(principal);
+        return audited(db, { principal: p, request }, "tenant.lease_policy.set", { type: "tenant", id: params.id }, async () => {
+          const before = await load(p, params.id);
+          if (!(await acl.can(p, "tenant.quota", "/"))) throw forbidden();
+          const [row] = await db.update(tenants).set({ leasePolicy: body.policy }).where(eq(tenants.id, before.id)).returning();
+          // Without a policy, leases are gone; a later policy hands out fresh ones.
+          if (!body.policy) await dropTenantLeases(db, before.id);
+          return view(row!);
+        }, () => ({ policy: body.policy }));
+      },
+      { body: t.Object({ policy: t.Union([LeasePolicy, t.Null()]) }) },
+    )
+    // The tenant's leases the caller may see (instance.view on each), soonest end first.
+    .get("/api/v1/tenants/:id/leases", async ({ principal, params }) => {
+      const p = authed(principal);
+      const tenant = await load(p, params.id);
+      if (!tenant.leasePolicy) return { policy: null, canSet: await acl.can(p, "tenant.quota", "/"), leases: [] };
+      const rows = await tenantLeases(db, tenant.id);
+      const visible = await filterAsync(rows, async (r) => {
+        const path = await acl.instancePath(r.lease.clusterId, r.lease.project, r.lease.name);
+        return !!path && (await acl.can(p, "instance.view", path));
+      });
+      const names = new Map((await db.select({ id: clusters.id, name: clusters.name }).from(clusters)).map((c) => [c.id, c.name]));
+      return {
+        policy: tenant.leasePolicy,
+        canSet: await acl.can(p, "tenant.quota", "/"),
+        leases: visible.map((r) => ({
+          instanceId: r.instanceId,
+          cluster: names.get(r.lease.clusterId) ?? r.lease.clusterId,
+          project: r.lease.project,
+          name: r.lease.name,
+          status: r.status,
+          ...leaseView(r.lease, tenant.leasePolicy)!,
+        })),
+      };
     })
     // Users' quotas inside the tenant (permissions phase 4): set by tenant.quota holders there, never above the tenant's.
     .get("/api/v1/tenants/:id/user-quotas", async ({ principal, params }) => {

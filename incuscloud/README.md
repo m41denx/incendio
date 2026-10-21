@@ -30,6 +30,8 @@ Licensed under GPL-3.0 (see `LICENSE`).
 | ACL 2 | Permissions: ownership, the User role, project, instance and Kubernetes paths; every API call by privilege | done |
 | ACL 3 | Permissions: groups, tenants' default groups, cluster-group paths, `restricted.cluster.groups` | done |
 | ACL 4 | Quotas: per instance, snapshots, backups, Kubernetes clusters, users' shares inside a tenant | done |
+| ACL 5 | Sign-in through OpenID Connect providers; their groups claim mapped onto IncusCloud groups | done |
+| ACL 6 | Leases: per-tenant time to live, extensions, stop or delete when a lease ends | done |
 | P13 | Packaging: image, Docker Compose, Helm chart, release workflow, installation guide | done |
 
 ## How it fits together

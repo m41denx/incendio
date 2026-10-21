@@ -6,6 +6,7 @@ import { clusterClient, type ClusterRow } from "../clusters/enroll.ts";
 import type { WebSocket } from "../lib/ws.ts";
 import { log } from "../lib/log.ts";
 import { forgetOwned, recordOwner, renameOwned } from "./owners.ts";
+import { forgetLease, renameLease } from "../leases/leases.ts";
 
 interface LifecycleEvent {
   type?: string;
@@ -49,12 +50,14 @@ export async function onLifecycle(db: Db, clusterId: string, event: LifecycleEve
     case "instance-renamed": {
       if (!m.context?.old_name) return false;
       await renameOwned(db, { ...key, name: m.context.old_name }, key);
+      await renameLease(db, { ...key, name: m.context.old_name }, key);
       const at = await instancePath(db, clusterId, m.project);
       if (at) await moveEntries(db, at(m.context.old_name), at(m.name));
       return true;
     }
     case "instance-deleted": {
       await forgetOwned(db, key);
+      await forgetLease(db, key);
       // Its permission entries go too: a later instance of that name starts clean.
       const at = await instancePath(db, clusterId, m.project);
       if (at) await db.delete(aclEntries).where(entriesUnder(at(m.name)));

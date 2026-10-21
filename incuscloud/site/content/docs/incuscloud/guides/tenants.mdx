@@ -45,6 +45,28 @@ To limit someone to what they create, give them the **User** role on the tenant 
 **Users' quotas** › **Set a member's quota** gives one member a share of their own: instances, CPUs,
 memory and backups. It can't be above the tenant's.
 
+## Leases
+
+A lease policy gives every instance of the tenant a time to live. On the tenant page, **Leases** ›
+**Set a lease policy** (platform operators, who hold `tenant.quota` on `/`) asks for:
+
+- **Lease**: how many days an instance lives once IncusCloud has seen it. Instances that already
+  exist get a full lease too.
+- **When it ends**: stop the instance, or delete it. A stopped instance is kept stopped: if someone
+  starts it while the lease has ended, it is stopped again within a minute.
+- **Each extension** and **Extensions allowed**: how far, and how often, a lease can be extended.
+
+Anyone who may configure an instance (`instance.configure`, so its owner and the tenant's admins)
+extends its lease from **IncusCloud › Lease** on the instance page, or with **Lease…** in the
+tenant's list. An extension adds its days to the later of now and the current end. Once they are
+used up, only the platform can help: in the same dialog it sets any end, or **Never ends** to
+exempt an instance.
+
+The list shows the leases of the instances you can see, soonest end first. Changing the policy
+keeps the leases already given. Removing it removes every lease, and a later policy starts afresh.
+A lease follows its instance through renames and moves within the tenant, and a stop or delete is
+a job like any other, under **Jobs**.
+
 ## Create instances
 
 **Create instance** (members and up; platform operators for any tenant) asks for:

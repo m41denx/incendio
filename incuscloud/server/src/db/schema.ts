@@ -90,13 +90,49 @@ export type Quotas = Partial<
 /** A user's share inside a tenant, set by its admins, never above the tenant's own. */
 export type UserQuotas = Partial<Record<"instances" | "cpu" | "memory" | "backups", number>>;
 
+/**
+ * How long a tenant's instances live (permissions phase 6): each gets a lease of `days` when it
+ * appears, may be extended by `extendDays` up to `maxExtensions` times, and is stopped or deleted
+ * when the lease ends.
+ */
+export interface LeasePolicy {
+  days: number;
+  action: "stop" | "delete";
+  extendDays: number;
+  maxExtensions: number;
+}
+
 export const tenants = pgTable("tenants", {
   id: uuid("id").primaryKey().defaultRandom(),
   slug: text("slug").notNull().unique(),
   name: text("name").notNull(),
   quotas: jsonb("quotas").$type<Quotas>().notNull().default({}),
+  /** Null: instances live until deleted. */
+  leasePolicy: jsonb("lease_policy").$type<LeasePolicy>(),
   createdAt: created(),
 });
+
+/** An instance's lease (permissions phase 6), by name like its owner: it follows renames and moves. */
+export const instanceLeases = pgTable(
+  "instance_leases",
+  {
+    clusterId: uuid("cluster_id")
+      .notNull()
+      .references(() => clusters.id, { onDelete: "cascade" }),
+    project: text("project").notNull(),
+    name: text("name").notNull(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    /** Null: exempt, never ends. */
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    extensions: integer("extensions").notNull().default(0),
+    /** When the lease's action was last taken (a stop; a delete removes the row). */
+    actedAt: timestamp("acted_at", { withTimezone: true }),
+    createdAt: created(),
+  },
+  (t) => [primaryKey({ columns: [t.clusterId, t.project, t.name] }), index("instance_leases_expires_at_idx").on(t.expiresAt)],
+);
 
 /** Users' quotas inside a tenant (permissions phase 4). */
 export const userQuotas = pgTable(

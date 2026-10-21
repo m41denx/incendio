@@ -58,3 +58,10 @@ quotas**:
 
 A user's quota can't be set above the tenant's. Members without one are limited only by the
 tenant's quota.
+
+## Leases
+
+Quotas limit how much a tenant holds at once; a [lease policy](/docs/incuscloud/guides/tenants#leases)
+limits how long. Each instance gets a lease of the policy's length, extensions are counted per
+instance, and when a lease ends a job stops or deletes the instance. Like quotas, the policy is set
+by the platform, not by the tenant.
