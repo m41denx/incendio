@@ -1,0 +1,33 @@
+// The application frame's global rules, shared with IncusCloud's web UI (incuscloud/web).
+
+body {
+  // needed for notification list expanding animation
+  overflow: hidden;
+  scrollbar-color: $color-mid-dark transparent;
+}
+
+.p-heading--4 {
+  padding: 0;
+}
+
+.l-main .row {
+  max-width: none;
+}
+
+// smaller padding on top of all pages to have the logo flush on top
+.p-panel__title,
+.p-panel__controls {
+  padding-top: $spv--x-small;
+}
+
+.p-panel__title {
+  padding-bottom: $spv--medium;
+}
+
+.mono-font {
+  font-family: unquote($font-monospace);
+}
+
+.status-icon {
+  margin-right: $sph--x-small;
+}

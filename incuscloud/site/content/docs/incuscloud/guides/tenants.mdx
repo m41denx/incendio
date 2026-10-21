@@ -1,0 +1,68 @@
+---
+title: Tenants
+description: Create tenants, place them, set quotas, add members and let them create.
+icon: Building
+---
+
+How tenants work is in [Tenants and placements](/docs/incuscloud/concepts/tenants). This page is the how-to.
+
+## Create a tenant
+
+**Tenants** › **Create tenant**: a slug (used in project names and paths, such as `/tenants/acme`)
+and a display name. Platform operators create tenants; you can name an owner straight away.
+
+## Place it
+
+Tenants get resources on a cluster when they are placed there, from the cluster's page:
+**Configure** › **IncusCloud** › **Tenants** › **Place**. The tenant's **Where it runs** section lists
+its placements and their status.
+
+## Set its quotas
+
+On the tenant's page, **Quota** › **Edit quotas** (platform operators). Empty means unlimited.
+
+| Quota | Applies to |
+| --- | --- |
+| Instances, CPUs, memory (GiB), disk (GiB) | The tenant's pool across all its clusters |
+| CPUs, memory and disk per instance | Each instance and Kubernetes node |
+| Snapshots | All of the tenant's snapshots |
+| Backups, backup storage (GiB) | All of the tenant's backups |
+| Kubernetes clusters | All of the tenant's Kubernetes clusters |
+
+The page shows usage against the quota, and each cluster's usage and share. How the pool is shared
+is in [Quotas](/docs/incuscloud/concepts/quotas).
+
+## Add members
+
+**Members** › **Add member**: an email and a role (owner, admin, member, viewer). Owners and
+platform admins can grant and change the owner role. Admins can manage everyone else.
+
+To limit someone to what they create, give them the **User** role on the tenant in
+[Permissions](/docs/incuscloud/guides/access) instead of a member role.
+
+### Users' quotas
+
+**Users' quotas** › **Set a member's quota** gives one member a share of their own: instances, CPUs,
+memory and backups. It can't be above the tenant's.
+
+## Create instances
+
+**Create instance** (members and up; platform operators for any tenant) asks for:
+
+- an image: any alias on the image server, from a short list or typed in;
+- a type (container or VM) and a size;
+- a placement: automatic, or a chosen cluster (with `placement.choose`).
+
+Automatic placement takes the tenant's ready placements, optionally only those with given labels,
+and picks the one with the largest share of memory free after the request. The request is checked
+against every quota first, then a job creates the instance with its limits and a root disk of the
+requested size.
+
+## Service accounts
+
+A tenant's admins create service accounts for it under **Service accounts**. See
+[Sign-in and identity](/docs/incuscloud/concepts/identity#service-accounts).
+
+## Delete a tenant
+
+Owners delete a tenant from its page. It must not be placed anywhere first.

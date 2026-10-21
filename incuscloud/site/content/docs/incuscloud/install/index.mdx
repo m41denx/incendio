@@ -1,0 +1,32 @@
+---
+title: Overview
+description: Choose how to run IncusCloud, and what to plan before you do.
+icon: Download
+---
+
+IncusCloud ships as one container image, `ghcr.io/m41denx/incuscloud`, built for linux/amd64 and
+linux/arm64. There are two supported ways to run it:
+
+<Cards>
+  <Card icon={<Container />} title="Docker Compose" href="/docs/incuscloud/install/docker-compose">
+    One host. The simplest way, and enough for most installs.
+  </Card>
+  <Card icon={<Ship />} title="Kubernetes (Helm)" href="/docs/incuscloud/install/helm">
+    A chart with Hydra, OpenFGA and an optional Postgres.
+  </Card>
+</Cards>
+
+Either way, the same three things decide whether the install works, so plan them first:
+
+1. [**Two DNS names**](/docs/incuscloud/install/requirements#names-and-dns): one for IncusCloud, a wildcard for
+   the clusters.
+2. [**A certificate**](/docs/incuscloud/install/certificates) for both, which every Incus cluster member trusts.
+3. [**The network paths**](/docs/incuscloud/install/requirements#network), especially the two from the clusters
+   back to IncusCloud and OpenFGA.
+
+Then [sign in and enrol your first cluster](/docs/incuscloud/install/first-steps).
+
+<Callout title="Don't run it on a cluster it manages">
+  A control plane on an Incus server it also enrols goes down with it. Give IncusCloud its own host
+  or Kubernetes cluster.
+</Callout>

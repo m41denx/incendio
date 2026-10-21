@@ -15,6 +15,7 @@ import type { FormikProps } from "formik/dist/types";
 import type { CreateInstanceFormValues } from "types/forms/instanceAndProfile";
 import type { LxdImageType, RemoteImage } from "types/image";
 import InstanceTargetSelect from "pages/instances/forms/InstanceTargetSelect";
+import { useCreateInstanceExtension } from "context/createInstanceExtension";
 import UseCustomIsoBtn from "pages/images/actions/UseCustomIsoBtn";
 import AutoExpandingTextArea from "components/AutoExpandingTextArea";
 import ScrollableForm from "components/ScrollableForm";
@@ -34,6 +35,7 @@ const InstanceCreateDetailsForm: FC<Props> = ({
   onSelectImage,
   project,
 }) => {
+  const createExtension = useCreateInstanceExtension();
   const { hasCustomVolumeIso } = useSupportedFeatures();
 
   const figureBaseImageName = () => {
@@ -60,6 +62,7 @@ const InstanceCreateDetailsForm: FC<Props> = ({
     <ScrollableForm>
       <Row>
         <Col size={12}>
+          {createExtension.header}
           <Input
             id="name"
             name="name"

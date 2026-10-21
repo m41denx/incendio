@@ -15,22 +15,22 @@
 }
 
 .column-container {
-  display: flex;
   align-items: center;
+  display: flex;
 }
 
 .order-buttons-container {
   display: flex;
-  margin-left: auto;
   gap: 10px;
+  margin-left: auto;
 }
 
 .order-icon {
-  width: 0.7rem;
   height: 0.7rem;
+  width: 0.7rem;
 }
 
 .order-button {
   margin: 1px;
-  padding: 0px 10px;
+  padding: 0 10px;
 }

@@ -1,0 +1,63 @@
+---
+title: Migration and replication
+description: Move or copy instances between clusters, and keep replicas you can fail over to.
+icon: ArrowRightLeft
+---
+
+Instances move and copy between clusters as **jobs**. The **Jobs** page and the API show their
+progress; a job can be cancelled, and one left running by a worker that stopped ends as failed
+("interrupted"). The worker runs `IC_JOB_CONCURRENCY` jobs at once (2 by default).
+
+## Move or copy
+
+From the instance's page, **IncusCloud › Move or copy to another cluster…**, or
+`POST /api/v1/instances/:id/migrations`.
+
+A **pre-flight** on both clusters checks first:
+
+- the target project and name;
+- the architecture;
+- the storage pool, profiles and networks;
+- attached volumes;
+- whether a live move is possible.
+
+The data then moves as an Incus migration, one of two ways:
+
+| Transport | How |
+| --- | --- |
+| **Direct** | The target waits in push mode and the source connects to it. |
+| **Relay** | When the source can't reach the target, IncusCloud carries the migration's websockets between them, with backpressure. |
+
+How a move goes:
+
+1. A running container is stopped for the move. Only a running VM with `migration.stateful` moves
+   live.
+2. Copy, verify, start the copy, and only then delete the source.
+3. Until the delete, a failure or a cancel removes the copy and restarts the source.
+
+Who may move:
+
+- Tenant owners and admins, and Users for what they own, between the tenant's placements
+  (`instance.relocate`).
+- Platform operators, anywhere, choosing the project, pool and transport.
+
+## Replication
+
+A **replication policy** keeps a stopped replica of an instance on another cluster. Create one
+from the instance's page, **IncusCloud › Replicate…**, or from the **Replication** page,
+**Create policy**, which asks for the instance first. Either way you choose the target cluster, the
+replica's name and how often to refresh it. The **Replication** page lists every policy.
+
+- The first run copies the instance, tagged with the policy. Later runs refresh it every interval,
+  from 60 seconds to 7 days.
+- An instance of the same name that isn't the policy's replica is never touched.
+- **Run now** refreshes it immediately; **Pause** and **Resume** stop and restart the schedule.
+- **Delete** removes the policy and keeps the replica.
+
+### Failover
+
+**Fail over…** promotes the replica:
+
+1. Optionally stop the source, best effort, since it may be on the cluster that's gone.
+2. Turn the replica into an ordinary instance and start it.
+3. Stop the policy.

@@ -1,0 +1,20 @@
+{
+  "title": "IncusCloud",
+  "description": "Many Incus clusters as one private cloud",
+  "icon": "Cloud",
+  "root": true,
+  "pages": [
+    "index",
+    "quickstart",
+    "---Concepts---",
+    "...concepts",
+    "---Installation---",
+    "...install",
+    "---Guides---",
+    "...guides",
+    "---Operations---",
+    "...operations",
+    "---Reference---",
+    "...reference"
+  ]
+}

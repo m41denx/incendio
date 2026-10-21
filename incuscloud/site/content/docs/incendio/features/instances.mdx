@@ -1,0 +1,53 @@
+---
+title: Instances
+description: Containers and virtual machines, with almost every setting Incus has.
+icon: Boxes
+---
+
+The create and edit forms cover almost every container and VM setting Incus accepts, grouped into
+sections, not only the common ones. What a form can't express still has the YAML editor.
+
+<Screenshot name="instance-create" />
+
+## Settings in the forms
+
+- **Boot and lifecycle**: autostart, priorities, `boot.autorestart`, host shutdown behaviour.
+- **Limits**: CPU (a count, a pinned set, or an explicit **VM topology** of sockets, cores and
+  threads), memory with **hotplug** for VMs, OOM priority, processes, disk priority.
+- **Security**: privileged and nested containers, `security.iommu`, SELinux, AMD SEV, syscall
+  interception, and on Incus 7.5 **security tags** (`security.tags`) for OpenFGA.
+- **Migration** and **snapshots**: stateful migration, snapshot schedules including `@midnight` and
+  the instance-only `@startup`, expiry and naming patterns.
+- **NVIDIA**, **OCI** and **raw** configuration, including `raw.qemu.conf`, QMP hooks and a
+  **QEMU scriptlet** editor with line numbers.
+- **SMBIOS and credentials**: `smbios11.*` and systemd credentials as key/value pairs.
+
+## Devices
+
+- **Disks** with I/O bus (virtio-scsi, virtio-blk, NVMe, USB), cache mode, read, write and IOPS
+  limits with **burst**, and a WWN.
+- **Memory disks (tmpfs)** for containers, optionally as an overlay on an existing directory, with
+  size, mode and owner.
+- **Custom volumes** that copy the files already at their mount point on first use (`initial.copy`,
+  Incus 7.5).
+- **Network devices** with the options their network type takes: macvlan mode and VLAN; SR-IOV
+  trust and MAC filtering; OVN nesting and static routes.
+- **GPUs**, including an NVIDIA P2P clique (`nvidia.clique`, Incus 7.5).
+
+## On the instance's pages
+
+- **Overview** with started time, uptime, CPU time and allocated CPU time.
+- **Terminal** and **Console**, with a **VGA screenshot** action that downloads a PNG of a running
+  VM's screen.
+- **File Explorer**: browse, download, upload several files at once and create folders inside the
+  instance.
+- **UEFI Variables** (VMs): every variable grouped by GUID, with attributes and value, and a delete
+  action.
+- **Access**: who can reach this instance, with their role and identity provider.
+
+<Screenshot name="instance-terminal" />
+
+## Moving instances
+
+Migrating to another cluster member or project offers **Refresh (incremental transfer)**, which
+only sends what changed, and, for running instances, **Live migration**.

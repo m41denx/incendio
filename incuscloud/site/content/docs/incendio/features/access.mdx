@@ -1,0 +1,55 @@
+---
+title: Access
+description: Trusted certificates, who can access what, and permissions through OpenFGA.
+icon: ShieldCheck
+---
+
+## Trusted certificates
+
+**Settings › Certificates** lists the client certificates the server trusts, with whether each is
+restricted and to which projects. Add one with a trust token, give it a **description** and edit
+it later, or remove it.
+
+<Screenshot name="trusted-certificates" />
+
+## Who can access what
+
+An instance's **Access** tab and a project's **Access** page list who can reach it, with their role
+and identity provider. They're read-only: they show what the server's authorization decides.
+
+<Screenshot name="project-access" />
+
+## Project restrictions
+
+A restricted project's **Restrictions** also cover **VM nesting**
+(`restricted.virtual-machines.nesting`) and **available storage pools**
+(`restricted.storage-pools.access`).
+
+## Permissions with OpenFGA
+
+Incus can authorize users through [OpenFGA](https://openfga.dev/), but it has no API to manage
+grants: they live in OpenFGA. Incendio's **Permissions (OpenFGA)** section manages them for you:
+
+- **Grants**: give a user or group a role (admin, operator, user, viewer) or a single permission on
+  the server, a project, or any resource Incus knows about.
+- **Groups**: groups of users and their members.
+- **Check access**: what a user can actually do on a resource.
+- **Setup**: the OpenFGA connection, and which kinds of client OpenFGA authorizes. It warns you
+  before you route your own login away from full access, or leave every SSO user a full admin.
+
+The section appears for administrators when the server has no LXD-style access management. Your
+browser talks to OpenFGA directly, with the API token saved in the server's settings, which only
+administrators can read. So OpenFGA must be reachable from administrators' machines over HTTPS, and
+allow Incendio's address in its CORS settings. If the address Incus uses isn't reachable from
+browsers, set a separate **Browser URL** in Setup.
+
+### The authorization scriptlet
+
+**Setup** also edits the server's **authorization scriptlet**, with an example. On Incus 7.5 the
+scriptlet sees the OIDC token's claims, such as groups, so it can restrict SSO users without
+OpenFGA.
+
+<Callout type="warn" title="Upgrading to Incus 7.5 with OpenFGA">
+  The first start of Incus 7.5 writes a new authorization model to OpenFGA, and Incus doesn't start
+  until that works. Make sure OpenFGA is reachable before you upgrade.
+</Callout>

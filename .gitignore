@@ -98,3 +98,13 @@ haproxy-local.cfg
 
 # Kubernetes appliance release build output
 packages/k8s/appliance/dist/
+
+# IncusCloud: maintainer questions (local only)
+QUESTIONS.md
+.superpowers/
+
+# IncusCloud sources the patterns above would drop: the platform UI's log pages, and the
+# self-signed certificate the server's tests use (test-only, never deployed).
+!incuscloud/web/src/pages/logs/
+!incuscloud/server/src/test/fixtures/test.crt
+!incuscloud/server/src/test/fixtures/test.key

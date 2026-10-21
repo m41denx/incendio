@@ -1,0 +1,92 @@
+---
+title: Clusters
+description: Enrol clusters, label them, place tenants and remove them.
+icon: Server
+---
+
+## Enrol a cluster
+
+<Steps>
+<Step>
+
+### Get a trust token
+
+On the cluster, as an Incus administrator:
+
+```bash
+incus config trust add incuscloud --quiet
+```
+
+The token holds the cluster's addresses and certificate fingerprint, and works once.
+
+</Step>
+<Step>
+
+### Enrol it
+
+**Clusters** › **Enrol cluster**:
+
+- **Name**: lowercase. Cluster `prod` is reached at `https://prod.clusters.example.com`.
+- **Trust token**: the token.
+- **Labels**: optional, `key=value` per line. Automatic placement can pick clusters by label, for
+  example `region=eu`.
+
+Through the API: `POST /api/v1/clusters` with `{"name": "prod", "token": "…"}`.
+
+</Step>
+<Step>
+
+### Wait for it to converge
+
+IncusCloud connects on the token's addresses, checks the certificate against the token, adds its
+own client certificate, and then configures the cluster:
+
+- `oidc.issuer`, `oidc.client.id`, `oidc.audience` and `oidc.claim`;
+- `authorization.openfga.*`, with the cluster's own store.
+
+It then reads the inventory. The cluster shows as ready within one reconcile interval (60 s by
+default).
+
+</Step>
+</Steps>
+
+<Callout title="With the internal CA">
+  Every member of the cluster must trust `ca.crt` before anyone signs in to it. See
+  [Certificates](/docs/incuscloud/install/certificates#b-the-internal-ca).
+</Callout>
+
+## A cluster's settings
+
+IncusCloud's own settings for a cluster are on its **Configure** tab › **IncusCloud**:
+
+- **General**: its status, address, certificate fingerprint, labels, and when it was last seen and reconciled.
+- **Command line**: the `incus remote add` command for it.
+- **Administration**: **Reconcile now**, **Edit labels** and **Delete**.
+- **Tenants**: the tenants placed on it, with **Place** and **Remove**.
+- **Balancing**: its [balancing policy](/docs/incuscloud/guides/balancing).
+
+## Place a tenant
+
+On the cluster's **Tenants** section, **Place** a tenant. The reconciler creates its restricted
+project and grants, and splits the tenant's quota again. See
+[Tenants and placements](/docs/incuscloud/concepts/tenants).
+
+**Remove** takes the tenant's grants off the cluster but keeps its project, which may still hold
+instances. A tenant with Kubernetes clusters there can't be removed.
+
+## When something is wrong
+
+A cluster whose reconcile fails shows as degraded, with the reason. A cluster whose inventory fails
+keeps its last inventory and shows the error. Common causes are in
+[Troubleshooting](/docs/incuscloud/operations/troubleshooting).
+
+## Delete a cluster
+
+Remove the tenants placed on it first, then **Delete**. IncusCloud then:
+
+1. unsets its OIDC and OpenFGA settings on the cluster, so it stops trusting IncusCloud's tokens and
+   grants;
+2. removes its own certificate.
+
+Tenants' projects and instances stay on the cluster. A cluster with tenant Kubernetes clusters
+can't be deleted, even with `force`.

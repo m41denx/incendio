@@ -1,0 +1,177 @@
+---
+title: Permissions
+description: Privileges, roles and paths, how they resolve, and how they reach Incus.
+icon: ShieldCheck
+---
+
+Who may do what is a list of **entries**. Each entry gives a **role** to a **subject** on a
+**path**:
+
+```
+role: Operator     subject: alice@example.com     path: /clusters/prod
+```
+
+IncusCloud checks every API call against these entries, and writes the matching grants into each
+cluster's OpenFGA store, so Incus enforces them too.
+
+## Privileges
+
+A privilege is `<object>.<action>`: `instance.console`, `backup.restore`, `cluster.configure`,
+`acl.manage`. There are 48, grouped by object:
+
+| Object | Privileges |
+| --- | --- |
+| `instance` | `view`, `console`, `exec`, `files`, `power`, `configure`, `snapshot`, `create`, `delete`, `migrate`, `relocate` (move to another cluster) |
+| `placement` | `choose` (pick the cluster when creating) |
+| `storage` | `view`, `allocate`, `pools` |
+| `network` | `view`, `use`, `manage` |
+| `image` | `view`, `manage` |
+| `project` | `view`, `configure` |
+| `backup` | `view`, `create`, `restore`, `delete`, `schedule` |
+| `replication` | `view`, `manage` |
+| `k8s` | `view`, `kubeconfig`, `provision`, `delete` |
+| `node` | `view`, `maintain`, `provision` |
+| `cluster` | `view`, `configure` |
+| `tenant` | `view`, `manage`, `members`, `quota` |
+| `acl` | `view`, `manage` |
+| `platform` | `view`, `users`, `settings`, `audit` |
+
+## Roles
+
+Roles are built in and read-only. The full matrix is in the [roles reference](/docs/incuscloud/reference/roles).
+
+| Role | Typical path | In short |
+| --- | --- | --- |
+| **Administrator** | `/` | Everything |
+| **Operator** | `/` | Everything except permissions, users and platform settings |
+| **Cluster owner** | a cluster | Everything on that cluster, including provisioning nodes and its permissions |
+| **Group owner** | a cluster group | Everything on that group's members and the instances on them, including maintenance; not provisioning |
+| **Unrestricted user** | a tenant, project or cluster group | Every workload privilege: instances, storage, networks, images, projects, backups, replication, Kubernetes, placement; no `node.*`, `cluster.configure` or `acl.*` |
+| **User** | a tenant | Creates; acts only on what they own |
+| **Tenant admin** | a tenant | Everything in the tenant, its members, users' quotas and its permissions |
+| **Auditor** | anywhere | Every `*.view`, plus the audit log |
+| **No access** | anywhere | Nothing: it overrides what is inherited |
+
+<Callout type="error" title="Cluster owner is root on those hosts">
+  `node.provision` is Incus server admin, which can create privileged containers and so reach the
+  hosts. Give Cluster owner only to people who already run those machines, never to a tenant.
+</Callout>
+
+## Paths
+
+| Path | Means |
+| --- | --- |
+| `/` | Everything |
+| `/clusters/<cluster>` | One cluster |
+| `/clusters/<cluster>/groups/<group>` | One Incus cluster group: its members and the instances running on them |
+| `/clusters/<cluster>/projects/<project>` | One project |
+| `/clusters/<cluster>/projects/<project>/instances/<instance>` | One instance |
+| `/tenants/<tenant>` | A tenant: its projects on every cluster |
+| `/tenants/<tenant>/kubernetes/<name>` | One of its Kubernetes clusters |
+
+A path must name something that exists. A tenant entry applies to the tenant's projects everywhere,
+between the cluster and the project:
+
+```
+/  →  /clusters/prod  →  /tenants/acme  →  /clusters/prod/projects/acme  →  …/instances/web-1
+```
+
+## Subjects
+
+An entry is for one of:
+
+- a **user**;
+- a **service account**;
+- a **group**: IncusCloud's own groups of users and service accounts, managed under **Groups**;
+- a **tenant's default group**, `<tenant>/members`: always the tenant's members and service accounts.
+
+## Resolution
+
+IncusCloud resolves permissions the way Proxmox does:
+
+1. Walk from the object's own path up to `/`.
+2. The **most specific** path with an entry for the subject decides. Entries further up count only
+   if they propagate (the default).
+3. At the deciding path, the subject's own entries beat its groups' entries.
+4. **No access** there means nothing at all.
+
+For example, with these entries:
+
+| Path | Subject | Role |
+| --- | --- | --- |
+| `/tenants/acme` | `acme/members` | Unrestricted user |
+| `/clusters/prod/projects/acme` | bob | Auditor |
+
+Everyone in acme may run workloads in all of acme's projects. Bob too, except in acme's project on
+`prod`, where his own entry is the most specific: there he can only look.
+
+### Instances have two parents
+
+An instance belongs to a project, and it also runs on a member, which is in one or more Incus
+cluster groups. Both sides count:
+
+- An entry on the instance itself decides alone.
+- Otherwise IncusCloud resolves the project side and each cluster-group side, and adds them up.
+- A cluster-group side counts only entries on the group itself, so a group entry never brings back
+  what a tenant or project entry took away.
+
+So a Group owner on `/clusters/prod/groups/gpu` can operate every instance on the GPU members, in
+whichever project they are.
+
+### Restricting a tenant to cluster groups
+
+When a tenant's default group has entries only on cluster groups of a cluster, and none on the whole
+cluster or `/`, IncusCloud sets `restricted.cluster.groups` on the tenant's project there. Its
+instances can then only run on those groups' members, and self-service creates target the first of
+them.
+
+## Ownership and the User role
+
+Instances and Kubernetes clusters have an **owner**: whoever created them.
+
+- Through IncusCloud: self-service create, restore, copy. A move keeps the owner; a replica takes its
+  source's.
+- Straight against a cluster: the cluster's lifecycle events name the caller.
+- Instances nobody claimed go to their tenant's first owner.
+
+A **User** may create in the tenant (placement chooses where) and acts only on what they own,
+including backing it up, restoring it and moving it. Users never see other users' instances, in
+IncusCloud or in Incus.
+
+## In Incus
+
+Explicit entries become grants through IncusCloud's own `incuscloud-acl-*` groups in each cluster's
+OpenFGA store:
+
+| Entry on | Becomes |
+| --- | --- |
+| a cluster | a server relation: `admin` (Administrator, Cluster owner), `operator` (Operator, Unrestricted user), `viewer` (Auditor) |
+| a tenant or project | a project relation, `operator` or `viewer`, never project `admin`: that could lift the project's restrictions |
+| an instance | an instance relation: `operator` with `instance.configure`, `user` with the console only, `viewer` |
+
+When a narrower entry gives less than a wider one, the wider relation is replaced by relations on
+everything else, so Incus ends up with exactly what IncusCloud resolved. A User gets no project
+relation, since in Incus that would show every instance in it. They get the project's create and
+event entitlements, `can_view` on its profiles, networks and images, and `operator` on what they
+own. Entries for groups are expanded into their members.
+
+## Who may change entries
+
+- Changing an entry needs `acl.manage` on its path.
+- Only administrators give Administrator or Cluster owner.
+- A change never reaches someone above the caller: nobody who holds, there or above, a privilege
+  the caller lacks, nor a tenant's owner unless the caller is an owner or a user administrator, nor
+  an entry made by such a person. So a tenant admin can narrow its members, but can't touch
+  platform staff or add them as members.
+- Someone must stay an administrator.
+- Deleting a cluster, tenant, user, group or service account deletes its entries.
+
+## Today's roles are entries too
+
+| Edited on | Role | Read as |
+| --- | --- | --- |
+| Users | platform admin / operator / viewer | Administrator / Operator / Auditor on `/` |
+| Tenants | owner, admin / member / viewer | Tenant admin / Unrestricted user / Auditor on the tenant |
+| Service accounts | a tenant service account | Unrestricted user on its tenant |
+
+**Platform › Permissions** lists them read-only beside the explicit entries.

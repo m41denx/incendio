@@ -1,0 +1,4 @@
+# Local development artefacts (binaries, certificates, data).
+.dev/
+node_modules/
+dist/

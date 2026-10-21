@@ -1,0 +1,59 @@
+---
+title: Instances and the fleet
+description: Search every cluster at once, follow metrics, and create in a tenant.
+icon: Boxes
+---
+
+## Search across clusters
+
+The **Instances** page searches every cluster you can see:
+
+- **Words** match the name, project, cluster, member, description, image or addresses. All of them
+  must match.
+- **Filters** narrow by cluster, tenant, status and type.
+
+Each instance has a page with its CPU, memory and network charts, its owner, and **Open console**.
+Through the API: `GET /api/v1/instances?q=web&cluster=…&tenant=…&status=…&type=…`.
+
+Who sees what:
+
+- Tenant members see the instances in their tenants' projects; Users see their own.
+- Platform viewers see everything, plus each cluster's members, storage and capacity, on the cluster
+  pages and the dashboard.
+
+## How the inventory works
+
+IncusCloud reads each cluster every `IC_INVENTORY_INTERVAL` seconds (60 by default), with its own
+certificate and never through the gateway:
+
+- instances in all projects, with their state;
+- members, or the standalone server;
+- storage pool space per member, and managed networks.
+
+Between two reads it works out each running instance's CPU use, in cores, and network rates, and
+keeps `IC_METRICS_RETENTION` hours of samples (24 by default). Instance configuration is never
+stored. A cluster whose inventory fails keeps its last one and shows the error.
+
+## Create in a tenant
+
+**Create instance** creates in a tenant, checked against its quotas, and places it automatically or
+on a cluster you choose. See [Tenants](/docs/incuscloud/guides/tenants#create-instances).
+
+## Everything else
+
+Everything Incus can do with an instance is on its pages from Incendio: console, exec, files,
+snapshots, devices, configuration. What you may do there follows your
+[permissions](/docs/incuscloud/concepts/permissions), and the cluster enforces them itself.
+
+IncusCloud's own actions are in the **IncusCloud** menu beside the breadcrumb, above the
+instance's tabs. It lists only the ones you may use:
+
+| Action | Needs | See |
+| --- | --- | --- |
+| Move or copy to another cluster… | `instance.relocate` | [Migration](/docs/incuscloud/guides/migration#move-or-copy) |
+| Replicate… | `replication.manage` | [Replication](/docs/incuscloud/guides/migration#replication) |
+| Back up now…, Backup schedule… | `backup.create`, `backup.schedule` | [Backups](/docs/incuscloud/guides/backups#back-up) |
+| Balancing rules… | `instance.configure` | [Balancing](/docs/incuscloud/guides/balancing#steering-it-from-instances) |
+
+The terminal opens `bash`. On an image without it, such as Alpine, it falls back to `sh`; set
+another command in the terminal's settings to keep it.

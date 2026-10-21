@@ -1,5 +1,5 @@
 import { Suspense, useEffect, type FC } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useParams } from "react-router-dom";
 import ProjectRedirect from "pages/projects/ProjectRedirect";
 import ProjectLoader from "pages/projects/ProjectLoader";
 import { useAuth } from "context/auth";
@@ -56,6 +56,11 @@ const KubernetesClusterDetail = lazy(
 const CreateInstance = lazy(
   async () => import("pages/instances/CreateInstance"),
 );
+// A fresh form for each project: another project has other profiles, networks and storage.
+const CreateInstanceForProject: FC = () => {
+  const { project } = useParams<{ project: string }>();
+  return <CreateInstance key={project} />;
+};
 const CreateNetwork = lazy(async () => import("pages/networks/CreateNetwork"));
 const CreateNetworkAcl = lazy(
   async () => import("pages/networks/CreateNetworkAcl"),
@@ -309,7 +314,7 @@ const App: FC = () => {
           path={`${ROOT_PATH}/ui/project/:project/instances/create`}
           element={
             <ProtectedRoute
-              outlet={<ProjectLoader outlet={<CreateInstance />} />}
+              outlet={<ProjectLoader outlet={<CreateInstanceForProject />} />}
             />
           }
         />

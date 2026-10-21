@@ -7,13 +7,14 @@ import { getConfigurationRowBase } from "components/ConfigurationRow";
 import ScrollableConfigurationTable from "components/forms/ScrollableConfigurationTable";
 import { focusField } from "util/formFields";
 import { ensureEditMode } from "util/editMode";
-import { userPropPrefix } from "util/instanceAndProfilePayloads";
 
 export interface UserPropertyFormValues {
   name: string;
   value: string;
   nameEditable: boolean;
 }
+
+export const userPropPrefix = "user.";
 
 // user.* keys the UI edits elsewhere: listing them here would write the old
 // value back over the dedicated field on save.

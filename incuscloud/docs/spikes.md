@@ -1,0 +1,104 @@
+# P0 spike results
+
+Throwaway code in `incuscloud/spikes/`. Local Incus 7.5.1, Ory Hydra v26.2.0.
+
+## A. Incus accepts Hydra-issued tokens — YES
+
+Setup: Hydra (`dsn: memory`, needs the **SQLite build**; TLS needs
+`serve.tls.enabled: true` besides cert/key), `strategies.access_token: jwt`,
+issuer `https://127.0.0.1:4444/`. Incus: `oidc.issuer`, `oidc.client.id=incus-cli`,
+`oidc.audience=incuscloud`, `oidc.claim=sub`. incusd trusts the dev CA through
+`SSL_CERT_DIR` (systemd drop-in), the CLI through the same env var.
+
+| Case | Result |
+|---|---|
+| client_credentials JWT (`aud: incuscloud`, `sub: spike-svc`) | 200; `/1.0` says `auth: trusted`, `auth_user_method: oidc`, `auth_user_name: spike-svc` |
+| Stock `incus remote add … --auth-type=oidc` (device flow) | Works. The CLI prints `URL: https://<issuer>/oauth2/device/verify?user_code=…`; Hydra forwards to our verification page with `device_challenge` **and** `user_code`; accept device → login → consent → done. `auth_user_name: spike-user` |
+| Token for another audience | 401 `Provided OIDC token doesn't allow the configured audience` |
+| Garbage / tampered signature | 401 (`invalid character…`, `invalid signature …`) |
+| Expired token | 401 `token has expired` |
+| No token | `/1.0` answers `auth: untrusted` (unchanged) |
+| incusd restart with Hydra down | incusd **starts**; OIDC calls 401 `Failed calling OIDC discovery endpoint` until Hydra is back; TLS clients unaffected |
+| Hydra down after discovery | Valid tokens keep working (signing keys cached) |
+
+Consequences for the design:
+
+- D1/D2/D3 hold. The consent step must set `grant_access_token_audience:
+  ["incuscloud"]`; the CLI already sends `audience` on the device request
+  (`client/incus_oidc.go`), from the `X-Incus-OIDC-audience` header.
+- Hydra availability matters only for new logins and the first call after an
+  incusd restart: HA Hydra (D8) but not a hard dependency like OpenFGA.
+- Hydra's signing keys must persist (Postgres DSN in production); with
+  `memory`, a Hydra restart invalidates every issued token.
+- Incus must trust the issuer's certificate: in production the issuer has a
+  public certificate, or enrolment installs the CA on every member (Firecloud
+  can do this).
+
+## B. Authenticating reverse proxy in Bun — YES, on node:https
+
+`spikes/proxy.ts`, local Incus behind it, stock `incus` 7.5.1 CLI.
+
+| Case | Result |
+|---|---|
+| REST through the proxy (bearer forwarded, no client cert) | Same answers as direct |
+| `incus remote add https://<proxy>/clusters/local` (**path prefix**) | **Fails**: the Go client drops the path and requests `/1.0`, `/` at the root |
+| `incus remote add https://local.<CLUSTER_DOMAIN>:9443` (**host routing**) + device login | Works; `incus list/query/exec/monitor/export/import/file push/pull` all work |
+| Unauthenticated `/1.0` | Passed through; Incus answers `untrusted` and sends `X-Incus-OIDC-*` on 401, which the CLI needs to start a login |
+| `incus exec` (websockets) | stdout, stdin and exit codes correct |
+| `incus file push/pull` 1 GiB | Uses **`Upgrade: sftp`** (raw TCP after 101, not a websocket). Works with a raw relay; sha256 matches; ~6 s each way; proxy peak RSS 84 MiB |
+| `incus export` 256 MB / `incus import` | Streamed both ways; peak RSS 90 MiB |
+| `incus monitor` (events websocket) | Events arrive |
+| Upgrade without a token | 401 from the proxy, nothing sent upstream |
+| Upgrade with a bad token | Incus's 401 relayed as a normal response |
+
+Findings that change the build:
+
+1. **`Bun.serve` cannot be the gateway's front.** It only supports websocket
+   upgrades; SFTP needs the raw socket after a 101. The gateway runs on
+   `node:https` (`upgrade` event → raw byte relay), which Bun implements.
+   Elysia (platform API) runs on its own listener or behind the same server.
+2. **Bun's `fetch` cannot pin Incus certificates**: with
+   `rejectUnauthorized: false` it never calls `checkServerIdentity` (both the
+   right and a wrong fingerprint were accepted), and a self-signed leaf is not
+   accepted as `ca`. Upstream connections use `node:https` with the SDK's
+   `PinnedAgent` (fingerprint checked before any byte, verified: wrong pin is
+   refused before the request is written).
+3. **The CLI sends GET bodies** (`incus query` sends `""`, `Content-Length: 3`).
+   Bun's `Request` drops GET bodies; forwarding the length without the bytes
+   hangs Incus. On node:http the body is piped as-is, so no special case.
+4. Websocket close codes 1005/1006 must not be forwarded (`ws` throws); with a
+   raw relay there is nothing to translate.
+5. **Host routing is the default for API clients** (D11): wildcard DNS
+   `*.<CLUSTER_DOMAIN>` and a wildcard certificate. Path routing stays for the
+   browser UI (Incendio derives `ROOT_PATH` from the path).
+
+## C. Cross-cluster migration driven by the control plane — YES (pull and relay)
+
+`spikes/migrate.ts`: cluster A = local Incus (project `incuscloud-dev`, pool
+`nevergoonalone`), cluster B = nested Incus 7.5.1 (`cluster-b`, pool
+`default`). One admin client certificate trusted on both (the worker's role).
+Stopped Alpine container; containers have no live migration in Incus, VMs were
+not testable (no KVM on the dev host).
+
+| Mode | How | Result |
+|---|---|---|
+| pull | A: `POST /1.0/instances/<n>` `{migration:true}` → operation secrets; B: `POST /1.0/instances` `{source:{type:migration, mode:pull, operation:"<A url>/1.0/operations/<id>", certificate:<A cert>, secrets}}` | Works; B connects to A directly. 512 MB in 9.7 s |
+| refresh | Same with `source.refresh: true` on an existing target | Works; only the change moves (117 ms for a small diff). The replication primitive |
+| relay | A as above; B with `source.mode: push` → B's own secrets; the control plane opens each named operation websocket on both sides (`control`, `fs`) and pipes them | Works with no A↔B connectivity. 512 MB in 9.6 s, sha256 matches |
+
+Findings that change the build:
+
+1. **Relay is the default transport**: it only needs what the maintainer
+   guaranteed (control plane → every cluster's 8443). Pull is an optimisation
+   when the target can reach the source (try pull, fall back to relay).
+2. **Relay needs backpressure**: without it the relaying process held
+   451 MiB for a 512 MB move; pausing the reading side while the other has
+   > 4 MiB queued (`ws` `pause()/resume()`) kept it at 81 MiB and was faster.
+   Pipe message by message: the `control` socket carries framed messages.
+3. The target request is built from the source instance: config minus
+   `volatile.*`, devices with the root disk's pool mapped to the target's, NICs
+   mapped to target networks (pre-flight must check pools, networks, profiles,
+   architecture and image availability, as PegaProx does).
+4. Moving between clusters = copy + verify + delete source; Incus has no
+   cross-cluster "move". Live moves need VMs (`migration_vm_live`) and are
+   not covered by this spike.

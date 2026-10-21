@@ -1,0 +1,588 @@
+# Derived from cluster-api-provider-incus templates/clusterclass-capn-v1beta2.yaml
+# (https://github.com/lxc/cluster-api-provider-incus, commit ce7d177).
+# Copyright 2024 Angelos Kolaitis. Licensed under the Apache License, Version 2.0;
+# see http://www.apache.org/licenses/LICENSE-2.0. Changed for IncusCloud: renamed
+# capn-v1beta2 -> incuscloud-v1, skipDefaultKubeadmProfile (tenant projects are
+# restricted: no host paths or kernel modules), security.nesting on container nodes.
+---
+apiVersion: cluster.x-k8s.io/v1beta2
+kind: ClusterClass
+metadata:
+  name: incuscloud-v1
+spec:
+  controlPlane:
+    templateRef:
+      apiVersion: controlplane.cluster.x-k8s.io/v1beta2
+      kind: KubeadmControlPlaneTemplate
+      name: incuscloud-v1-control-plane
+    machineInfrastructure:
+      templateRef:
+        kind: LXCMachineTemplate
+        apiVersion: infrastructure.cluster.x-k8s.io/v1alpha2
+        name: incuscloud-v1-control-plane
+    healthCheck:
+      checks:
+        unhealthyNodeConditions:
+        - type: Ready
+          status: Unknown
+          timeoutSeconds: 300
+        - type: Ready
+          status: "False"
+          timeoutSeconds: 300
+  infrastructure:
+    templateRef:
+      apiVersion: infrastructure.cluster.x-k8s.io/v1alpha2
+      kind: LXCClusterTemplate
+      name: incuscloud-v1-lxc-cluster
+  workers:
+    machineDeployments:
+    - class: default-worker
+      bootstrap:
+        templateRef:
+          apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
+          kind: KubeadmConfigTemplate
+          name: incuscloud-v1-default-worker
+      infrastructure:
+        templateRef:
+          apiVersion: infrastructure.cluster.x-k8s.io/v1alpha2
+          kind: LXCMachineTemplate
+          name: incuscloud-v1-default-worker
+      healthCheck:
+        checks:
+          unhealthyNodeConditions:
+          - type: Ready
+            status: Unknown
+            timeoutSeconds: 300
+          - type: Ready
+            status: "False"
+            timeoutSeconds: 300
+  variables:
+  - name: secretRef
+    required: true
+    schema:
+      openAPIV3Schema:
+        type: string
+        example: lxc-secret
+        description: Name of secret with infrastructure credentials
+  - name: loadBalancer
+    required: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          lxc:
+            type: object
+            description: Launch an LXC instance running haproxy as load balancer (development)
+            properties:
+              flavor:
+                description: Instance size, e.g. "c1-m1" for 1 CPU and 1 GB RAM
+                type: string
+              image:
+                type: string
+                description: Override the image to use for provisioning the load balancer instance.
+              target:
+                type: string
+                description: Specify a target for the load balancer instance (name of cluster member, or group)
+                default: ""
+              profiles:
+                description: List of profiles to apply on the instance
+                type: array
+                items:
+                  type: string
+          oci:
+            type: object
+            description: Launch an OCI instance running haproxy as load balancer (development)
+            properties:
+              flavor:
+                type: string
+                description: Instance size, e.g. "c1-m1" for 1 CPU and 1 GB RAM
+              target:
+                type: string
+                description: Specify a target for the load balancer instance (name of cluster member, or group)
+                default: ""
+              profiles:
+                type: array
+                description: List of profiles to apply on the instance
+                items:
+                  type: string
+          kube-vip:
+            type: object
+            description: Deploy kube-vip on the control plane nodes
+            required: [host]
+            properties:
+              host:
+                type: string
+                description: The address to use with kube-vip
+                example: 10.100.42.1
+              interface:
+                type: string
+                description: Bind the VIP address on a specific interface
+                example: eth0
+              image:
+                type: string
+                description: Override the kube-vip image
+                example: ghcr.io/kube-vip/kube-vip:v0.6.4
+          ovn:
+            type: object
+            description: Create an OVN network load balancer
+            required: [host, networkName]
+            properties:
+              networkName:
+                type: string
+                description: Name of the OVN network where the load balancer will be created
+                example: ovn0
+              host:
+                type: string
+                description: IP address for the OVN Network Load Balancer
+                example: 10.100.42.1
+        maxProperties: 1
+        minProperties: 1
+  - name: instance
+    required: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          type:
+            description: One of 'container', 'virtual-machine', 'kind'.
+            type: string
+            enum:
+            - container
+            - virtual-machine
+            - kind
+            - ""
+          image:
+            type: string
+            description: Override the image to use for provisioning nodes.
+            default: ""
+          flavor:
+            type: string
+            description: Instance size, e.g. "c1-m1" for 1 CPU and 1 GB RAM
+          profiles:
+            type: array
+            items:
+              type: string
+            description: List of profiles to apply on the instance
+          devices:
+            type: array
+            items:
+              type: string
+            description: Override device (e.g. network, storage) configuration for the instance
+          target:
+            type: string
+            description: Specify a target for the instance (name of cluster member, or group)
+            default: ""
+          installKubeadm:
+            type: boolean
+            default: false
+            description: Inject preKubeadmCommands that install Kubeadm on the instance. This is useful if using a plain Ubuntu image.
+  # IncusCloud: the workers' own instance spec (optional; without it they use `instance`).
+  - name: workerInstance
+    required: false
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          type:
+            description: One of 'container', 'virtual-machine', 'kind'.
+            type: string
+            enum:
+            - container
+            - virtual-machine
+            - kind
+            - ""
+          image:
+            type: string
+            description: Override the image to use for provisioning nodes.
+            default: ""
+          flavor:
+            type: string
+            description: Instance size, e.g. "c1-m1" for 1 CPU and 1 GB RAM
+          profiles:
+            type: array
+            items:
+              type: string
+            description: List of profiles to apply on the instance
+          devices:
+            type: array
+            items:
+              type: string
+            description: Override device (e.g. network, storage) configuration for the instance
+          target:
+            type: string
+            description: Specify a target for the instance (name of cluster member, or group)
+            default: ""
+          installKubeadm:
+            type: boolean
+            default: false
+            description: Inject preKubeadmCommands that install Kubeadm on the instance. This is useful if using a plain Ubuntu image.
+  - name: etcdImageTag
+    required: false
+    schema:
+      openAPIV3Schema:
+        type: string
+        default: ""
+        example: 3.5.16-0
+        description: etcdImageTag sets the tag for the etcd image.
+  - name: coreDNSImageTag
+    required: false
+    schema:
+      openAPIV3Schema:
+        type: string
+        default: ""
+        example: v1.11.3
+        description: coreDNSImageTag sets the tag for the coreDNS image.
+  - name: privileged
+    required: false
+    schema:
+      openAPIV3Schema:
+        type: boolean
+        default: true
+        description: Use privileged containers for the cluster nodes.
+  patches:
+  - name: lxcCluster
+    description: LXCCluster configuration
+    definitions:
+    - selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1alpha2
+        kind: LXCClusterTemplate
+        matchResources:
+          infrastructureCluster: true
+      jsonPatches:
+      - op: replace
+        path: /spec/template/spec
+        valueFrom:
+          template: |
+            unprivileged: {{ not .privileged }}
+            # Tenant projects are restricted: no host paths or kernel modules, so not CAPN's kubeadm profile.
+            skipDefaultKubeadmProfile: true
+
+            secretRef:
+              name: {{ .secretRef | quote }}
+
+            {{ if hasKey .loadBalancer "lxc" }}
+            loadBalancer:
+              lxc:
+                instanceSpec: {{ if and (not .loadBalancer.lxc.image) (not .loadBalancer.lxc.flavor) (not .loadBalancer.lxc.profiles) }}{}{{ end }}
+            {{ if .loadBalancer.lxc.flavor }}
+                  flavor: {{ .loadBalancer.lxc.flavor | quote }}
+            {{ end }}
+            {{ if .loadBalancer.lxc.profiles }}
+                  profiles: {{ .loadBalancer.lxc.profiles | toJson }}
+            {{ end }}
+            {{ if .loadBalancer.lxc.image }}
+                  image:
+                    name: {{ .loadBalancer.lxc.image | quote }}
+            {{ end }}
+            {{ if .loadBalancer.lxc.target }}
+                  target: {{ .loadBalancer.lxc.target | quote }}
+            {{ end }}
+            {{ end }}
+            {{ if hasKey .loadBalancer "oci" }}
+            loadBalancer:
+              oci:
+                instanceSpec: {{ if and (not .loadBalancer.oci.flavor) (not .loadBalancer.oci.profiles) }}{}{{ end }}
+            {{ if .loadBalancer.oci.flavor }}
+                  flavor: {{ .loadBalancer.oci.flavor | quote }}
+            {{ end }}
+            {{ if .loadBalancer.oci.profiles }}
+                  profiles: {{ .loadBalancer.oci.profiles | toJson }}
+            {{ end }}
+            {{ if .loadBalancer.oci.target }}
+                  target: {{ .loadBalancer.oci.target | quote }}
+            {{ end }}
+            {{ end }}
+            {{ if hasKey .loadBalancer "ovn" }}
+            loadBalancer:
+              ovn:
+                networkName: {{ .loadBalancer.ovn.networkName | quote }}
+            controlPlaneEndpoint:
+              host: {{ .loadBalancer.ovn.host | quote }}
+              port: 6443
+            {{ end }}
+            {{ if hasKey .loadBalancer "kube-vip" }}
+            loadBalancer:
+              kubeVIP:
+                interface: {{ index .loadBalancer "kube-vip" "interface" | default "" | quote }}
+                image: {{ index .loadBalancer "kube-vip" "image" | default "" | quote }}
+            controlPlaneEndpoint:
+              host: {{ index .loadBalancer "kube-vip" "host" | quote }}
+              port: 6443
+            {{ end }}
+  - name: controlPlaneInstanceSpec
+    description: LXCMachineTemplate configuration for ControlPlane
+    definitions:
+    - selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1alpha2
+        kind: LXCMachineTemplate
+        matchResources:
+          controlPlane: true
+      jsonPatches:
+      - op: replace
+        path: /spec/template/spec
+        valueFrom:
+          template: |
+            profiles: {{ .instance.profiles | toJson }}
+            devices: {{ .instance.devices | toJson }}
+            instanceType: {{ .instance.type | quote }}
+            flavor: {{ .instance.flavor | quote }}
+            target: {{ .instance.target | quote }}
+            image:
+              name: {{ .instance.image | quote }}
+            {{ if ne .instance.type "virtual-machine" }}
+            config:
+              security.nesting: "true"
+            {{ end }}
+  - name: workerInstanceSpec
+    description: LXCMachineTemplate configuration for MachineDeployments
+    definitions:
+    - selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1alpha2
+        kind: LXCMachineTemplate
+        matchResources:
+          machineDeploymentClass:
+            names:
+            - default-worker
+      jsonPatches:
+      - op: replace
+        path: /spec/template/spec
+        valueFrom:
+          template: |
+            {{ $i := .instance }}{{ if .workerInstance }}{{ $i = .workerInstance }}{{ end }}
+            profiles: {{ $i.profiles | toJson }}
+            devices: {{ $i.devices | toJson }}
+            instanceType: {{ $i.type | quote }}
+            flavor: {{ $i.flavor | quote }}
+            target: {{ $i.target | quote }}
+            image:
+              name: {{ $i.image | quote }}
+            {{ if ne $i.type "virtual-machine" }}
+            config:
+              security.nesting: "true"
+            {{ end }}
+  - name: controlPlaneInstallKubeadm
+    description: Inject install-kubeadm.sh script to KubeadmControlPlane
+    enabledIf: "{{ .instance.installKubeadm }}"
+    definitions:
+    - selector:
+        apiVersion: controlplane.cluster.x-k8s.io/v1beta2
+        kind: KubeadmControlPlaneTemplate
+        matchResources:
+          controlPlane: true
+      jsonPatches:
+      - op: add
+        path: /spec/template/spec/kubeadmConfigSpec/preKubeadmCommands/-
+        valueFrom:
+          template: sh -xeu /opt/cluster-api/install-kubeadm.sh {{ .builtin.controlPlane.version | quote }}
+  - name: workerInstallKubeadm
+    description: Inject install-kubeadm.sh script to MachineDeployments
+    enabledIf: "{{ .instance.installKubeadm }}"
+    definitions:
+    - selector:
+        apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
+        kind: KubeadmConfigTemplate
+        matchResources:
+          machineDeploymentClass:
+            names:
+            - default-worker
+      jsonPatches:
+      - op: add
+        path: /spec/template/spec/preKubeadmCommands/-
+        valueFrom:
+          template: sh -xeu /opt/cluster-api/install-kubeadm.sh {{ .builtin.machineDeployment.version | quote }}
+  - name: controlPlaneConfigureUnprivileged
+    description: Configure containerd for unprivileged mode in KubeadmControlPlane
+    enabledIf: '{{ and (not .privileged) (ne .instance.type "virtual-machine") }}'
+    definitions:
+    - selector:
+        apiVersion: controlplane.cluster.x-k8s.io/v1beta2
+        kind: KubeadmControlPlaneTemplate
+        matchResources:
+          controlPlane: true
+      jsonPatches:
+      - op: add
+        path: /spec/template/spec/kubeadmConfigSpec/files/-
+        value:
+          path: /etc/kubernetes/patches/kubeletconfiguration0+strategic.yaml
+          owner: root:root
+          permissions: "0400"
+          content: |
+            apiVersion: kubelet.config.k8s.io/v1beta1
+            kind: KubeletConfiguration
+            featureGates:
+              KubeletInUserNamespace: true
+  - name: workerConfigureUnprivileged
+    description: Configure containerd for unprivileged mode in MachineDeployments
+    enabledIf: '{{ $i := .instance }}{{ if .workerInstance }}{{ $i = .workerInstance }}{{ end }}{{ and (not .privileged) (ne $i.type "virtual-machine") }}'
+    definitions:
+    - selector:
+        apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
+        kind: KubeadmConfigTemplate
+        matchResources:
+          machineDeploymentClass:
+            names:
+            - default-worker
+      jsonPatches:
+      - op: add
+        path: /spec/template/spec/files/-
+        value:
+          path: /etc/kubernetes/patches/kubeletconfiguration0+strategic.yaml
+          owner: root:root
+          permissions: "0400"
+          content: |
+            apiVersion: kubelet.config.k8s.io/v1beta1
+            kind: KubeletConfiguration
+            featureGates:
+              KubeletInUserNamespace: true
+  - name: etcdImageTag
+    description: Sets tag to use for the etcd image in the KubeadmControlPlane.
+    enabledIf: "{{ not (empty .etcdImageTag) }}"
+    definitions:
+    - selector:
+        apiVersion: controlplane.cluster.x-k8s.io/v1beta2
+        kind: KubeadmControlPlaneTemplate
+        matchResources:
+          controlPlane: true
+      jsonPatches:
+      - op: add
+        path: /spec/template/spec/kubeadmConfigSpec/clusterConfiguration/etcd
+        valueFrom:
+          template: |
+            local:
+              imageTag: {{ .etcdImageTag }}
+  - name: coreDNSImageTag
+    description: Sets tag to use for the CoreDNS image in the KubeadmControlPlane.
+    enabledIf: "{{ not (empty .coreDNSImageTag) }}"
+    definitions:
+    - selector:
+        apiVersion: controlplane.cluster.x-k8s.io/v1beta2
+        kind: KubeadmControlPlaneTemplate
+        matchResources:
+          controlPlane: true
+      jsonPatches:
+      - op: add
+        path: "/spec/template/spec/kubeadmConfigSpec/clusterConfiguration/dns"
+        valueFrom:
+          template: |
+            imageTag: {{ .coreDNSImageTag }}
+---
+kind: KubeadmControlPlaneTemplate
+apiVersion: controlplane.cluster.x-k8s.io/v1beta2
+metadata:
+  name: incuscloud-v1-control-plane
+spec:
+  template:
+    spec:
+      kubeadmConfigSpec:
+        initConfiguration:
+          nodeRegistration:
+            kubeletExtraArgs:
+            - name: eviction-hard
+              value: nodefs.available<0%,nodefs.inodesFree<0%,imagefs.available<0%
+            - name: fail-swap-on
+              value: "false"
+            - name: provider-id
+              value: "lxc:///{{ v1.local_hostname }}"
+          patches:
+            directory: /etc/kubernetes/patches
+        joinConfiguration:
+          nodeRegistration:
+            kubeletExtraArgs:
+            - name: eviction-hard
+              value: nodefs.available<0%,nodefs.inodesFree<0%,imagefs.available<0%
+            - name: fail-swap-on
+              value: "false"
+            - name: provider-id
+              value: "lxc:///{{ v1.local_hostname }}"
+          patches:
+            directory: /etc/kubernetes/patches
+        preKubeadmCommands:
+        - set -ex
+        # Workaround for kube-proxy failing to configure nf_conntrack_max_per_core on LXC
+        - |
+          if systemd-detect-virt -c -q 2>/dev/null && [ -f /run/kubeadm/kubeadm.yaml ]; then
+            cat /run/kubeadm/hack-kube-proxy-config-lxc.yaml | tee -a /run/kubeadm/kubeadm.yaml
+          fi
+        postKubeadmCommands:
+        - set -x
+        files:
+        - path: /etc/kubernetes/manifests/.placeholder
+          content: placeholder file to prevent kubelet path not found errors
+          permissions: "0400"
+          owner: "root:root"
+        - path: /etc/kubernetes/patches/.placeholder
+          content: placeholder file to prevent kubeadm path not found errors
+          permissions: "0400"
+          owner: "root:root"
+        - path: /run/kubeadm/hack-kube-proxy-config-lxc.yaml
+          content: |
+            ---
+            kind: KubeProxyConfiguration
+            apiVersion: kubeproxy.config.k8s.io/v1alpha1
+            mode: iptables
+            conntrack:
+              maxPerCore: 0
+          owner: root:root
+          permissions: "0444"
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha2
+kind: LXCClusterTemplate
+metadata:
+  name: incuscloud-v1-lxc-cluster
+spec:
+  template:
+    spec:
+      loadBalancer:
+        lxc: {}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha2
+kind: LXCMachineTemplate
+metadata:
+  name: incuscloud-v1-control-plane
+spec:
+  template:
+    spec:
+      instanceType: container
+      flavor: ""
+      profiles: [default]
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha2
+kind: LXCMachineTemplate
+metadata:
+  name: incuscloud-v1-default-worker
+spec:
+  template:
+    spec:
+      instanceType: container
+      flavor: ""
+      profiles: [default]
+---
+apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
+kind: KubeadmConfigTemplate
+metadata:
+  name: incuscloud-v1-default-worker
+spec:
+  template:
+    spec:
+      joinConfiguration:
+        nodeRegistration:
+          kubeletExtraArgs:
+          - name: eviction-hard
+            value: nodefs.available<0%,nodefs.inodesFree<0%,imagefs.available<0%
+          - name: fail-swap-on
+            value: "false"
+          - name: provider-id
+            value: "lxc:///{{ v1.local_hostname }}"
+        patches:
+          directory: /etc/kubernetes/patches
+      files:
+      - path: /etc/kubernetes/manifests/.placeholder
+        content: placeholder file to prevent kubelet path not found errors
+        permissions: "0400"
+        owner: "root:root"
+      - path: /etc/kubernetes/patches/.placeholder
+        content: placeholder file to prevent kubeadm path not found errors
+        permissions: "0400"
+        owner: "root:root"
+      preKubeadmCommands:
+      - set -x

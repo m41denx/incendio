@@ -1,0 +1,48 @@
+---
+title: Overview
+description: Kubernetes clusters on your Incus servers, managed from Incendio.
+icon: Container
+---
+
+Incendio creates Kubernetes clusters whose nodes are ordinary Incus instances, containers or
+virtual machines, and manages them next to the rest of your infrastructure. Each cluster gets its
+own Incus project (`k8s-<cluster>`), so its nodes are easy to find, inspect and monitor.
+
+<Screenshot name="kubernetes-clusters" />
+
+## What you can do
+
+- **Create** a cluster: Kubernetes version, control-plane and worker counts, their size, profiles
+  and placement, networking, and optional MetalLB for `LoadBalancer` services.
+- **Watch it come up**: status, every node's readiness, why a node isn't ready, and a live activity
+  log.
+- **Scale** control-plane and worker nodes, and **upgrade** to newer Kubernetes versions.
+- **Get the kubeconfig**: show, copy or download it.
+- **Delete** a cluster and everything it created, in one step.
+
+## How it works
+
+Building a cluster takes more than a web page can do, so Incendio uses a helper, the **Kubernetes
+agent**. You don't install it yourself. From **Kubernetes settings**, Incendio deploys a
+**management appliance**: one Incus container holding a small Kubernetes (k3s), with
+[Cluster API](https://cluster-api.sigs.k8s.io/), its Incus provider
+[CAPN](https://capn.linuxcontainers.org/) and the agent. The agent does the work. Incendio talks to
+it for you.
+
+Your clusters run standard kubeadm-based Kubernetes, with flannel as the network plugin by default.
+
+Not keen on the agent? The create form also generates the files and commands to
+[use your own Cluster API](/docs/incendio/kubernetes/without-the-agent).
+
+## Requirements
+
+- **A clustered Incus server.** Kubernetes is under **Clustering**, so the server must be clustered.
+  A one-member cluster is fine.
+- **Internet access** for the appliance and the nodes, to download their images and Kubernetes.
+- **Room**: each control-plane node needs at least 2 CPUs and 1700 MiB of memory (kubeadm's
+  minimum). Incendio refuses smaller ones.
+
+## Start
+
+1. [Deploy the management appliance](/docs/incendio/kubernetes/appliance).
+2. [Create a cluster](/docs/incendio/kubernetes/clusters).

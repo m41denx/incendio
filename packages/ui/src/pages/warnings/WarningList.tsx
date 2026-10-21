@@ -19,8 +19,11 @@ import WarningSearchFilter from "./WarningSearchFilter";
 import { useSearchParams } from "react-router-dom";
 import type { LxdWarningSeverity, LxdWarningStatus } from "types/warning";
 import type { WarningFilters } from "util/warningFilter";
+import { useWarningListExtension } from "context/warningListExtension";
 
 const WarningList: FC = () => {
+  const { columns: extraColumns = [] } = useWarningListExtension();
+  const extraKey = (i: number) => `extension${i}`;
   const notify = useNotify();
   const [selectedNames, setSelectedNames] = useState<string[]>([]);
   const [processingNames, setProcessingNames] = useState<string[]>([]);
@@ -96,6 +99,10 @@ const WarningList: FC = () => {
     { content: "Severity", sortKey: "severity", className: "severity" },
     { content: "Count", sortKey: "count", className: "count u-align--right" },
     { content: "Project", sortKey: "project", className: "project" },
+    ...extraColumns.map((c, i) => ({
+      content: c.header,
+      sortKey: c.sortValue ? extraKey(i) : undefined,
+    })),
     { content: "First seen", sortKey: "firstSeen", className: "first_seen_at" },
     { content: "Last seen", sortKey: "lastSeen", className: "last_seen_at" },
   ];
@@ -141,6 +148,11 @@ const WarningList: FC = () => {
           className: "project u-align--center",
           "aria-label": "Project",
         },
+        ...extraColumns.map((c) => ({
+          content: c.cell(warning),
+          role: "cell",
+          "aria-label": c.header,
+        })),
         {
           content: isoTimeToString(warning.first_seen_at),
           role: "cell",
@@ -163,6 +175,11 @@ const WarningList: FC = () => {
         project: warning.project.toLowerCase(),
         firstSeen: warning.first_seen_at,
         lastSeen: warning.last_seen_at,
+        ...Object.fromEntries(
+          extraColumns.flatMap((c, i) =>
+            c.sortValue ? [[extraKey(i), c.sortValue(warning)]] : [],
+          ),
+        ),
       },
     };
   });

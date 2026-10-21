@@ -1,0 +1,8 @@
+# Builds IncusCloud's image from this repository instead of pulling it:
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+services:
+  incuscloud:
+    image: incuscloud:local
+    build:
+      context: ../../..
+      dockerfile: incuscloud/Dockerfile

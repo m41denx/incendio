@@ -1,0 +1,37 @@
+---
+title: Clustering
+description: Members, groups, re-balancing, the placement scriptlet and placement groups.
+icon: Server
+---
+
+Under **Clustering** you'll find **Members**, **Groups**, **Kubernetes**, **Placement** and
+**Settings**.
+
+- **Groups** show their configuration and what uses them, and editing a group keeps its
+  configuration (`user.*` keys, CPU baselines).
+
+## Cluster settings
+
+**Clustering › Settings** holds what Incus does with the cluster as a whole:
+
+- **Re-balancing**: let Incus move instances between members on its own, how often, and how
+  unbalanced the cluster may get first. Healing and offline thresholds are set here too.
+- **Placement scriptlet**: a Starlark scriptlet that decides which member a new instance lands on,
+  in a code editor.
+
+<Screenshot name="cluster-settings" />
+
+## Placement groups
+
+**Placement** keeps a group's instances **apart**, on different members (spread), or **together**
+on as few members as possible (compact), either strictly or as a preference. Groups belong to a
+project. An instance joins a group from the create form's target, from its details, or through a
+profile.
+
+Incus has no placement groups of its own, so Incendio enforces them with a placement scriptlet. It
+installs that scriptlet with the first group, and only replaces a custom scriptlet you already
+have if you confirm. The page shows whether the groups are enforced right now.
+
+## Kubernetes
+
+Kubernetes clusters also live under **Clustering**. See [Kubernetes](/docs/incendio/kubernetes).

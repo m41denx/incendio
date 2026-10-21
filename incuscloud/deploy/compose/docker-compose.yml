@@ -1,0 +1,108 @@
+# IncusCloud on one host: Postgres, Ory Hydra, OpenFGA and IncusCloud.
+# First run ./setup.sh (secrets, certificates, .env and incuscloud.env), then:
+#   docker compose up -d
+# See incuscloud/docs/INSTALL.md.
+
+name: incuscloud
+
+x-restart: &restart
+  restart: unless-stopped
+
+services:
+  postgres:
+    <<: *restart
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run ./setup.sh first}
+      HYDRA_DB_PASSWORD: ${HYDRA_DB_PASSWORD}
+      OPENFGA_DB_PASSWORD: ${OPENFGA_DB_PASSWORD}
+      INCUSCLOUD_DB_PASSWORD: ${INCUSCLOUD_DB_PASSWORD}
+    volumes:
+      - postgres:/var/lib/postgresql/data
+      - ./postgres-init.sh:/docker-entrypoint-initdb.d/10-databases.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres && psql -U postgres -tAc \"select 1 from pg_database where datname = 'openfga'\" | grep -q 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  hydra-migrate:
+    image: oryd/hydra:${HYDRA_VERSION:-v26.2.0}
+    command: migrate sql up -e --yes
+    environment:
+      DSN: postgres://hydra:${HYDRA_DB_PASSWORD}@postgres:5432/hydra?sslmode=disable
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  hydra:
+    <<: *restart
+    image: oryd/hydra:${HYDRA_VERSION:-v26.2.0}
+    # Reads its TLS key from ./certs, owned by the user who ran setup.sh.
+    user: "${IC_UID:-1000}:${IC_GID:-1000}"
+    command: serve all -c /etc/hydra/hydra.yml
+    environment:
+      DSN: postgres://hydra:${HYDRA_DB_PASSWORD}@postgres:5432/hydra?sslmode=disable
+      SECRETS_SYSTEM: ${HYDRA_SECRET}
+      # One origin: Hydra's issuer is IncusCloud's public URL, which serves Hydra's public endpoints.
+      URLS_SELF_ISSUER: https://${PUBLIC_HOST}/
+      URLS_LOGIN: https://${PUBLIC_HOST}/auth/login
+      URLS_CONSENT: https://${PUBLIC_HOST}/auth/consent
+      URLS_ERROR: https://${PUBLIC_HOST}/auth/error
+      URLS_LOGOUT: https://${PUBLIC_HOST}/auth/logout
+      URLS_POST_LOGOUT_REDIRECT: https://${PUBLIC_HOST}/
+      URLS_DEVICE_VERIFICATION: https://${PUBLIC_HOST}/auth/device
+      URLS_DEVICE_SUCCESS: https://${PUBLIC_HOST}/auth/device/done
+    volumes:
+      - ./hydra.yml:/etc/hydra/hydra.yml:ro
+      - ./certs:/certs:ro
+    depends_on:
+      hydra-migrate: { condition: service_completed_successfully }
+    # Never published: IncusCloud is its only client.
+
+  openfga-migrate:
+    image: openfga/openfga:${OPENFGA_VERSION:-v1.22.0}
+    command: migrate
+    environment:
+      OPENFGA_DATASTORE_ENGINE: postgres
+      OPENFGA_DATASTORE_URI: postgres://openfga:${OPENFGA_DB_PASSWORD}@postgres:5432/openfga?sslmode=disable
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  openfga:
+    <<: *restart
+    image: openfga/openfga:${OPENFGA_VERSION:-v1.22.0}
+    command: run
+    environment:
+      OPENFGA_DATASTORE_ENGINE: postgres
+      OPENFGA_DATASTORE_URI: postgres://openfga:${OPENFGA_DB_PASSWORD}@postgres:5432/openfga?sslmode=disable
+      OPENFGA_AUTHN_METHOD: preshared
+      OPENFGA_AUTHN_PRESHARED_KEYS: ${OPENFGA_KEY}
+      OPENFGA_HTTP_ADDR: 0.0.0.0:8080
+      OPENFGA_PLAYGROUND_ENABLED: "false"
+      OPENFGA_LOG_LEVEL: warn
+    # The Incus clusters connect to OpenFGA themselves: publish it on an address they reach,
+    # and firewall it to the cluster networks (see INSTALL.md, "Network").
+    ports:
+      - "${OPENFGA_BIND:-0.0.0.0}:8080:8080"
+    depends_on:
+      openfga-migrate: { condition: service_completed_successfully }
+
+  incuscloud:
+    <<: *restart
+    image: ${INCUSCLOUD_IMAGE:-ghcr.io/m41denx/incuscloud:latest}
+    user: "${IC_UID:-1000}:${IC_GID:-1000}"
+    env_file: incuscloud.env
+    ports:
+      # The UI, the API, sign-in, and every cluster's API at https://<cluster>.<CLUSTER_DOMAIN>.
+      - "${IC_BIND:-0.0.0.0}:443:8443"
+    volumes:
+      - ./certs:/certs:ro
+      # Kubernetes: put the management cluster's kubeconfig here and set IC_K8S_KUBECONFIG.
+      - ./k8s:/etc/incuscloud/k8s:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+      hydra: { condition: service_started }
+      openfga: { condition: service_started }
+
+volumes:
+  postgres:

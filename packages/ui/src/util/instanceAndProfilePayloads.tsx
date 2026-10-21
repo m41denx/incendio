@@ -34,6 +34,7 @@ import { parseCpuLimit, parseMemoryLimit } from "util/limits";
 import { parseSshKeys } from "util/instanceEdit";
 import {
   userPropertiesFromConfig,
+  userPropPrefix,
   RESERVED_USER_KEYS,
   type UserPropertyFormValues,
 } from "components/forms/UserPropertiesForm";
@@ -42,8 +43,6 @@ import {
   CREDENTIAL_PREFIXES,
   type CredentialPropertyFormValues,
 } from "components/forms/CredentialPropertiesForm";
-
-export const userPropPrefix = "user.";
 
 export const getInstancePayload = (
   instance: LxdInstance,

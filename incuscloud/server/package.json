@@ -1,0 +1,32 @@
+{
+  "name": "@incuscloud/server",
+  "version": "0.1.0",
+  "private": true,
+  "license": "GPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "start": "bun src/main.ts",
+    "test": "bun test",
+    "lint": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "0.5.8",
+    "@incendio/api": "workspace:*",
+    "@incendio/k8s": "workspace:*",
+    "@openfga/sdk": "0.9.7",
+    "@peculiar/x509": "^2.1.0",
+    "drizzle-orm": "0.45.4",
+    "elysia": "1.4.30",
+    "jose": "6.2.12",
+    "reflect-metadata": "^0.2.2",
+    "ws": "8.21.3",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.2",
+    "@types/ws": "8.18.1",
+    "drizzle-kit": "0.31.11",
+    "typescript": "5.9.3"
+  }
+}

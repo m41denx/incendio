@@ -1,0 +1,82 @@
+---
+title: Certificates
+description: One certificate for the public host and the cluster wildcard, trusted by every cluster.
+icon: Lock
+---
+
+IncusCloud terminates TLS itself, for its public host and for every cluster's name. One certificate
+covers both:
+
+```
+DNS: cloud.example.com, *.clusters.example.com
+```
+
+Put IncusCloud on its own address, or behind a load balancer or ingress in **TLS passthrough**
+mode. Never terminate TLS in front of it.
+
+There are two ways to get the certificate.
+
+## A. A publicly trusted certificate
+
+Recommended. Browsers, `incus` clients and the clusters trust it with nothing more to do.
+
+A wildcard needs a DNS-01 challenge with Let's Encrypt. For example, with certbot and the plugin
+for your DNS provider:
+
+```bash
+certbot certonly --dns-cloudflare --dns-cloudflare-credentials ~/.cloudflare.ini \
+  -d cloud.example.com -d '*.clusters.example.com'
+# → /etc/letsencrypt/live/cloud.example.com/fullchain.pem and privkey.pem
+```
+
+Use `fullchain.pem`, not `cert.pem`: the clusters need the intermediate certificate. To install it,
+see [Docker Compose](/docs/incuscloud/install/docker-compose#use-your-own-certificate) or
+[Helm](/docs/incuscloud/install/helm#values) (a cert-manager `Certificate` works there).
+
+## B. The internal CA
+
+The simplest option, good for labs and private networks. Both install methods make a CA and sign a
+certificate with it when you don't bring one. Then everything that connects must trust that CA:
+
+<Steps>
+<Step>
+
+### Every Incus cluster member
+
+Required: Incus fetches the sign-in keys from the public host with the system's trust store.
+
+```bash title="Debian, Ubuntu"
+sudo cp ca.crt /usr/local/share/ca-certificates/incuscloud.crt
+sudo update-ca-certificates
+sudo systemctl restart incus   # Incus reads the trust store when it starts
+```
+
+```bash title="Fedora, RHEL"
+sudo cp ca.crt /etc/pki/ca-trust/source/anchors/incuscloud.crt
+sudo update-ca-trust
+sudo systemctl restart incus
+```
+
+</Step>
+<Step>
+
+### Users' machines
+
+Import `ca.crt` into the browser or the system's trust store. The `incus` CLI uses the system's
+store on Linux and macOS.
+
+</Step>
+</Steps>
+
+Where to find `ca.crt`:
+
+- **Compose:** `certs/ca.crt`.
+- **Helm:** in the `incuscloud-internal-tls` secret:
+  ```bash
+  kubectl -n incuscloud get secret incuscloud-internal-tls -o jsonpath='{.data.ca\.crt}' | base64 -d > ca.crt
+  ```
+
+## Hydra's certificate
+
+Hydra always uses a certificate from the internal CA. Only IncusCloud talks to Hydra, so that one is
+never seen outside.

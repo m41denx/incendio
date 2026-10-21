@@ -1,0 +1,52 @@
+{{- $name := include "incuscloud.openfgaHost" . -}}
+{{- $secret := include "incuscloud.fullname" . -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels: {{- include "incuscloud.labels" . | nindent 4 }}
+  {{- with .Values.openfga.service.annotations }}
+  annotations: {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  # The Incus clusters connect to OpenFGA themselves.
+  type: {{ .Values.openfga.service.type }}
+  {{- if .Values.openfga.service.loadBalancerIP }}
+  loadBalancerIP: {{ .Values.openfga.service.loadBalancerIP }}
+  {{- end }}
+  {{- with .Values.openfga.service.loadBalancerSourceRanges }}
+  loadBalancerSourceRanges: {{- toYaml . | nindent 4 }}
+  {{- end }}
+  selector: {{- include "incuscloud.selector" (dict "ctx" . "component" "openfga") | nindent 4 }}
+  ports:
+    - { name: http, port: {{ .Values.openfga.service.port }}, targetPort: 8080 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels: {{- include "incuscloud.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {{- include "incuscloud.selector" (dict "ctx" . "component" "openfga") | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "incuscloud.selector" (dict "ctx" . "component" "openfga") | nindent 8 }}
+    spec:
+      initContainers:
+        - name: migrate
+          image: {{ .Values.openfga.image }}
+          args: ["migrate"]
+          env: {{- include "incuscloud.openfgaEnv" . | nindent 12 }}
+      containers:
+        - name: openfga
+          image: {{ .Values.openfga.image }}
+          args: ["run"]
+          env: {{- include "incuscloud.openfgaEnv" . | nindent 12 }}
+          ports:
+            - { name: http, containerPort: 8080 }
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 5
+          resources: {{- toYaml .Values.openfga.resources | nindent 12 }}

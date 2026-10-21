@@ -1,0 +1,24 @@
+---
+title: Incendio in IncusCloud
+description: IncusCloud serves Incendio for every cluster it manages.
+icon: Cloud
+---
+
+[IncusCloud](/docs/incuscloud) is a control plane in front of many Incus clusters. It ships with
+Incendio and serves it for every cluster, so there's nothing to install on them:
+
+- **In the console.** Every Incus page of a cluster opens inside IncusCloud's console, one click
+  from its inventory. See [The console](/docs/incuscloud/guides/console).
+- **On its own**, at `https://cloud.example.com/clusters/<cluster>/ui/`.
+
+Either way you sign in once, to IncusCloud, and Incendio uses that session. Each cluster still
+checks what you may do, through the permissions IncusCloud writes into it.
+
+## What changes
+
+- **Sign-in** is IncusCloud's. You don't need client certificates in your browser.
+- **Kubernetes** is IncusCloud's: one Cluster API install drives every cluster, and tenants create
+  clusters inside their quota. See [Kubernetes in IncusCloud](/docs/incuscloud/guides/kubernetes).
+  Incendio's own management appliance is for running Incendio by itself.
+- **Permissions** are managed in IncusCloud, which writes them into each cluster's OpenFGA store.
+  See [Permissions](/docs/incuscloud/concepts/permissions).

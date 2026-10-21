@@ -29,6 +29,7 @@ import {
   createWindowsLineState,
   getDefaultPayload,
   translateWindowsInput,
+  UI_TERMINAL_DEFAULT_PAYLOAD,
 } from "util/instanceTerminal";
 import { isWindowsInstance } from "util/instances";
 import StartInstanceBtn from "./actions/StartInstanceBtn";
@@ -252,8 +253,18 @@ const InstanceTerminal: FC<Props> = ({ instance, refreshInstance }) => {
         op.err != "" &&
         (lastFailureOp.current == null || lastFailureOp.current.id != op.id)
       ) {
-        setError(failure("Error", op.status_code, op.err));
         lastFailureOp.current = op;
+        // The default shell is bash, which images like Alpine or BusyBox lack:
+        // fall back to sh once, unless the user chose the command themselves.
+        if (
+          op.err === "Command not found" &&
+          payload.command === "bash" &&
+          !instance.config[UI_TERMINAL_DEFAULT_PAYLOAD]
+        ) {
+          setPayload({ ...payload, command: "sh" });
+          return;
+        }
+        setError(failure("Error", op.status_code, op.err));
       }
     }
   }, [operations]);

@@ -7,6 +7,7 @@ import type {
   IncusOSSystemUpdate,
 } from "types/os";
 import { handleResponse } from "util/helpers";
+import { ROOT_PATH } from "util/rootPath";
 
 export interface DebugLogOptions {
   unit?: string;
@@ -14,8 +15,10 @@ export interface DebugLogOptions {
   entries?: number;
 }
 
-const prepareOSURL = (url: string, target: string) => {
-  let result = url;
+// IncusOS lives next to /1.0, so it shares the root path (a proxy prefix such
+// as IncusCloud's /clusters/<name>).
+export const prepareOSURL = (url: string, target: string, root = ROOT_PATH) => {
+  let result = `${root}${url}`;
 
   if (target) {
     result += `?target=${target}`;
@@ -25,7 +28,7 @@ const prepareOSURL = (url: string, target: string) => {
 };
 
 export const isIncusOS = async (): Promise<boolean> => {
-  return fetch("/os/1.0")
+  return fetch(prepareOSURL("/os/1.0", ""))
     .then(handleResponse)
     .then((response: LxdSyncResponse<null>) => {
       if (response.error_code == 0) {
@@ -91,7 +94,10 @@ export const fetchDebugLogs = async (
   target: string,
   options: DebugLogOptions,
 ): Promise<IncusOSLog[]> => {
-  const url = new URL("/os/1.0/debug/log", window.location.origin);
+  const url = new URL(
+    prepareOSURL("/os/1.0/debug/log", ""),
+    window.location.origin,
+  );
 
   if (target) {
     url.searchParams.set("target", target);

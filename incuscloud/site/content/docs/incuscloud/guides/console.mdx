@@ -1,0 +1,48 @@
+---
+title: The console
+description: One inventory over every cluster, with each cluster's own pages inside it.
+icon: LayoutDashboard
+---
+
+The console at `https://cloud.example.com` is one view over every cluster, laid out as an inventory
+in the style of vSphere. Each cluster's own UI, Incendio, runs inside it, so every Incus page is one
+click away. What you see follows your permissions; the API and Incus decide every request.
+
+## The side menu
+
+- **Views**: Instances, Projects, Members, Networks, Storage. They change what the tree lists.
+- **The inventory tree**: All clusters → each cluster → what the view lists: members and their
+  instances, projects with their instances, networks or pools. Each row has its kind's icon,
+  tinted by status, and running/total counts.
+- **Platform pages**: Tenants, Kubernetes, Jobs, Replication, Backups, Balancing, and, for those who
+  manage them, Backup targets, Users, Groups, Permissions, Service accounts, the Audit log and the
+  Gateway log.
+- **Your account**: your name opens your Profile.
+
+Drag the side menu between 240 and 360 px wide; the view and width are remembered.
+
+## Selection and tabs
+
+The URL is the selection. Above the page is a breadcrumb back up the tree, then one row of tabs
+for the object; what doesn't fit goes into **More**.
+
+| Object | Tabs |
+| --- | --- |
+| All clusters | Summary (the dashboard), Clusters, Instances, Warnings |
+| A cluster | Summary, Members, Groups, Projects, Networks, Storage, Operations, Access, Configure |
+| A project | Instances, Profiles, Networks, Storage, Images, Usage, Access, Configure |
+
+Tabs with several pages list them in a side menu. A cluster's **Configure** tab, for example, has
+IncusCloud's settings for it, server and cluster settings, links, replicators, certificates,
+logging, ACME and warnings.
+
+## Access tabs
+
+A cluster's or project's **Access** tab shows who has access and why: the platform roles, each
+tenant's members, and the permission entries that reach it, each with the relation it gives in
+Incus. Whoever holds `acl.manage` there can add and remove entries right on the tab.
+
+## Incendio alone
+
+Each cluster's Incendio is also served by itself at `https://cloud.example.com/clusters/<cluster>/ui/`,
+signed in with your IncusCloud session.

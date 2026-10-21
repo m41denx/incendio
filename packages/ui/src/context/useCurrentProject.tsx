@@ -32,6 +32,14 @@ const initialState: ContextProps = {
   setProjectName: () => {},
 };
 
+const safeDecode = (segment: string) => {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
+};
+
 export const ProjectContext = createContext<ContextProps>(initialState);
 
 interface ProviderProps {
@@ -45,7 +53,8 @@ export const ProjectProvider: FC<ProviderProps> = ({ children }) => {
   const url = pathname.replace(`${ROOT_PATH}/ui/`, "");
 
   const parts = url.split("/");
-  const project = parts[0] === "project" ? parts[1] : "";
+  // The path is as the browser has it: names in links are URI-encoded.
+  const project = parts[0] === "project" ? safeDecode(parts[1] ?? "") : "";
   const isAllProjects = parts[0] === "all-projects";
 
   const initializeProjectName = (

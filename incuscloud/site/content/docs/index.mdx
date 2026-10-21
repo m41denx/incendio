@@ -1,0 +1,21 @@
+---
+title: Documentation
+description: IncusCloud runs many Incus clusters as one private cloud. Incendio is the web UI for a single Incus server or cluster.
+icon: BookOpen
+---
+
+Two products, documented here side by side. Pick the one you run:
+
+<Cards>
+  <Card icon={<Cloud />} title="IncusCloud" href="/docs/incuscloud">
+    A control plane in front of many Incus clusters: one sign-in, tenants and quotas, permissions,
+    backups, migration and Kubernetes. It includes Incendio for every cluster.
+  </Card>
+  <Card icon={<Flame />} title="Incendio" href="/docs/incendio">
+    The web UI for one Incus server or cluster, installed next to Incus itself, with Kubernetes
+    clusters built in.
+  </Card>
+</Cards>
+
+Not sure which? Start with Incendio if you run one cluster and want a better UI for it. Move to
+IncusCloud when you run several, or need to give other teams their own share of the hardware.

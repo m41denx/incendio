@@ -17,7 +17,9 @@ const ProjectLoader = ({ outlet }: Props) => {
   if (!project) {
     const url = location.pathname;
     const hasProjectInUrl = url.startsWith(`${ROOT_PATH}/ui/project/`);
-    const project = hasProjectInUrl ? url.split("/")[3] : "default";
+    const project = hasProjectInUrl
+      ? decodeURIComponent(url.split("/")[3])
+      : "default";
 
     return <NotFound entityType="project" entityName={project} />;
   }

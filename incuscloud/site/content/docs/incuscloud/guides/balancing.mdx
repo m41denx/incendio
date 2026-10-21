@@ -1,0 +1,87 @@
+---
+title: Balancing
+description: Keep a cluster's members evenly loaded, steered by affinity, anti-affinity and pins.
+icon: Scale
+---
+
+Balancing follows [ProxLB](https://github.com/gyptazy/ProxLB)'s model, reimplemented in IncusCloud.
+
+## How it decides
+
+**Spread** is the busiest member's percentage minus the least busy one's, by **memory**, **CPU**
+or **disk**. It is measured as what instances **use** (what members report) or what they are
+**given** (their limits).
+
+When the spread is above the policy's tolerance, a run plans moves:
+
+1. Pins are enforced.
+2. Anti-affinity groups are spread out.
+3. Split affinity groups are gathered.
+4. While the spread is too high, the busiest member that can still lower it gives up the instance,
+   or the whole affinity group, whose move leaves the lowest spread.
+
+A move must fit its target and strictly lower the spread. No instance moves twice in one run, and a
+run makes at most the policy's number of moves.
+
+## How it moves
+
+Each move is Incus's own move within the cluster, and the instance is checked again just before:
+
+- A VM with `migration.stateful` moves live.
+- A stopped instance moves as it is.
+- Any other running instance is stopped, moved and started, but only if the policy allows
+  restarts. Otherwise the plan says how many it left alone.
+- An instance that changed member or state since the plan is skipped.
+- A failed move starts the instance again where it was.
+
+Cancelling a run stops it between moves.
+
+## The policy
+
+Platform operators set it on the cluster's **Configure › IncusCloud** page, in the **Balancing**
+section. The **Balancing** page lists every cluster's policy, with a link there:
+
+| Setting | |
+| --- | --- |
+| Balance by, Measure | memory, CPU or disk; used or given |
+| Tolerated spread | in percentage points |
+| Moves per run | the most one run makes |
+| Allow restarts | whether running instances that can't move live may be restarted |
+| Excluded members, Excluded projects | never sources or targets |
+| Balance automatically, Every | run on a schedule |
+
+**Preview** is a dry run that moves nothing. **Rebalance now** runs it.
+
+## Steering it from instances
+
+Tenants steer balancing from the instance's page, **IncusCloud › Balancing rules…**: never move
+it, keep it together with a group, keep it apart from one, or only on some members. The dialog
+writes these keys on the instance, which you can also set yourself. Groups are per project, so
+they never involve another tenant:
+
+| Key | Effect |
+| --- | --- |
+| `user.incuscloud.affinity=<group>` | Keep the group on one member |
+| `user.incuscloud.anti-affinity=<group>` | Keep the group on different members |
+| `user.incuscloud.pin=<member>[,<member>…]` | Only on these members |
+| `user.incuscloud.balance=false` | Never moved by balancing |
+
+The **Balancing** page's **Rules** section lists every instance you can see that has rules.
+
+## Member maintenance
+
+**Evacuate…** on a member moves or stops its instances: the cluster's default, move, move live, or
+stop. **Restore** brings them back. Members that are evacuated, offline or excluded are never
+sources or targets.
+
+## Across clusters
+
+The **Balancing** page's **Across clusters** section suggests moves across clusters for tenants placed on several. When a tenant's
+busiest cluster is more than 20 points of memory above its least busy one, it lists the tenant's
+largest running instances there, as long as each move narrows the gap. **Move…** opens the
+migration dialog with the suggested cluster chosen. Nothing moves until someone starts it.
+
+<Callout type="warn" title="Turn off Incus's own rebalancing">
+  Incus's `cluster.rebalance.*` live-migrates VMs with no notion of these keys. Don't enable it on a
+  cluster IncusCloud balances, or the two will undo each other's moves.
+</Callout>

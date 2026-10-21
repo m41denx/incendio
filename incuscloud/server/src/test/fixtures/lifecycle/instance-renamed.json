@@ -1,0 +1,20 @@
+{
+ "type": "lifecycle",
+ "timestamp": "2026-10-17T13:03:44.864042632Z",
+ "metadata": {
+  "action": "instance-renamed",
+  "source": "/1.0/instances/evt-probe2?project=kspike",
+  "context": {
+   "old_name": "evt-probe"
+  },
+  "requestor": {
+   "username": "REQUESTOR",
+   "protocol": "oidc",
+   "address": "10.133.241.1"
+  },
+  "name": "evt-probe2",
+  "project": "kspike"
+ },
+ "location": "none",
+ "project": "kspike"
+}

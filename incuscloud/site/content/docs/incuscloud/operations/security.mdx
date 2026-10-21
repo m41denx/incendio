@@ -1,0 +1,63 @@
+---
+title: Security
+description: The trust model, and the limits to know before production.
+icon: ShieldAlert
+---
+
+## The trust model
+
+- **Tenants are untrusted.** Everything they get stays inside restricted Incus projects: no
+  privileged containers, no host devices, no project settings of their own. Tenant roles (Tenant
+  admin, Unrestricted user, User) never get Incus project `admin`, which could lift the
+  restrictions.
+- **Clusters enforce access themselves.** A request reaches the cluster as the person who made it,
+  through the gateway or not, and the cluster checks their grants in OpenFGA. IncusCloud never adds
+  its own credentials to someone's request.
+- **IncusCloud's own permissions live in its database**, not in OpenFGA, so nothing on a cluster can
+  change them.
+- **Secrets are sealed.** Cluster client keys, refresh tokens and S3 secrets are encrypted with
+  `IC_SECRET_KEY`. Service account secrets are shown once.
+
+<Callout type="error" title="Cluster owner is root on those hosts">
+  `node.provision` is Incus server `admin`, which can create privileged containers and so reach the
+  hosts. Give Cluster owner only to people who already run those machines.
+</Callout>
+
+## Known limits
+
+IncusCloud is in beta. Before production, know these:
+
+### One OpenFGA token for every cluster
+
+Incus takes one static OpenFGA token, so every cluster has the same one, and OpenFGA accepts it for
+every store. Root on any enrolled cluster can read it and, with it, change other clusters' grants
+in OpenFGA (not IncusCloud's own permissions).
+
+What helps today:
+
+1. A separate `IC_OPENFGA_CLUSTER_TOKEN` keeps IncusCloud's own token off the clusters, so the two
+   can be rotated apart.
+2. Allow OpenFGA only from the cluster networks and IncusCloud.
+
+Enrol only clusters whose root users you trust with each other. Per-cluster tokens, through a small
+proxy in front of OpenFGA, are planned.
+
+### Hardening still to come
+
+- Request body limits and idle timeouts on the front server.
+- A trusted-proxy setting: client addresses in the logs are the direct peer's.
+- Retention for the audit and gateway logs, which grow without limit.
+- A per-token cache in the gateway, for heavy load.
+
+Keep IncusCloud on its own address or behind TCP passthrough, and watch the database's size.
+
+### One replica
+
+Run one IncusCloud replica (`IC_ROLE=all`). Splitting the API from the workers and running several
+API replicas is planned.
+
+## Reporting a vulnerability
+
+Please report security issues privately through
+[GitHub's security advisories](https://github.com/m41denx/incendio/security/advisories/new) rather
+than in a public issue.

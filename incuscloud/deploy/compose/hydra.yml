@@ -1,0 +1,21 @@
+# Ory Hydra for IncusCloud. URLs, secrets and the DSN come from the environment
+# (docker-compose.yml); these are the settings IncusCloud relies on.
+serve:
+  public: { port: 4444, host: 0.0.0.0 }
+  admin: { port: 4445, host: 0.0.0.0 }
+  tls:
+    enabled: true
+    cert: { path: /certs/hydra.crt }
+    key: { path: /certs/hydra.key }
+strategies:
+  # Incus clusters verify access tokens themselves: they must be JWTs.
+  access_token: jwt
+oauth2:
+  allowed_top_level_claims: [email, name]
+  mirror_top_level_claims: false
+  client_credentials:
+    # Service accounts get their scopes without asking for them.
+    default_grant_allowed_scope: true
+log:
+  level: warn
+  format: json

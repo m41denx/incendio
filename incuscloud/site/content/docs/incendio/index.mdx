@@ -1,0 +1,60 @@
+---
+title: Introduction
+description: A web UI for Incus, made for Incus, with Kubernetes clusters built in.
+icon: Flame
+---
+
+Incendio is a browser UI for [Incus](https://linuxcontainers.org/incus/). It runs from your Incus
+server itself, like the stock UI: no extra service, no database, nothing to keep running. Open
+`https://<your-server>:8443/ui/`, sign in, and manage containers, virtual machines, networks,
+storage and clusters from one place. It can also build and run **Kubernetes clusters** on the same
+servers.
+
+<Screenshot name="kubernetes-cluster-detail" eager />
+
+Incendio is a fork of Canonical's [LXD-UI](https://github.com/canonical/lxd-ui), rebuilt for Incus.
+
+## How it differs from `incus-ui-canonical`
+
+`incus-ui-canonical` is the LXD web UI, patched to run on Incus. Incendio goes further:
+
+- **A newer base.** Incendio is built on a current LXD-UI release, so you get its latest pages,
+  fixes and polish.
+- **Made for Incus, not just compatible with it.** It adds pages for features that exist only in
+  Incus: OVN interconnect, network address sets and DNS zones, LINSTOR and TrueNAS storage, bucket
+  backups, logging targets, ACME certificates, cluster re-balancing, UEFI variables, permissions
+  through OpenFGA, and more.
+- **Kubernetes.** Create, scale, upgrade and delete Kubernetes clusters that run as ordinary Incus
+  instances.
+- **Only what your server supports.** A feature appears when your Incus server reports the API
+  extension it needs. On an older server you get a clean UI, not broken pages.
+
+## What's inside
+
+<Cards>
+  <Card icon={<Boxes />} title="Instances" href="/docs/incendio/features/instances">
+    Almost every container and VM setting, live migration, UEFI variables, files and consoles.
+  </Card>
+  <Card icon={<Network />} title="Networking" href="/docs/incendio/features/networking">
+    OVN load balancers and interconnect, address sets, DNS zones, forwards and NIC options.
+  </Card>
+  <Card icon={<HardDrive />} title="Storage" href="/docs/incendio/features/storage">
+    Every Incus driver, a ZFS vdev builder, volume browsing and bucket backups.
+  </Card>
+  <Card icon={<Server />} title="Clustering" href="/docs/incendio/features/clustering">
+    Re-balancing, the placement scriptlet and placement groups.
+  </Card>
+  <Card icon={<Settings />} title="Server settings" href="/docs/incendio/features/settings">
+    Logging targets, ACME certificates and every server option.
+  </Card>
+  <Card icon={<ShieldCheck />} title="Access" href="/docs/incendio/features/access">
+    Trusted certificates, who-can-access views and permissions through OpenFGA.
+  </Card>
+  <Card icon={<Container />} title="Kubernetes" href="/docs/incendio/kubernetes">
+    Clusters on your Incus servers, from one management appliance Incendio deploys for you.
+  </Card>
+</Cards>
+
+## Next
+
+[Install Incendio](/docs/incendio/install), then [sign in](/docs/incendio/sign-in).
