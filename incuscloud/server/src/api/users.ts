@@ -2,7 +2,7 @@ import { Elysia, t } from "elysia";
 import type { Acl } from "../acl/acl.ts";
 import { eq } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
-import { platformRoles, sessions, tenantMembers, users } from "../db/schema.ts";
+import { identityProviders, platformRoles, sessions, tenantMembers, userIdentities, users } from "../db/schema.ts";
 import type { Authz } from "../authz/platform.ts";
 import { tuples } from "../authz/sync.ts";
 import { forbidden, notFound } from "../authz/guards.ts";
@@ -49,7 +49,13 @@ export function usersRoutes({ db, authz, acl, hydra }: { db: Db; authz: Authz; a
     .get("/api/v1/users/:id", async ({ principal, params }) => {
       await needPlatform(authed(principal), "viewer");
       const r = await load(params.id);
-      return view(r.u, r.role);
+      // The upstream accounts they sign in with (permissions phase 5).
+      const identities = await db
+        .select({ provider: identityProviders.name, subject: userIdentities.subject, groups: userIdentities.groups, lastLoginAt: userIdentities.lastLoginAt })
+        .from(userIdentities)
+        .innerJoin(identityProviders, eq(identityProviders.id, userIdentities.providerId))
+        .where(eq(userIdentities.userId, r.u.id));
+      return { ...view(r.u, r.role), identities };
     })
     .post(
       "/api/v1/users",

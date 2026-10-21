@@ -1,6 +1,7 @@
 import { type FC, useState } from "react";
 import { Button, Input, MainTable, Select } from "@canonical/react-components";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import PageLayout from "../../components/PageLayout";
 import ConfirmAction from "../../components/ConfirmAction";
 import EmptyList from "../../components/EmptyList";
@@ -14,7 +15,8 @@ export interface Group {
   id: string;
   name: string;
   description: string;
-  members: Array<{ type: "user" | "service"; id: string; name: string }>;
+  /** `provider`: an identity provider's mapping added them; their next sign-in there decides again. */
+  members: Array<{ type: "user" | "service"; id: string; name: string; provider?: string }>;
 }
 
 export const useGroups = () => useQuery({ queryKey: ["groups"], queryFn: () => request<Group[]>("GET", "/api/v1/groups") });
@@ -50,7 +52,7 @@ const GroupList: FC = () => {
       }
     >
       <p className="u-text--muted">
-        Users and service accounts that permission entries name together. Each tenant also has a default group, <code>&lt;tenant&gt;/members</code>, that always holds its members and service accounts.
+        Users and service accounts that permission entries name together. Each tenant also has a default group, <code>&lt;tenant&gt;/members</code>, that always holds its members and service accounts. Identity providers can add their users to groups by their groups claim: see <Link to="/identity-providers">Identity providers</Link>.
       </p>
       {error ? <ErrorMessage error={error} title="Not done" /> : null}
       <Loaded query={groups}>
@@ -74,6 +76,7 @@ const GroupList: FC = () => {
                           <li key={`${m.type}:${m.id}`} className="p-list__item">
                             {m.name}
                             {m.type === "service" ? " (service account)" : ""}
+                            {m.provider ? <span className="u-text--muted"> (from {m.provider})</span> : null}
                             {manage ? (
                               <>
                                 {" "}
@@ -82,6 +85,7 @@ const GroupList: FC = () => {
                                   await changed();
                                 }} onError={setError} className="u-no-margin--bottom">
                                   Remove {m.name} from {g.name}?
+                                  {m.provider ? ` ${m.provider}'s mapping adds them again at their next sign-in there.` : ""}
                                 </ConfirmAction>
                               </>
                             ) : null}

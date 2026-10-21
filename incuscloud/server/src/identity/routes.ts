@@ -8,6 +8,8 @@ import { randomToken } from "../lib/secrets.ts";
 import { CLIENT_IP_HEADER } from "../front.ts";
 import type { HydraAdminApi, HydraClientRef } from "./hydra-admin.ts";
 import { checkCredentials } from "./passwords.ts";
+import { identityProviders } from "../db/schema.ts";
+import { clearFlightCookie, enabledProviders, finishSignIn, FLIGHT_COOKIE, flightCookie, readFlight, startSignIn, userForUpstream } from "./federation.ts";
 import { devicePage, loginPage, messagePage, page, type View } from "./pages.ts";
 import { LoginThrottle } from "./throttle.ts";
 
@@ -17,6 +19,12 @@ export interface IdentityDeps {
   secureCookies: boolean;
   /** The platform UI's stylesheet, so these pages look like the rest of IncusCloud. */
   stylesheet?: () => string | undefined;
+  /** Seals the federation cookie and opens providers' client secrets. */
+  secretKey: Buffer;
+  /** Where upstream providers send the browser back: `<publicUrl>/auth/federation/callback`. */
+  publicUrl: string;
+  /** A sign-in through a provider changed someone's groups. */
+  onGroupsChanged?: () => Promise<void>;
 }
 
 /** Access tokens are for the cluster API; Incus checks this audience (spec D3). */
@@ -38,7 +46,8 @@ const isFirstParty = (c: HydraClientRef) => c.metadata?.first_party === true;
 const ipOf = (req: Request) => req.headers.get(CLIENT_IP_HEADER) ?? "";
 
 /** Hydra's login, consent and device-verification pages (spec D2). */
-export function identityRoutes({ db, hydra, secureCookies, stylesheet }: IdentityDeps) {
+export function identityRoutes({ db, hydra, secureCookies, stylesheet, secretKey, publicUrl, onGroupsChanged }: IdentityDeps) {
+  const callbackUrl = `${publicUrl.replace(/\/$/, "")}/auth/federation/callback`;
   const html = (view: View, status = 200, headers: Record<string, string> = {}) =>
     new Response(page(view, stylesheet?.()), { status, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "x-frame-options": "DENY", "content-security-policy": CSP, ...headers } });
   const WINDOW_MS = 15 * 60_000;
@@ -73,7 +82,8 @@ export function identityRoutes({ db, hydra, secureCookies, stylesheet }: Identit
           }
           return redirect(await hydra.acceptLogin(challenge, { subject: login.subject, remember: true, remember_for: REMEMBER_S }));
         }
-        return withCsrf((csrf) => loginPage({ challenge, csrf, client: login.client.client_name }));
+        const providers = await enabledProviders(db);
+        return withCsrf((csrf) => loginPage({ challenge, csrf, client: login.client.client_name, providers }));
       } catch (e) {
         return errorPage(e);
       }
@@ -98,13 +108,59 @@ export function identityRoutes({ db, hydra, secureCookies, stylesheet }: Identit
           perEmail.fail(emailKey);
           perIp.fail(ipKey);
           await audit(db, { actor: { type: "anonymous", id: email.slice(0, 200) }, action: "auth.login", result: "denied", ip: ipOf(request) });
-          return withCsrf((csrf) => loginPage({ challenge, csrf, email, error: "Wrong email or password", client: login.client.client_name }), 401);
+          const providers = await enabledProviders(db);
+          return withCsrf((csrf) => loginPage({ challenge, csrf, email, error: "Wrong email or password", client: login.client.client_name, providers }), 401);
         }
         perEmail.clear(emailKey);
         await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
         await audit(db, { actor: { type: "user", id: user.id }, action: "auth.login", result: "success", detail: { client: login.client.client_id }, ip: ipOf(request) });
         return redirect(await hydra.acceptLogin(challenge, { subject: user.id, remember: true, remember_for: REMEMBER_S }));
       } catch (e) {
+        return errorPage(e);
+      }
+    })
+    // Sign-in through an upstream provider (permissions phase 5): there and back, then Hydra's login is accepted.
+    .get("/auth/federation/callback", async ({ query, request }) => {
+      const clear = { "set-cookie": clearFlightCookie(secureCookies) };
+      try {
+        const flight = readFlight(secretKey, cookieOf(request, FLIGHT_COOKIE), String(query.state ?? ""));
+        const [provider] = await db.select().from(identityProviders).where(eq(identityProviders.id, flight.provider));
+        if (!provider?.enabled) throw new ApiError(400, "idp_disabled", "This identity provider is no longer available.");
+        if (query.error) {
+          await audit(db, { actor: { type: "anonymous", id: provider.slug }, action: "auth.login", result: "denied", detail: { provider: provider.slug, error: String(query.error).slice(0, 100) }, ip: ipOf(request) });
+          return html(messagePage("Sign-in failed", `${provider.name}: ${String(query.error_description ?? query.error)}`), 400, clear);
+        }
+        const claims = await finishSignIn(secretKey, provider, flight, String(query.code ?? ""), callbackUrl);
+        const outcome = await userForUpstream(db, provider, claims);
+        if (!outcome.ok) {
+          await audit(db, { actor: { type: "anonymous", id: (claims.email ?? claims.sub).slice(0, 200) }, action: "auth.login", result: "denied", detail: { provider: provider.slug, reason: outcome.reason }, ip: ipOf(request) });
+          return html(messagePage("Cannot sign in", outcome.reason), 403, clear);
+        }
+        if (outcome.groupsChanged) await onGroupsChanged?.();
+        await audit(db, {
+          actor: { type: "user", id: outcome.userId },
+          action: "auth.login",
+          result: "success",
+          detail: { provider: provider.slug, created: outcome.created, groups: claims.groups.slice(0, 50) },
+          ip: ipOf(request),
+        });
+        const to = await hydra.acceptLogin(flight.challenge, { subject: outcome.userId, remember: true, remember_for: REMEMBER_S });
+        return new Response(null, { status: 302, headers: { location: to, "cache-control": "no-store", ...clear } });
+      } catch (e) {
+        if (e instanceof ApiError && e.status >= 500) return html(messagePage("Sign-in failed", e.message), 502, clear);
+        return errorPage(e);
+      }
+    })
+    .get("/auth/federation/:slug", async ({ params, query }) => {
+      try {
+        const challenge = String(query.login_challenge ?? "");
+        await hydra.getLogin(challenge); // still valid
+        const [provider] = await db.select().from(identityProviders).where(eq(identityProviders.slug, params.slug));
+        if (!provider?.enabled) throw new ApiError(404, "idp_not_found", "There is no such identity provider.");
+        const { location, flight } = await startSignIn(secretKey, provider, challenge, callbackUrl);
+        return new Response(null, { status: 302, headers: { location, "cache-control": "no-store", "set-cookie": flightCookie(flight, secureCookies) } });
+      } catch (e) {
+        if (e instanceof ApiError && e.status >= 500) return html(messagePage("Sign-in failed", e.message), 502);
         return errorPage(e);
       }
     })

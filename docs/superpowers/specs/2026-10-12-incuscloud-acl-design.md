@@ -219,5 +219,5 @@ Each phase ships on its own:
 2. Ownership (recorded on create, from lifecycle events, backfilled); the *User* role; Incus grants for cluster, project and instance paths with visibility.
 3. Groups, including the tenants' default groups; group paths (`/clusters/<c>/groups/<g>`) with Group owner, Unrestricted user and `placement.choose`; `restricted.cluster.groups`.
 4. Quotas: per-instance maximums, snapshot count, backups (count and bytes), Kubernetes cluster count, users' quotas.
-5. Identity-provider group mapping.
+5. Identity-provider group mapping. Built 2026-10-21: upstream OpenID Connect sign-in (it did not exist yet: the base design's `identity_providers` table), accounts linked by `sub` or by a verified email, users created on first sign-in when the provider allows it, and "claim value → group" mappings applied at each sign-in through the provider (memberships it made carry its id; hand-added ones stay). Adapted: groups are re-read at sign-in only, not at token refresh, because Hydra refreshes tokens without asking IncusCloud and the upstream refresh token is not kept; disabling a user still cuts them off at once.
 6. Later: leases (decision 4).

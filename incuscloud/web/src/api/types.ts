@@ -93,6 +93,8 @@ export interface User {
   hasPassword: boolean;
   createdAt: string;
   lastLoginAt: string | null;
+  /** The identity providers they sign in with (on a single user only). */
+  identities?: Array<{ provider: string; subject: string; groups: string[]; lastLoginAt: string | null }>;
 }
 
 export interface ServiceAccount {

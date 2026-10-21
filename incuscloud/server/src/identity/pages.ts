@@ -51,9 +51,16 @@ const error = (msg?: string) =>
   msg ? `<div class="p-notification--negative"><div class="p-notification__content"><p class="p-notification__message" role="alert">${escapeHtml(msg)}</p></div></div>` : "";
 const heading = (title: string, lead: string) => `<h1 class="p-heading--4">${escapeHtml(title)}</h1><p class="u-text--muted">${lead}</p>`;
 
-export const loginPage = (o: { challenge: string; csrf: string; email?: string; error?: string; client?: string }): View => ({
+const providerButtons = (challenge: string, providers: Array<{ slug: string; name: string }> = []) =>
+  providers.length
+    ? `<div class="auth-container auth-providers u-align--left">${providers
+        .map((p) => `<a class="p-button" href="/auth/federation/${encodeURIComponent(p.slug)}?login_challenge=${encodeURIComponent(challenge)}">Sign in with ${escapeHtml(p.name)}</a>`)
+        .join("")}<p class="u-text--muted u-align--center">or with your IncusCloud password</p></div>`
+    : "";
+
+export const loginPage = (o: { challenge: string; csrf: string; email?: string; error?: string; client?: string; providers?: Array<{ slug: string; name: string }> }): View => ({
   title: "Sign in",
-  body: `${heading("Sign in", o.client ? `to continue to ${escapeHtml(o.client)}` : "to IncusCloud")}
+  body: `${heading("Sign in", o.client ? `to continue to ${escapeHtml(o.client)}` : "to IncusCloud")}${providerButtons(o.challenge, o.providers)}
 <form class="p-form auth-container u-align--left" method="post" action="/auth/login">${hidden("challenge", o.challenge)}${hidden("csrf", o.csrf)}
 ${error(o.error)}<label for="email">Email</label><input id="email" name="email" type="email" autocomplete="username" required autofocus value="${escapeHtml(o.email ?? "")}">
 <label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" required>

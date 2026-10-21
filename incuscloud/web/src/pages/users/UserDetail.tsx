@@ -66,7 +66,8 @@ const UserDetail: FC = () => {
                 ["Email", u.email],
                 ["Platform role", roleLabel(u.platformRole)],
                 ["Status", u.disabled ? "Disabled" : "Active"],
-                ["Sign-in", u.hasPassword ? "Password" : "Identity provider"],
+                ["Sign-in", [u.hasPassword && "Password", ...(u.identities ?? []).map((i) => i.provider)].filter(Boolean).join(", ") || "None set"],
+                ...(u.identities ?? []).map((i): [string, string] => [`Groups from ${i.provider}`, i.groups.length ? i.groups.join(", ") : "None"]),
                 ["Created", new Date(u.createdAt).toLocaleString()],
                 ["Last sign-in", ago(u.lastLoginAt)],
               ]}

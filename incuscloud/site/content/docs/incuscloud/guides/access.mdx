@@ -35,6 +35,39 @@ service accounts. It isn't listed under Groups; pick it as a subject when adding
 Membership changes take effect in IncusCloud right away and in Incus on the next reconcile, which
 they trigger.
 
+Identity providers can put people in groups for you (next section). Such members show "from
+*provider*". Removing one lasts only until their next sign-in there, and adding them by hand makes
+the membership a lasting one.
+
+## Identity providers
+
+**Platform › Identity providers** (platform administrators) lets people sign in with an OpenID
+Connect provider. See [Sign-in and identity](/docs/incuscloud/concepts/identity#identity-providers)
+for how accounts are matched.
+
+1. At the provider, register IncusCloud as a confidential web client. Its redirect URI is shown at
+   the top of the page: `https://<public URL>/auth/federation/callback`.
+2. **Add identity provider**:
+   - **Name**: on the button, "Sign in with *name*".
+   - **Short name**: in the sign-in links.
+   - **Issuer**: IncusCloud reads its discovery document when you save, so a typo is caught at once.
+   - **Client ID** and **Client secret**: the secret is stored encrypted and never shown again.
+   - **Scopes** (`openid email profile` by default): add the scope your provider needs to send the
+     groups claim, often `groups`.
+   - **Groups claim** (`groups` by default): read from the ID token, or from userinfo when the token
+     lacks it. Entra ID, for example, sends group object IDs in `groups`.
+   - **Create an account for anyone who signs in for the first time**: off means only people who
+     already have an account, with the same verified email, can sign in with it.
+3. **Mappings**: add rows of *claim value* → *group*. Saving re-maps everyone who has signed in with
+   that provider at once, from the groups they brought last time.
+
+Give the groups entries in **Permissions** as usual. For example, map `platform-ops` to a group
+that is Operator on `/`, and `team-a` to a group that is Unrestricted user on `/tenants/team-a`.
+
+A user's page lists the providers they sign in with and the groups each one last sent. Deleting a
+provider keeps its users, but they can no longer sign in with it and they leave the groups its
+mappings gave them.
+
 ## Permission entries
 
 **Platform › Permissions** has three tabs:

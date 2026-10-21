@@ -48,6 +48,13 @@
   width: min(22rem, 80vw);
 }
 
+// "Sign in with …" buttons for identity providers, above the password form.
+.login-page .auth-providers .p-button {
+  display: block;
+  margin-bottom: $spv--small;
+  width: 100%;
+}
+
 // A row of buttons (table rows, panels): Vanilla buttons side by side, vertically centred.
 .ic-actions {
   align-items: center;

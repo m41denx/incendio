@@ -49,7 +49,7 @@ beforeAll(async () => {
   const app = new Elysia()
     .use(errorHandling)
     .use(principalPlugin(authDeps))
-    .use(identityRoutes({ db, hydra, secureCookies: true }))
+    .use(identityRoutes({ db, hydra, secureCookies: true, secretKey, publicUrl: "https://127.0.0.1:7443" }))
     .use(sessionRoutes(authDeps))
     .use(meRoutes({ db, acl: new Acl(db), clusterDomain: "clusters.test", publicUrl: "https://127.0.0.1:7443" }));
   server = createFront({ app, tls: { cert: readFileSync(new URL("tls/server.crt", dev)), key: readFileSync(new URL("tls/server.key", dev)) } });

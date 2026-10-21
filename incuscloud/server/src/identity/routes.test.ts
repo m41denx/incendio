@@ -17,7 +17,7 @@ let userId: string;
 beforeEach(async () => {
   db = await testDb();
   hydra = new FakeHydra();
-  app = new Elysia().use(errorHandling).use(identityRoutes({ db, hydra, secureCookies: true }));
+  app = new Elysia().use(errorHandling).use(identityRoutes({ db, hydra, secureCookies: true, secretKey: Buffer.alloc(32, 7), publicUrl: "https://ic.test" }));
   const [u] = await db.insert(users).values({ email: "ada@example.com", name: "Ada", passwordHash: await hashPassword("pw-good-123456") }).returning();
   userId = u!.id;
   hydra.logins.set("L1", { challenge: "L1", skip: false, subject: "", client: firstParty, request_url: "" });
@@ -42,7 +42,7 @@ test("login form renders with the challenge and a CSRF cookie", async () => {
 });
 
 test("pages link the web UI's stylesheet, which the CSP allows (same origin only, nothing inline)", async () => {
-  const styled = new Elysia().use(errorHandling).use(identityRoutes({ db, hydra, secureCookies: true, stylesheet: () => "/assets/index-x.css" }));
+  const styled = new Elysia().use(errorHandling).use(identityRoutes({ db, hydra, secureCookies: true, secretKey: Buffer.alloc(32, 7), publicUrl: "https://ic.test", stylesheet: () => "/assets/index-x.css" }));
   const r = await styled.handle(new Request(url("/auth/login?login_challenge=L1")));
   expect(await r.text()).toContain('<link rel="stylesheet" href="/assets/index-x.css">');
   const csp = r.headers.get("content-security-policy") ?? "";

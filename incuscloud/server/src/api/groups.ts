@@ -1,7 +1,7 @@
 import { Elysia, t } from "elysia";
 import { and, eq, isNull } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
-import { groupMembers, groups, serviceAccounts, users } from "../db/schema.ts";
+import { groupMembers, groups, identityProviders, serviceAccounts, users } from "../db/schema.ts";
 import type { Acl } from "../acl/acl.ts";
 import { forbidden, notFound } from "../authz/guards.ts";
 import { authed, principalContext, type Principal } from "../auth/principal.ts";
@@ -28,12 +28,18 @@ export function groupsRoutes({ db, acl }: { db: Db; acl: Acl }) {
   };
   const membersOf = async (groupId: string) => {
     const rows = await db
-      .select({ userId: groupMembers.userId, email: users.email, serviceAccountId: groupMembers.serviceAccountId, account: serviceAccounts.name })
+      .select({ userId: groupMembers.userId, email: users.email, serviceAccountId: groupMembers.serviceAccountId, account: serviceAccounts.name, provider: identityProviders.name })
       .from(groupMembers)
       .leftJoin(users, eq(users.id, groupMembers.userId))
       .leftJoin(serviceAccounts, eq(serviceAccounts.id, groupMembers.serviceAccountId))
+      .leftJoin(identityProviders, eq(identityProviders.id, groupMembers.providerId))
       .where(eq(groupMembers.groupId, groupId));
-    return rows.map((r) => (r.userId ? { type: "user" as const, id: r.userId, name: r.email ?? r.userId } : { type: "service" as const, id: r.serviceAccountId!, name: r.account ?? r.serviceAccountId! }));
+    // `provider`: an identity provider's mapping made the membership (phase 5); it follows the next sign-in there.
+    return rows.map((r) =>
+      r.userId
+        ? { type: "user" as const, id: r.userId, name: r.email ?? r.userId, ...(r.provider ? { provider: r.provider } : {}) }
+        : { type: "service" as const, id: r.serviceAccountId!, name: r.account ?? r.serviceAccountId! },
+    );
   };
   // Membership changes who resolves to what, in IncusCloud and in Incus.
   const changed = async () => {
@@ -99,7 +105,11 @@ export function groupsRoutes({ db, acl }: { db: Db; acl: Acl }) {
         const id = uuidParam(params.memberId, "No such member");
         if (params.type === "user") {
           if (!(await db.select({ id: users.id }).from(users).where(eq(users.id, id))).length) throw notFound("No such user");
-          await db.insert(groupMembers).values({ groupId: params.id, userId: id }).onConflictDoNothing();
+          // Added by hand: a membership a provider's mapping made becomes a lasting one.
+          await db
+            .insert(groupMembers)
+            .values({ groupId: params.id, userId: id })
+            .onConflictDoUpdate({ target: [groupMembers.groupId, groupMembers.userId, groupMembers.serviceAccountId], set: { providerId: null } });
         } else if (params.type === "service") {
           if (!(await db.select({ id: serviceAccounts.id }).from(serviceAccounts).where(eq(serviceAccounts.id, id))).length) throw notFound("No such service account");
           await db.insert(groupMembers).values({ groupId: params.id, serviceAccountId: id }).onConflictDoNothing();

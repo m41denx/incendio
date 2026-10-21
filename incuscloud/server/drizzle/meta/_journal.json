@@ -120,6 +120,13 @@
       "when": 1792247672060,
       "tag": "0016_quotas",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1792576670417,
+      "tag": "0017_identity_providers",
+      "breakpoints": true
     }
   ]
 }

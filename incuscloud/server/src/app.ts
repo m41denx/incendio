@@ -8,6 +8,8 @@ import { identityRoutes } from "./identity/routes.ts";
 import { meRoutes } from "./api/me.ts";
 import { aclRoutes } from "./api/acl.ts";
 import { groupsRoutes } from "./api/groups.ts";
+import { identityProvidersRoutes } from "./api/identity-providers.ts";
+import { requestReconcile } from "./reconcile/requests.ts";
 import { usersRoutes } from "./api/users.ts";
 import { tenantsRoutes } from "./api/tenants.ts";
 import { serviceAccountsRoutes } from "./api/service-accounts.ts";
@@ -55,11 +57,25 @@ export function createApp(deps: AppDeps) {
     .use(errorHandling)
     .get("/healthz", () => ({ status: "ok" }))
     .use(principalPlugin(deps))
-    .use(identityRoutes({ db: deps.db, hydra: deps.hydra, secureCookies: deps.secureCookies, stylesheet: deps.stylesheet }))
+    .use(
+      identityRoutes({
+        db: deps.db,
+        hydra: deps.hydra,
+        secureCookies: deps.secureCookies,
+        stylesheet: deps.stylesheet,
+        secretKey: deps.secretKey,
+        publicUrl: deps.publicUrl,
+        onGroupsChanged: async () => {
+          deps.acl.invalidate();
+          await requestReconcile(deps.db, "all");
+        },
+      }),
+    )
     .use(sessionRoutes(deps))
     .use(meRoutes(deps))
     .use(aclRoutes(deps))
     .use(groupsRoutes(deps))
+    .use(identityProvidersRoutes(deps))
     .use(usersRoutes(deps))
     .use(tenantsRoutes(deps))
     .use(serviceAccountsRoutes(deps))

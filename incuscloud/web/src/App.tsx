@@ -22,6 +22,7 @@ import UserList from "./pages/users/UserList";
 import UserDetail from "./pages/users/UserDetail";
 import PermissionsPage from "./pages/permissions/PermissionsPage";
 import GroupList from "./pages/groups/GroupList";
+import IdentityProviderList from "./pages/identity-providers/IdentityProviderList";
 import ServiceAccountList from "./pages/service-accounts/ServiceAccountList";
 import AuditLog from "./pages/logs/AuditLog";
 import GatewayLog from "./pages/logs/GatewayLog";
@@ -77,6 +78,7 @@ export const AppRoutes: FC = () => (
       <Route path="service-accounts" element={<ServiceAccountList />} />
       <Route path="permissions/:tab?" element={<PermissionsPage />} />
       <Route path="groups" element={<GroupList />} />
+      <Route path="identity-providers" element={<IdentityProviderList />} />
       <Route path="audit" element={<AuditLog />} />
       <Route path="gateway-log" element={<GatewayLog />} />
       <Route path="profile" element={<Profile />} />

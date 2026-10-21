@@ -9,9 +9,30 @@ IncusCloud serves Hydra's login, consent and device-code pages.
 
 ## Users
 
-A user is an email address and a password. Platform administrators add them under **Users**, and
-tenant admins add people to their tenants by email. The first administrator is created from
-`IC_BOOTSTRAP_ADMIN_EMAIL` and `IC_BOOTSTRAP_ADMIN_PASSWORD` while there is no administrator yet.
+A user is an email address with a password, an identity provider account, or both. Platform
+administrators add them under **Users**, and tenant admins add people to their tenants by email. The
+first administrator is created from `IC_BOOTSTRAP_ADMIN_EMAIL` and `IC_BOOTSTRAP_ADMIN_PASSWORD`
+while there is no administrator yet.
+
+## Identity providers
+
+People can also sign in with an OpenID Connect provider: Keycloak, Authentik, Entra ID, Google
+Workspace, Dex and so on. The sign-in page shows a **Sign in with …** button for each enabled
+provider, above the password form. Local and federated users live side by side.
+
+- **Who they are.** IncusCloud remembers the provider's `sub` for each user. On a first sign-in it
+  links the account to the user with the same email, but only when the provider says the email is
+  verified (`email_verified`). Otherwise it creates a new user, if the provider allows that, or
+  refuses the sign-in.
+- **Their groups.** A provider has *group mappings*: "claim value X → IncusCloud group Y". At every
+  sign-in through it, the values of its groups claim decide which groups the user is in by those
+  mappings. The user leaves a mapped group once its value is gone from the claim. Groups added by
+  hand stay.
+- **When it is read.** Groups are re-read at each sign-in through the provider, not while a session
+  or a CLI token is refreshed. Until the next sign-in, a user keeps the groups they had. To cut
+  someone off at once, disable them under **Users**.
+
+Setting one up is in [Access › Identity providers](/docs/incuscloud/guides/access#identity-providers).
 
 ## How each client signs in
 

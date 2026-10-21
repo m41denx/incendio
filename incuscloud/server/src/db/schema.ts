@@ -156,6 +156,62 @@ export const groups = pgTable("groups", {
   createdAt: created(),
 });
 
+/**
+ * Upstream OpenID Connect providers users can sign in with (permissions phase 5). Their
+ * groups claim is mapped onto IncusCloud groups at every sign-in through them.
+ */
+export const identityProviders = pgTable("identity_providers", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  /** In the sign-in links; lower case. */
+  slug: text("slug").notNull().unique(),
+  /** On the sign-in button: "Sign in with <name>". */
+  name: text("name").notNull(),
+  issuer: text("issuer").notNull(),
+  clientId: text("client_id").notNull(),
+  clientSecretEnc: text("client_secret_enc").notNull(),
+  scopes: text("scopes").notNull().default("openid email profile"),
+  /** The ID token or userinfo claim that lists the user's groups (a list or one string). */
+  groupsClaim: text("groups_claim").notNull().default("groups"),
+  /** Someone signing in for the first time gets an account; otherwise only existing users (by verified email) may. */
+  createUsers: boolean("create_users").notNull().default(true),
+  enabled: boolean("enabled").notNull().default(true),
+  createdAt: created(),
+});
+
+/** Which upstream account is which user: the provider's `sub`, and the groups it last brought. */
+export const userIdentities = pgTable(
+  "user_identities",
+  {
+    providerId: uuid("provider_id")
+      .notNull()
+      .references(() => identityProviders.id, { onDelete: "cascade" }),
+    subject: text("subject").notNull(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    groups: jsonb("groups").$type<string[]>().notNull().default([]),
+    createdAt: created(),
+    lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
+  },
+  (t) => [primaryKey({ columns: [t.providerId, t.subject] }), index("user_identities_user_id_idx").on(t.userId)],
+);
+
+/** "Claim value X → group Y" rules of an identity provider. */
+export const groupMappings = pgTable(
+  "group_mappings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    providerId: uuid("provider_id")
+      .notNull()
+      .references(() => identityProviders.id, { onDelete: "cascade" }),
+    claim: text("claim").notNull(),
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => groups.id, { onDelete: "cascade" }),
+  },
+  (t) => [unique("group_mapping_unique").on(t.providerId, t.claim, t.groupId)],
+);
+
 export const groupMembers = pgTable(
   "group_members",
   {
@@ -164,6 +220,8 @@ export const groupMembers = pgTable(
       .references(() => groups.id, { onDelete: "cascade" }),
     userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
     serviceAccountId: uuid("service_account_id").references(() => serviceAccounts.id, { onDelete: "cascade" }),
+    /** Set when an identity provider's mapping made this membership (re-evaluated at each sign-in); null when added by hand. */
+    providerId: uuid("provider_id").references(() => identityProviders.id, { onDelete: "cascade" }),
     createdAt: created(),
   },
   (t) => [check("group_member_one", sql`num_nonnulls(${t.userId}, ${t.serviceAccountId}) = 1`), unique("group_member_unique").on(t.groupId, t.userId, t.serviceAccountId).nullsNotDistinct()],
