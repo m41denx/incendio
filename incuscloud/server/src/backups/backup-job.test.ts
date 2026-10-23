@@ -94,6 +94,15 @@ test("auto: a failed direct upload falls back to relay", async () => {
   expect((await rows())[0]!.state).toBe("ready");
 });
 
+test("a target in another region than us-east-1 always relays (Incus signs its own uploads for us-east-1)", async () => {
+  await db.update(backupTargets).set({ region: "garage" });
+  const o = { extensions: ["backup_s3_upload"], directFails: "AuthorizationHeaderMalformed: unexpected scope" };
+  expect(await run(o, { transport: "direct" }).result.catch((e) => (e as Error).message)).toBe("The cluster cannot upload to this target itself: Incus signs its uploads for region us-east-1, and the target is in garage");
+  log.length = 0;
+  expect((await run(o).result).transport).toBe("relay");
+  expect(log.some((l) => l.endsWith(" direct"))).toBe(false); // no doomed attempt first
+});
+
 test("direct without the extension is refused; auto without it relays", async () => {
   expect(await run({}, { transport: "direct" }).result.catch((e) => (e as Error).message)).toMatch(/cannot upload backups itself/);
   log.length = 0;

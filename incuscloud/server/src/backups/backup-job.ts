@@ -179,8 +179,13 @@ export function backupHandler(deps: { storeFor?: StoreFor; directWaitMs?: number
       rowMade = true;
 
       const extensions = (await client.server()).api_extensions ?? [];
-      const canDirect = extensions.includes("backup_s3_upload");
-      if (p.transport === "direct" && !canDirect) throw new ApiError(409, "conflict", "The cluster cannot upload backups itself (it lacks the backup_s3_upload API extension)");
+      // Incus takes no region for its own uploads and signs them for us-east-1, which a target in
+      // another region refuses ("unexpected scope"); those always relay.
+      const regionOk = !target.region || target.region === "us-east-1";
+      const canDirect = extensions.includes("backup_s3_upload") && regionOk;
+      if (p.transport === "direct" && !canDirect) {
+        throw new ApiError(409, "conflict", regionOk ? "The cluster cannot upload backups itself (it lacks the backup_s3_upload API extension)" : `The cluster cannot upload to this target itself: Incus signs its uploads for region us-east-1, and the target is in ${target.region}`);
+      }
       let transport: "direct" | "relay" | undefined;
       let size: number | null = null;
       if (p.transport !== "relay" && canDirect) {

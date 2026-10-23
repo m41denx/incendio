@@ -19,6 +19,11 @@ path-style.
 
 **Check** writes, reads and deletes a probe object.
 
+A backup goes up one of two ways. When the cluster can upload it itself (Incus's
+`backup_s3_upload`), it does, straight to the store; otherwise, or when it can't reach the store,
+IncusCloud streams it through. Incus signs its own uploads for region `us-east-1`, so a target in any
+other region (a Garage store's `garage`, for example) is always streamed through IncusCloud.
+
 <Callout title="Abort incomplete uploads">
   A crashed upload can leave an incomplete multipart upload in the bucket. Set a lifecycle rule on
   the bucket that aborts those after a day.
