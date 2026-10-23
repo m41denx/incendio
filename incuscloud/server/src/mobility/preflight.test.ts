@@ -41,6 +41,16 @@ test("a plain stopped container copies cleanly: root pool mapped, volatile keys 
   });
 });
 
+test("a live move needs Incus's boot record of the running VM (lost after a live move into a restricted project)", () => {
+  const vm = (bootState?: string) =>
+    source({ type: "virtual-machine", status: "Running", config: { "migration.stateful": "true", ...(bootState !== undefined && { "volatile.vm.boot_state": bootState }) }, apiExtensions: ["migration_vm_live"] });
+  const live = (s: SourceInstance) => preflight({ source: s, target: target({ apiExtensions: ["migration_vm_live"] }), targetName: "web", mode: "move", live: true });
+  expect(live(vm('{"version":1,"machine_type":"pc-q35-11.1"}')).ok).toBe(true);
+  for (const lost of ['{"version":-1,"machine_type":""}', undefined, "not json"]) {
+    expect(live(vm(lost)).problems).toEqual(["Restart this VM before moving it live: Incus has no record of how it booted (as after a live move into a tenant project)"]);
+  }
+});
+
 test("a move keeps the volatile keys (a VM restored live needs its identity); a copy drops them", () => {
   expect(run({ mode: "move" }).request.config).toEqual({ "limits.memory": "1GiB", "volatile.uuid": "x", "volatile.base_image": "abc", "volatile.eth0.hwaddr": "00:16" });
   expect(Object.keys(run({ mode: "copy" }).request.config)).toEqual(["limits.memory", "volatile.base_image"]);
@@ -89,7 +99,7 @@ test("moving or copying a running container, and snapshots", () => {
 });
 
 test("live moves: only running VMs with migration.stateful, on both sides", () => {
-  const vm = source({ type: "virtual-machine", status: "Running", config: { "migration.stateful": "true" } });
+  const vm = source({ type: "virtual-machine", status: "Running", config: { "migration.stateful": "true", "volatile.vm.boot_state": '{"version":1,"machine_type":"pc-q35-11.1"}' } });
   expect(run({ live: true, mode: "move", source: vm }).problems).toEqual([]);
   expect(run({ live: true, source: source({ status: "Running" }) }).problems).toContain("Containers cannot move live");
   expect(run({ live: true, source: { ...vm, status: "Stopped" } }).problems).toContain("Only a running instance moves live");

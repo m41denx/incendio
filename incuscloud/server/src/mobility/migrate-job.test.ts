@@ -35,7 +35,7 @@ function setup(o: { actor?: string; status?: string; mode?: "copy" | "move"; liv
   const abort = new AbortController();
   const payload: MigratePayload = { sourceClusterId: ids.a, sourceProject: "acme", name: "web", targetClusterId: ids.b, targetProject: "acme", targetName: "web", mode: o.mode ?? "move", live: o.live ?? false, transport: "auto" };
   const handler = migrateHandler({
-    sourceFacts: async () => ({ ...source(o.status ?? "Running", type), ...(o.live && { config: { "volatile.uuid": "u", "migration.stateful": "true" }, apiExtensions: ["migration_vm_live"] }) }),
+    sourceFacts: async () => ({ ...source(o.status ?? "Running", type), ...(o.live && { config: { "volatile.uuid": "u", "migration.stateful": "true", "volatile.vm.boot_state": '{"version":1,"machine_type":"pc-q35-11.1"}' }, apiExtensions: ["migration_vm_live"] }) }),
     targetFacts: async () => target({ ...(o.live && { apiExtensions: ["migration_vm_live"] }), ...o.target }),
     transfer: async (t) => {
       log.push(`transfer ${t.transport}`);

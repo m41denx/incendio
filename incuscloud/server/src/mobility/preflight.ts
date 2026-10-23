@@ -59,6 +59,16 @@ export interface Preflight {
 const rootOf = (devices: Record<string, Record<string, string>>) => Object.entries(devices).find(([, d]) => d.type === "disk" && d.path === "/");
 
 /** Checks whether an instance can go to the target, and builds the target request. Pure. */
+/** The QEMU machine type a running VM booted with, from Incus's boot record; null when there is none. */
+export function bootMachine(raw: string | undefined): string | null {
+  try {
+    const bs = JSON.parse(raw ?? "") as { machine_type?: string };
+    return bs.machine_type || null;
+  } catch {
+    return null;
+  }
+}
+
 export function preflight(i: PreflightInput): Preflight {
   const { source: s, target: t } = i;
   const problems: string[] = [];
@@ -116,6 +126,11 @@ export function preflight(i: PreflightInput): Preflight {
     else {
       if (s.status !== "Running") problems.push("Only a running instance moves live");
       if (cfg["migration.stateful"] !== "true") problems.push("Live moves need migration.stateful=true on the instance");
+      else if (s.status === "Running" && !bootMachine(s.config["volatile.vm.boot_state"])) {
+        // Incus refuses it on the source. It happens to a VM moved live into a restricted project
+        // (every tenant's): the project forbids volatile.vm.boot_state, so the record is lost.
+        problems.push("Restart this VM before moving it live: Incus has no record of how it booted (as after a live move into a tenant project)");
+      }
       if (!s.apiExtensions.includes("migration_vm_live")) problems.push("The source does not support live VM migration");
       if (!t.apiExtensions.includes("migration_vm_live")) problems.push("The target does not support live VM migration");
     }

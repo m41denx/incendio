@@ -31,9 +31,19 @@ The data then moves as an Incus migration, one of two ways:
 How a move goes:
 
 1. A running container is stopped for the move. Only a running VM with `migration.stateful` moves
-   live.
-2. Copy, verify, start the copy, and only then delete the source.
+   live. Incus changes that setting only while the VM is stopped.
+2. Copy, verify, start the copy, and only then delete the source. After a live move the source is
+   stopped first: the guest already runs on the target.
 3. Until the delete, a failure or a cancel removes the copy and restarts the source.
+
+A move keeps the instance's identity (its UUID and MAC addresses); a copy gets new ones.
+
+<Callout type="warn">
+A VM moved live into a tenant's project can't be moved live again until it is restarted. Tenant
+projects are restricted, and Incus doesn't let a restricted project keep the record of how a VM
+booted (`volatile.vm.boot_state`), which the next live move needs. The pre-flight says so instead
+of letting the move fail. Plain `incus move` behaves the same way.
+</Callout>
 
 Who may move:
 
