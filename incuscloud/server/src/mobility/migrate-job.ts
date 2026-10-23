@@ -36,7 +36,18 @@ export async function incusDo(c: Client, method: string, path: string, body?: un
   if (r.type === "async" && r.operation) await c.wait(r.operation);
 }
 export const instancePath = (project: string, name: string, sub = "") => `/1.0/instances/${encodeURIComponent(name)}${sub}?project=${encodeURIComponent(project)}`;
-export const setState = (c: Client, project: string, name: string, action: "start" | "stop") => incusDo(c, "PUT", instancePath(project, name, "/state"), { action, timeout: 60, force: action === "stop" });
+/**
+ * Starts or stops an instance, and is content when it already is in that state: someone else may have
+ * started or stopped it since it was read (Incus answers "The instance is already stopped").
+ */
+export async function setState(c: Client, project: string, name: string, action: "start" | "stop") {
+  try {
+    await incusDo(c, "PUT", instancePath(project, name, "/state"), { action, timeout: 60, force: action === "stop" });
+  } catch (e) {
+    if (e instanceof Error && e.message.includes(`The instance is already ${action === "stop" ? "stopped" : "running"}`)) return;
+    throw e;
+  }
+}
 
 /** Marks what IncusCloud created, so that it only ever removes its own instances (spec §5). */
 export const TAG_JOB = "user.incuscloud.job";

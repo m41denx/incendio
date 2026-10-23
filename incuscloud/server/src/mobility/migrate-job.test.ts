@@ -6,7 +6,8 @@ import { stubCluster, type StubInstance } from "../test/stub-cluster.ts";
 import type { JobContext } from "../jobs/types.ts";
 import type { SourceInstance, TargetFacts } from "./preflight.ts";
 import { ownerOf, recordOwner } from "../acl/owners.ts";
-import { migrateHandler, type MigratePayload } from "./migrate-job.ts";
+import { ApiError } from "../lib/errors.ts";
+import { migrateHandler, setState, type MigratePayload } from "./migrate-job.ts";
 
 let db: Db;
 let log: string[];
@@ -143,4 +144,17 @@ test("a move keeps the instance's owner; a copy belongs to whoever copied", asyn
   await setup({ actor: mover!.id, mode: "copy" }).run();
   expect(await ownerOf(db, { clusterId: ids.b, project: "acme", name: "web" })).toBe(`user:${mover!.id}`);
   expect(await ownerOf(db, { clusterId: ids.a, project: "acme", name: "web" })).toBe(`user:${owner!.id}`);
+});
+
+test("setState is content when the instance already is in that state; other failures still throw", async () => {
+  const failing = (err: string) => ({
+    request: async () => ({ type: "async" as const, status_code: 202, metadata: {}, operation: "/1.0/operations/x" }),
+    wait: async () => {
+      throw new ApiError(502, "operation_failed", `Cluster operation Failure: ${err}`);
+    },
+  });
+  await setState(failing("The instance is already stopped") as never, "acme", "web", "stop");
+  await setState(failing("The instance is already running") as never, "acme", "web", "start");
+  await expect(setState(failing("The instance is already stopped") as never, "acme", "web", "start")).rejects.toThrow("already stopped");
+  await expect(setState(failing("disk full") as never, "acme", "web", "stop")).rejects.toThrow("disk full");
 });
