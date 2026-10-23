@@ -304,7 +304,7 @@ CLUSTER_TOPOLOGY=true EXP_CLUSTER_RESOURCE_SET=true clusterctl init \
   --core cluster-api:v1.14.3 --bootstrap kubeadm:v1.14.3 --control-plane kubeadm:v1.14.3 --infrastructure incus:v0.9.1
 ```
 
-Then give IncusCloud a kubeconfig for it (`IC_K8S_KUBECONFIG`), with rights to manage namespaces, secrets, config maps and Cluster API objects. Without one, Kubernetes is off: the UI says so and the API answers 409 `kubernetes_disabled`. IncusCloud applies everything else itself: its ClusterClass `incuscloud-v1` (derived from CAPN's, Apache-2.0) in `incuscloud-system`, and per tenant a namespace `ic-<slug>` with flannel as a ClusterResourceSet.
+Then give IncusCloud a kubeconfig for it (`IC_K8S_KUBECONFIG`), with rights to manage namespaces, secrets, config maps and Cluster API objects. Without one, Kubernetes is off: the UI says so and the API answers 409 `kubernetes_disabled`. IncusCloud applies everything else itself: its ClusterClass `incuscloud-v2` (derived from CAPN's, Apache-2.0; clusters made with `incuscloud-v1` stay on it) in `incuscloud-system`, and per tenant a namespace `ic-<slug>` with flannel as a ClusterResourceSet.
 
 The Incus hosts need the kernel modules Kubernetes nodes use loaded (`br_netfilter`, `overlay`, `ip_vs`, `nf_nat`): the nodes are unprivileged containers and cannot load them.
 

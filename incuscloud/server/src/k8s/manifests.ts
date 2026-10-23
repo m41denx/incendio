@@ -44,6 +44,8 @@ export function identitySecret(s: { namespace: string; name: string; server: str
 
 export interface ClusterSpec {
   id: string;
+  /** The cluster's ClusterClass when it already has one (by default the current one). */
+  className?: string;
   name: string;
   namespace: string;
   version: string;
@@ -95,7 +97,7 @@ export function clusterManifest(c: ClusterSpec): KubeObject {
       // An instance load balancer is reached through a forward; kube-vip and OVN at their own address.
       controlPlaneEndpoint: { host: c.endpointHost, port: c.endpointPort },
       topology: {
-        classRef: { name: CLASS_NAME, namespace: CLASS_NAMESPACE },
+        classRef: { name: c.className ?? CLASS_NAME, namespace: CLASS_NAMESPACE },
         version: c.version,
         controlPlane: { replicas: c.controlPlanes },
         variables: [

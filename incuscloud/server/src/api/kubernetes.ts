@@ -333,7 +333,10 @@ export function kubernetesRoutes({ db, authz, acl, kube, k8sPorts, workloadKube 
             const [saved] = await tx.update(k8sClusters).set(next).where(eq(k8sClusters.id, cur.id)).returning();
             // Our ClusterClass first: a cluster made before it last changed may use variables only the new one has.
             for (const obj of classBundle()) await enabled().apply(obj);
-            await enabled().apply(clusterManifest({ ...saved!, secretName: secretNameOf({ name: clusterName }) }));
+            // On the class it has: moving it to a newer one would roll its machines.
+            const existing = await enabled().get("cluster.x-k8s.io/v1beta2", "Cluster", saved!.namespace, saved!.name);
+            const className = (existing?.spec as { topology?: { classRef?: { name?: string } } } | undefined)?.topology?.classRef?.name;
+            await enabled().apply(clusterManifest({ ...saved!, className, secretName: secretNameOf({ name: clusterName }) }));
             return saved!;
           }),
         (s) => ({ k8sId: s.id, version: s.version, controlPlanes: s.controlPlanes, workers: s.workers }),

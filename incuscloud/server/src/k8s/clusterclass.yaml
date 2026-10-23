@@ -2,19 +2,26 @@
 # (https://github.com/lxc/cluster-api-provider-incus, commit ce7d177).
 # Copyright 2024 Angelos Kolaitis. Licensed under the Apache License, Version 2.0;
 # see http://www.apache.org/licenses/LICENSE-2.0. Changed for IncusCloud: renamed
-# capn-v1beta2 -> incuscloud-v1, skipDefaultKubeadmProfile (tenant projects are
-# restricted: no host paths or kernel modules), security.nesting on container nodes.
+# capn-v1beta2 -> incuscloud-v2, skipDefaultKubeadmProfile (tenant projects are
+# restricted: no host paths or kernel modules), security.nesting on container nodes,
+# kubeadm's SystemVerification a warning (without CAPN's profile no kernel config
+# reaches a container node).
+#
+# CAPI doesn't let templates change: a change to one is a new name, and a new class
+# when the class must point to it. v2 has new kubeadm templates (v1's LXC ones are
+# shared). incuscloud-v1 stays on the management cluster for the clusters made with
+# it; IncusCloud keeps a cluster on its class (a rebase would roll its machines).
 ---
 apiVersion: cluster.x-k8s.io/v1beta2
 kind: ClusterClass
 metadata:
-  name: incuscloud-v1
+  name: incuscloud-v2
 spec:
   controlPlane:
     templateRef:
       apiVersion: controlplane.cluster.x-k8s.io/v1beta2
       kind: KubeadmControlPlaneTemplate
-      name: incuscloud-v1-control-plane
+      name: incuscloud-v2-control-plane
     machineInfrastructure:
       templateRef:
         kind: LXCMachineTemplate
@@ -41,7 +48,7 @@ spec:
         templateRef:
           apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
           kind: KubeadmConfigTemplate
-          name: incuscloud-v1-default-worker
+          name: incuscloud-v2-default-worker
       infrastructure:
         templateRef:
           apiVersion: infrastructure.cluster.x-k8s.io/v1alpha2
@@ -469,13 +476,16 @@ spec:
 kind: KubeadmControlPlaneTemplate
 apiVersion: controlplane.cluster.x-k8s.io/v1beta2
 metadata:
-  name: incuscloud-v1-control-plane
+  name: incuscloud-v2-control-plane
 spec:
   template:
     spec:
       kubeadmConfigSpec:
         initConfiguration:
           nodeRegistration:
+            # Without the host's kernel config (no /boot in a tenant's container) kubeadm fails it.
+            ignorePreflightErrors:
+            - SystemVerification
             kubeletExtraArgs:
             - name: eviction-hard
               value: nodefs.available<0%,nodefs.inodesFree<0%,imagefs.available<0%
@@ -487,6 +497,9 @@ spec:
             directory: /etc/kubernetes/patches
         joinConfiguration:
           nodeRegistration:
+            # Without the host's kernel config (no /boot in a tenant's container) kubeadm fails it.
+            ignorePreflightErrors:
+            - SystemVerification
             kubeletExtraArgs:
             - name: eviction-hard
               value: nodefs.available<0%,nodefs.inodesFree<0%,imagefs.available<0%
@@ -560,12 +573,15 @@ spec:
 apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
 kind: KubeadmConfigTemplate
 metadata:
-  name: incuscloud-v1-default-worker
+  name: incuscloud-v2-default-worker
 spec:
   template:
     spec:
       joinConfiguration:
         nodeRegistration:
+          # Without the host's kernel config (no /boot in a tenant's container) kubeadm fails it.
+          ignorePreflightErrors:
+          - SystemVerification
           kubeletExtraArgs:
           - name: eviction-hard
             value: nodefs.available<0%,nodefs.inodesFree<0%,imagefs.available<0%

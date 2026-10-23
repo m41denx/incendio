@@ -7,12 +7,12 @@ test("the class bundle is our ClusterClass and its templates, all in incuscloud-
   const b = classBundle();
   expect(b.map((o) => `${o.kind}/${o.metadata.name}`)).toEqual([
     "Namespace/incuscloud-system",
-    "ClusterClass/incuscloud-v1",
-    "KubeadmControlPlaneTemplate/incuscloud-v1-control-plane",
+    "ClusterClass/incuscloud-v2",
+    "KubeadmControlPlaneTemplate/incuscloud-v2-control-plane",
     "LXCClusterTemplate/incuscloud-v1-lxc-cluster",
     "LXCMachineTemplate/incuscloud-v1-control-plane",
     "LXCMachineTemplate/incuscloud-v1-default-worker",
-    "KubeadmConfigTemplate/incuscloud-v1-default-worker",
+    "KubeadmConfigTemplate/incuscloud-v2-default-worker",
   ]);
   expect(b.slice(1).every((o) => o.metadata.namespace === "incuscloud-system")).toBe(true);
 });
@@ -22,6 +22,21 @@ test("the derived class keeps both changes: no kubeadm profile, nesting on conta
   expect(text).toContain("skipDefaultKubeadmProfile: true");
   expect(text.match(/security\.nesting: \\"true\\"/g)?.length).toBe(2);
   expect(text).not.toContain("capn-v1beta2");
+});
+
+test("kubeadm's SystemVerification is only a warning on every node (no kernel config reaches a tenant's container)", () => {
+  const docs = classBundle() as unknown as { kind: string; spec?: any }[];
+  const kcp = docs.find((d) => d.kind === "KubeadmControlPlaneTemplate")!.spec.template.spec.kubeadmConfigSpec;
+  const worker = docs.find((d) => d.kind === "KubeadmConfigTemplate")!.spec.template.spec;
+  for (const reg of [kcp.initConfiguration.nodeRegistration, kcp.joinConfiguration.nodeRegistration, worker.joinConfiguration.nodeRegistration]) {
+    expect(reg.ignorePreflightErrors).toEqual(["SystemVerification"]);
+  }
+});
+
+test("a cluster made with an older class stays on it", () => {
+  const ref = (c: ReturnType<typeof clusterManifest>) => (c.spec as { topology: { classRef: { name: string } } }).topology.classRef.name;
+  expect(ref(clusterManifest(row))).toBe("incuscloud-v2");
+  expect(ref(clusterManifest({ ...row, className: "incuscloud-v1" }))).toBe("incuscloud-v1");
 });
 
 test("a tenant's bundle: its namespace, and flannel applied once to each of its clusters that asks", () => {
@@ -59,7 +74,7 @@ test("a cluster: our class across namespaces, the preset endpoint, unprivileged 
     spec: {
       controlPlaneEndpoint: { host: "10.0.0.5", port: 16443 },
       topology: {
-        classRef: { name: "incuscloud-v1", namespace: "incuscloud-system" },
+        classRef: { name: "incuscloud-v2", namespace: "incuscloud-system" },
         version: "v1.36.4",
         controlPlane: { replicas: 1 },
         workers: { machineDeployments: [{ class: "default-worker", name: "md-0", replicas: 2 }] },

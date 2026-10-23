@@ -84,8 +84,9 @@ sudo systemctl restart systemd-modules-load
 </Step>
 </Steps>
 
-IncusCloud then applies everything else itself: its ClusterClass `incuscloud-v1` in
+IncusCloud then applies everything else itself: its ClusterClass `incuscloud-v2` in
 `incuscloud-system`, and per tenant a namespace `ic-<tenant>` with flannel as a ClusterResourceSet.
+Clusters made with the earlier `incuscloud-v1` stay on it; leave it on the management cluster.
 Without a kubeconfig the console says Kubernetes is off.
 
 ## Create a cluster

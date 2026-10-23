@@ -20,7 +20,8 @@ export const LB = { cpu: 1, memoryGiB: 1, flavor: "c1-m1" } as const;
 /** Every instance gets the project's default root disk (10 GiB, P3). */
 export const NODE_DISK = 10 * GiB;
 
-export const CLASS_NAME = "incuscloud-v1";
+/** The ClusterClass new clusters get (clusterclass.yaml says why there are versions). */
+export const CLASS_NAME = "incuscloud-v2";
 export const CLASS_NAMESPACE = "incuscloud-system";
 export const namespaceOf = (slug: string) => `ic-${slug}`;
 
