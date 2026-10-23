@@ -157,11 +157,12 @@ test("upgrade: one minor version forward to an offered version; not while a job 
   expect([r.status, r.body.error.message]).toEqual([409, "web is being created or deleted; try again when it is ready"]);
 });
 
-test("delete: tenant admins and operators; marks it deleting, cancels its create, queues one delete job", async () => {
+test("delete: tenant admins, members and operators, not viewers; marks it deleting, cancels its create, queues one delete job", async () => {
   const m = await member();
   const { body } = await h.call(m, "POST", "/api/v1/kubernetes", make());
   const id = body.cluster.id as string;
-  expect((await h.call(m, "DELETE", `/api/v1/kubernetes/${id}`)).status).toBe(403);
+  const viewer = await h.user("v@example.com", { tenants: { [acme.id]: "viewer" } });
+  expect((await h.call(viewer, "DELETE", `/api/v1/kubernetes/${id}`)).status).toBe(403);
   await h.db.update(jobs).set({ state: "running" });
   const admin = await h.user("a@example.com", { tenants: { [acme.id]: "admin" } });
   const r = await h.call(admin, "DELETE", `/api/v1/kubernetes/${id}`);

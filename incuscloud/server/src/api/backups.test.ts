@@ -43,7 +43,9 @@ const people = async () => ({
   admin: await h.user("admin@example.com", { platformRole: "admin" }),
   op: await h.user("op@example.com", { platformRole: "operator" }),
   ta: await h.user("ta@example.com", { tenants: { [acme.id]: "admin" } }),
+  // A member is an unrestricted user on the tenant: every workload privilege. A viewer reads only.
   m: await h.user("m@example.com", { tenants: { [acme.id]: "member" } }),
+  v: await h.user("v@example.com", { tenants: { [acme.id]: "viewer" } }),
   out: await h.user("out@example.com", {}),
 });
 const mkTarget = async (admin: Parameters<typeof h.call>[0]) => (await h.call(admin, "POST", "/api/v1/backup-targets", TARGET)).body.id as string;
@@ -81,15 +83,17 @@ test("targets: check reports the store's answer; a target in use cannot be delet
   expect((await h.call(admin, "DELETE", `/api/v1/backup-targets/${id}`)).status).toBe(204);
 });
 
-test("back up now: tenant admins and operators; members are refused; outsiders do not see the instance", async () => {
-  const { admin, op, ta, m, out } = await people();
+test("back up now: tenant admins, members and operators; viewers are refused; outsiders do not see the instance", async () => {
+  const { admin, op, ta, m, v, out } = await people();
   const targetId = await mkTarget(admin);
   const r = await h.call(ta, "POST", `/api/v1/instances/${web}/backups`, { targetId });
   expect(r.status).toBe(202);
   expect(r.body).toMatchObject({ type: "backup", tenantId: acme.id, instanceKey: `${lab}/acme/web`, payload: { clusterId: lab, project: "acme", instanceName: "web", targetId, instanceOnly: false, transport: "auto" } });
   expect((await h.call(ta, "POST", `/api/v1/instances/${web}/backups`, { targetId })).status).toBe(409);
   await h.db.update(jobs).set({ state: "succeeded" });
-  expect((await h.call(m, "POST", `/api/v1/instances/${web}/backups`, { targetId })).status).toBe(403);
+  expect((await h.call(v, "POST", `/api/v1/instances/${web}/backups`, { targetId })).status).toBe(403);
+  expect((await h.call(m, "POST", `/api/v1/instances/${web}/backups`, { targetId })).status).toBe(202);
+  await h.db.update(jobs).set({ state: "succeeded" });
   expect((await h.call(out, "POST", `/api/v1/instances/${web}/backups`, { targetId })).status).toBe(404);
   expect((await h.call(ta, "POST", `/api/v1/instances/${web}/backups`, { targetId, transport: "relay" })).status).toBe(403);
   expect((await h.call(op, "POST", `/api/v1/instances/${web}/backups`, { targetId, transport: "relay", instanceOnly: true })).body.payload).toMatchObject({ transport: "relay", instanceOnly: true });
@@ -99,8 +103,8 @@ test("back up now: tenant admins and operators; members are refused; outsiders d
   expect((await h.db.select().from(auditLog).where(eq(auditLog.action, "backup.create"))).length).toBeGreaterThan(0);
 });
 
-test("backups: tenant members list them; admins delete them, object first; a backup in progress stays", async () => {
-  const { admin, ta, m, out } = await people();
+test("backups: tenant members and viewers list them; admins delete them, object first; a backup in progress stays", async () => {
+  const { admin, ta, m, v, out } = await people();
   const targetId = await mkTarget(admin);
   await store.put("ic/acme/web/1.tar.gz", new Blob(["x"]).stream());
   const [b] = await h.db.insert(backups).values({ tenantId: acme.id, targetId, objectKey: "ic/acme/web/1.tar.gz", clusterId: lab, project: "acme", instanceName: "web", state: "ready", sizeBytes: 1, createdBy: "u" }).returning();
@@ -111,7 +115,8 @@ test("backups: tenant members list them; admins delete them, object first; a bac
   expect((await h.call(m, "GET", `/api/v1/backups?instance=${web}`)).body.length).toBe(2);
   expect((await h.call(out, "GET", "/api/v1/backups")).body).toEqual([]);
   expect((await h.call(out, "GET", `/api/v1/backups/${b!.id}`)).status).toBe(404);
-  expect((await h.call(m, "DELETE", `/api/v1/backups/${b!.id}`)).status).toBe(403);
+  expect((await h.call(v, "GET", "/api/v1/backups")).body.length).toBe(2);
+  expect((await h.call(v, "DELETE", `/api/v1/backups/${b!.id}`)).status).toBe(403);
   expect((await h.call(ta, "DELETE", `/api/v1/backups/${c!.id}`)).status).toBe(409);
   expect((await h.call(ta, "DELETE", `/api/v1/backups/${b!.id}`)).status).toBe(204);
   expect(store.keys()).toEqual([]);
@@ -119,7 +124,7 @@ test("backups: tenant members list them; admins delete them, object first; a bac
 });
 
 test("restore: tenant admins to their placements' projects (same cluster too); operators anywhere, with a pool", async () => {
-  const { admin, op, ta, m } = await people();
+  const { admin, op, ta, v } = await people();
   const targetId = await mkTarget(admin);
   const [b] = await h.db.insert(backups).values({ tenantId: acme.id, targetId, objectKey: "k", clusterId: lab, project: "acme", instanceName: "web", state: "ready", createdBy: "u" }).returning();
   const url = `/api/v1/backups/${b!.id}/restore`;
@@ -130,26 +135,26 @@ test("restore: tenant admins to their placements' projects (same cluster too); o
   expect((await h.call(ta, "POST", url, { targetClusterId: bare })).status).toBe(403);
   expect((await h.call(ta, "POST", url, { targetClusterId: edge, pool: "fast" })).status).toBe(403);
   expect((await h.call(ta, "POST", url, { targetClusterId: edge, targetProject: "other" })).status).toBe(403);
-  expect((await h.call(m, "POST", url, { targetClusterId: lab })).status).toBe(403);
+  expect((await h.call(v, "POST", url, { targetClusterId: lab })).status).toBe(403);
   expect((await h.call(op, "POST", url, { targetClusterId: bare, targetProject: "rescue", pool: "fast" })).body.payload).toMatchObject({ targetClusterId: bare, targetProject: "rescue", pool: "fast" });
   await h.db.update(backups).set({ state: "failed" });
   expect((await h.call(ta, "POST", url, { targetClusterId: lab })).status).toBe(409);
   expect((await h.db.select().from(auditLog).where(eq(auditLog.action, "backup.restore"))).length).toBeGreaterThan(0);
 });
 
-test("policies: tenant admins create, edit, run and delete; members read; the backups outlive the policy", async () => {
-  const { admin, ta, m, out } = await people();
+test("policies: tenant admins create, edit, run and delete; viewers read only; the backups outlive the policy", async () => {
+  const { admin, ta, v, out } = await people();
   const targetId = await mkTarget(admin);
   const r = await h.call(ta, "POST", "/api/v1/backup-policies", { instanceId: web, targetId, intervalS: 3600, keep: 3 });
   expect(r.status).toBe(201);
   expect(r.body).toMatchObject({ tenantId: acme.id, clusterId: lab, project: "acme", instanceName: "web", targetId, intervalS: 3600, keep: 3, enabled: true });
   expect((await h.call(ta, "POST", "/api/v1/backup-policies", { instanceId: web, targetId })).status).toBe(409);
   expect((await h.call(ta, "POST", "/api/v1/backup-policies", { instanceId: web, targetId, keep: 0 })).status).toBe(400);
-  expect((await h.call(m, "POST", "/api/v1/backup-policies", { instanceId: web, targetId })).status).toBe(403);
-  expect((await h.call(m, "GET", "/api/v1/backup-policies")).body.map((p: { id: string }) => p.id)).toEqual([r.body.id]);
+  expect((await h.call(v, "POST", "/api/v1/backup-policies", { instanceId: web, targetId })).status).toBe(403);
+  expect((await h.call(v, "GET", "/api/v1/backup-policies")).body.map((p: { id: string }) => p.id)).toEqual([r.body.id]);
   expect((await h.call(out, "GET", "/api/v1/backup-policies")).body).toEqual([]);
   const id = r.body.id;
-  expect((await h.call(m, "PATCH", `/api/v1/backup-policies/${id}`, { enabled: false })).status).toBe(403);
+  expect((await h.call(v, "PATCH", `/api/v1/backup-policies/${id}`, { enabled: false })).status).toBe(403);
   expect((await h.call(ta, "PATCH", `/api/v1/backup-policies/${id}`, { enabled: false, keep: 5 })).body).toMatchObject({ enabled: false, keep: 5 });
   const run = await h.call(ta, "POST", `/api/v1/backup-policies/${id}/run`);
   expect(run.status).toBe(202);

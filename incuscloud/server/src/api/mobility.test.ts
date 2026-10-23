@@ -68,14 +68,19 @@ test("tenant admins migrate their instances between their own placements only", 
   expect((await post(ta, tenantInstance, { targetClusterId: edge, mode: "copy", targetProject: "default" })).status).toBe(403);
 });
 
-test("members and platform viewers may not; strangers do not even see the instance", async () => {
-  const m = await h.user("m@example.com", { tenants: { [acme.id]: "member" } });
+test("tenant and platform viewers may not; strangers do not even see the instance; members may", async () => {
+  const tv = await h.user("tv@example.com", { tenants: { [acme.id]: "viewer" } });
   const v = await h.user("v@example.com", { platformRole: "viewer" });
   const s = await h.user("s@example.com");
-  expect((await post(m, tenantInstance, { targetClusterId: edge, mode: "copy" })).status).toBe(403);
+  expect((await post(tv, tenantInstance, { targetClusterId: edge, mode: "copy" })).status).toBe(403);
   expect((await post(v, infraInstance, { targetClusterId: edge, mode: "copy" }, true)).status).toBe(403);
   expect((await post(s, tenantInstance, { targetClusterId: edge, mode: "copy" })).status).toBe(404);
   expect(await h.db.select().from(jobs)).toEqual([]);
+  // A member is an unrestricted user on the tenant: within its placements, like a tenant admin.
+  const m = await h.user("m@example.com", { tenants: { [acme.id]: "member" } });
+  const r = await post(m, tenantInstance, { targetClusterId: edge, mode: "copy" });
+  expect([r.status, r.body.payload?.targetProject]).toEqual([202, "acme-edge"]);
+  expect((await post(m, tenantInstance, { targetClusterId: far, mode: "copy" })).status).toBe(403);
 });
 
 test("pre-flight problems refuse the migration; so do the same cluster, a disabled one and a busy instance", async () => {

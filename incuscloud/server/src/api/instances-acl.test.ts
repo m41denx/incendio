@@ -60,11 +60,17 @@ test("an Auditor entry on one instance shows just that one; No access on one hid
   expect((await h.call(m, "GET", `/api/v1/instances/${ids.theirs}`)).status).toBe(404);
 });
 
-test("moving to another cluster: tenant admins within their placements, not Users or members; staff choose freely", async () => {
+test("moving to another cluster: tenant admins and members within their placements, Users what they own, not viewers; staff choose freely", async () => {
   const body = { targetClusterId: edge, mode: "copy" };
-  expect((await h.call(u, "POST", `/api/v1/instances/${ids.mine}/migrations`, body)).status).toBe(403);
+  expect((await h.call(u, "POST", `/api/v1/instances/${ids.mine}/migrations`, body)).status).toBe(202);
+  expect((await h.call(u, "POST", `/api/v1/instances/${ids.theirs}/migrations`, body)).status).toBe(404);
+  await h.db.update(jobs).set({ state: "succeeded" });
+  const v = await h.user("v@x.test", { tenants: { [acme.id]: "viewer" } });
+  expect((await h.call(v, "POST", `/api/v1/instances/${ids.mine}/migrations`, body)).status).toBe(403);
+  // A member is an unrestricted user on the tenant.
   const m = await h.user("m@x.test", { tenants: { [acme.id]: "member" } });
-  expect((await h.call(m, "POST", `/api/v1/instances/${ids.mine}/migrations`, body)).status).toBe(403);
+  expect((await h.call(m, "POST", `/api/v1/instances/${ids.mine}/migrations`, body)).status).toBe(202);
+  await h.db.update(jobs).set({ state: "succeeded" });
   const ta = await h.user("ta@x.test", { tenants: { [acme.id]: "admin" } });
   const r = await h.call(ta, "POST", `/api/v1/instances/${ids.mine}/migrations`, { ...body, targetProject: "acme-edge" });
   expect([r.status, r.body.payload?.targetProject]).toEqual([202, "acme-edge"]);
@@ -72,7 +78,7 @@ test("moving to another cluster: tenant admins within their placements, not User
   const o = await h.user("o@x.test");
   await h.db.insert(aclEntries).values({ path: "/clusters/lab/projects/acme/instances/theirs", role: "operator", userId: o.id });
   expect((await h.call(o, "POST", `/api/v1/instances/${ids.theirs}/migrations`, body)).status).toBe(403);
-  expect((await h.db.select().from(jobs)).length).toBe(1);
+  expect((await h.db.select().from(jobs)).length).toBe(3);
 });
 
 test("self-service create: a User is placed automatically; naming a cluster needs placement.choose", async () => {

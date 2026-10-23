@@ -24,16 +24,19 @@ beforeEach(async () => {
   web = (await h.db.insert(instances).values({ clusterId: lab, project: "acme", name: "web", type: "container", status: "Running", search: "web" }).returning())[0]!.id;
 });
 
-test("a tenant admin creates a policy to the tenant's other placement; members can read it", async () => {
+test("a tenant admin creates a policy to the tenant's other placement; viewers can read it, not create one", async () => {
   const ta = await h.user("ta@example.com", { tenants: { [acme.id]: "admin" } });
   const r = await h.call(ta, "POST", "/api/v1/replication-policies", { instanceId: web, targetClusterId: edge, intervalS: 900 });
   expect(r.status).toBe(201);
   expect(r.body).toMatchObject({ tenantId: acme.id, sourceClusterId: lab, sourceProject: "acme", instanceName: "web", targetClusterId: edge, targetProject: "acme", targetName: "web", intervalS: 900, enabled: true, state: "active" });
   expect((await h.db.select().from(auditLog).where(eq(auditLog.action, "replication.create"))).length).toBe(1);
+  const v = await h.user("v@example.com", { tenants: { [acme.id]: "viewer" } });
+  expect((await h.call(v, "GET", "/api/v1/replication-policies")).body.map((p: { id: string }) => p.id)).toEqual([r.body.id]);
+  expect((await h.call(v, "GET", `/api/v1/replication-policies/${r.body.id}`)).body.targetName).toBe("web");
+  expect((await h.call(v, "POST", "/api/v1/replication-policies", { instanceId: web, targetClusterId: edge })).status).toBe(403);
+  // A member (an unrestricted user on the tenant) may: here the instance already has one.
   const m = await h.user("m@example.com", { tenants: { [acme.id]: "member" } });
-  expect((await h.call(m, "GET", "/api/v1/replication-policies")).body.map((p: { id: string }) => p.id)).toEqual([r.body.id]);
-  expect((await h.call(m, "GET", `/api/v1/replication-policies/${r.body.id}`)).body.targetName).toBe("web");
-  expect((await h.call(m, "POST", "/api/v1/replication-policies", { instanceId: web, targetClusterId: edge })).status).toBe(403);
+  expect((await h.call(m, "POST", "/api/v1/replication-policies", { instanceId: web, targetClusterId: edge })).status).toBe(409);
   const s = await h.user("s@example.com", { tenants: { [other.id]: "admin" } });
   expect((await h.call(s, "GET", "/api/v1/replication-policies")).body).toEqual([]);
   expect((await h.call(s, "GET", `/api/v1/replication-policies/${r.body.id}`)).status).toBe(404);
@@ -47,11 +50,11 @@ test("validation: interval bounds, the same cluster, a duplicate", async () => {
   expect((await h.call(op, "POST", "/api/v1/replication-policies", { instanceId: web, targetClusterId: edge })).status).toBe(409);
 });
 
-test("edit, run now, fail over and delete; only managers may", async () => {
+test("edit, run now, fail over and delete; not viewers", async () => {
   const ta = await h.user("ta@example.com", { tenants: { [acme.id]: "admin" } });
-  const m = await h.user("m@example.com", { tenants: { [acme.id]: "member" } });
+  const v = await h.user("v@example.com", { tenants: { [acme.id]: "viewer" } });
   const id = (await h.call(ta, "POST", "/api/v1/replication-policies", { instanceId: web, targetClusterId: edge })).body.id;
-  expect((await h.call(m, "PATCH", `/api/v1/replication-policies/${id}`, { enabled: false })).status).toBe(403);
+  expect((await h.call(v, "PATCH", `/api/v1/replication-policies/${id}`, { enabled: false })).status).toBe(403);
   expect((await h.call(ta, "PATCH", `/api/v1/replication-policies/${id}`, { enabled: false, intervalS: 120 })).body).toMatchObject({ enabled: false, intervalS: 120 });
 
   const run = await h.call(ta, "POST", `/api/v1/replication-policies/${id}/run`);
@@ -60,13 +63,13 @@ test("edit, run now, fail over and delete; only managers may", async () => {
   expect((await h.call(ta, "POST", `/api/v1/replication-policies/${id}/run`)).status).toBe(409);
   await h.db.update(jobs).set({ state: "succeeded" });
 
-  expect((await h.call(m, "POST", `/api/v1/replication-policies/${id}/failover`, { stopSource: true })).status).toBe(403);
+  expect((await h.call(v, "POST", `/api/v1/replication-policies/${id}/failover`, { stopSource: true })).status).toBe(403);
   const fo = await h.call(ta, "POST", `/api/v1/replication-policies/${id}/failover`, { stopSource: true });
   expect(fo.status).toBe(202);
   expect(fo.body).toMatchObject({ type: "failover", payload: { policyId: id, stopSource: true } });
   expect((await h.db.select().from(auditLog).where(eq(auditLog.action, "replication.failover"))).map((a) => a.result).sort()).toEqual(["denied", "success"]);
 
-  expect((await h.call(m, "DELETE", `/api/v1/replication-policies/${id}`)).status).toBe(403);
+  expect((await h.call(v, "DELETE", `/api/v1/replication-policies/${id}`)).status).toBe(403);
   expect((await h.call(ta, "DELETE", `/api/v1/replication-policies/${id}`)).status).toBe(204);
   expect(await h.db.select().from(replicationPolicies)).toEqual([]);
 });

@@ -14,6 +14,7 @@ const stub = (routes: Record<string, unknown>) => ({
 
 const running = {
   name: "web",
+  snapshots: [{ name: "snap0" }, { name: "snap1" }],
   project: "acme",
   type: "container",
   status: "Running",
@@ -53,7 +54,8 @@ test("a standalone server is one member named after it", async () => {
   });
   const s = await collectInventory(c);
   expect(s.clustered).toBe(false);
-  expect(s.members).toEqual([{ name: "solo", url: "", status: "Online", roles: [], architecture: "x86_64", cpuThreads: 8, memoryTotal: 8000, memoryUsed: 3000, load1: null, uptimeS: null }]);
+  // A standalone server is in Incus's "default" group.
+  expect(s.members).toEqual([{ name: "solo", url: "", status: "Online", roles: [], groups: ["default"], architecture: "x86_64", cpuThreads: 8, memoryTotal: 8000, memoryUsed: 3000, load1: null, uptimeS: null }]);
   expect(s.pools).toEqual([{ member: "solo", name: "local", driver: "zfs", status: "Created", spaceTotal: 100, spaceUsed: 40 }]);
   expect(s.networks).toEqual([{ project: "default", name: "incusbr0", type: "bridge", managed: true, status: "Created", description: "" }]);
 });
@@ -63,7 +65,7 @@ test("a cluster's members carry their load, resources and per-member pool space"
     ...common,
     "/1.0": { environment: { server_clustered: true, server_name: "n1" } },
     "/1.0/cluster/members?recursion=1": [
-      { server_name: "n1", url: "https://n1:8443", status: "Online", roles: ["database"], architecture: "x86_64" },
+      { server_name: "n1", url: "https://n1:8443", status: "Online", roles: ["database"], groups: ["default", "gpu"], architecture: "x86_64" },
       { server_name: "n2", url: "https://n2:8443", status: "Offline", roles: [], architecture: "aarch64" },
     ],
     "/1.0/resources?target=n1": { cpu: { total: 16 }, memory: { total: 64, used: 16 } },
@@ -72,9 +74,9 @@ test("a cluster's members carry their load, resources and per-member pool space"
   const s = await collectInventory(c);
   expect(s.clustered).toBe(true);
   expect(s.members).toEqual([
-    { name: "n1", url: "https://n1:8443", status: "Online", roles: ["database"], architecture: "x86_64", cpuThreads: 16, memoryTotal: 64, memoryUsed: 16, load1: 0.5, uptimeS: 3600 },
+    { name: "n1", url: "https://n1:8443", status: "Online", roles: ["database"], groups: ["default", "gpu"], architecture: "x86_64", cpuThreads: 16, memoryTotal: 64, memoryUsed: 16, load1: 0.5, uptimeS: 3600 },
     // An unreachable member keeps its listing with unknown numbers.
-    { name: "n2", url: "https://n2:8443", status: "Offline", roles: [], architecture: "aarch64", cpuThreads: 0, memoryTotal: 0, memoryUsed: 0, load1: null, uptimeS: null },
+    { name: "n2", url: "https://n2:8443", status: "Offline", roles: [], groups: [], architecture: "aarch64", cpuThreads: 0, memoryTotal: 0, memoryUsed: 0, load1: null, uptimeS: null },
   ]);
   expect(s.pools).toEqual([{ member: "n1", name: "local", driver: "zfs", status: "Created", spaceTotal: 500, spaceUsed: 50 }]);
 });
@@ -103,6 +105,7 @@ test("instances: global addresses, summed counters, unknown disk as null, nothin
     netTx: 20,
     addresses: ["10.0.0.5", "fd42::5"],
     hints: {},
+    snapshots: 2,
     stateful: false,
   });
   expect(JSON.stringify(s)).not.toContain("never stored");

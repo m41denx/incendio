@@ -27,7 +27,7 @@ beforeEach(async () => {
 });
 
 /** A cluster that knows one project's default profile and instances. */
-function fakeCluster(o: { existing?: string[]; pool?: string | null } = {}) {
+function fakeCluster(o: { existing?: string[]; pool?: string | null; clusterGroups?: string } = {}) {
   const calls: Array<{ method: string; path: string; body?: unknown }> = [];
   const names = new Set(o.existing ?? []);
   const client = {
@@ -39,6 +39,8 @@ function fakeCluster(o: { existing?: string[]; pool?: string | null } = {}) {
         if (!names.has(decodeURIComponent(p.split("/")[3]!))) throw new ClusterError(404, "Cluster: Instance not found");
         return { type: "sync", status_code: 200, metadata: {} };
       }
+      if (method === "GET" && p === "/1.0/projects/acme")
+        return { type: "sync", status_code: 200, metadata: { config: o.clusterGroups === undefined ? {} : { "restricted.cluster.groups": o.clusterGroups } } };
       if (method === "GET" && p === "/1.0/profiles/default")
         return { type: "sync", status_code: 200, metadata: { devices: o.pool === null ? {} : { root: { type: "disk", path: "/", pool: o.pool ?? "local" } } } };
       if (method === "POST" && p === "/1.0/instances") {
@@ -85,6 +87,17 @@ test("creates from the image server with its limits and a sized root disk on the
   const cs = await db.select().from(clusters);
   expect(cs.every((x) => x.reconcileRequestedAt !== null)).toBe(true);
   expect(cs.find((x) => x.id === lab)!.inventoryAt).toBeNull();
+});
+
+test("a tenant limited to cluster groups is created in the first of them; \"default\" alone limits nothing", async () => {
+  const post = async (clusterGroups: string) => {
+    const c = fakeCluster({ clusterGroups });
+    await run(c, payload());
+    return c.calls.find((x) => x.method === "POST")!.path;
+  };
+  expect(await post("gpu,edge")).toBe("/1.0/instances?project=acme&target=%40gpu");
+  expect(await post("default,edge")).toBe("/1.0/instances?project=acme&target=%40edge");
+  expect(await post("default")).toBe("/1.0/instances?project=acme");
 });
 
 test("a taken name is refused before anything is created", async () => {
