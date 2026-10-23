@@ -78,9 +78,11 @@ export async function extendLease(db: Db, k: InstanceKey, policy: LeasePolicy): 
 
 /** Sets the end outright (null: never), as the platform may. */
 export async function setLease(db: Db, k: InstanceKey, tenantId: string, expiresAt: Date | null): Promise<Lease> {
+  // The key alone: callers pass inventory rows, whose other columns (createdAt) are not the lease's.
+  const { clusterId, project, name } = k;
   const [r] = await db
     .insert(instanceLeases)
-    .values({ ...k, tenantId, expiresAt })
+    .values({ clusterId, project, name, tenantId, expiresAt })
     .onConflictDoUpdate({ target: [instanceLeases.clusterId, instanceLeases.project, instanceLeases.name], set: { expiresAt, actedAt: null } })
     .returning();
   return r!;
