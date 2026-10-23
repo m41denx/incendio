@@ -25,6 +25,11 @@ export interface TargetFacts {
   instanceNames: string[];
   defaultProfileDevices: Record<string, Record<string, string>>;
   apiExtensions: string[];
+  /**
+   * The target project is restricted without low-level VM options, so Incus (7.3 and later) refuses
+   * the VM's boot record (volatile.vm.boot_state) on a live move in, and QEMU restores with defaults.
+   */
+  dropsBootState?: boolean;
 }
 
 export interface PreflightInput {
@@ -58,17 +63,28 @@ export interface Preflight {
 
 const rootOf = (devices: Record<string, Record<string, string>>) => Object.entries(devices).find(([, d]) => d.type === "disk" && d.path === "/");
 
-/** Checks whether an instance can go to the target, and builds the target request. Pure. */
-/** The QEMU machine type a running VM booted with, from Incus's boot record; null when there is none. */
-export function bootMachine(raw: string | undefined): string | null {
+interface BootState {
+  machine_type?: string;
+  cpu_topology?: { sockets?: number; cores?: number; threads?: number };
+}
+const bootState = (raw: string | undefined): BootState | null => {
   try {
-    const bs = JSON.parse(raw ?? "") as { machine_type?: string };
-    return bs.machine_type || null;
+    return JSON.parse(raw ?? "") as BootState;
   } catch {
     return null;
   }
-}
+};
 
+/** The QEMU machine type a running VM booted with, from Incus's boot record; null when there is none. */
+export const bootMachine = (raw: string | undefined): string | null => bootState(raw)?.machine_type || null;
+
+/** How many vCPUs a running VM booted with, from Incus's boot record. */
+const bootCpus = (raw: string | undefined) => {
+  const t = bootState(raw)?.cpu_topology;
+  return (t?.sockets ?? 1) * (t?.cores ?? 1) * (t?.threads ?? 1);
+};
+
+/** Checks whether an instance can go to the target, and builds the target request. Pure. */
 export function preflight(i: PreflightInput): Preflight {
   const { source: s, target: t } = i;
   const problems: string[] = [];
@@ -130,6 +146,14 @@ export function preflight(i: PreflightInput): Preflight {
         // Incus refuses it on the source. It happens to a VM moved live into a restricted project
         // (every tenant's): the project forbids volatile.vm.boot_state, so the record is lost.
         problems.push("Restart this VM before moving it live: Incus has no record of how it booted (as after a live move into a tenant project)");
+      } else if (t.dropsBootState) {
+        // On the target Incus then starts QEMU for the restore with one vCPU's layout. With more, the
+        // saved device state doesn't fit (virtio-scsi has a queue per vCPU) and the restore crashes.
+        if (bootCpus(s.config["volatile.vm.boot_state"]) > 1) {
+          problems.push("Incus can't move a VM with more than one vCPU live into a tenant project: the restricted project drops the VM's boot record and the restore fails. Move it with a restart instead");
+        } else {
+          warnings.push("The VM must be restarted on the target before it can move live again: the tenant project drops its boot record");
+        }
       }
       if (!s.apiExtensions.includes("migration_vm_live")) problems.push("The source does not support live VM migration");
       if (!t.apiExtensions.includes("migration_vm_live")) problems.push("The target does not support live VM migration");

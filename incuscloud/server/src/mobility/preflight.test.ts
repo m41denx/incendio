@@ -51,6 +51,17 @@ test("a live move needs Incus's boot record of the running VM (lost after a live
   }
 });
 
+test("a live move into a project that drops the boot record: refused with more than one vCPU, a warning with one", () => {
+  const vm = (cores: number) =>
+    source({ type: "virtual-machine", status: "Running", config: { "migration.stateful": "true", "volatile.vm.boot_state": JSON.stringify({ version: 1, machine_type: "pc-q35-11.1", cpu_topology: { sockets: 1, cores, threads: 1 } }) }, apiExtensions: ["migration_vm_live"] });
+  const live = (s: SourceInstance, dropsBootState: boolean) => preflight({ source: s, target: target({ apiExtensions: ["migration_vm_live"], dropsBootState }), targetName: "web", mode: "move", live: true });
+  expect(live(vm(2), true).problems).toEqual(["Incus can't move a VM with more than one vCPU live into a tenant project: the restricted project drops the VM's boot record and the restore fails. Move it with a restart instead"]);
+  const one = live(vm(1), true);
+  expect(one.ok).toBe(true);
+  expect(one.warnings).toEqual(["The VM must be restarted on the target before it can move live again: the tenant project drops its boot record"]);
+  expect(live(vm(2), false)).toMatchObject({ ok: true, warnings: [] });
+});
+
 test("a move keeps the volatile keys (a VM restored live needs its identity); a copy drops them", () => {
   expect(run({ mode: "move" }).request.config).toEqual({ "limits.memory": "1GiB", "volatile.uuid": "x", "volatile.base_image": "abc", "volatile.eth0.hwaddr": "00:16" });
   expect(Object.keys(run({ mode: "copy" }).request.config)).toEqual(["limits.memory", "volatile.base_image"]);

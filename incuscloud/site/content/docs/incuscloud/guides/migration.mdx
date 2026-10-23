@@ -39,10 +39,16 @@ How a move goes:
 A move keeps the instance's identity (its UUID and MAC addresses); a copy gets new ones.
 
 <Callout type="warn">
-A VM moved live into a tenant's project can't be moved live again until it is restarted. Tenant
-projects are restricted, and Incus doesn't let a restricted project keep the record of how a VM
-booted (`volatile.vm.boot_state`), which the next live move needs. The pre-flight says so instead
-of letting the move fail. Plain `incus move` behaves the same way.
+Incus 7.3 and later limit live moves into a tenant's project. Tenant projects are restricted, and
+Incus then refuses the record of how the VM booted (`volatile.vm.boot_state`), so on the target it
+restores the VM with a one-vCPU layout:
+
+- A VM with more than one vCPU can't move live into a tenant's project; the restore would fail. Move
+  it with a restart instead.
+- A VM with one vCPU moves live, but must be restarted before it can move live again.
+
+The pre-flight says so in both cases. Plain `incus move` behaves the same way. Moves between members
+of one cluster are not affected.
 </Callout>
 
 Who may move:

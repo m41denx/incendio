@@ -66,7 +66,8 @@ export async function targetFacts(c: Client, project: string): Promise<TargetFac
   const architectures = [...new Set([...(server.environment.architectures ?? []), ...members.map((m) => m.architecture)])];
   const pools = names(await get<string[]>(c, "/1.0/storage-pools"));
   if (!projectExists) return { projectExists, architectures, pools, networks: [], profiles: [], instanceNames: [], defaultProfileDevices: {}, apiExtensions: server.api_extensions };
-  const [networks, profiles, instances, defaultProfile] = await Promise.all([
+  const [projectRow, networks, profiles, instances, defaultProfile] = await Promise.all([
+    get<{ config: Record<string, string> }>(c, `/1.0/projects/${encodeURIComponent(project)}`),
     get<string[]>(c, `/1.0/networks?${q(project)}`),
     get<string[]>(c, `/1.0/profiles?${q(project)}`),
     get<string[]>(c, `/1.0/instances?${q(project)}`),
@@ -81,5 +82,6 @@ export async function targetFacts(c: Client, project: string): Promise<TargetFac
     instanceNames: names(instances),
     defaultProfileDevices: defaultProfile.devices,
     apiExtensions: server.api_extensions,
+    dropsBootState: projectRow.config?.restricted === "true" && projectRow.config["restricted.virtual-machines.lowlevel"] !== "allow",
   };
 }
