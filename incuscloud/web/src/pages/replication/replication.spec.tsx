@@ -89,7 +89,7 @@ test("rows show the interval, the last copy's failure and the state", async () =
 test("the empty list says how to make a policy", async () => {
   mockApi({ "GET /api/v1/me": [200, me()], "GET /api/v1/clusters": [200, clusters], "GET /api/v1/replication-policies": [200, []] });
   renderList();
-  expect(await screen.findByText("No replication policies yet. Create one from an instance's page.")).toBeInTheDocument();
+  expect(await screen.findByText("No replication policies yet. Use Create policy, or the IncusCloud menu on an instance's page.")).toBeInTheDocument();
 });
 
 test("Run now posts to the policy's run endpoint and links the job", async () => {

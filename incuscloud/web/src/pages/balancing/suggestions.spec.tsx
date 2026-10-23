@@ -41,6 +41,8 @@ function api({ suggestions = [], routes = {} }: { suggestions?: BalancingSuggest
     "GET /api/v1/clusters": [200, []],
     "GET /api/v1/tenants/t-1/placements": [200, placements],
     "GET /api/v1/instances/i-1": [200, instance],
+    // The Rules section lists instances that have balancing rules: none here.
+    "GET /1.0/instances": [200, { metadata: [] }],
     ...routes,
   });
 }
@@ -77,7 +79,8 @@ test("a suggestion row shows the instance link, tenant, memory, the move, the re
   show();
 
   const web = await rowOf("acme/web");
-  expect(screen.getByRole("link", { name: "acme/web" })).toHaveAttribute("href", "/instances/i-1");
+  // The instance opens in the console, on its cluster.
+  expect(screen.getByRole("link", { name: "acme/web" })).toHaveAttribute("href", "/ui/project/acme%40lab/instance/web");
   expect(within(web).getByText("acme")).toBeInTheDocument();
   expect(within(web).getByText("2.0 GiB")).toBeInTheDocument();
   expect(within(web).getByText("lab → edge")).toBeInTheDocument();
