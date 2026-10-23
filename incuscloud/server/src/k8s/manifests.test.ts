@@ -33,6 +33,11 @@ test("kubeadm's SystemVerification is only a warning on every node (no kernel co
   }
 });
 
+test("unprivileged container nodes run without local storage capacity isolation (a ZFS root has no filesystem info)", () => {
+  const text = JSON.stringify(classBundle().find((o) => o.kind === "ClusterClass"));
+  expect(text.match(/localStorageCapacityIsolation: false/g)?.length).toBe(2);
+});
+
 test("a cluster made with an older class stays on it", () => {
   const ref = (c: ReturnType<typeof clusterManifest>) => (c.spec as { topology: { classRef: { name: string } } }).topology.classRef.name;
   expect(ref(clusterManifest(row))).toBe("incuscloud-v2");

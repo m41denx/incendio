@@ -5,7 +5,8 @@
 # capn-v1beta2 -> incuscloud-v2, skipDefaultKubeadmProfile (tenant projects are
 # restricted: no host paths or kernel modules), security.nesting on container nodes,
 # kubeadm's SystemVerification a warning (without CAPN's profile no kernel config
-# reaches a container node).
+# reaches a container node), no local storage capacity isolation on unprivileged
+# container nodes (a ZFS root has no filesystem info).
 #
 # CAPI doesn't let templates change: a change to one is a new name, and a new class
 # when the class must point to it. v2 has new kubeadm templates (v1's LXC ones are
@@ -418,6 +419,9 @@ spec:
             kind: KubeletConfiguration
             featureGates:
               KubeletInUserNamespace: true
+            # On a ZFS pool cAdvisor finds no filesystem for the node's root (a dataset), and the
+            # kubelet doesn't start. Incus caps the root disk; nodefs eviction is off already.
+            localStorageCapacityIsolation: false
   - name: workerConfigureUnprivileged
     description: Configure containerd for unprivileged mode in MachineDeployments
     enabledIf: '{{ $i := .instance }}{{ if .workerInstance }}{{ $i = .workerInstance }}{{ end }}{{ and (not .privileged) (ne $i.type "virtual-machine") }}'
@@ -441,6 +445,9 @@ spec:
             kind: KubeletConfiguration
             featureGates:
               KubeletInUserNamespace: true
+            # On a ZFS pool cAdvisor finds no filesystem for the node's root (a dataset), and the
+            # kubelet doesn't start. Incus caps the root disk; nodefs eviction is off already.
+            localStorageCapacityIsolation: false
   - name: etcdImageTag
     description: Sets tag to use for the etcd image in the KubeadmControlPlane.
     enabledIf: "{{ not (empty .etcdImageTag) }}"
