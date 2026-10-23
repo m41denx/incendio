@@ -127,7 +127,7 @@ export function preflight(i: PreflightInput): Preflight {
 
   // A move keeps the instance's identity (UUID, MAC addresses, vsock id), as `incus move` does: a VM
   // restored live needs it, or QEMU refuses the saved device state. A copy is a new instance.
-  const keep = (k: string) => i.mode === "move" || !k.startsWith("volatile.") || k === "volatile.base_image";
+  const keep = (k: string) => k !== "volatile.last_state.power" && (i.mode === "move" || !k.startsWith("volatile.") || k === "volatile.base_image");
   const config = Object.fromEntries(Object.entries(s.config).filter(([k]) => keep(k)));
   return {
     ok: problems.length === 0,

@@ -28,19 +28,21 @@ const source = (status = "Running", type: "container" | "virtual-machine" = "con
 });
 const target = (over: Partial<TargetFacts> = {}): TargetFacts => ({ projectExists: true, architectures: ["aarch64"], pools: ["default"], networks: [], profiles: ["default"], instanceNames: [], defaultProfileDevices: {}, apiExtensions: [], ...over });
 
-function setup(o: { actor?: string; status?: string; mode?: "copy" | "move"; target?: Partial<TargetFacts>; transfer?: (dst: ReturnType<typeof cluster>, request: { name: string; config: Record<string, string> }) => Promise<void>; abort?: boolean }) {
-  const a = cluster("A", { web: { status: o.status ?? "Running", type: "container", config: {} } });
+function setup(o: { actor?: string; status?: string; mode?: "copy" | "move"; live?: boolean; target?: Partial<TargetFacts>; transfer?: (dst: ReturnType<typeof cluster>, request: { name: string; config: Record<string, string> }) => Promise<void>; abort?: boolean }) {
+  const type = o.live ? "virtual-machine" : "container";
+  const a = cluster("A", { web: { status: o.status ?? "Running", type, config: {} } });
   const b = cluster("B", {});
   const abort = new AbortController();
-  const payload: MigratePayload = { sourceClusterId: ids.a, sourceProject: "acme", name: "web", targetClusterId: ids.b, targetProject: "acme", targetName: "web", mode: o.mode ?? "move", live: false, transport: "auto" };
+  const payload: MigratePayload = { sourceClusterId: ids.a, sourceProject: "acme", name: "web", targetClusterId: ids.b, targetProject: "acme", targetName: "web", mode: o.mode ?? "move", live: o.live ?? false, transport: "auto" };
   const handler = migrateHandler({
-    sourceFacts: async () => source(o.status ?? "Running"),
-    targetFacts: async () => target(o.target),
+    sourceFacts: async () => ({ ...source(o.status ?? "Running", type), ...(o.live && { config: { "volatile.uuid": "u", "migration.stateful": "true" }, apiExtensions: ["migration_vm_live"] }) }),
+    targetFacts: async () => target({ ...(o.live && { apiExtensions: ["migration_vm_live"] }), ...o.target }),
     transfer: async (t) => {
       log.push(`transfer ${t.transport}`);
       if (o.abort) abort.abort(new Error("Cancelled"));
       if (o.transfer) await o.transfer(b, t.request);
-      else b.instances[t.request.name] = { status: "Stopped", type: t.request.type, config: t.request.config };
+      // A live move leaves the copy running on the target and the source still running too.
+      else b.instances[t.request.name] = { status: o.live ? "Running" : "Stopped", type: t.request.type, config: t.request.config };
       if (o.abort) throw abort.signal.reason;
       return { transport: "direct" as const };
     },
@@ -119,6 +121,14 @@ test("pre-flight is checked again when the job runs; problems stop it before any
   const { run } = setup({ target: { instanceNames: ["web"] } });
   await expect(run()).rejects.toThrow('An instance named "web" already exists on the target');
   expect(log).toEqual([]);
+});
+
+test("live move: the source, still running after the hand-off, is stopped and then deleted", async () => {
+  const { a, b, run } = setup({ live: true });
+  await run();
+  expect(log).toEqual(["transfer auto", "A stop web", "A delete web"]);
+  expect(a.instances.web).toBeUndefined();
+  expect(b.instances.web!.status).toBe("Running");
 });
 
 test("a move keeps the instance's owner; a copy belongs to whoever copied", async () => {

@@ -106,6 +106,10 @@ export function migrateHandler(deps: MigrateDeps = {}): JobHandler {
         if (ctx.signal.aborted) throw ctx.signal.reason;
         committed = true; // past this point the source is going away: no rollback, no cancel
         await ctx.progress({ stage: "deleting the source" });
+        // After a live move the source is still running (the guest runs on the target now): stop it
+        // first, as `incus move` does with its forced delete, or the delete is refused.
+        const left = await readInstance(src.client, p.sourceProject, p.name);
+        if (left && left.status !== "Stopped") await setState(src.client, p.sourceProject, p.name, "stop");
         await incusDo(src.client, "DELETE", instancePath(p.sourceProject, p.name));
       }
       // A move keeps its owner; a copy is whoever made it.

@@ -138,6 +138,8 @@ export function stubCluster(label: string, instances: Record<string, StubInstanc
         return asyncOp;
       }
       if (method === "DELETE") {
+        // As Incus: a running instance is not deleted.
+        if (inst?.status === "Running") throw new ClusterError(400, "Cluster: Instance is running");
         log.push(`${label} delete ${name}`);
         delete instances[name];
         return asyncOp;
