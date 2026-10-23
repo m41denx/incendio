@@ -64,6 +64,11 @@ Usually the kernel modules are missing on the Incus hosts (`br_netfilter`, `over
 `nf_nat`), or the endpoint ports (`IC_K8S_PORTS`) are blocked between the management cluster and the
 members. The cluster's **Conditions** and **Activity** tabs say which step is stuck.
 
+Without `br_netfilter` the control plane comes up but nothing after it: the nodes can't reach their
+own cluster's endpoint (its forward is on their bridge), so workers never join (`kubeadm join` stops
+at "couldn't validate the identity of the API Server"), and flannel fails with "Failed to check
+br_netfilter".
+
 </Accordion>
 <Accordion title="A tenant can't take snapshots">
 
