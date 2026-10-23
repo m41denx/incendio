@@ -179,12 +179,13 @@ export function backupHandler(deps: { storeFor?: StoreFor; directWaitMs?: number
       rowMade = true;
 
       const extensions = (await client.server()).api_extensions ?? [];
-      // Incus takes no region for its own uploads and signs them for us-east-1, which a target in
-      // another region refuses ("unexpected scope"); those always relay.
-      const regionOk = !target.region || target.region === "us-east-1";
+      // Incus takes no region for its own uploads; it signs for the one its endpoint names. A target
+      // in another region refuses those ("unexpected scope"), so they always relay.
+      const signs = incusUploadRegion(target.endpoint);
+      const regionOk = !target.region || target.region === signs;
       const canDirect = extensions.includes("backup_s3_upload") && regionOk;
       if (p.transport === "direct" && !canDirect) {
-        throw new ApiError(409, "conflict", regionOk ? "The cluster cannot upload backups itself (it lacks the backup_s3_upload API extension)" : `The cluster cannot upload to this target itself: Incus signs its uploads for region us-east-1, and the target is in ${target.region}`);
+        throw new ApiError(409, "conflict", regionOk ? "The cluster cannot upload backups itself (it lacks the backup_s3_upload API extension)" : `The cluster cannot upload to this target itself: Incus signs its uploads to this endpoint for region ${signs}, and the target is in ${target.region}`);
       }
       let transport: "direct" | "relay" | undefined;
       let size: number | null = null;
@@ -254,4 +255,24 @@ export async function scheduleBackups(db: Db): Promise<void> {
       if (!(e instanceof ApiError && e.status === 409)) throw e;
     }
   }
+}
+
+/**
+ * The region Incus signs its own S3 uploads for (`s3util.RegionFromURL`): the one an AWS endpoint
+ * names (`s3.<region>.amazonaws.com`, `<bucket>.s3.<region>…`, legacy `s3-<region>…`), else us-east-1.
+ */
+export function incusUploadRegion(endpoint: string): string {
+  const fallback = "us-east-1";
+  let host: string;
+  try {
+    host = new URL(endpoint).hostname;
+  } catch {
+    return fallback;
+  }
+  if (!host.endsWith(".amazonaws.com")) return fallback;
+  const parts = host.slice(0, -".amazonaws.com".length).split(".");
+  const at = parts.findIndex((p) => p === "s3" || p.startsWith("s3-"));
+  if (at === -1) return fallback;
+  if (parts[at]!.startsWith("s3-") && parts[at]!.length > 3) return parts[at]!.slice(3);
+  return parts.slice(at + 1).find((p) => p && !["dualstack", "fips", "accesspoint"].includes(p)) ?? fallback;
 }

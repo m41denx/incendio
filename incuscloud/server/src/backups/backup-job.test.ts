@@ -7,7 +7,7 @@ import { enqueueJob } from "../jobs/queue.ts";
 import type { JobContext } from "../jobs/types.ts";
 import { seal } from "../lib/secrets.ts";
 import { stubCluster, type StubBackups } from "../test/stub-cluster.ts";
-import { backupHandler, scheduleBackups } from "./backup-job.ts";
+import { backupHandler, incusUploadRegion, scheduleBackups } from "./backup-job.ts";
 import { memoryStore } from "./store.ts";
 
 const KEY = Buffer.alloc(32, 1);
@@ -94,10 +94,31 @@ test("auto: a failed direct upload falls back to relay", async () => {
   expect((await rows())[0]!.state).toBe("ready");
 });
 
-test("a target in another region than us-east-1 always relays (Incus signs its own uploads for us-east-1)", async () => {
+test("the region Incus signs its uploads for: an AWS endpoint's own, else us-east-1 (s3util.RegionFromURL)", () => {
+  const cases: Record<string, string> = {
+    "https://s3.amazonaws.com": "us-east-1",
+    "https://s3.eu-central-1.amazonaws.com": "eu-central-1",
+    "https://s3-eu-west-1.amazonaws.com": "eu-west-1",
+    "https://bk.s3.ap-south-1.amazonaws.com:443": "ap-south-1",
+    "https://s3.dualstack.us-west-2.amazonaws.com": "us-west-2",
+    "https://bk.s3-us-east-2.amazonaws.com": "us-east-2",
+    "http://garage:3900": "us-east-1",
+    "https://minio.example": "us-east-1",
+    "not a url": "us-east-1",
+  };
+  for (const [url, region] of Object.entries(cases)) expect(incusUploadRegion(url), url).toBe(region);
+});
+
+test("an AWS target in its endpoint's region is uploaded directly", async () => {
+  await db.update(backupTargets).set({ endpoint: "https://s3.eu-central-1.amazonaws.com", region: "eu-central-1" });
+  const r = await run({ extensions: ["backup_s3_upload"], onDirect: async (t) => void (await store.put(t.path!, new Blob([new Uint8Array(5)]).stream())) }).result;
+  expect(r).toMatchObject({ transport: "direct", sizeBytes: 5 });
+});
+
+test("a target outside the region Incus signs for (a Garage store's own region) always relays", async () => {
   await db.update(backupTargets).set({ region: "garage" });
   const o = { extensions: ["backup_s3_upload"], directFails: "AuthorizationHeaderMalformed: unexpected scope" };
-  expect(await run(o, { transport: "direct" }).result.catch((e) => (e as Error).message)).toBe("The cluster cannot upload to this target itself: Incus signs its uploads for region us-east-1, and the target is in garage");
+  expect(await run(o, { transport: "direct" }).result.catch((e) => (e as Error).message)).toBe("The cluster cannot upload to this target itself: Incus signs its uploads to this endpoint for region us-east-1, and the target is in garage");
   log.length = 0;
   expect((await run(o).result).transport).toBe("relay");
   expect(log.some((l) => l.endsWith(" direct"))).toBe(false); // no doomed attempt first

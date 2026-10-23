@@ -41,16 +41,21 @@ for tenants is not an option: it lets them set `raw.qemu`.
 **Fix (upstream):** exempt Incus's own `volatile.*` keys, at least `volatile.vm.boot_state`, from the
 restriction check on migration. To report to lxc/incus.
 
-### Incus's own S3 backup upload has no region
+### Incus's own S3 backup upload can't be given a region
 
-**Affects:** direct backup uploads (`backup_s3_upload`) to S3 stores outside `us-east-1`.
+**Affects:** direct backup uploads (`backup_s3_upload`) to S3 stores outside AWS whose region isn't
+`us-east-1` (Garage, MinIO or Ceph RGW set to another region).
 
-`api.BackupTarget` has no region field, and Incus signs its uploads for `us-east-1`. A store in
-another region refuses them: Garage answers `AuthorizationHeaderMalformed: ... unexpected scope:
-20261023/us-east-1/s3/aws4_request`.
+`api.BackupTarget` has no region field. Incus derives the region from the endpoint
+(`s3util.RegionFromURL`, since 2026-04-29): an AWS endpoint's own (`s3.<region>.amazonaws.com` and
+the bucket and legacy forms), `us-east-1` for any other host. A store in another region refuses the
+upload: Garage answers `AuthorizationHeaderMalformed: ... unexpected scope:
+20261023/us-east-1/s3/aws4_request`. AWS endpoints are fine.
 
-**Workaround:** IncusCloud relays backups to such targets through itself and refuses a forced direct
-upload with the reason (`backups/backup-job.ts`).
+**Workaround:** IncusCloud computes the region Incus will sign for (`incusUploadRegion`, a port of
+`RegionFromURL`) and relays a backup through itself when the target's region differs; a forced direct
+upload is refused with the reason (`backups/backup-job.ts`). Or set the store's region to
+`us-east-1`.
 
 **Fix (upstream):** a `region` field on `api.BackupTarget`. To request from lxc/incus.
 
@@ -61,7 +66,7 @@ upload with the reason (`backups/backup-job.ts`).
 | `0f76873c43` | Moves dropped the instance's volatile keys (UUID, MACs, vsock id): live restores failed. A move also re-owned the instance to the mover. |
 | `83e5b8eb50` | After a live move the source still runs; the job deleted it without stopping it, Incus refused, and the VM ran on both clusters. |
 | `198e089c29`, `0a1a1d85cf` | Pre-flight for the Incus issue above. |
-| `2dbb74710e` | Backups to a target outside `us-east-1` first made a doomed direct upload. |
+| `2dbb74710e` | Backups to a target outside the region Incus signs for first made a doomed direct upload (narrowed later to the region Incus derives from the endpoint, so AWS buckets in any region still upload directly). |
 | `5a8c42f5fc` | Stopping an instance already stopped (someone stopped it meanwhile) failed moves, leases, replication and restores. |
 | `2f7580bb39` | Kubernetes: `kubeadm init` failed SystemVerification in container nodes on hosts without `/proc/config.gz` (most distribution kernels). New ClusterClass `incuscloud-v2`. |
 | `040d8ff1a2` | Kubernetes: on ZFS pools the kubelet never started (cAdvisor finds no filesystem for a dataset root). |
