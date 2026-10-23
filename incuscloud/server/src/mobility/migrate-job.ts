@@ -113,9 +113,9 @@ export function migrateHandler(deps: MigrateDeps = {}): JobHandler {
       const to = { clusterId: p.targetClusterId, project: p.targetProject, name: p.targetName };
       const actor = actorOf(ctx.job);
       if (p.mode === "move") await carryOwner(ctx.db, from, to, { move: true });
+      else if (actor) await recordOwner(ctx.db, to, actor, "incuscloud");
       // A moved instance keeps its lease (a copy gets its own from the target tenant's policy).
       if (lease) await putLease(ctx.db, to, lease);
-      else if (actor) await recordOwner(ctx.db, to, actor, "incuscloud");
     } catch (e) {
       if (!committed) {
         await ctx.progress({ stage: "rolling back" });

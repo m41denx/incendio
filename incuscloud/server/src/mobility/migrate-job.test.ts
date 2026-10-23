@@ -70,7 +70,8 @@ test("move: stop, transfer, delete the source, start the target; inventories ref
   expect(a.instances.web).toBeUndefined();
   expect(b.instances.web!.status).toBe("Running");
   expect(b.instances.web!.config["user.incuscloud.migrated-from"]).toBe(`${ids.a}/acme/web`);
-  expect(b.instances.web!.config["volatile.uuid"]).toBeUndefined();
+  // A move keeps the instance's identity, as `incus move` does.
+  expect(b.instances.web!.config["volatile.uuid"]).toBe("u");
   expect((await db.select().from(clusters)).every((c) => c.inventoryAt === null)).toBe(true);
 });
 

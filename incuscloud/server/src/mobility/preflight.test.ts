@@ -41,6 +41,11 @@ test("a plain stopped container copies cleanly: root pool mapped, volatile keys 
   });
 });
 
+test("a move keeps the volatile keys (a VM restored live needs its identity); a copy drops them", () => {
+  expect(run({ mode: "move" }).request.config).toEqual({ "limits.memory": "1GiB", "volatile.uuid": "x", "volatile.base_image": "abc", "volatile.eth0.hwaddr": "00:16" });
+  expect(Object.keys(run({ mode: "copy" }).request.config)).toEqual(["limits.memory", "volatile.base_image"]);
+});
+
 test("the pool: explicit, else the target default profile's, else the only one, else ask", () => {
   expect(run({ pool: "default" }).request.devices.root!.pool).toBe("default");
   expect(run({ pool: "nope" }).problems).toContain('Storage pool "nope" does not exist on the target');
