@@ -4,11 +4,11 @@ import type { AppDeps } from "../app.ts";
 import type { GatewayHandler } from "../front.ts";
 import { resolvePrincipal, type Principal } from "../auth/principal.ts";
 import { ApiError } from "../lib/errors.ts";
-import { log } from "../lib/log.ts";
+import { log, pathOf } from "../lib/log.ts";
 import type { ClusterRow } from "../clusters/enroll.ts";
 import type { ClusterCache } from "./clusters-cache.ts";
 import { writeIncusError } from "./incus-error.ts";
-import { relayRequest, relayUpgrade, type Upstreams } from "./relay.ts";
+import { ipOf, relayRequest, relayUpgrade, type Upstreams } from "./relay.ts";
 import { routeRequest, type Route } from "./route.ts";
 
 /** One finished gateway request, for the request log. */
@@ -36,10 +36,11 @@ export interface GatewayDeps extends AppDeps {
   oidc: { issuer: string; clientId: string; audience: string; scopes: string };
 }
 
+/** Dot segments or encoded separators: a path that may name something else once resolved. */
+const ambiguous = (path: string) => /(?:^|\/)\.{1,2}(?:[/?]|$)|%2e|%2f|%5c|\\/i.test(path.split("?")[0]!);
 /** `GET /1.0` (clients learn the OIDC issuer from it) and Incus's static documentation. */
 const isAnonymousAllowed = (method: string, path: string) =>
-  (method === "GET" && (path === "/1.0" || path.startsWith("/1.0?"))) || ((method === "GET" || method === "HEAD") && path.startsWith("/documentation"));
-const ipOf = (req: IncomingMessage) => (req.socket.remoteAddress ?? "").replace(/^::ffff:/, "");
+  (method === "GET" && (path === "/1.0" || path.startsWith("/1.0?"))) || ((method === "GET" || method === "HEAD") && /^\/documentation(?:[/?]|$)/.test(path) && !ambiguous(path));
 
 /** Builds the fetch-style Request resolvePrincipal reads (headers only). */
 function authRequest(req: IncomingMessage, route: Route, publicUrl: string): Request {
@@ -123,7 +124,7 @@ export function createGateway(deps: GatewayDeps): GatewayHandler {
           relayRequest(req, res, target(req, a), report(req, a, started, false));
         })
         .catch((e) => {
-          log.error("gateway request failed", { error: String(e), url: req.url });
+          log.error("gateway request failed", { error: String(e), path: pathOf(req.url) });
           writeIncusError(res, 500, "Internal error");
         });
     },
@@ -136,7 +137,7 @@ export function createGateway(deps: GatewayDeps): GatewayHandler {
           relayUpgrade(req, socket, head, target(req, a), report(req, a, started, true));
         })
         .catch((e) => {
-          log.error("gateway upgrade failed", { error: String(e), url: req.url });
+          log.error("gateway upgrade failed", { error: String(e), path: pathOf(req.url) });
           writeIncusError(socket, 500, "Internal error");
         });
     },

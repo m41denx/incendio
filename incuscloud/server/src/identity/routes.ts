@@ -6,6 +6,7 @@ import { audit } from "../audit/log.ts";
 import { ApiError } from "../lib/errors.ts";
 import { randomToken } from "../lib/secrets.ts";
 import { CLIENT_IP_HEADER } from "../front.ts";
+import { cookieOf } from "../auth/session.ts";
 import type { HydraAdminApi, HydraClientRef } from "./hydra-admin.ts";
 import { checkCredentials } from "./passwords.ts";
 import { identityProviders } from "../db/schema.ts";
@@ -34,13 +35,6 @@ const CSRF_COOKIE = "ic_csrf";
 
 const CSP = "default-src 'none'; style-src 'self'; img-src 'self' data:; font-src 'self'; form-action 'self' https:; frame-ancestors 'none'";
 const redirect = (to: string) => new Response(null, { status: 302, headers: { location: to, "cache-control": "no-store" } });
-
-const cookieOf = (req: Request, name: string) =>
-  req.headers
-    .get("cookie")
-    ?.split(/;\s*/)
-    .find((c) => c.startsWith(`${name}=`))
-    ?.slice(name.length + 1);
 
 const isFirstParty = (c: HydraClientRef) => c.metadata?.first_party === true;
 const ipOf = (req: Request) => req.headers.get(CLIENT_IP_HEADER) ?? "";

@@ -2,7 +2,7 @@ import type { IncomingHttpHeaders, IncomingMessage, ServerResponse } from "node:
 import { request as httpsRequest } from "node:https";
 import type { ClusterRow } from "../clusters/enroll.ts";
 import { writeIncusError } from "../gateway/incus-error.ts";
-import { describe, upstreamHeaders, type Upstreams } from "../gateway/relay.ts";
+import { describe, downstreamHeaders, upstreamHeaders, type Upstreams } from "../gateway/relay.ts";
 
 /** One cluster call's parameters: the caller's request supplies the headers. */
 export interface Call {
@@ -20,7 +20,6 @@ export interface Reply {
   body: Buffer;
 }
 
-const HOP = new Set(["connection", "keep-alive", "transfer-encoding", "upgrade", "te", "trailer", "proxy-authorization", "proxy-authenticate", "proxy-connection"]);
 
 function open(upstreams: Upstreams, req: IncomingMessage, c: Call, body: Buffer | null) {
   const headers = upstreamHeaders(req, { url: c.cluster.url, agent: upstreams.agentFor(c.cluster), path: c.path, token: c.token, clientIp: c.clientIp }, false);
@@ -71,8 +70,7 @@ export function forward(
   const up = open(upstreams, req, c, body);
   up.on("response", (ur) => {
     status = ur.statusCode ?? 502;
-    const h: Record<string, string | string[]> = {};
-    for (const [k, v] of Object.entries(ur.headers)) if (v !== undefined && !HOP.has(k)) h[k] = v;
+    const h = downstreamHeaders(ur.headers, c.path);
     if (!isJson(ur.headers)) {
       res.writeHead(status, h);
       ur.on("data", (d: Buffer) => (bytesOut += d.length));

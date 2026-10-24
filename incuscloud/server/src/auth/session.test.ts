@@ -93,6 +93,13 @@ test("return_to only allows local paths", async () => {
   }
 });
 
+test("callback refuses a token whose subject is not a user id", async () => {
+  userId = "client-credentials-app";
+  const r = await login();
+  expect(r.status).toBe(403);
+  expect(await db.select().from(sessions)).toEqual([]);
+});
+
 test("callback refuses tokens for unknown or disabled users", async () => {
   await db.update(users).set({ disabled: true }).where(eq(users.id, userId));
   const r = await login();

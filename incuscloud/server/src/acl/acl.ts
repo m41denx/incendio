@@ -119,7 +119,7 @@ export class Acl {
       if (TENANT_ROLE[m.role]) entries.push({ id: `tenant-membership:${m.tenantId}:${m.userId}`, path: `/tenants/${m.slug}`, subject: `user:${m.userId}`, role: TENANT_ROLE[m.role]!, propagate: true, source: "tenant-membership" });
     for (const a of accounts) {
       if (a.slug) entries.push({ id: `service-account:${a.id}`, path: `/tenants/${a.slug}`, subject: `service:${a.id}`, role: "unrestricted-user", propagate: true, source: "service-account" });
-      else if (a.platformRole && PLATFORM_ROLE[a.platformRole]) entries.push({ id: `service-account:${a.id}`, path: "/", subject: `service:${a.id}`, role: PLATFORM_ROLE[a.platformRole]!, propagate: true, source: "service-account" });
+      else if (!a.tenantId && a.platformRole && PLATFORM_ROLE[a.platformRole]) entries.push({ id: `service-account:${a.id}`, path: "/", subject: `service:${a.id}`, role: PLATFORM_ROLE[a.platformRole]!, propagate: true, source: "service-account" });
     }
     const byPath = new Map<string, Entry[]>();
     const bySubject = new Map<string, Entry[]>();

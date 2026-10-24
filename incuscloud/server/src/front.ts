@@ -1,7 +1,7 @@
 import { createServer, type Server } from "node:https";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { Readable, type Duplex } from "node:stream";
-import { log } from "./lib/log.ts";
+import { log, pathOf } from "./lib/log.ts";
 import { serveWeb } from "./web.ts";
 import { isOidcPath } from "./auth/oidc-paths.ts";
 
@@ -75,12 +75,13 @@ export function createFront({ app, gateway, facade, tls, web, oidc }: FrontOptio
     if (gateway?.match(req)) return gateway.request(req, res);
     if (facade?.match(req)) return facade.request(req, res);
     const origin = `https://${req.headers.host ?? "localhost"}`;
-    const toOidc = oidc && isOidcPath((req.url ?? "/").split("?")[0]!);
+    // The path as resolved (dot segments, %2e), which is the one the proxy forwards.
+    const toOidc = oidc && isOidcPath(new URL(req.url ?? "/", origin).pathname);
     if (!toOidc && web && serveWeb(req, res, web)) return;
     Promise.resolve(toOidc ? oidc(toRequest(req, origin)) : app.handle(toRequest(req, origin)))
       .then((response) => writeResponse(res, response))
       .catch((e: unknown) => {
-        log.error("app request failed", { error: String(e), url: req.url });
+        log.error("app request failed", { error: String(e), path: pathOf(req.url) });
         if (!res.headersSent) res.writeHead(500, { "content-type": "application/json" });
         res.end(JSON.stringify({ error: { code: "internal", message: "Internal error" } }));
       });

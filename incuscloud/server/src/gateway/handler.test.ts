@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import type { AddressInfo } from "node:net";
-import type { Server } from "node:https";
+import { request as httpsRequest, type Server } from "node:https";
 import { connect } from "node:tls";
 import { eq } from "drizzle-orm";
 import { clusters, placements, sessions } from "../db/schema.ts";
@@ -177,6 +177,24 @@ test("Incus documentation is relayed without credentials", async () => {
   await call("/clusters/c1/documentation/index.html");
   expect(fake.requests.at(-1)).toMatchObject({ url: "/documentation/index.html" });
   expect(fake.requests.at(-1)!.headers.authorization).toBeUndefined();
+});
+
+test("only paths that stay in the documentation are anonymous", async () => {
+  // fetch would resolve the dot segments itself: send the path as written.
+  const raw = (path: string, host = "cloud.test") =>
+    new Promise<number>((resolve, reject) => {
+      const r = httpsRequest({ host: "127.0.0.1", port, path, headers: { host }, ca, checkServerIdentity: () => undefined }, (res) => {
+        res.resume();
+        resolve(res.statusCode!);
+      });
+      r.on("error", reject);
+      r.end();
+    });
+  expect(await raw("/clusters/c1/documentation/../1.0/instances")).toBe(401);
+  expect(await raw("/clusters/c1/documentation/%2e%2e/1.0/instances")).toBe(401);
+  expect(await raw("/documentationx", "c1.clusters.test")).toBe(401);
+  expect(await raw("/documentation/../1.0/instances", "c1.clusters.test")).toBe(401);
+  expect(await raw("/clusters/c1/documentation/index.html")).not.toBe(401);
 });
 
 test("without a UI directory, /ui is a 404", async () => {

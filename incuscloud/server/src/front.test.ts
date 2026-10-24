@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import type { AddressInfo } from "node:net";
-import type { Server } from "node:https";
+import { request as httpsRequest, type Server } from "node:https";
 import { connect } from "node:tls";
 import { Elysia } from "elysia";
 import { createFront, type GatewayHandler } from "./front.ts";
@@ -65,6 +65,22 @@ test("Hydra's public paths go to the OIDC proxy, the rest stays with the app", a
   expect(await (await get("/.well-known/openid-configuration")).json()).toEqual({ oidc: "/.well-known/openid-configuration" });
   expect(await (await get("/oauth2/auth?x=1")).json()).toEqual({ oidc: "/oauth2/auth" });
   expect(await (await get("/healthz")).json()).toEqual({ status: "ok" });
+});
+
+test("the OIDC proxy gets only paths that stay among Hydra's public ones once resolved", async () => {
+  // fetch would resolve the dot segments itself: send the path as written.
+  const raw = (path: string) =>
+    new Promise<string>((resolve, reject) => {
+      const r = httpsRequest({ host: "127.0.0.1", port: (server.address() as AddressInfo).port, path, ca }, (res) => {
+        let body = "";
+        res.on("data", (d) => (body += d));
+        res.on("end", () => resolve(body));
+      });
+      r.on("error", reject);
+      r.end();
+    });
+  expect(JSON.parse(await raw("/oauth2/../healthz"))).toEqual({ status: "ok" });
+  expect(JSON.parse(await raw("/oauth2/%2e%2e/healthz"))).toEqual({ status: "ok" });
 });
 
 test("the gateway gets requests it matches", async () => {

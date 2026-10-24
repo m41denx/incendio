@@ -82,6 +82,13 @@ test("a session whose refresh fails is dropped", async () => {
   expect(await db.select().from(sessions)).toEqual([]);
 });
 
+test("a session ends with its cookie's lifetime, however often its tokens were refreshed", async () => {
+  const req = await session(3600);
+  await db.update(sessions).set({ createdAt: new Date(Date.now() - 8 * 86400_000) });
+  expect(await resolvePrincipal(deps, req)).toBeNull();
+  expect(await db.select().from(sessions)).toEqual([]);
+});
+
 test("unknown session cookie and no credentials are anonymous", async () => {
   expect(await resolvePrincipal(deps, new Request("https://cloud.test/", { headers: { cookie: "ic_session=nope" } }))).toBeNull();
   expect(await resolvePrincipal(deps, new Request("https://cloud.test/"))).toBeNull();

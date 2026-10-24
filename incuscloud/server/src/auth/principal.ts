@@ -4,7 +4,7 @@ import { platformRoles, serviceAccounts, sessions, users } from "../db/schema.ts
 import { ApiError } from "../lib/errors.ts";
 import { open, seal } from "../lib/secrets.ts";
 import { log } from "../lib/log.ts";
-import { SESSION_COOKIE, cookieOf, hashSessionId, type AuthDeps } from "./session.ts";
+import { SESSION_COOKIE, SESSION_MAX_AGE_S, cookieOf, hashSessionId, isUuid, type AuthDeps } from "./session.ts";
 
 export type PlatformRole = "admin" | "operator" | "viewer";
 
@@ -23,7 +23,6 @@ export interface Principal {
 
 const REFRESH_BEFORE_MS = 60_000;
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
-const isUuid = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
 
 async function userPrincipal(deps: AuthDeps, userId: string, token: string): Promise<Principal | null> {
   if (!isUuid(userId)) return null;
@@ -37,6 +36,11 @@ async function freshSession(deps: AuthDeps, id: string) {
   const { db } = deps;
   const [row] = await db.select().from(sessions).where(eq(sessions.id, id));
   if (!row) return null;
+  // As long as the cookie: refreshing the tokens does not prolong the session.
+  if (Date.now() - row.createdAt.getTime() > SESSION_MAX_AGE_S * 1000) {
+    await db.delete(sessions).where(eq(sessions.id, id));
+    return null;
+  }
   if (row.expiresAt.getTime() - Date.now() > REFRESH_BEFORE_MS) return row;
   // Hydra rotates refresh tokens and revokes the chain when an old one is
   // reused, so concurrent requests (any replica) must not refresh twice.

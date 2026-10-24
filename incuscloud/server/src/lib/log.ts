@@ -16,3 +16,6 @@ export const log = {
   warn: (msg: string, f?: Record<string, unknown>) => emit("warn", msg, f),
   error: (msg: string, f?: Record<string, unknown>) => emit("error", msg, f),
 };
+
+/** A request URL for the log: the path alone, since some queries carry secrets (operation websockets). */
+export const pathOf = (url: string | undefined) => (url ?? "").split("?")[0]!;

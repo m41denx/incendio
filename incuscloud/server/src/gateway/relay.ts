@@ -1,4 +1,4 @@
-import type { IncomingMessage, ServerResponse } from "node:http";
+import type { IncomingHttpHeaders, IncomingMessage, ServerResponse } from "node:http";
 import { request as httpsRequest } from "node:https";
 import type { Duplex } from "node:stream";
 import { PinnedAgent } from "@incendio/api/node";
@@ -49,6 +49,22 @@ export function upstreamHeaders(req: IncomingMessage, t: RelayTarget, upgrade: b
   return h;
 }
 
+export const ipOf = (req: IncomingMessage) => (req.socket.remoteAddress ?? "").replace(/^::ffff:/, "");
+
+/**
+ * A cluster's response headers as relayed from the platform's origin. Callers' cookies never reach
+ * the cluster, so its own are of no use, and they would land on the platform's origin; a body (a
+ * file read from an instance, say) never runs as a page there. Incus's documentation is its own
+ * static site and is left as it is.
+ */
+export function downstreamHeaders(headers: IncomingHttpHeaders, path: string) {
+  const h: Record<string, string | string[]> = {};
+  for (const [k, v] of Object.entries(headers)) if (v !== undefined && !HOP.has(k) && k !== "set-cookie") h[k] = v;
+  h["x-content-type-options"] = "nosniff";
+  if (!/^\/documentation(?:[/?]|$)/.test(path)) h["content-security-policy"] = "sandbox";
+  return h;
+}
+
 export const describe = (e: Error) => (/does not match the pinned/.test(e.message) ? `The cluster presented an unexpected certificate (${e.message})` : `Cluster unreachable: ${e.message}`);
 
 function upstreamRequest(req: IncomingMessage, t: RelayTarget, upgrade: boolean) {
@@ -64,9 +80,7 @@ export function relayRequest(req: IncomingMessage, res: ServerResponse, t: Relay
   const up = upstreamRequest(req, t, false);
   up.on("response", (ures) => {
     status = ures.statusCode ?? 502;
-    const h: Record<string, string | string[]> = {};
-    for (const [k, v] of Object.entries(ures.headers)) if (v !== undefined && !HOP.has(k)) h[k] = v;
-    res.writeHead(status, h);
+    res.writeHead(status, downstreamHeaders(ures.headers, t.path));
     ures.on("data", (d: Buffer) => (bytesOut += d.length));
     ures.pipe(res);
   });
@@ -119,7 +133,7 @@ export function relayUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer,
     // The cluster refused the upgrade: relay its answer as a normal response.
     status = ures.statusCode ?? 502;
     let raw = `HTTP/1.1 ${ures.statusCode} ${ures.statusMessage}\r\n`;
-    for (let i = 0; i < ures.rawHeaders.length; i += 2) if (!/^(transfer-encoding|connection)$/i.test(ures.rawHeaders[i]!)) raw += `${ures.rawHeaders[i]}: ${ures.rawHeaders[i + 1]}\r\n`;
+    for (let i = 0; i < ures.rawHeaders.length; i += 2) if (!/^(transfer-encoding|connection|set-cookie)$/i.test(ures.rawHeaders[i]!)) raw += `${ures.rawHeaders[i]}: ${ures.rawHeaders[i + 1]}\r\n`;
     socket.write(`${raw}connection: close\r\n\r\n`);
     ures.pipe(socket);
     ures.on("end", finish);

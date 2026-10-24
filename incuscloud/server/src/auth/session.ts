@@ -39,7 +39,8 @@ export interface AuthDeps {
 
 export const SESSION_COOKIE = "ic_session";
 const OAUTH_COOKIE = "ic_oauth";
-const SESSION_MAX_AGE_S = 7 * 86400;
+export const SESSION_MAX_AGE_S = 7 * 86400;
+export const isUuid = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
 
 export const hashSessionId = (id: string) => createHash("sha256").update(id).digest("hex");
 
@@ -112,6 +113,7 @@ export function sessionRoutes(deps: AuthDeps) {
         throw new ApiError(400, "invalid_grant", "This sign-in has expired. Start again.");
       }
       const { sub } = await deps.verify(set.accessToken);
+      if (!isUuid(sub)) throw new ApiError(403, "sign_in_failed", "This sign-in did not identify an IncusCloud user");
       const [user] = await db.select().from(users).where(eq(users.id, sub));
       if (!user || user.disabled) throw new ApiError(403, "account_disabled", "This account is disabled");
       const id = randomToken();

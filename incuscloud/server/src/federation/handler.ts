@@ -5,13 +5,13 @@ import type { AppDeps } from "../app.ts";
 import type { GatewayHandler } from "../front.ts";
 import { resolvePrincipal, type Principal } from "../auth/principal.ts";
 import { ApiError } from "../lib/errors.ts";
-import { log } from "../lib/log.ts";
+import { log, pathOf } from "../lib/log.ts";
 import { clusterMembers, placements, tenants } from "../db/schema.ts";
 import type { ClusterRow } from "../clusters/enroll.ts";
 import type { ClusterCache } from "../gateway/clusters-cache.ts";
 import type { GatewayRequest } from "../gateway/handler.ts";
 import { writeIncusError } from "../gateway/incus-error.ts";
-import { relayUpgrade, type Upstreams } from "../gateway/relay.ts";
+import { ipOf, relayUpgrade, type Upstreams } from "../gateway/relay.ts";
 import { choose, type Candidate } from "../tenants/placement.ts";
 import { fanInEvents } from "./events.ts";
 import { type Answer, merge, standaloneView, untrustedServer, type Merged } from "./merge.ts";
@@ -41,7 +41,6 @@ interface Admitted {
   known: string[];
 }
 
-const ipOf = (req: IncomingMessage) => (req.socket.remoteAddress ?? "").replace(/^::ffff:/, "");
 const sendJson = (res: ServerResponse, m: Merged) => {
   const body = Buffer.from(JSON.stringify(m.body));
   res.writeHead(m.status, { "content-type": "application/json", "content-length": String(body.length) });
@@ -352,14 +351,14 @@ export function createFacade(deps: FacadeDeps): GatewayHandler {
     match: (req) => FACADE_PATH.test(req.url ?? ""),
     request(req, res) {
       handle(req, res).catch((e) => {
-        log.error("facade request failed", { error: String(e), url: req.url });
+        log.error("facade request failed", { error: String(e), path: pathOf(req.url) });
         if (!res.headersSent) writeIncusError(res, 500, "Internal error");
         else res.destroy();
       });
     },
     upgrade(req, socket, head) {
       upgrade(req, socket, head).catch((e) => {
-        log.error("facade upgrade failed", { error: String(e), url: req.url });
+        log.error("facade upgrade failed", { error: String(e), path: pathOf(req.url) });
         writeIncusError(socket, 500, "Internal error");
       });
     },

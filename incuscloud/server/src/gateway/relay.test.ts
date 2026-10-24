@@ -4,7 +4,7 @@ import { connect } from "node:net";
 import type { AddressInfo } from "node:net";
 import WebSocket from "ws";
 import { FakeIncus } from "../clusters/fake-incus.ts";
-import { relayRequest, relayUpgrade, Upstreams, type RelayTarget } from "./relay.ts";
+import { downstreamHeaders, relayRequest, relayUpgrade, Upstreams, type RelayTarget } from "./relay.ts";
 
 let fake: FakeIncus;
 let front: Server;
@@ -44,6 +44,15 @@ test("the cluster gets the caller's token and none of our headers or certificate
   expect(h["x-forwarded-proto"]).toBe("https");
   expect(h.host).toBe(`127.0.0.1:${fake.port}`);
   expect(fake.requests.at(-1)!.clientFingerprint).toBe("");
+});
+
+test("a cluster's answer sets no cookies on the platform's origin and never runs there as a page; Incus's documentation is left alone", async () => {
+  const h = downstreamHeaders({ "content-type": "text/html", "set-cookie": ["oidc_access=x; Path=/"], connection: "close" }, "/1.0/instances/web/files?path=/srv/x.html");
+  expect(h).toEqual({ "content-type": "text/html", "x-content-type-options": "nosniff", "content-security-policy": "sandbox" });
+  expect(downstreamHeaders({ "content-type": "text/html" }, "/documentation/index.html")["content-security-policy"]).toBeUndefined();
+  const r = await fetch(`${base}/1.0/echo`);
+  expect(r.headers.get("content-security-policy")).toBe("sandbox");
+  expect(r.headers.get("x-content-type-options")).toBe("nosniff");
 });
 
 test("anonymous requests carry no Authorization at all", async () => {
