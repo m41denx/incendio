@@ -43,7 +43,8 @@ interface Admitted {
 
 const sendJson = (res: ServerResponse, m: Merged) => {
   const body = Buffer.from(JSON.stringify(m.body));
-  res.writeHead(m.status, { "content-type": "application/json", "content-length": String(body.length) });
+  // As relayed answers (downstreamHeaders): never a page on the platform's origin.
+  res.writeHead(m.status, { "content-type": "application/json", "content-length": String(body.length), "x-content-type-options": "nosniff", "content-security-policy": "sandbox" });
   res.end(body);
 };
 const streamed = (req: IncomingMessage, path: string) => {

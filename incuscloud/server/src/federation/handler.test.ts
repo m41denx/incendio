@@ -98,7 +98,7 @@ const call = async (as: Actor | null, path: string, o: { method?: string; body?:
   try {
     body = JSON.parse(text);
   } catch {}
-  return { status: r.status, body, type: r.headers.get("content-type") ?? "" };
+  return { status: r.status, body, type: r.headers.get("content-type") ?? "", csp: r.headers.get("content-security-policy") };
 };
 const names = (list: Array<{ name: string }>) => list.map((x) => x.name).sort();
 
@@ -112,6 +112,8 @@ test("anonymous callers see an untrusted server and nothing else", async () => {
 test("the server is one federated cluster: extensions every cluster has, no single cluster's config", async () => {
   const s = await call(admin, "/1.0");
   expect(s.body.metadata).toMatchObject({ auth: "trusted", api_extensions: ["a", "c"], environment: { server_clustered: true } });
+  // Merged, like relayed answers, never run as a page on the platform's origin.
+  expect(s.csp).toBe("sandbox");
   // No one cluster's config: only what the console itself sets.
   expect(Object.keys(s.body.metadata.config)).toEqual(["user.ui.image_servers"]);
 });
