@@ -1,5 +1,5 @@
 import { expect, test, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import Section from "./Section";
 
@@ -23,9 +23,15 @@ test("a detail-page section is Incendio's overview row: small heading on the lef
 
 test("a link ending in #<id> scrolls to the section; another hash does not", () => {
   const scroll = vi.fn();
+  const jsdom = Element.prototype.scrollIntoView;
   Element.prototype.scrollIntoView = scroll;
-  at("/instances/x#other");
-  expect(scroll).not.toHaveBeenCalled();
-  at("/instances/x#general");
-  expect(scroll).toHaveBeenCalledWith({ block: "start" });
+  try {
+    at("/instances/x#other");
+    expect(scroll).not.toHaveBeenCalled();
+    cleanup();
+    at("/instances/x#general");
+    expect(scroll).toHaveBeenCalledWith({ block: "start" });
+  } finally {
+    Element.prototype.scrollIntoView = jsdom;
+  }
 });

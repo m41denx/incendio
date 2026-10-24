@@ -5,7 +5,7 @@ import type { Db } from "../db/index.ts";
 import { clusters, instanceLeases, instances, jobs, placements, tenants, type LeasePolicy } from "../db/schema.ts";
 import type { JobContext } from "../jobs/types.ts";
 import { stubCluster, type StubInstance } from "../test/stub-cluster.ts";
-import { dropTenantLeases, extendLease, leaseHandler, leaseOf, putLease, scheduleLeases, setLease, tenantLeases, type LeasePayload } from "./leases.ts";
+import { dropTenantLeases, extendLease, leaseHandler, leaseOf, putLease, renameLease, scheduleLeases, setLease, tenantLeases, type LeasePayload } from "./leases.ts";
 
 const DAY = 86400_000;
 const STOP: LeasePolicy = { days: 30, action: "stop", extendDays: 7, maxExtensions: 2 };
@@ -88,6 +88,15 @@ test("extending: from the later of now and the end, as often as the policy allow
   await setLease(db, key("web"), acme, null);
   await expect(extendLease(db, key("web"), { ...STOP, maxExtensions: 9 })).rejects.toThrow("never ends");
   await expect(extendLease(db, key("gone"), STOP)).rejects.toThrow("no lease");
+});
+
+test("setting a lease makes it the given tenant's, and the writers take only the key from an inventory row", async () => {
+  await setLease(db, key("web"), acme, new Date("2027-01-01T00:00:00Z"));
+  // The project went to another tenant since; the platform sets the end again.
+  const row = { ...key("web"), id: "row", createdAt: null };
+  expect(await setLease(db, row, globex, null)).toMatchObject({ tenantId: globex, expiresAt: null });
+  await renameLease(db, key("web"), { ...key("web2"), createdAt: null } as ReturnType<typeof key>);
+  expect(await leaseOf(db, key("web2"))).toMatchObject({ tenantId: globex });
 });
 
 test("a moved instance keeps its lease within its tenant, not into another tenant's project", async () => {

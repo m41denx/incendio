@@ -102,6 +102,9 @@ test("the region Incus signs its uploads for: an AWS endpoint's own, else us-eas
     "https://bk.s3.ap-south-1.amazonaws.com:443": "ap-south-1",
     "https://s3.dualstack.us-west-2.amazonaws.com": "us-west-2",
     "https://bk.s3-us-east-2.amazonaws.com": "us-east-2",
+    "https://user:pw@s3.eu-north-1.amazonaws.com/path": "eu-north-1",
+    // Incus compares the host as written, so a host in capitals isn't AWS to it.
+    "https://S3.EU-CENTRAL-1.AMAZONAWS.COM": "us-east-1",
     "http://garage:3900": "us-east-1",
     "https://minio.example": "us-east-1",
     "not a url": "us-east-1",

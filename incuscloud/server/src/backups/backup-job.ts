@@ -263,12 +263,14 @@ export async function scheduleBackups(db: Db): Promise<void> {
  */
 export function incusUploadRegion(endpoint: string): string {
   const fallback = "us-east-1";
-  let host: string;
   try {
-    host = new URL(endpoint).hostname;
+    new URL(endpoint);
   } catch {
     return fallback;
   }
+  // As written: Go's url.Parse keeps the host's case and Incus compares it case-sensitively, while
+  // URL.hostname lowercases it.
+  const host = (/^[^:]+:\/\/(?:[^@/?#]*@)?([^/?#]*)/.exec(endpoint)?.[1] ?? "").replace(/:\d*$/, "");
   if (!host.endsWith(".amazonaws.com")) return fallback;
   const parts = host.slice(0, -".amazonaws.com".length).split(".");
   const at = parts.findIndex((p) => p === "s3" || p.startsWith("s3-"));

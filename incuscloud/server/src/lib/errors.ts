@@ -1,3 +1,4 @@
+import { DrizzleQueryError } from "drizzle-orm/errors";
 import { Elysia } from "elysia";
 import { log } from "./log.ts";
 
@@ -32,18 +33,17 @@ export const errorHandling = new Elysia({ name: "error-handling" }).onError({ as
       return errorBody("invalid_request", "Malformed request body");
     default:
       set.status = 500;
-      log.error("unhandled error", { method: request.method, path: new URL(request.url).pathname, ...describe(error) });
+      log.error("unhandled error", { method: request.method, path: new URL(request.url).pathname, ...logFields(error) });
       return errorBody("internal", "Internal error");
   }
 });
 
 /**
  * An unexpected error for the log. A failed query's own message carries its parameters (secrets,
- * possibly), so only the database's answer is kept.
+ * possibly), so it is logged as its statement and the database's answer.
  */
-export function describe(error: unknown): { error: string; message: string } {
-  const e = error as { name?: string; message?: string; cause?: { message?: string } } | undefined;
-  const name = e?.name ?? typeof error;
-  if (name === "DrizzleQueryError") return { error: name, message: e?.cause?.message ?? "query failed" };
-  return { error: name, message: e?.message ?? String(error) };
+export function logFields(error: unknown): { error: string; message: string; query?: string } {
+  if (error instanceof DrizzleQueryError) return { error: "DrizzleQueryError", message: error.cause?.message ?? "query failed", query: error.query };
+  const e = error as { name?: string; message?: string } | undefined;
+  return { error: e?.name ?? typeof error, message: e?.message ?? String(error) };
 }

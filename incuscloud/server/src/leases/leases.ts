@@ -18,6 +18,8 @@ import type { InstanceKey } from "../acl/owners.ts";
 
 export type Lease = typeof instanceLeases.$inferSelect;
 const DAY_MS = 86400_000;
+// The key alone: callers may pass inventory rows, whose other columns (createdAt) are not the lease's.
+const keyOf = ({ clusterId, project, name }: InstanceKey): InstanceKey => ({ clusterId, project, name });
 const at = (k: InstanceKey) => and(eq(instanceLeases.clusterId, k.clusterId), eq(instanceLeases.project, k.project), eq(instanceLeases.name, k.name));
 
 export async function leaseOf(db: Db, k: InstanceKey): Promise<Lease | undefined> {
@@ -26,7 +28,7 @@ export async function leaseOf(db: Db, k: InstanceKey): Promise<Lease | undefined
 }
 
 export async function renameLease(db: Db, from: InstanceKey, to: InstanceKey): Promise<void> {
-  await db.update(instanceLeases).set(to).where(at(from));
+  await db.update(instanceLeases).set(keyOf(to)).where(at(from));
 }
 
 export async function forgetLease(db: Db, k: InstanceKey): Promise<void> {
@@ -43,7 +45,7 @@ export async function putLease(db: Db, to: InstanceKey, lease: Lease): Promise<v
   const { clusterId: _c, project: _p, name: _n, ...rest } = lease;
   await db.transaction(async (tx) => {
     await tx.delete(instanceLeases).where(at(to));
-    await tx.insert(instanceLeases).values({ ...to, ...rest });
+    await tx.insert(instanceLeases).values({ ...rest, ...keyOf(to) });
   });
 }
 
@@ -76,14 +78,12 @@ export async function extendLease(db: Db, k: InstanceKey, policy: LeasePolicy): 
   return r;
 }
 
-/** Sets the end outright (null: never), as the platform may. */
+/** Sets the end outright (null: never), as the platform may; the lease is the instance's tenant's from then on. */
 export async function setLease(db: Db, k: InstanceKey, tenantId: string, expiresAt: Date | null): Promise<Lease> {
-  // The key alone: callers pass inventory rows, whose other columns (createdAt) are not the lease's.
-  const { clusterId, project, name } = k;
   const [r] = await db
     .insert(instanceLeases)
-    .values({ clusterId, project, name, tenantId, expiresAt })
-    .onConflictDoUpdate({ target: [instanceLeases.clusterId, instanceLeases.project, instanceLeases.name], set: { expiresAt, actedAt: null } })
+    .values({ ...keyOf(k), tenantId, expiresAt })
+    .onConflictDoUpdate({ target: [instanceLeases.clusterId, instanceLeases.project, instanceLeases.name], set: { tenantId, expiresAt, actedAt: null } })
     .returning();
   return r!;
 }
