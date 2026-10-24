@@ -83,9 +83,23 @@ jobs:
           sed -i "s#ghcr.io/m41denx/incuscloud:latest#${{ steps.v.outputs.image }}:$v#" "$b/setup.sh"
           rm -f "$b/.gitignore" "$b/docker-compose.build.yml"
           tar -C dist -czf "dist/incuscloud-compose-$v.tar.gz" "incuscloud-compose-$v"
-          # A versionless copy, so releases/latest/download/incuscloud-compose.tar.gz always works.
-          cp "dist/incuscloud-compose-$v.tar.gz" dist/incuscloud-compose.tar.gz
           (cd dist && sha256sum *.tgz *.tar.gz > SHA256SUMS)
+          # This version's section of incuscloud/CHANGELOG.md, then where to get it.
+          awk -v ver="## $v" '
+            $0 == ver { f = 1; print; next }
+            f && /^## [0-9]/ { exit }
+            f { print }
+          ' incuscloud/CHANGELOG.md > NOTES.md
+          [ -s NOTES.md ] || printf '## %s\n' "$v" > NOTES.md
+          cat >> NOTES.md <<EOF
+
+          ### Get it
+          - Image: \`${{ steps.v.outputs.image }}:$v\`
+          - Chart: \`helm install incuscloud ${{ steps.v.outputs.charts }}/incuscloud --version $v\`
+          - Docker Compose: \`incuscloud-compose-$v.tar.gz\`
+
+          Installation: [INSTALL.md](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/incuscloud/docs/INSTALL.md)
+          EOF
 
       - name: Push the chart
         if: steps.v.outputs.push == 'true'
@@ -106,12 +120,9 @@ jobs:
         with:
           name: IncusCloud ${{ steps.v.outputs.version }}
           prerelease: ${{ contains(steps.v.outputs.version, '-') }}
-          body: |
-            Image: `${{ steps.v.outputs.image }}:${{ steps.v.outputs.version }}`
-            Chart: `helm install incuscloud ${{ steps.v.outputs.charts }}/incuscloud --version ${{ steps.v.outputs.version }}`
-            Docker Compose: `incuscloud-compose-${{ steps.v.outputs.version }}.tar.gz`
-
-            Installation: [INSTALL.md](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/incuscloud/docs/INSTALL.md)
+          body_path: NOTES.md
+          # Keep the UI release as the repository's "Latest".
+          make_latest: false
           files: |
             dist/*.tgz
             dist/*.tar.gz

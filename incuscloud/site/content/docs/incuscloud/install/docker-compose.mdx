@@ -15,9 +15,9 @@ first.
 From a release:
 
 ```bash
-curl -fsSLO \
-  https://github.com/m41denx/incendio/releases/latest/download/incuscloud-compose.tar.gz
-tar xzf incuscloud-compose.tar.gz && cd incuscloud-compose-*
+V=0.1.0   # the release: github.com/m41denx/incendio/releases (tags incuscloud-v*)
+curl -fsSLO https://github.com/m41denx/incendio/releases/download/incuscloud-v$V/incuscloud-compose-$V.tar.gz
+tar xzf incuscloud-compose-$V.tar.gz && cd incuscloud-compose-$V
 ```
 
 Or from the repository:
