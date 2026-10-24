@@ -1,4 +1,5 @@
 import { Link } from "fumapress/client";
+import { InstallButton } from "./install-button";
 import { Logo } from "./logo";
 
 const links = [
@@ -26,12 +27,7 @@ export const Navbar = () => (
             {l.label}
           </Link>
         ))}
-        <Link
-          href="/docs/incuscloud/install/docker-compose"
-          className="ml-1 rounded-full bg-fd-primary px-4 py-2 text-sm font-medium text-fd-primary-foreground transition-opacity hover:opacity-85"
-        >
-          Install
-        </Link>
+        <InstallButton />
       </nav>
     </div>
   </header>

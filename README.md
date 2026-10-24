@@ -146,7 +146,7 @@ The **Kubernetes** menu is under **Clustering**, so your Incus server must be cl
 A few things to know:
 
 - The cluster's API address is on your Incus network. Use the kubeconfig from the Incus host or a machine that can reach that network.
-- Clusters don't come with an external load balancer for your apps: Kubernetes services of type `LoadBalancer` stay pending until you add one (for example MetalLB). `NodePort` services work out of the box.
+- Kubernetes services of type `LoadBalancer` need MetalLB: tick **Install MetalLB** when you create a cluster, or add it later from the cluster page. Incendio suggests a free address range on the cluster's Incus network. It needs Kubernetes agent 0.3.0 or newer. `NodePort` services work out of the box.
 
 # Contributing
 
