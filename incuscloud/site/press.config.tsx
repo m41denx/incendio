@@ -51,7 +51,7 @@ const config = defineConfig({
   },
   site: {
     name: "IncusCloud",
-    baseUrl: import.meta.env.DEV ? "http://localhost:3003" : "https://incuscloud.hyprr.space",
+    baseUrl: import.meta.env.DEV ? "http://localhost:3003" : "https://incuscloud.m41den.dev",
   },
   meta: {
     root() {

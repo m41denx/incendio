@@ -39,7 +39,8 @@ project and warns for one vCPU (`mobility/preflight.ts`, `dropsBootState`). Allo
 for tenants is not an option: it lets them set `raw.qemu`.
 
 **Fix (upstream):** exempt Incus's own `volatile.*` keys, at least `volatile.vm.boot_state`, from the
-restriction check on migration. To report to lxc/incus.
+restriction check on migration. Reported as lxc/incus#4244, to be fixed in Incus 7.6; the
+pre-flight can then let 7.6 targets through.
 
 ### Incus's own S3 backup upload can't be given a region
 
@@ -57,7 +58,8 @@ upload: Garage answers `AuthorizationHeaderMalformed: ... unexpected scope:
 upload is refused with the reason (`backups/backup-job.ts`). Or set the store's region to
 `us-east-1`.
 
-**Fix (upstream):** a `region` field on `api.BackupTarget`. To request from lxc/incus.
+**Fix (upstream):** a `region` field on `api.BackupTarget`. Reported as lxc/incus#4245, to be fixed in
+Incus 7.6; IncusCloud can then pass the target's region and stop relaying.
 
 ## Fixed in IncusCloud
 
