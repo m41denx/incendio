@@ -1,0 +1,75 @@
+name: IncusCloud tests
+
+# Type-checks and tests IncusCloud's server and web console on pull requests
+# that touch them or the workspace packages they build on (the console
+# compiles against packages/ui's sources).
+on:
+  pull_request:
+    paths:
+      - "incuscloud/server/**"
+      - "incuscloud/web/**"
+      - "packages/**"
+      - "package.json"
+      - "bun.lock"
+      - ".github/workflows/incuscloud-test.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  server:
+    name: Server
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.2"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # The server imports @incendio/api from its build.
+      - name: Build @incendio/api
+        working-directory: packages/api
+        run: bun run build
+
+      - name: Lint (tsc)
+        working-directory: incuscloud/server
+        run: bun run lint
+
+      - name: Tests
+        working-directory: incuscloud/server
+        run: bun test
+
+  web:
+    name: Web console
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: incuscloud/web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.2"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Type check
+        run: bun run typecheck
+
+      - name: Tests
+        run: bun run test

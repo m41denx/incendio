@@ -24,6 +24,7 @@
     "zod": "4.6.5"
   },
   "devDependencies": {
+    "@openfga/syntax-transformer": "0.2.2",
     "@types/bun": "^1.4.2",
     "@types/ws": "8.18.1",
     "drizzle-kit": "0.31.11",
